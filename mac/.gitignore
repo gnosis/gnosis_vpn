@@ -1,0 +1,11 @@
+# Build output
+build/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Signing artifacts
+*.p12
