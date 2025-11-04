@@ -65,7 +65,7 @@ log_error() {
 
 # Usage help message
 usage() {
-    echo "Usage: $0 --package-version <version> --cli-version <version> --app-version <version> [--sign --binary-certificate-path <path> --installer-certificate-path <path> --apple-id <apple_id> --apple-password <app_password> --apple-team-id <team_id>]"
+    echo "Usage: $0 --package-version <version> --cli-version <version> --app-version <version> [--sign --binary-certificate-path <path> --installer-certificate-path <path> --apple-id <apple_id> --apple-team-id <team_id>]"
     echo
     echo "Options:"
     echo "  --package-version <version>  Set the package version (e.g., 1.0.0)"
@@ -75,7 +75,6 @@ usage() {
     echo "  --binary-certificate-path <path>  Set the path to the certificate for signing binaries (if signing is enabled)"
     echo "  --installer-certificate-path <path>  Set the path to the certificate for signing the installer (if signing is enabled)"
     echo "  --apple-id <apple_id>     Set the Apple ID for notarization (if signing is enabled)"
-    echo "  --apple-password <app_password>  Set the Apple ID app-specific password for notarization (if signing is enabled)"
     echo "  --apple-team-id <team_id> Set the Apple Team ID for notarization (if signing is enabled)"
     echo "  -h, --help                Show this help message"
     exit 1
@@ -174,14 +173,6 @@ parse_args() {
             fi
             shift 2
             ;;
-        --apple-password)
-            GNOSISVPN_APPLE_PASSWORD="${2:-}"
-            if [[ -z $GNOSISVPN_APPLE_PASSWORD ]]; then
-                log_error "'--apple-password <app_password>' requires a value"
-                usage
-            fi
-            shift 2
-            ;;
         -h | --help)
             usage
             ;;
@@ -219,11 +210,6 @@ parse_args() {
             usage
         fi
 
-        if [[ -z $GNOSISVPN_APPLE_PASSWORD ]]; then
-            log_error "'--apple-password <app_password>' is required or environment variable GNOSISVPN_APPLE_PASSWORD must be set"
-            usage
-        fi
-
         if [[ -z $GNOSISVPN_APPLE_TEAM_ID ]]; then
             log_error "'--apple-team-id <team_id>' is required or environment variable GNOSISVPN_APPLE_TEAM_ID must be set"
             usage
@@ -254,6 +240,11 @@ parse_env_vars() {
                 log_error "Password for $GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH certificate is incorrect or certificate file is invalid"
                 exit 1
             fi
+        fi
+
+        if [[ -z ${GNOSISVPN_APPLE_PASSWORD:-} ]]; then
+            log_error "Apple ID app-specific password not set in GNOSISVPN_APPLE_PASSWORD environment variable"
+            exit 1
         fi
     fi
     log_success "Environment variables validated successfully"

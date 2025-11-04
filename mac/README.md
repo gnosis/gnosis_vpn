@@ -95,12 +95,23 @@ mac/
 3. **Build a signed installer for distribution:**
    ```bash
    export GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH="path/to/developer/certificate.p12"
+   export GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD="YourDeveloperCertificatePassword"
    export GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH="path/to/installer/certificate.p12"
+   export GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD="YourInstallerCertificatePassword"
    export GNOSISVPN_APPLE_ID="your@email.com"
    export GNOSISVPN_APPLE_PASSWORD="Your Apple specific password"
    export GNOSISVPN_APPLE_TEAM_ID="ABC123XYZ"
    ./build-package.sh --sign
    ```
+
+   Alternatively you can execute passing them as parameters:
+   ```bash
+   export GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD="YourDeveloperCertificatePassword"
+   export GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD="YourInstallerCertificatePassword"
+   export GNOSISVPN_APPLE_PASSWORD="Your Apple specific password"
+   ./build-package.sh --sign --binary-certificate-path gnosisvpn-developer.p12 --installer-certificate-path gnosisvpn-installer.p12 --apple-id your@email.com --apple-team-id ABC123XYZ 
+   ```
+
 
 ## Incremental Updates
 
