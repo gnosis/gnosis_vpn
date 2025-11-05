@@ -47,11 +47,13 @@ jobs:
           fi
           if [[ "${{ inputs.client_version }}" == "latest" ]]; then
             export GNOSISVPN_CLI_VERSION=$(gh release view --repo gnosis/gnosis_vpn-client --json tagName --jq .tagName)
+            export GNOSISVPN_CLI_VERSION="${GNOSISVPN_CLI_VERSION#v}"
           else
             export GNOSISVPN_CLI_VERSION="${{ inputs.client_version }}"
           fi
           if [[ "${{ inputs.app_version }}" == "latest" ]]; then
-            export GNOSISVPN_APP_VERSION=$(gh release view --repo hoprnet/gnosis_vpn-app --json tagName --jq .tagName)
+            export GNOSISVPN_APP_VERSION=$(gh release view --repo gnosis/gnosis_vpn-app --json tagName --jq .tagName)
+            export GNOSISVPN_APP_VERSION="${GNOSISVPN_APP_VERSION#v}"
           else
             export GNOSISVPN_APP_VERSION="${{ inputs.app_version }}"
           fi

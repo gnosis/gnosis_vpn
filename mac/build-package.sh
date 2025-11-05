@@ -253,7 +253,7 @@ parse_env_vars() {
 # Validate version syntax
 check_version_syntax() {
     local version="$1"
-    # Matches: v1.2.3, 1.2.3, 1.2.3+pr.123, 1.2.3+commit.abcdef, latest
+    # Matches: 1.2.3, 1.2.3+pr.123, 1.2.3+commit.abcdef, latest
     local semver_regex='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\+(pr|commit)(\.[0-9A-Za-z-]+)*)?$'
     if [[ ! $version =~ $semver_regex && $version != "latest" ]]; then
         log_error "Invalid version format: $version"
