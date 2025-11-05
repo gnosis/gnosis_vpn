@@ -35,15 +35,16 @@ jobs:
         uses: actions/checkout@v5
       - name: Create mac installer package
         run: |
+          set -x
           cd mac
-          if [ "${{ inputs.public_release }}" = true ]; then
-            GNOSISVPN_PACKAGE_VERSION=$(cat LATEST)
+          if [ "${{ inputs.public_release }}" == true ]; then
+            export GNOSISVPN_PACKAGE_VERSION=$(cat LATEST)
           fi
           if [[ "${{ inputs.client_version }}" != "latest" ]]; then
-            GNOSISVPN_CLI_VERSION="${{ inputs.client_version }}"
+            export GNOSISVPN_CLI_VERSION="${{ inputs.client_version }}"
           fi
           if [[ "${{ inputs.app_version }}" != "latest" ]]; then
-            GNOSISVPN_APP_VERSION="${{ inputs.app_version }}"
+            export GNOSISVPN_APP_VERSION="${{ inputs.app_version }}"
           fi
           if [[ "${{ inputs.sign }}" = true ]]; then
             echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER }}" | base64 --decode > gnosisvpn-developer.p12
