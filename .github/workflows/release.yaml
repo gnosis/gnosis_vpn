@@ -82,8 +82,8 @@ jobs:
           release_version=$(cat LATEST)
           cat > release_notes.txt <<EOF
           Release v${release_version} of GnosisVPN.
-          - Client version: ${{ steps.package.outputs.GNOSISVPN_CLI_VERSION }}
-          - App version: ${{ steps.package.outputs.GNOSISVPN_APP_VERSION }}
+          - Client version: v${{ steps.package.outputs.GNOSISVPN_CLI_VERSION }}
+          - App version: v${{ steps.package.outputs.GNOSISVPN_APP_VERSION }}
           EOF
           gh release create v${release_version} --title "GnosisVPN v${release_version}" --notes-file release_notes.txt
           rm release_notes.txt
