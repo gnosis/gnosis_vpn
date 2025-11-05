@@ -71,10 +71,13 @@ jobs:
         if: inputs.public_release
         run: |
           release_version=$(cat LATEST)
-          gh release create v${release_version} --title "GnosisVPN v${release_version}" --notes "\
-            Public release v${release_version} of GnosisVPN.\n\n\
-            - Client version: ${{ inputs.client_version }}\n\
-            - App version: ${{ inputs.app_version }}\n"
+          cat > release_notes.txt <<EOF
+          Release v${release_version} of GnosisVPN.
+          - Client version: ${client_version}
+          - App version: ${app_version}
+          EOF
+          gh release create v${release_version} --title "GnosisVPN v${release_version}" --notes-file release_notes.txt
+          rm release_notes.txt
           echo "Preparing binaries for upload"
           gh release upload v${release_version} "./binaries/GnosisVPN-Installer.pkg" --clobber
           gh release upload v${release_version} "./binaries/GnosisVPN-Installer.pkg.sha256" --clobber
@@ -103,7 +106,7 @@ jobs:
           message: "Bump to version ${{ steps.bump.outputs.bump_version }}"
           pathspec_error_handling: exitImmediately
       - name: Upload artifacts
-        if: inputs.public_release != 'true'
+        if: ! inputs.public_release
         uses: actions/upload-artifact@v5
         with:
           name: GnosisVPN-Installer.pkg
