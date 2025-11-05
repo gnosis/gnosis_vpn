@@ -1,0 +1,102 @@
+name: Close release
+on:
+  workflow_dispatch:
+    inputs:
+      public_release:
+        description: "Is this a public release?"
+        required: true
+        type: boolean
+        default: false
+      client_version:
+        description: "Client Version"
+        required: true
+        type: string
+        default: "latest"
+      app_version:
+        description: "App Version"
+        required: true
+        type: string
+        default: "latest"
+      sign:
+        description: "Sign the release"
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  close-release:
+    runs-on: aarch64-darwin
+    name: Close release
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Create mac installer package
+        run: |
+          cd mac
+          if [ "${{ inputs.public_release }}" = true ]; then
+            GNOSISVPN_PACKAGE_VERSION=$(cat LATEST)
+          fi
+          if [[ "${{ inputs.client_version }}" != "latest" ]]; then
+            GNOSISVPN_CLI_VERSION="${{ inputs.client_version }}"
+          fi
+          if [[ "${{ inputs.app_version }}" != "latest" ]]; then
+            GNOSISVPN_APP_VERSION="${{ inputs.app_version }}"
+          fi
+          if [[ "${{ inputs.sign }}" = true ]]; then
+            echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER }}" | base64 --decode > gnosisvpn-developer.p12
+            echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_INSTALLER }}" | base64 --decode > gnosisvpn-installer.p12
+            SIGNING_PARAMETERS="--sign --binary-certificate-path gnosisvpn-developer.p12 --installer-certificate-path gnosisvpn-installer.p12"
+          fi
+          ./build-package.sh  $SIGNING_PARAMETERS
+          mkdir -p "$PWD/binaries"
+          cp ./build/GnosisVPN-Installer-*-signed.pkg "$PWD/binaries/GnosisVPN-Installer.pkg"
+          cp ./build/GnosisVPN-Installer-*-signed.pkg.sha256 "$PWD/binaries/GnosisVPN-Installer.pkg.sha256"
+        env:
+          GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD }}
+          GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD }}
+          GNOSISVPN_APPLE_ID: ${{ secrets.GNOSISVPN_APPLE_ID }}
+          GNOSISVPN_APPLE_TEAM_ID: ${{ secrets.GNOSISVPN_APPLE_TEAM_ID }}
+          GNOSISVPN_APPLE_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_PASSWORD }}
+      - name: Create release
+        if: inputs.public_release == 'true'
+        run: |
+          release_version=$(cat LATEST)
+          gh release create v${release_version} --title "GnosisVPN v${release_version}" --notes "\
+            Public release v${release_version} of GnosisVPN.\n\n\
+            - Client version: ${{ inputs.client_version }}\n\
+            - App version: ${{ inputs.app_version }}\n"
+          echo "Preparing binaries for upload"
+          gh release upload v${release_version} "$PWD/binaries/GnosisVPN-Installer.pkg" --clobber
+          gh release upload v${release_version} "$PWD/binaries/GnosisVPN-Installer.pkg.sha256" --clobber
+          echo "Release v${release_version} created and binaries uploaded"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Bump Version
+        id: bump
+        if: inputs.public_release == 'true'
+        shell: bash
+        run: |
+          current_version=$(cat LATEST)
+          # Extract parts without IFS or read
+          IFS='.' read -r major_version minor_version patch_version <<< "${current_version}"
+          patch_version=$((patch_version+1))
+          bump_version="${major_version}.${minor_version}.${patch_version}"
+          echo "Updating version from $current_version to $bump_version"
+          echo "$bump_version" > LATEST
+          echo "bump_version=$bump_version" >> $GITHUB_OUTPUT
+      - uses: EndBug/add-and-commit@v9
+        if: inputs.public_release == 'true'
+        with:
+          add: '["LATEST" ]'
+          new_branch: main
+          message: "Bump to version ${{ steps.bump.outputs.bump_version }}"
+          pathspec_error_handling: exitImmediately
+      - name: Upload artifacts
+        if: inputs.public_release != 'true'
+        uses: actions/upload-artifact@v5
+        with:
+          name: GnosisVPN-Installer.pkg
+          path: $PWD/binaries/GnosisVPN-Installer.pkg
