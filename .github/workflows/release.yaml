@@ -41,7 +41,6 @@ jobs:
       - name: Create mac installer package
         run: |
           set -x
-          cd mac
           if [ "${{ inputs.public_release }}" == true ]; then
             export GNOSISVPN_PACKAGE_VERSION=$(cat LATEST)
           fi
@@ -51,6 +50,7 @@ jobs:
           if [[ "${{ inputs.app_version }}" != "latest" ]]; then
             export GNOSISVPN_APP_VERSION="${{ inputs.app_version }}"
           fi
+          cd mac
           if [[ "${{ inputs.sign }}" = true ]]; then
             echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER }}" | base64 --decode > gnosisvpn-developer.p12
             echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_INSTALLER }}" | base64 --decode > gnosisvpn-installer.p12
@@ -68,7 +68,7 @@ jobs:
           GNOSISVPN_APPLE_TEAM_ID: ${{ secrets.GNOSISVPN_APPLE_TEAM_ID }}
           GNOSISVPN_APPLE_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_PASSWORD }}
       - name: Create release
-        if: inputs.public_release == 'true'
+        if: inputs.public_release
         run: |
           release_version=$(cat LATEST)
           gh release create v${release_version} --title "GnosisVPN v${release_version}" --notes "\
@@ -83,7 +83,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
       - name: Bump Version
         id: bump
-        if: inputs.public_release == 'true'
+        if: inputs.public_release
         shell: bash
         run: |
           current_version=$(cat LATEST)
@@ -94,8 +94,9 @@ jobs:
           echo "Updating version from $current_version to $bump_version"
           echo "$bump_version" > LATEST
           echo "bump_version=$bump_version" >> $GITHUB_OUTPUT
-      - uses: EndBug/add-and-commit@v9
-        if: inputs.public_release == 'true'
+      - name: Commit bumped version
+        uses: EndBug/add-and-commit@v9
+        if: inputs.public_release
         with:
           add: '["LATEST" ]'
           new_branch: main
