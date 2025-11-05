@@ -546,6 +546,11 @@ setup_user_permissions() {
         log_info "Management script permissions updated: ${BIN_DIR}/gnosis-vpn-manager"
     fi
 
+    # add current user to the gnosisvpn group to allow interactions with binaries without privilige escalation
+    CURRENT_USER=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }')
+    log_info "Current user detected: $CURRENT_USER"
+    dseditgroup -o edit -a "$CURRENT_USER" -t user gnosisvpn
+
     # Create and set permissions for runtime directory
     local runtime_dir="/var/run/gnosis_vpn"
     mkdir -p "$runtime_dir"
