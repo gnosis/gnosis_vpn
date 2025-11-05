@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   close-release:
-    runs-on: aarch64-darwin
+    runs-on: macos-15
     name: Close release
     steps:
       - name: Checkout repository
