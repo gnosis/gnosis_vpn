@@ -18,7 +18,7 @@ on:
         type: string
         default: "latest"
       sign:
-        description: "Sign the release"
+        description: "Sign the package"
         required: true
         type: boolean
         default: true
@@ -55,6 +55,7 @@ jobs:
           cp ./build/GnosisVPN-Installer-*-signed.pkg "$PWD/binaries/GnosisVPN-Installer.pkg"
           cp ./build/GnosisVPN-Installer-*-signed.pkg.sha256 "$PWD/binaries/GnosisVPN-Installer.pkg.sha256"
         env:
+          GH_TOKEN: ${{ github.token }}
           GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD }}
           GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD }}
           GNOSISVPN_APPLE_ID: ${{ secrets.GNOSISVPN_APPLE_ID }}
