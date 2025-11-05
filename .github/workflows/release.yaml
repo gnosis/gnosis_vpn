@@ -57,9 +57,9 @@ jobs:
             SIGNING_PARAMETERS="--sign --binary-certificate-path gnosisvpn-developer.p12 --installer-certificate-path gnosisvpn-installer.p12"
           fi
           ./build-package.sh  $SIGNING_PARAMETERS
-          mkdir -p "$PWD/binaries"
-          cp ./build/GnosisVPN-Installer-*-signed.pkg "$PWD/binaries/GnosisVPN-Installer.pkg"
-          cp ./build/GnosisVPN-Installer-*-signed.pkg.sha256 "$PWD/binaries/GnosisVPN-Installer.pkg.sha256"
+          mkdir -p "../binaries"
+          cp ./build/GnosisVPN-Installer-*-signed.pkg "../binaries/GnosisVPN-Installer.pkg"
+          cp ./build/GnosisVPN-Installer-*-signed.pkg.sha256 "../binaries/GnosisVPN-Installer.pkg.sha256"
         env:
           GH_TOKEN: ${{ github.token }}
           GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD }}
@@ -76,8 +76,8 @@ jobs:
             - Client version: ${{ inputs.client_version }}\n\
             - App version: ${{ inputs.app_version }}\n"
           echo "Preparing binaries for upload"
-          gh release upload v${release_version} "$PWD/binaries/GnosisVPN-Installer.pkg" --clobber
-          gh release upload v${release_version} "$PWD/binaries/GnosisVPN-Installer.pkg.sha256" --clobber
+          gh release upload v${release_version} "./binaries/GnosisVPN-Installer.pkg" --clobber
+          gh release upload v${release_version} "./binaries/GnosisVPN-Installer.pkg.sha256" --clobber
           echo "Release v${release_version} created and binaries uploaded"
         env:
           GH_TOKEN: ${{ github.token }}
@@ -106,4 +106,4 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: GnosisVPN-Installer.pkg
-          path: $PWD/binaries/GnosisVPN-Installer.pkg
+          path: ./binaries/GnosisVPN-Installer.pkg
