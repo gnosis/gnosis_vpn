@@ -39,17 +39,24 @@ jobs:
           google-credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
           install-sdk: "true"
       - name: Create mac installer package
+        id: package
         run: |
           set -x
           if [ "${{ inputs.public_release }}" == true ]; then
             export GNOSISVPN_PACKAGE_VERSION=$(cat LATEST)
           fi
-          if [[ "${{ inputs.client_version }}" != "latest" ]]; then
+          if [[ "${{ inputs.client_version }}" == "latest" ]]; then
+            export GNOSISVPN_CLI_VERSION=$(gh release view --repo gnosis/gnosis_vpn-client --json tagName --jq .tagName)
+          else
             export GNOSISVPN_CLI_VERSION="${{ inputs.client_version }}"
           fi
-          if [[ "${{ inputs.app_version }}" != "latest" ]]; then
+          if [[ "${{ inputs.app_version }}" == "latest" ]]; then
+            export GNOSISVPN_APP_VERSION=$(gh release view --repo hoprnet/gnosis_vpn-app --json tagName --jq .tagName)
+          else
             export GNOSISVPN_APP_VERSION="${{ inputs.app_version }}"
           fi
+          echo "GNOSISVPN_CLI_VERSION=${GNOSISVPN_CLI_VERSION}" | tee -a $GITHUB_OUTPUT
+          echo "GNOSISVPN_APP_VERSION=${GNOSISVPN_APP_VERSION}" | tee -a $GITHUB_OUTPUT
           cd mac
           if [[ "${{ inputs.sign }}" = true ]]; then
             echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER }}" | base64 --decode > gnosisvpn-developer.p12
@@ -73,8 +80,8 @@ jobs:
           release_version=$(cat LATEST)
           cat > release_notes.txt <<EOF
           Release v${release_version} of GnosisVPN.
-          - Client version: ${client_version}
-          - App version: ${app_version}
+          - Client version: ${{ steps.package.outputs.GNOSISVPN_CLI_VERSION }}
+          - App version: ${{ steps.package.outputs.GNOSISVPN_APP_VERSION }}
           EOF
           gh release create v${release_version} --title "GnosisVPN v${release_version}" --notes-file release_notes.txt
           rm release_notes.txt
