@@ -534,7 +534,7 @@ setup_user_permissions() {
     fi
     
     if [[ -f "${BIN_DIR}/gnosis_vpn-ctl" ]]; then
-        chown root:$groupname "${BIN_DIR}/gnosis_vpn-ctl"
+        chown $username:wheel "${BIN_DIR}/gnosis_vpn-ctl"
         chmod 750 "${BIN_DIR}/gnosis_vpn-ctl"
         log_info "CLI binary permissions updated: ${BIN_DIR}/gnosis_vpn-ctl"
     fi
