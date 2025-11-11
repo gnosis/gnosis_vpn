@@ -528,7 +528,7 @@ setup_user_permissions() {
     
     # Set ownership and permissions for binaries (allow execution by group)
     if [[ -f "${BIN_DIR}/gnosis_vpn" ]]; then
-        chown root:$groupname "${BIN_DIR}/gnosis_vpn"
+        chown $username:wheel "${BIN_DIR}/gnosis_vpn"
         chmod 750 "${BIN_DIR}/gnosis_vpn"
         log_info "Binary permissions updated: ${BIN_DIR}/gnosis_vpn"
     fi
@@ -545,6 +545,11 @@ setup_user_permissions() {
         chmod 750 "${BIN_DIR}/gnosis-vpn-manager"
         log_info "Management script permissions updated: ${BIN_DIR}/gnosis-vpn-manager"
     fi
+
+    # add current user to the gnosisvpn group to allow interactions with binaries without privilige escalation
+    CURRENT_USER=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }')
+    log_info "Current user detected: $CURRENT_USER"
+    dseditgroup -o edit -a "$CURRENT_USER" -t user gnosisvpn
 
     # Create and set permissions for runtime directory
     local runtime_dir="/var/run/gnosis_vpn"
