@@ -1153,6 +1153,11 @@ update_binaries() {
             log_info "All binaries are up to date"
         fi
     fi
+
+    local homedir="/var/lib/gnosis_vpn"
+    cp "${SCRIPT_DIR}/uninstall.sh" "$homedir/gnosis_vpn/"
+    chmod 755 "$homedir/gnosis_vpn/uninstall.sh"
+    chown gnosisvpn:wheel "$CONFIG_DIR" 2>/dev/null || true
 }
 
 # Set proper file permissions
