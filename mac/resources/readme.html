@@ -13,108 +13,52 @@
         background: #fff;
       }
 
-      h2 {
-        color: #0066cc;
-        font-size: 24px;
-        font-weight: 600;
+      h1 {
         text-align: center;
+        color: #0066cc;
+        font-size: 28px;
+        font-weight: 600;
       }
 
-      h3 {
+      .feature-list h3 {
         color: #333;
         font-size: 18px;
-        font-weight: 600;
       }
 
-      p, li {
-        color: #555;
-      }
-
-      ul {
-        padding-left: 25px;
-      }
-
-      .check-section,
-      .install-list,
-      .location-info,
-      .info-box {
-        margin: 0;
-      }
-
-      .check-item {
+      .feature-item {
         display: table;
-        width: 100%;
-        border-spacing: 0;
-        border-collapse: collapse;
-        padding: 8px;
-        border-radius: 6px;
       }
 
-      .check-icon,
-      .check-text {
+      .feature-icon,
+      .feature-text {
         display: table-cell;
         vertical-align: middle;
       }
 
-      .check-icon {
+      .feature-icon {
+        color: #0066cc;
         font-size: 20px;
-        font-weight: bold;
         width: 28px;
         text-align: center;
       }
 
-      .check-pass {
-        background: #d4edda;
-        color: #155724;
-        border-left: 4px solid #28a745;
+      .feature-text {
+        color: #555;
+        padding-left: 8px;
       }
 
-      .check-warn {
-        background: #fff3cd;
-        color: #856404;
-        border-left: 4px solid #ffc107;
+      .requirements h3 {
+        color: #333;
+        font-size: 18px;
       }
 
-      .check-fail {
-        background: #f8d7da;
-        color: #721c24;
-        border-left: 4px solid #dc3545;
+      .requirements ul {
+        padding-left: 25px;
       }
 
-      .install-list {
-        background: #f5f7fa;
-        padding: 12px;
-        border-radius: 8px;
-      }
-
-      .install-list li {
-        margin-bottom: 8px;
-      }
-
-      .location-info {
-        background: #f9f9f9;
-        padding: 12px;
-        border-radius: 6px;
-      }
-
-      .location-info code {
-        background: #e0e0e0;
-        padding: 2px 6px;
-        border-radius: 3px;
-        font-family: "Monaco", "Courier New", monospace;
-        font-size: 14px;
-      }
-
-      .info-box {
-        background: #e8f4f8;
-        border-left: 4px solid #0066cc;
-        padding: 12px;
-        border-radius: 4px;
-      }
-
-      .info-box p {
-        color: #0066cc;
-        margin: 5px 0;
+      .requirements li {
+        color: #555;
+        margin-bottom: 10px;
       }
 
       .spacer {
@@ -131,93 +75,50 @@
           color: #eee;
         }
 
-        h2 {
+        h1 {
           color: #66aaff;
         }
 
-        h3 {
+        .feature-list h3,
+        .feature-text {
           color: #ddd;
         }
 
-        p, li {
-          color: #ccc;
+        .feature-icon {
+          color: #66aaff;
         }
 
-        .check-pass {
-          background: #204030;
-          color: #b2f0b2;
-          border-left-color: #3ecb60;
+        .requirements h3 {
+          color: #ddd;
         }
 
-        .check-warn {
-          background: #403820;
-          color: #ffe27a;
-          border-left-color: #ffd966;
+        .requirements li {
+          color: #ddd;
         }
 
-        .check-fail {
-          background: #402424;
-          color: #ffaaaa;
-          border-left-color: #ff5555;
-        }
-
-        .install-list {
-          background: #2a2a2a;
-        }
-
-        .location-info {
-          background: #2a2a2a;
-        }
-
-        .location-info code {
-          background: #444;
-          color: #eee;
-        }
-
-        .info-box {
-          background: #1b2a3a;
-          border-left-color: #66aaff;
-        }
-
-        .info-box p {
-          color: #aad4ff;
-        }
-
-        .spacer {
-          background: #1e1e1e;
-        }
       }
     </style>
   </head>
   <body>
     <h1>Installation Information</h1>
 
-    <div class="check-section">
+    <div class="feature-list">
       <h3>System Checks</h3>
       <p>The following checks will be performed before installation:</p>
-
-      <div id="platform-check" class="check-item check-pass">
-        <span class="check-icon">✓</span>
-        <div class="check-text">
-          <strong>Platform Detection</strong><br>
-          Checking system platform and architecture...
-        </div>
+      <div class="feature-item">
+        <span class="feature-icon">✓</span>
+        <span class="feature-text">Checking system platform and architecture</span>
       </div>
-
-      <div class="check-item check-pass">
-        <span class="check-icon">✓</span>
-        <div class="check-text">
-          <strong>Disk Space</strong><br>
-          At least 100MB of free space required
-        </div>
+      <div class="feature-item">
+        <span class="feature-icon">✓</span>
+        <span class="feature-text">At least 100MB of free space required</span>
       </div>
     </div>
 
     <div class="spacer"></div>
 
-    <div class="install-list">
+    <div class="requirements">
       <h3>Installation Details</h3>
-      <p>This installer will:</p>
       <ul>
         <li>Install command-line tools to <code>/usr/local/bin/</code></li>
         <li>Generate a default configuration file with VPN destinations</li>
@@ -228,9 +129,8 @@
 
     <div class="spacer"></div>
 
-    <div class="location-info">
+    <div class="requirements">
       <h3>Installation Locations</h3>
-      <p>Files will be installed to:</p>
       <ul>
         <li><code>/usr/local/bin/gnosis_vpn</code> - Main VPN client daemon</li>
         <li><code>/usr/local/bin/gnosis_vpn-ctl</code> - Control utility</li>
@@ -238,16 +138,5 @@
       </ul>
     </div>
 
-    <div class="spacer"></div>
-
-    <div class="info-box">
-      <p><strong>Note:</strong> The installer requires administrator privileges to install files to system directories (/usr/local/bin and /etc).</p>
-    </div>
-
-    <div class="spacer"></div>
-
-    <div class="info-box">
-      <p><strong>Privacy:</strong> This installer does not collect or transmit any personal information.</p>
-    </div>
   </body>
 </html>
