@@ -164,4 +164,4 @@ jobs:
             I'm thrilled to inform a new `gnosis_vpn` snapshot version ${{ steps.package.outputs.GNOSISVPN_PACKAGE_VERSION }} has been released.
             - Client version: v${{ steps.package.outputs.GNOSISVPN_CLI_VERSION }}
             - App version: v${{ steps.package.outputs.GNOSISVPN_APP_VERSION }}
-            You can download the installer package from the [Github Workflow](${{ github.run_url }}).
+            You can download the installer package from the [Github Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
