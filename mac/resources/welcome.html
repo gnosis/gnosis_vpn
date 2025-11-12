@@ -11,6 +11,7 @@
         margin: 20px;
         line-height: 1.6;
         color: #333;
+        background: #fff;
       }
 
       .logo {
@@ -77,7 +78,7 @@
         margin-bottom: 15px;
       }
 
-      /* --- FLEX-FREE FEATURE LIST --- */
+      /* FLEX-FREE FEATURE LIST */
       .feature-item {
         display: table;
         margin: 10px 0;
@@ -99,6 +100,49 @@
       .feature-text {
         color: #555;
         padding-left: 8px;
+      }
+
+      /* --- DARK MODE SUPPORT --- */
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #1e1e1e;
+          color: #eee;
+        }
+
+        h1 {
+          color: #66aaff;
+        }
+
+        .intro {
+          color: #ccc;
+        }
+
+        .feature-list h3,
+        .feature-text {
+          color: #ddd;
+        }
+
+        .feature-icon {
+          color: #66aaff;
+        }
+
+        .requirements {
+          background: #2a2a2a;
+          border-left-color: #66aaff;
+        }
+
+        .requirements h3 {
+          color: #66aaff;
+        }
+
+        .requirements li {
+          color: #ccc;
+        }
+
+        .install-time {
+          background: #003366;
+          color: #cde4ff;
+        }
       }
     </style>
   </head>
@@ -139,3 +183,4 @@
     </div>
   </body>
 </html>
+
