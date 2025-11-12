@@ -109,7 +109,7 @@ mac/
    export GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD="YourDeveloperCertificatePassword"
    export GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD="YourInstallerCertificatePassword"
    export GNOSISVPN_APPLE_PASSWORD="Your Apple specific password"
-   ./build-package.sh --sign --binary-certificate-path gnosisvpn-developer.p12 --installer-certificate-path gnosisvpn-installer.p12 --apple-id your@email.com --apple-team-id ABC123XYZ 
+   ./build-package.sh --sign --binary-certificate-path gnosisvpn-developer.p12 --installer-certificate-path gnosisvpn-installer.p12 --apple-id your@email.com --apple-team-id ABC123XYZ
    ```
 
 
@@ -214,7 +214,7 @@ The installer uses a consolidated configuration directory structure:
 resources/config/
 ├── templates/          # Network configuration templates
 │   ├── rotsee.toml.template    # Production network
-│   └── dufour.toml.template    # Development network  
+│   └── dufour.toml.template    # Development network
 └── system/            # System service configurations
     └── org.gnosis.vpn.plist    # LaunchD service definition
 ```
@@ -233,7 +233,7 @@ After installation, files are located at:
 - **Binaries**: `/usr/local/bin/`
   - `gnosis_vpn` - Main VPN daemon
   - `gnosis_vpn-ctl` - Control utility
-- **Application**: `/Applications/GnosisVPN.app`
+- **Application**: `/Applications/Gnosis VPN.app`
 - **Configuration**: `/etc/gnosisvpn/config.toml`
 
 ## Customization
@@ -339,7 +339,7 @@ Edit `Distribution.xml` to change:
   cat /tmp/test.sha256
   ```
 
-**"GnosisVPN.app not found"**
+**"Gnosis VPN.app not found"**
 
 - The app may not be available for all platforms
 - The installer will still complete successfully with just the command-line
