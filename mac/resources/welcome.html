@@ -30,19 +30,6 @@
         color: #555;
       }
 
-      .requirements h3 {
-        color: #333;
-        font-size: 18px;
-      }
-
-      .requirements ul {
-        padding-left: 25px;
-      }
-
-      .requirements li {
-        color: #555;
-      }
-
       .feature-list h3 {
         color: #333;
         font-size: 18px;
@@ -70,6 +57,27 @@
         padding-left: 8px;
       }
 
+      .requirements h3 {
+        color: #333;
+        font-size: 18px;
+      }
+
+      .requirements ul {
+        padding-left: 25px;
+      }
+
+      .requirements li {
+        color: #555;
+      }
+
+      /* spacer visible in all modes */
+      .spacer {
+        display: block;
+        height: 20px;
+        line-height: 0;
+        font-size: 0;
+      }
+
       /* --- DARK MODE SUPPORT --- */
       @media (prefers-color-scheme: dark) {
         body {
@@ -94,25 +102,17 @@
           color: #66aaff;
         }
 
-        .requirements {
-        }
-
         .requirements h3 {
           color: #ddd;
         }
 
         .requirements li {
           color: #ddd;
-          margin-bottom: 10px;
         }
 
         .spacer {
-          display: block;
-          height: 20px;
-          line-height: 0;
-          font-size: 0;
+          background: #1e1e1e; /* ensure it doesn’t create a light stripe */
         }
-
       }
     </style>
   </head>
@@ -141,6 +141,7 @@
     </div>
 
     <div class="spacer"></div>
+
     <div class="requirements">
       <h3>System Requirements:</h3>
       <ul>
@@ -148,7 +149,5 @@
         <li>Approximately 100MB of available disk space</li>
       </ul>
     </div>
-
   </body>
 </html>
-
