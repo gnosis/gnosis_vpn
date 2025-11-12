@@ -277,9 +277,9 @@ remove_ui_app() {
 
     local removed=0
     local ui_app_paths=(
+        "/Applications/Gnosis VPN.app"
+        # keep for backwards compatibility
         "/Applications/gnosis_vpn-app.app"
-        "/Applications/GnosisVPN.app"
-        "/usr/local/share/gnosisvpn/gnosis_vpn-app.app"
     )
 
     for app_path in "${ui_app_paths[@]}"; do
