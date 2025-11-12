@@ -873,7 +873,7 @@ main() {
     print_banner
     check_prerequisites
     prepare_build_dir
-    download_binaries
+    # download_binaries
     copy_scripts
     build_component_package
     build_distribution_package
