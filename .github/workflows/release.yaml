@@ -146,10 +146,10 @@ jobs:
           to: "GnosisVPN"
           topic: "Releases"
           content: |
-            I'm thrilled to inform the new `gnosis_vpn` version v${{ steps.bump.outputs.current_version }} has been released.
+            I'm thrilled to inform the new `gnosis_vpn` official version `v${{ steps.bump.outputs.current_version }}` has been released.
             - Client version: v${{ steps.package.outputs.GNOSISVPN_CLI_VERSION }}
             - App version: v${{ steps.package.outputs.GNOSISVPN_APP_VERSION }}
-            [Release Notes](https://github.com/gnosis/gnosis_vpn/releases/tag/v${{ steps.bump.outputs.current_version }})
+            [Release Notes](${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ steps.bump.outputs.current_version }})
       - name: Notify snapshot
         if: github.event_name == 'repository_dispatch'
         uses: zulip/github-actions-zulip/send-message@e4c8f27c732ba9bd98ac6be0583096dea82feea5 # v1.0.2
