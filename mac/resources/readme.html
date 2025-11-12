@@ -1,45 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Installation Information</title>
     <style>
       body {
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           "Helvetica Neue", Arial, sans-serif;
-        margin: 20px;
-        line-height: 1.6;
+        line-height: 1.3;
         color: #333;
+        background: #fff;
       }
 
       h2 {
         color: #0066cc;
         font-size: 24px;
-        margin-bottom: 20px;
         font-weight: 600;
+        text-align: center;
       }
 
       h3 {
         color: #333;
         font-size: 18px;
-        margin-top: 25px;
-        margin-bottom: 15px;
         font-weight: 600;
       }
 
-      .check-section {
-        margin: 25px 0;
+      p, li {
+        color: #555;
+      }
+
+      ul {
+        padding-left: 25px;
+      }
+
+      .check-section,
+      .install-list,
+      .location-info,
+      .info-box {
+        margin: 0;
       }
 
       .check-item {
-        padding: 15px;
-        margin: 10px 0;
+        display: table;
+        width: 100%;
+        border-spacing: 0;
+        border-collapse: collapse;
+        padding: 8px;
         border-radius: 6px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
+      }
+
+      .check-icon,
+      .check-text {
+        display: table-cell;
+        vertical-align: middle;
+      }
+
+      .check-icon {
+        font-size: 20px;
+        font-weight: bold;
+        width: 28px;
+        text-align: center;
       }
 
       .check-pass {
@@ -60,47 +81,20 @@
         border-left: 4px solid #dc3545;
       }
 
-      .check-icon {
-        font-size: 20px;
-        font-weight: bold;
-        min-width: 24px;
-      }
-
       .install-list {
         background: #f5f7fa;
-        padding: 20px;
+        padding: 12px;
         border-radius: 8px;
-        margin: 20px 0;
-      }
-
-      .install-list ul {
-        margin: 10px 0;
-        padding-left: 25px;
       }
 
       .install-list li {
-        margin: 8px 0;
-        color: #555;
-      }
-
-      .info-box {
-        background: #e8f4f8;
-        border-left: 4px solid #0066cc;
-        padding: 15px;
-        margin: 20px 0;
-        border-radius: 4px;
-      }
-
-      .info-box p {
-        margin: 5px 0;
-        color: #0066cc;
+        margin-bottom: 8px;
       }
 
       .location-info {
         background: #f9f9f9;
-        padding: 15px;
+        padding: 12px;
         border-radius: 6px;
-        margin: 15px 0;
       }
 
       .location-info code {
@@ -110,10 +104,93 @@
         font-family: "Monaco", "Courier New", monospace;
         font-size: 14px;
       }
+
+      .info-box {
+        background: #e8f4f8;
+        border-left: 4px solid #0066cc;
+        padding: 12px;
+        border-radius: 4px;
+      }
+
+      .info-box p {
+        color: #0066cc;
+        margin: 5px 0;
+      }
+
+      .spacer {
+        display: block;
+        height: 20px;
+        line-height: 0;
+        font-size: 0;
+      }
+
+      /* --- DARK MODE SUPPORT --- */
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #1e1e1e;
+          color: #eee;
+        }
+
+        h2 {
+          color: #66aaff;
+        }
+
+        h3 {
+          color: #ddd;
+        }
+
+        p, li {
+          color: #ccc;
+        }
+
+        .check-pass {
+          background: #204030;
+          color: #b2f0b2;
+          border-left-color: #3ecb60;
+        }
+
+        .check-warn {
+          background: #403820;
+          color: #ffe27a;
+          border-left-color: #ffd966;
+        }
+
+        .check-fail {
+          background: #402424;
+          color: #ffaaaa;
+          border-left-color: #ff5555;
+        }
+
+        .install-list {
+          background: #2a2a2a;
+        }
+
+        .location-info {
+          background: #2a2a2a;
+        }
+
+        .location-info code {
+          background: #444;
+          color: #eee;
+        }
+
+        .info-box {
+          background: #1b2a3a;
+          border-left-color: #66aaff;
+        }
+
+        .info-box p {
+          color: #aad4ff;
+        }
+
+        .spacer {
+          background: #1e1e1e;
+        }
+      }
     </style>
   </head>
   <body>
-    <h2>Installation Information</h2>
+    <h1>Installation Information</h1>
 
     <div class="check-section">
       <h3>System Checks</h3>
@@ -121,22 +198,22 @@
 
       <div id="platform-check" class="check-item check-pass">
         <span class="check-icon">✓</span>
-        <div>
+        <div class="check-text">
           <strong>Platform Detection</strong><br>
-          <span id="platform-details"
-          >Checking system platform and architecture...</span>
+          Checking system platform and architecture...
         </div>
       </div>
 
-      <div id="diskspace-check" class="check-item check-pass">
+      <div class="check-item check-pass">
         <span class="check-icon">✓</span>
-        <div>
+        <div class="check-text">
           <strong>Disk Space</strong><br>
-          <span id="diskspace-details"
-          >At least 50MB of free space required</span>
+          At least 100MB of free space required
         </div>
       </div>
     </div>
+
+    <div class="spacer"></div>
 
     <div class="install-list">
       <h3>Installation Details</h3>
@@ -149,6 +226,8 @@
       </ul>
     </div>
 
+    <div class="spacer"></div>
+
     <div class="location-info">
       <h3>Installation Locations</h3>
       <p>Files will be installed to:</p>
@@ -159,18 +238,16 @@
       </ul>
     </div>
 
-    <div class="info-box">
-      <p>
-        <strong>Note:</strong> The installer requires administrator privileges
-        to install files to system directories (/usr/local/bin and /etc).
-      </p>
-    </div>
+    <div class="spacer"></div>
 
     <div class="info-box">
-      <p>
-        <strong>Privacy:</strong> This installer does not collect or transmit
-        any personal information.
-      </p>
+      <p><strong>Note:</strong> The installer requires administrator privileges to install files to system directories (/usr/local/bin and /etc).</p>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="info-box">
+      <p><strong>Privacy:</strong> This installer does not collect or transmit any personal information.</p>
     </div>
   </body>
 </html>
