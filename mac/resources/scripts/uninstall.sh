@@ -124,6 +124,12 @@ remove_system_user() {
             log_info "Removing database directory: $database_dir"
             rm -rf "$database_dir"
         fi
+        
+        # # Do not remove the homedir, because it stores identities!
+        # if [[ -n $homedir ]] && [[ -d $homedir ]]; then
+        #     log_info "Removing user home directory: $homedir"
+        #     rm -rf "$homedir"     
+        # fi
     else
         log_info "No system user '$username' found"
     fi
