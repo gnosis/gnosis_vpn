@@ -58,10 +58,9 @@ mac/
 ### Prerequisites
 
 - macOS 11.0 or later
-- Xcode Command Line Tools installed:
-  ```bash
-  xcode-select --install
-  ```
+- Xcode Command Line Tools installed: `$ xcode-select --install`
+- [Github CLI tools](https://cli.github.com) installed
+- [Gcloud SDK](https://cloud.google.com/sdk/docs/install) installed
 - (Optional) Apple certificates and passwords for building and installer
 
 ### Build Steps

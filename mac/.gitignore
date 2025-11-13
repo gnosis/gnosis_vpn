@@ -9,3 +9,4 @@ build/
 
 # Signing artifacts
 *.p12
+*.swp
