@@ -585,6 +585,12 @@ copy_scripts() {
         chmod +x "${BUILD_DIR}/scripts/postinstall"
         log_success "Copied postinstall script"
     fi
+
+    if [[ -f "$RESOURCES_DIR/scripts/uninstall.sh" ]]; then
+        cp "$RESOURCES_DIR/scripts/uninstall.sh" "${BUILD_DIR}/scripts/"
+        chmod +x "${BUILD_DIR}/scripts/uninstall.sh"
+        log_success "Copied uninstall.sh script"
+    fi
 }
 
 # Build component package
