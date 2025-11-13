@@ -116,11 +116,11 @@ remove_system_user() {
         dscl . -delete "/Users/$username"
         log_success "Removed system user: $username"
 
-        # Remove home directory if it exists
-        if [[ -n $homedir ]] && [[ -d $homedir ]]; then
-            log_info "Removing user home directory: $homedir"
-            # rm -rf "$homedir"     # do not remove the homedir, because it stores identities
-        fi
+        # # Do not remove the homedir, because it stores identities!
+        # if [[ -n $homedir ]] && [[ -d $homedir ]]; then
+        #     log_info "Removing user home directory: $homedir"
+        #     rm -rf "$homedir"     
+        # fi
     else
         log_info "No system user '$username' found"
     fi
