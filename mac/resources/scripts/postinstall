@@ -1333,8 +1333,10 @@ install_wg_tooling() {
     chown gnosisvpn "$homedir/wg-quick-wrapper.sh"
     pushd "$homedir" || return 1
     rm -rf homebrew
+    log_info "Running brew install script"
     sudo -H -u gnosisvpn ./brewinstall.sh
     popd
+    log_success "Successfully installed wireguard tooling"
 }
 
 # Validate service environment requirements
