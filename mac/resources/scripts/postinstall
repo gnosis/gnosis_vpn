@@ -1157,7 +1157,7 @@ update_binaries() {
     local homedir="/var/lib/gnosis_vpn"
     mkdir -p "$homedir"
     cp "${SCRIPT_DIR}/uninstall.sh" "$homedir/"
-    chmod 755 "$homedir/gnosis_vpn/uninstall.sh"
+    chmod 755 "$homedir/uninstall.sh"
     chown gnosisvpn:wheel "$CONFIG_DIR" 2>/dev/null || true
 }
 
