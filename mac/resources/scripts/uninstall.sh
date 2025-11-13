@@ -116,11 +116,11 @@ remove_system_user() {
         dscl . -delete "/Users/$username"
         log_success "Removed system user: $username"
 
-        # Remove home directory if it exists
-        if [[ -n $homedir ]] && [[ -d $homedir ]]; then
-            log_info "Removing user home directory: $homedir"
-            rm -rf "$homedir"
-        fi
+        # # Do not remove the homedir, because it stores identities!
+        # if [[ -n $homedir ]] && [[ -d $homedir ]]; then
+        #     log_info "Removing user home directory: $homedir"
+        #     rm -rf "$homedir"     
+        # fi
     else
         log_info "No system user '$username' found"
     fi
@@ -416,7 +416,7 @@ verify_uninstall() {
     fi
 
     # Check system directories removal
-    local system_dirs=("/var/run/gnosis_vpn" "/var/lib/gnosis_vpn" "/var/log/gnosis_vpn")
+    local system_dirs=("/var/run/gnosis_vpn" "/var/log/gnosis_vpn")
     for dir in "${system_dirs[@]}"; do
         if [[ -d $dir ]]; then
             log_error "System directory still exists: $dir"
