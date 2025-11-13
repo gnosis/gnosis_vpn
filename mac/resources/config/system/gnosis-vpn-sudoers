@@ -12,3 +12,7 @@
 
 # Allow gnosisvpn group members to check service status
 %gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl list org.gnosis.vpn
+
+# Allow gnosisvpn group members to run wg-quick which needs wide ranged permissions
+# NOTE: will be removed as soon as we get rid of wg-quick helper script
+%gnosisvpn ALL=(root) NOPASSWD: ALL
