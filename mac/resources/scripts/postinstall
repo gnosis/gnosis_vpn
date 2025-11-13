@@ -30,8 +30,6 @@ setup_logging "postinstall"
 # Parameter validation and defaults
 PACKAGE_PATH="${1:-}"
 TARGET_VOLUME="${2:-/}"
-MOUNTPOINT="${3:-/}"
-ROOT_DIR="${4:-/}"
 
 # Path joining function to avoid double slashes
 join_path() {
@@ -54,7 +52,6 @@ fi
 CONFIG_DIR="$(join_path "$TARGET_VOLUME" "/etc/gnosisvpn")"
 CONFIG_FILE="${CONFIG_DIR}/config.toml"
 VERSION_FILE="${CONFIG_DIR}/version.txt"
-TEMPLATE_DIR_BUNDLE="${SCRIPT_DIR}/../config/templates"
 TEMPLATE_DIR_INSTALLED="${CONFIG_DIR}/templates"
 BIN_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/bin")"
 NETWORK="${INSTALLER_CHOICE_NETWORK:-rotsee}"
@@ -1098,21 +1095,6 @@ update_binaries() {
             log_success "Installed gnosis_vpn-ctl"
         fi
 
-        # Install wg
-        if [[ -f "${2}/usr/local/bin/wg" ]]; then
-            cp "${2}/usr/local/bin/wg" "$BIN_DIR/wg"
-            chmod 755 "$BIN_DIR/wg"
-            chown root:wheel "$BIN_DIR/wg" 2>/dev/null || true
-            log_success "Installed wg"
-        fi
-
-        # Install wg-quick
-        if [[ -f "${2}/usr/local/bin/wg-quick" ]]; then
-            cp "${2}/usr/local/bin/wg-quick" "$BIN_DIR/wg-quick"
-            chmod 755 "$BIN_DIR/wg-quick"
-            chown root:wheel "$BIN_DIR/wg-quick" 2>/dev/null || true
-            log_success "Installed wg-quick"
-        fi
     else
         # For updates, check each binary individually
         log_info "Update installation: Checking which binaries need updates..."
@@ -1129,20 +1111,6 @@ update_binaries() {
         # Update gnosis_vpn-ctl if needed
         if [[ -f "${2}/usr/local/bin/gnosis_vpn-ctl" ]]; then
             if update_binary_if_needed "gnosis_vpn-ctl" "${2}/usr/local/bin/gnosis_vpn-ctl"; then
-                updates_made=$((updates_made + 1))
-            fi
-        fi
-
-        # Update gnosis_vpn-ctl if needed
-        if [[ -f "${2}/usr/local/bin/wg" ]]; then
-            if update_binary_if_needed "wg" "${2}/usr/local/bin/wg"; then
-                updates_made=$((updates_made + 1))
-            fi
-        fi
-
-        # Update gnosis_vpn-ctl if needed
-        if [[ -f "${2}/usr/local/bin/wg-quick" ]]; then
-            if update_binary_if_needed "wg-quick" "${2}/usr/local/bin/wg-quick"; then
                 updates_made=$((updates_made + 1))
             fi
         fi
@@ -1353,6 +1321,22 @@ install_ui_application() {
     fi
 }
 
+install_wg_tooling() {
+    log_info "Installing brew in userspace as a wg-quick dependency..."
+    local homedir="/var/lib/gnosis_vpn"
+    mkdir -p "$homedir"
+    cp "${SCRIPT_DIR}/brewinstall.sh" "$homedir/"
+    cp "${SCRIPT_DIR}/wg-quick-wrapper.sh" "$homedir/"
+    chmod 755 "$homedir/brewinstall.sh"
+    chmod 755 "$homedir/wg-quick-wrapper.sh"
+    chown gnosisvpn "$homedir/brewinstall.sh"
+    chown gnosisvpn "$homedir/wg-quick-wrapper.sh"
+    pushd "$homedir" || return 1
+    rm -rf homebrew
+    sudo -H -u gnosisvpn ./brewinstall.sh
+    popd
+}
+
 # Validate service environment requirements
 validate_service_environment() {
     log_info "Validating service environment..."
@@ -1492,6 +1476,9 @@ main() {
 
     # Install UI application
     install_ui_application
+
+    # Install wireguard tools
+    install_wg_tooling
 
     # Clean up old backup files
     cleanup_old_backups

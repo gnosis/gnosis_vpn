@@ -567,30 +567,24 @@ download_binaries() {
 copy_scripts() {
     log_info "Copying installation scripts..."
 
-    # Copy logging library (required by all scripts)
-    if [[ -f "$RESOURCES_DIR/scripts/logging.sh" ]]; then
-        cp "$RESOURCES_DIR/scripts/logging.sh" "${BUILD_DIR}/scripts/"
-        log_success "Copied logging library"
-    fi
+    cp "$RESOURCES_DIR/scripts/logging.sh" "${BUILD_DIR}/scripts/"
+    log_success "Copied logging library"
 
-    # Preinstall is now a minimal no-op (optional WireGuard check only)
-    if [[ -f "$RESOURCES_DIR/scripts/preinstall" ]]; then
-        cp "$RESOURCES_DIR/scripts/preinstall" "${BUILD_DIR}/scripts/"
-        chmod +x "${BUILD_DIR}/scripts/preinstall"
-        log_success "Copied preinstall script"
-    fi
+    cp "$RESOURCES_DIR/scripts/preinstall" "${BUILD_DIR}/scripts/"
+    chmod +x "${BUILD_DIR}/scripts/preinstall"
+    log_success "Copied preinstall script"
 
-    if [[ -f "$RESOURCES_DIR/scripts/postinstall" ]]; then
-        cp "$RESOURCES_DIR/scripts/postinstall" "${BUILD_DIR}/scripts/"
-        chmod +x "${BUILD_DIR}/scripts/postinstall"
-        log_success "Copied postinstall script"
-    fi
+    cp "$RESOURCES_DIR/scripts/postinstall" "${BUILD_DIR}/scripts/"
+    chmod +x "${BUILD_DIR}/scripts/postinstall"
+    log_success "Copied postinstall script"
 
-    if [[ -f "$RESOURCES_DIR/scripts/uninstall.sh" ]]; then
-        cp "$RESOURCES_DIR/scripts/uninstall.sh" "${BUILD_DIR}/scripts/"
-        chmod +x "${BUILD_DIR}/scripts/uninstall.sh"
-        log_success "Copied uninstall.sh script"
-    fi
+    cp "$RESOURCES_DIR/scripts/uninstall.sh" "${BUILD_DIR}/scripts/"
+    chmod +x "${BUILD_DIR}/scripts/uninstall.sh"
+    log_success "Copied uninstall.sh script"
+
+    cp "$RESOURCES_DIR/scripts/brewinstall.sh" "${BUILD_DIR}/scripts/"
+    cp "$RESOURCES_DIR/scripts/wg-quick-wrapper.sh" "${BUILD_DIR}/scripts/"
+    log_success "Copied scripts"
 }
 
 # Build component package
