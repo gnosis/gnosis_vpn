@@ -572,6 +572,14 @@ setup_user_permissions() {
     chmod 755 "$hopr_support_dir"
     log_info "HOPR application support directory created: $hopr_support_dir"
 
+    log_info "Adjusting permissions for Libary folders"
+    local homedir="/var/lib/gnosis_vpn"
+    pushd "$homedir" >/dev/null 2>&1 || return 1
+    mkdir -p Library/Caches/
+    mkdir -p Library/Application\ Support/
+    chown -R gnosisvpn Library
+    popd >/dev/null 2>&1 || return 1
+
     log_success "User permissions configured successfully"
 }
 
