@@ -91,7 +91,7 @@ jobs:
           GNOSISVPN_APPLE_TEAM_ID: ${{ secrets.GNOSISVPN_APPLE_TEAM_ID }}
           GNOSISVPN_APPLE_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_PASSWORD }}
       - name: Create release
-        if: inputs.public_release == 'true'
+        if: inputs.public_release
         run: |
           release_version=$(cat LATEST)
           cat > release_notes.txt <<EOF
@@ -109,7 +109,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
       - name: Bump Version
         id: bump
-        if: inputs.public_release == 'true'
+        if: inputs.public_release
         shell: bash
         run: |
           current_version=$(cat LATEST)
@@ -123,20 +123,20 @@ jobs:
           echo "current_version=$current_version" >> $GITHUB_OUTPUT
       - name: Commit bumped version
         uses: EndBug/add-and-commit@v9
-        if: inputs.public_release == 'true'
+        if: inputs.public_release
         with:
           add: '["LATEST" ]'
           new_branch: main
           message: "Bump to version ${{ steps.bump.outputs.bump_version }}"
           pathspec_error_handling: exitImmediately
       - name: Upload artifacts
-        if: inputs.public_release != 'true'
+        if: ${{ !inputs.public_release }}
         uses: actions/upload-artifact@v5
         with:
           name: GnosisVPN-Installer.pkg
           path: ./binaries/GnosisVPN-Installer.pkg
       - name: Notify release
-        if: inputs.public_release == 'true'
+        if: inputs.public_release
         uses: zulip/github-actions-zulip/send-message@e4c8f27c732ba9bd98ac6be0583096dea82feea5 # v1.0.2
         with:
           api-key: ${{ secrets.ZULIP_API_KEY }}
