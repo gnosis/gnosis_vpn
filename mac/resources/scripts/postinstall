@@ -1333,6 +1333,9 @@ install_wg_tooling() {
     chown gnosisvpn "$homedir/wg-quick-wrapper.sh"
     pushd "$homedir" || return 1
     rm -rf homebrew
+    log_info "Adjusting permissions for Libary folders"
+    mkdir -p Library/Caches/
+    chown -R gnosisvpn Library
     log_info "Running brew install script"
     sudo -H -u gnosisvpn ./brewinstall.sh
     popd

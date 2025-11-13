@@ -5,7 +5,6 @@ homedir="/var/lib/gnosis_vpn"
 pushd "$homedir" || exit 1
 rm -rf homebrew
 
-mkdir -p Library/Caches/
 mkdir homebrew && curl -L https://github.com/Homebrew/brew/tarball/main | tar xz --strip-components 1 -C homebrew
 eval "$(homebrew/bin/brew shellenv)"
 brew update --force --quiet
