@@ -124,7 +124,6 @@ remove_system_user() {
             log_info "Removing database directory: $database_dir"
             rm -rf "$database_dir"
         fi
-
     else
         log_info "No system user '$username' found"
     fi
