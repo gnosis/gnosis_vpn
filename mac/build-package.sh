@@ -380,7 +380,7 @@ package_ui_app_archive() {
     work_dir=$(mktemp -d -t gnosis-ui-app.XXXXXX)
     chmod 700 "$work_dir"
 
-    local staging_app_dir="$work_dir/gnosis_vpn-app.app"
+    local staging_app_dir="$work_dir/Gnosis VPN.app"
     local success=false
 
     log_info "Packaging UI asset (type: $file_info)"
