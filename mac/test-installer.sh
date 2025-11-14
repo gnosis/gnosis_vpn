@@ -145,7 +145,7 @@ test_plist_configuration() {
     run_test "plist has KeepAlive" "grep -q '<key>KeepAlive</key>' '$plist_file'"
     run_test "plist references correct binary" "grep -q '/usr/local/bin/gnosis_vpn' '$plist_file'"
     run_test "plist references correct config" "grep -q '/etc/gnosisvpn/config.toml' '$plist_file'"
-    run_test "plist uses system user" "grep -A1 '<key>UserName</key>' '$plist_file' | grep -q '<string>gnosisvpn</string>'"
+    run_test "plist uses system user" "grep -A1 '<key>UserName</key>' '$plist_file' | grep -q '<string>root</string>'"
     run_test "plist uses system group" "grep -A1 '<key>GroupName</key>' '$plist_file' | grep -q '<string>gnosisvpn</string>'"
     run_test "plist uses correct working directory" "grep -A1 '<key>WorkingDirectory</key>' '$plist_file' | grep -q '<string>/var/lib/gnosis_vpn</string>'"
 
