@@ -463,31 +463,6 @@ configure_plist() {
         log_info "Updated config path in plist to: $config_path"
     fi
 
-    # Ensure plist uses correct user and group
-    if dscl . -read "/Users/gnosisvpn" >/dev/null 2>&1; then
-        log_info "Configuring plist to use system user 'gnosisvpn'"
-
-        # Update UserName to gnosisvpn (handles both root and gnosisvpn defaults)
-        sed -i '' '/<key>UserName<\/key>/{N;s|<string>.*</string>|<string>gnosisvpn</string>|;}' "$target_plist"
-
-        # Update GroupName to gnosisvpn (handles both wheel and gnosisvpn defaults)
-        sed -i '' '/<key>GroupName<\/key>/{N;s|<string>.*</string>|<string>gnosisvpn</string>|;}' "$target_plist"
-
-        # Update WorkingDirectory to use system user's state directory
-        sed -i '' '/<key>WorkingDirectory<\/key>/{N;s|<string>.*</string>|<string>/var/lib/gnosis_vpn</string>|;}' "$target_plist"
-
-        log_success "Plist configured to run as user 'gnosisvpn' with group 'gnosisvpn'"
-        log_info "Working directory set to: /var/lib/gnosis_vpn"
-    else
-        log_warn "System user 'gnosisvpn' not found, configuring plist to use root"
-
-        # Fallback to root if system user doesn't exist
-        sed -i '' '/<key>UserName<\/key>/{N;s|<string>.*</string>|<string>root</string>|;}' "$target_plist"
-        sed -i '' '/<key>GroupName<\/key>/{N;s|<string>.*</string>|<string>wheel</string>|;}' "$target_plist"
-
-        log_info "Plist configured to run as root user with wheel group"
-    fi
-
     # Ensure proper permissions
     chmod 644 "$target_plist"
     chown root:wheel "$target_plist" 2>/dev/null || true
