@@ -1106,6 +1106,14 @@ update_binaries() {
             log_success "Installed wg"
         fi
 
+        # Install wireguard-go
+        if [[ -f "${2}/usr/local/bin/wireguard-go" ]]; then
+            cp "${2}/usr/local/bin/wireguard-go" "$BIN_DIR/wireguard-go"
+            chmod 755 "$BIN_DIR/wireguard-go"
+            chown root:wheel "$BIN_DIR/wireguard-go" 2>/dev/null || true
+            log_success "Installed wireguard-go"
+        fi
+
         # Install wg-quick
         if [[ -f "${2}/usr/local/bin/wg-quick" ]]; then
             cp "${2}/usr/local/bin/wg-quick" "$BIN_DIR/wg-quick"
@@ -1133,14 +1141,21 @@ update_binaries() {
             fi
         fi
 
-        # Update gnosis_vpn-ctl if needed
+        # Update wg if needed
         if [[ -f "${2}/usr/local/bin/wg" ]]; then
             if update_binary_if_needed "wg" "${2}/usr/local/bin/wg"; then
                 updates_made=$((updates_made + 1))
             fi
         fi
 
-        # Update gnosis_vpn-ctl if needed
+        # Update wireguard-go if needed
+        if [[ -f "${2}/usr/local/bin/wireguard-go" ]]; then
+            if update_binary_if_needed "wireguard-go" "${2}/usr/local/bin/wireguard-go"; then
+                updates_made=$((updates_made + 1))
+            fi
+        fi
+
+        # Update wg-quick if needed
         if [[ -f "${2}/usr/local/bin/wg-quick" ]]; then
             if update_binary_if_needed "wg-quick" "${2}/usr/local/bin/wg-quick"; then
                 updates_made=$((updates_made + 1))

@@ -342,6 +342,11 @@ prepare_build_dir() {
             "$RESOURCES_DIR/artifacts/wg-x86_64-darwin" "$RESOURCES_DIR/artifacts/wg-aarch64-darwin"
         chmod 755 "${BUILD_DIR}/root/usr/local/bin/wg"
 
+        log_info "Creating universal binary for the 'wireguard-go'..."
+        lipo -create -output "${BUILD_DIR}/root/usr/local/bin/wireguard-go" \
+            "$RESOURCES_DIR/artifacts/wireguard-go-x86_64-darwin" "$RESOURCES_DIR/artifacts/wireguard-go-aarch64-darwin"
+        chmod 755 "${BUILD_DIR}/root/usr/local/bin/wireguard-go"
+
         # Signing of the wg binary by the `Developer ID Application` certificate
         if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then
             security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}"
