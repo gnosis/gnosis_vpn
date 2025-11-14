@@ -42,7 +42,7 @@
     
     <!-- User and Group -->
     <key>UserName</key>
-    <string>gnosisvpn</string>
+    <string>root</string>
     <key>GroupName</key>
     <string>gnosisvpn</string>
     
