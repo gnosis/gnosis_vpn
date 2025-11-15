@@ -347,7 +347,7 @@ prepare_build_dir() {
             "$RESOURCES_DIR/artifacts/wireguard-go-x86_64-darwin" "$RESOURCES_DIR/artifacts/wireguard-go-aarch64-darwin"
         chmod 755 "${BUILD_DIR}/root/usr/local/bin/wireguard-go"
 
-        # Signing of the wg binary by the `Developer ID Application` certificate
+        # Signing of the binaries by the `Developer ID Application` certificate
         if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then
             security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}"
             security default-keychain -s "${KEYCHAIN_NAME}"
@@ -357,9 +357,16 @@ prepare_build_dir() {
             security import "${GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH}" -k "${KEYCHAIN_NAME}" -P "${GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD}" -T /usr/bin/codesign
             security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}" 2>/dev/null >/dev/null
             CERT_ID=$(security find-identity -v -p codesigning "${KEYCHAIN_NAME}" | awk -F'"' '{print $2}' | tr -d '\n')
+
+            # sign the wg binary
             codesign --sign "${CERT_ID}" --options runtime --timestamp "${BUILD_DIR}/root/usr/local/bin/wg"
             codesign --verify --deep --strict --verbose=4 "${BUILD_DIR}/root/usr/local/bin/wg"
-            log_success "Wireguard binary signed successfully"
+            log_success "'wg' binary signed successfully"
+
+            # sign the wireguard-go binary
+            codesign --sign "${CERT_ID}" --options runtime --timestamp "${BUILD_DIR}/root/usr/local/bin/wireguard-go"
+            codesign --verify --deep --strict --verbose=4 "${BUILD_DIR}/root/usr/local/bin/wireguard-go"
+            log_success "'wireguard-go' binary signed successfully"
         fi
 
         cp "$RESOURCES_DIR/artifacts/wg-quick" "${BUILD_DIR}/root/usr/local/bin/" || true
