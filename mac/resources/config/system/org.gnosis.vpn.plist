@@ -67,6 +67,8 @@
         <string>/var/lib/gnosis_vpn</string>
         <key>RUST_LOG</key>
         <string>info</string>
+        <key>HOPR_INTERNAL_MIXER_DELAY_RANGE_IN_MS</key>
+        <string>5</string>
     </dict>
     
     <!-- Security -->
