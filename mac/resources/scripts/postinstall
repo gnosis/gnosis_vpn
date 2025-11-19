@@ -63,6 +63,7 @@ UI_STAGED_ARCHIVE="${UI_STAGING_DIR}/gnosis_vpn-app.tar.gz"
 UI_TARGET_APP="$(join_path "$TARGET_VOLUME" "/Applications/Gnosis VPN.app")"
 
 INSTALLED_LOG_DIR_PATH="/var/log/gnosis_vpn"
+INSTALLED_LIB_DIR_PATH="/var/lib/gnosis_vpn"
 
 
 # Get installer version from package (if available) or use current date
@@ -287,7 +288,7 @@ create_system_user() {
 
     local username="gnosisvpn"
     local fullname="Gnosis VPN Service"
-    local homedir="/var/lib/gnosis_vpn"
+    local homedir="$INSTALLED_LIB_DIR_PATH"
     local shell="/bin/bash"
 
     # Find next available system UID (typically 200-499 range for system users)
@@ -538,7 +539,7 @@ setup_user_permissions() {
     log_info "Runtime directory created: $runtime_dir"
 
     # Create and set permissions for state directory
-    local state_dir="/var/lib/gnosis_vpn"
+    local state_dir="$INSTALLED_LIB_DIR_PATH"
     mkdir -p "$state_dir"
     chown $username:$groupname "$state_dir"
     chmod 750 "$state_dir"
@@ -758,8 +759,8 @@ verify_plist_deployment() {
         local plist_workdir
         plist_workdir=$(grep -A1 "<key>WorkingDirectory</key>" "$plist_path" | grep "<string>" | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
 
-        if [[ "$plist_workdir" == "/var/lib/gnosis_vpn" ]]; then
-            log_success "Plist working directory correctly set to: /var/lib/gnosis_vpn"
+        if [[ "$plist_workdir" == "$INSTALLED_LIB_DIR_PATH" ]]; then
+            log_success "Plist working directory correctly set to: $INSTALLED_LIB_DIR_PATH"
         else
             log_warn "Plist working directory set to: $plist_workdir"
         fi
@@ -1147,7 +1148,7 @@ update_binaries() {
         fi
     fi
 
-    local homedir="/var/lib/gnosis_vpn"
+    local homedir="$INSTALLED_LIB_DIR_PATH"
     mkdir -p "$homedir"
     cp "${SCRIPT_DIR}/uninstall.sh" "$homedir/"
     chmod 755 "$homedir/uninstall.sh"
@@ -1355,8 +1356,8 @@ validate_service_environment() {
     # Check required directories exist with proper ownership
     local required_dirs=(
         "/var/run/gnosis_vpn:gnosisvpn:gnosisvpn:755"
-        "/var/lib/gnosis_vpn:gnosisvpn:gnosisvpn:750"
-        "/var/lib/gnosis_vpn/Library/Application Support/org.hoprnet.gnosisvpn:gnosisvpn:gnosisvpn:755"
+        "$INSTALLED_LIB_DIR_PATH:gnosisvpn:gnosisvpn:750"
+        "$INSTALLED_LIB_DIR_PATH/Library/Application Support/org.hoprnet.gnosisvpn:gnosisvpn:gnosisvpn:755"
         "$INSTALLED_LOG_DIR_PATH:gnosisvpn:gnosisvpn:755"
     )
 
