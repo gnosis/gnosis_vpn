@@ -1366,7 +1366,7 @@ validate_service_environment() {
         else
             # Check ownership
             local actual_owner
-            actual_owner=$(stat -f "%Su:%Sg" "$dir_path")
+            actual_owner=$(/usr/bin/stat -f "%Su:%Sg" "$dir_path")
             if [[ "$actual_owner" != "$expected_user:$expected_group" ]]; then
                 log_warn "Directory ownership incorrect: $dir_path (expected: $expected_user:$expected_group, actual: $actual_owner)"
             else
@@ -1374,10 +1374,14 @@ validate_service_environment() {
             fi
 
             # Check permissions
-            local actual_perms
-            actual_perms=$(stat -f "%Mp%Lp" "$dir_path")
-            if [[ "$actual_perms" != "$expected_perms" ]]; then
-                log_warn "Directory permissions incorrect: $dir_path (expected: $expected_perms, actual: $actual_perms)"
+            local actual_perms actual_perms_normalized expected_perms_normalized
+            actual_perms=$(/usr/bin/stat -f "%Mp%Lp" "$dir_path")
+            # Normalize octal values so leading zeros do not affect comparisons
+            actual_perms_normalized=$(printf "%o" $((8#$actual_perms)))
+            expected_perms_normalized=$(printf "%o" $((8#$expected_perms)))
+
+            if [[ "$actual_perms_normalized" != "$expected_perms_normalized" ]]; then
+                log_warn "Directory permissions incorrect: $dir_path (expected: $expected_perms_normalized, actual: $actual_perms_normalized)"
             else
                 log_success "✓ Directory permissions correct: $dir_path"
             fi
