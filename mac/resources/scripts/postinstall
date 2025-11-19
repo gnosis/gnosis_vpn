@@ -703,12 +703,17 @@ verify_plist_deployment() {
         log_success "Plist file exists: $plist_path"
 
         # Check permissions
-        local perms
+        local perms perms_normalized expected_plist_perms expected_plist_perms_normalized
         perms=$(stat -f "%Mp%Lp" "$plist_path")
-        if [[ "$perms" != "644" ]]; then
-            log_warn "Plist permissions are $perms, expected 644"
+        expected_plist_perms=644
+        # Normalize both values so leading zeros do not affect comparison
+        perms_normalized=$(printf "%o" $((8#$perms)))
+        expected_plist_perms_normalized=$(printf "%o" $((8#$expected_plist_perms)))
+
+        if [[ "$perms_normalized" != "$expected_plist_perms_normalized" ]]; then
+            log_warn "Plist permissions are $perms_normalized, expected $expected_plist_perms_normalized"
         else
-            log_success "Plist permissions correct: 644"
+            log_success "Plist permissions correct: $expected_plist_perms_normalized"
         fi
 
         # Check ownership
