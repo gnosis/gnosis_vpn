@@ -673,8 +673,7 @@ install_launchd_service() {
             fi
         else
             log_error "Failed to load Gnosis VPN service after $max_attempts attempts"
-            log_info "You can manually load it later with:"
-            log_info "  sudo launchctl bootstrap system $plist_path"
+            exit 1
         fi
     else
         log_error "Launchd plist file not found: $source_plist"
