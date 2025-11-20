@@ -62,6 +62,10 @@ UI_STAGING_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/share/gnosisvpn")"
 UI_STAGED_ARCHIVE="${UI_STAGING_DIR}/gnosis_vpn-app.tar.gz"
 UI_TARGET_APP="$(join_path "$TARGET_VOLUME" "/Applications/Gnosis VPN.app")"
 
+INSTALLED_LOG_DIR_PATH="/var/log/gnosis_vpn"
+INSTALLED_LIB_DIR_PATH="/var/lib/gnosis_vpn"
+
+
 # Get installer version from package (if available) or use current date
 INSTALLER_VERSION="${INSTALLER_VERSION:-$(date +%Y%m%d-%H%M%S)}"
 
@@ -284,7 +288,7 @@ create_system_user() {
 
     local username="gnosisvpn"
     local fullname="Gnosis VPN Service"
-    local homedir="/var/lib/gnosis_vpn"
+    local homedir="$INSTALLED_LIB_DIR_PATH"
     local shell="/bin/bash"
 
     # Find next available system UID (typically 200-499 range for system users)
@@ -494,12 +498,13 @@ setup_user_permissions() {
     fi
 
     # Set ownership and permissions for log directory
-    local log_dir="/var/log/gnosis_vpn"
-    if [[ -d "$log_dir" ]]; then
-        chown -R $username:$groupname "$log_dir"
-        chmod -R 755 "$log_dir"
-        log_info "Log directory permissions updated: $log_dir"
+
+    if [[ ! -d "$INSTALLED_LOG_DIR_PATH" ]]; then
+        mkdir -p "$INSTALLED_LOG_DIR_PATH"
     fi
+    chown -R $username:$groupname "$INSTALLED_LOG_DIR_PATH"
+    chmod -R 755 "$INSTALLED_LOG_DIR_PATH"
+    log_info "Log directory permissions updated: $INSTALLED_LOG_DIR_PATH"
 
     # Set ownership and permissions for binaries (allow execution by group)
     if [[ -f "${BIN_DIR}/gnosis_vpn" ]]; then
@@ -534,7 +539,7 @@ setup_user_permissions() {
     log_info "Runtime directory created: $runtime_dir"
 
     # Create and set permissions for state directory
-    local state_dir="/var/lib/gnosis_vpn"
+    local state_dir="$INSTALLED_LIB_DIR_PATH"
     mkdir -p "$state_dir"
     chown $username:$groupname "$state_dir"
     chmod 750 "$state_dir"
@@ -566,7 +571,7 @@ install_launchd_service() {
     if [[ ! -f "$source_plist" ]]; then
         source_plist="${SCRIPT_DIR}/../config/system/${plist_name}"
     fi
-    local log_dir="/var/log/gnosis_vpn"
+    local log_dir="$INSTALLED_LOG_DIR_PATH"
 
     # Create log directory
     mkdir -p "$log_dir"
@@ -669,8 +674,7 @@ install_launchd_service() {
             fi
         else
             log_error "Failed to load Gnosis VPN service after $max_attempts attempts"
-            log_info "You can manually load it later with:"
-            log_info "  sudo launchctl bootstrap system $plist_path"
+            exit 1
         fi
     else
         log_error "Launchd plist file not found: $source_plist"
@@ -699,12 +703,17 @@ verify_plist_deployment() {
         log_success "Plist file exists: $plist_path"
 
         # Check permissions
-        local perms
+        local perms perms_normalized expected_plist_perms expected_plist_perms_normalized
         perms=$(stat -f "%Mp%Lp" "$plist_path")
-        if [[ "$perms" != "644" ]]; then
-            log_warn "Plist permissions are $perms, expected 644"
+        expected_plist_perms=644
+        # Normalize both values so leading zeros do not affect comparison
+        perms_normalized=$(printf "%o" $((8#$perms)))
+        expected_plist_perms_normalized=$(printf "%o" $((8#$expected_plist_perms)))
+
+        if [[ "$perms_normalized" != "$expected_plist_perms_normalized" ]]; then
+            log_warn "Plist permissions are $perms_normalized, expected $expected_plist_perms_normalized"
         else
-            log_success "Plist permissions correct: 644"
+            log_success "Plist permissions correct: $expected_plist_perms_normalized"
         fi
 
         # Check ownership
@@ -755,8 +764,8 @@ verify_plist_deployment() {
         local plist_workdir
         plist_workdir=$(grep -A1 "<key>WorkingDirectory</key>" "$plist_path" | grep "<string>" | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
 
-        if [[ "$plist_workdir" == "/var/lib/gnosis_vpn" ]]; then
-            log_success "Plist working directory correctly set to: /var/lib/gnosis_vpn"
+        if [[ "$plist_workdir" == "$INSTALLED_LIB_DIR_PATH" ]]; then
+            log_success "Plist working directory correctly set to: $INSTALLED_LIB_DIR_PATH"
         else
             log_warn "Plist working directory set to: $plist_workdir"
         fi
@@ -864,11 +873,11 @@ check_service_status() {
             log_success "VPN process is running (PID: $pid)"
 
             # Check if logs are being created
-            if [[ -f "/var/log/gnosis_vpn/gnosis_vpn.log" ]]; then
+            if [[ -f "$INSTALLED_LOG_DIR_PATH/gnosis_vpn.log" ]]; then
                 local log_size
-                log_size=$(wc -c < /var/log/gnosis_vpn/gnosis_vpn.log 2>/dev/null || echo "0")
+                log_size=$(wc -c < $INSTALLED_LOG_DIR_PATH/gnosis_vpn.log 2>/dev/null || echo "0")
                 if [[ "$log_size" -gt 0 ]]; then
-                    log_success "Service is logging to /var/log/gnosis_vpn/gnosis_vpn.log"
+                    log_success "Service is logging to $INSTALLED_LOG_DIR_PATH/gnosis_vpn.log"
                 else
                     log_info "Log file exists but is empty (service may be starting)"
                 fi
@@ -1144,7 +1153,7 @@ update_binaries() {
         fi
     fi
 
-    local homedir="/var/lib/gnosis_vpn"
+    local homedir="$INSTALLED_LIB_DIR_PATH"
     mkdir -p "$homedir"
     cp "${SCRIPT_DIR}/uninstall.sh" "$homedir/"
     chmod 755 "$homedir/uninstall.sh"
@@ -1257,8 +1266,8 @@ print_summary() {
     log_info "  gnosis-vpn-manager version  # Show installed version"
     echo ""
     log_info "Logs:"
-    log_info "  tail -f /var/log/gnosis_vpn/gnosis_vpn.log      # Service logs"
-    log_info "  tail -f /var/log/gnosis_vpn/gnosis_vpn.error.log # Error logs"
+    log_info "  tail -f $INSTALLED_LOG_DIR_PATH/gnosis_vpn.log      # Service logs"
+    log_info "  tail -f $INSTALLED_LOG_DIR_PATH/gnosis_vpn.error.log # Error logs"
     echo ""
     log_info "Log file: $INSTALLER_LOG_FILE"
 
@@ -1352,9 +1361,9 @@ validate_service_environment() {
     # Check required directories exist with proper ownership
     local required_dirs=(
         "/var/run/gnosis_vpn:gnosisvpn:gnosisvpn:755"
-        "/var/lib/gnosis_vpn:gnosisvpn:gnosisvpn:750"
-        "/var/lib/gnosis_vpn/Library/Application Support/org.hoprnet.gnosisvpn:gnosisvpn:gnosisvpn:755"
-        "/var/log/gnosis_vpn:gnosisvpn:gnosisvpn:755"
+        "$INSTALLED_LIB_DIR_PATH:gnosisvpn:gnosisvpn:750"
+        "$INSTALLED_LIB_DIR_PATH/Library/Application Support/org.hoprnet.gnosisvpn:gnosisvpn:gnosisvpn:755"
+        "$INSTALLED_LOG_DIR_PATH:gnosisvpn:gnosisvpn:755"
     )
 
     for dir_spec in "${required_dirs[@]}"; do
@@ -1366,7 +1375,7 @@ validate_service_environment() {
         else
             # Check ownership
             local actual_owner
-            actual_owner=$(stat -f "%Su:%Sg" "$dir_path")
+            actual_owner=$(/usr/bin/stat -f "%Su:%Sg" "$dir_path")
             if [[ "$actual_owner" != "$expected_user:$expected_group" ]]; then
                 log_warn "Directory ownership incorrect: $dir_path (expected: $expected_user:$expected_group, actual: $actual_owner)"
             else
@@ -1374,10 +1383,14 @@ validate_service_environment() {
             fi
 
             # Check permissions
-            local actual_perms
-            actual_perms=$(stat -f "%Mp%Lp" "$dir_path")
-            if [[ "$actual_perms" != "$expected_perms" ]]; then
-                log_warn "Directory permissions incorrect: $dir_path (expected: $expected_perms, actual: $actual_perms)"
+            local actual_perms actual_perms_normalized expected_perms_normalized
+            actual_perms=$(/usr/bin/stat -f "%Mp%Lp" "$dir_path")
+            # Normalize octal values so leading zeros do not affect comparisons
+            actual_perms_normalized=$(printf "%o" $((8#$actual_perms)))
+            expected_perms_normalized=$(printf "%o" $((8#$expected_perms)))
+
+            if [[ "$actual_perms_normalized" != "$expected_perms_normalized" ]]; then
+                log_warn "Directory permissions incorrect: $dir_path (expected: $expected_perms_normalized, actual: $actual_perms_normalized)"
             else
                 log_success "✓ Directory permissions correct: $dir_path"
             fi
