@@ -116,18 +116,18 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}
-          path: ./build/packages/gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}
+          path: ./linux/build/packages/gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}
       - name: Upload Signature
         if: inputs.sign
         uses: actions/upload-artifact@v5
         with:
           name: gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.asc
-          path: ./build/packages/gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.asc
+          path: ./linux/build/packages/gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.asc
       - name: Upload Hash
         uses: actions/upload-artifact@v5
         with:
           name: gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.sha256
-          path: ./build/packages/gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.sha256
+          path: ./linux/build/packages/gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.sha256
 
   mac:
     runs-on: macos-15
@@ -143,8 +143,8 @@ jobs:
           install-sdk: "true"
       - name: Create mac installer package
         shell: bash
+        working-directory: mac
         run: |
-          cd mac
           if [[ -z "${{ inputs.sign }}" ]] || [[ "${{ inputs.sign }}" = true ]]; then
             echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER }}" | base64 --decode > gnosisvpn-developer.p12
             echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_INSTALLER }}" | base64 --decode > gnosisvpn-installer.p12
@@ -167,12 +167,12 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: GnosisVPN-Installer.pkg
-          path: ./build/GnosisVPN-Installer.pkg
+          path: ./mac/build/GnosisVPN-Installer.pkg
       - name: Upload Signature
         uses: actions/upload-artifact@v5
         with:
           name: GnosisVPN-Installer.pkg.sha256
-          path: ./build/GnosisVPN-Installer.pkg.sha256
+          path: ./mac/build/GnosisVPN-Installer.pkg.sha256
 
   release:
     runs-on: ubuntu-latest
