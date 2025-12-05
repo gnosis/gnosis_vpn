@@ -2,7 +2,7 @@
 
 ## Linux Package Verification
 
-All GnosisVPN Linux packages (`.deb`, `.rpm`, `.pkg.tar.zst`) are signed with GPG to ensure authenticity and integrity. We strongly recommend verifying packages before installation.
+All GnosisVPN Linux packages (`.deb`) are signed with GPG to ensure authenticity and integrity. We strongly recommend verifying packages before installation.
 
 **Note:** macOS packages use Apple's code signing mechanism and are signed with an Apple Developer certificate. This guide covers Linux package verification only.
 
@@ -77,12 +77,6 @@ gpg: Good signature from "GnosisVPN <tech@hoprnet.org>"
 
 ```bash
 dpkg-sig --verify gnosis_vpn-x86_64-linux.deb
-```
-
-**RPM packages:**
-
-```bash
-rpm --checksig gnosis_vpn-x86_64-linux.rpm
 ```
 
 ### Complete Verification Example (Linux)
