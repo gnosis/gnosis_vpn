@@ -1,0 +1,62 @@
+[Unit]
+Description=Gnosis VPN Service
+Documentation=https://gnosisvpn.com
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=200
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=gnosisvpn
+Group=gnosisvpn
+
+# Environment and configuration
+EnvironmentFile=/etc/gnosis_vpn/gnosis_vpn.env
+WorkingDirectory=/var/lib/gnosis_vpn
+
+# Main service command
+ExecStart=/usr/bin/gnosis_vpn -c /etc/gnosis_vpn/config.toml --hopr-rpc-provider https://rpc-provider.hoprnet.link --hopr-network rotsee
+
+# Restart configuration
+Restart=always
+RestartSec=5s
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=90
+TimeoutStartSec=60
+
+# Logging
+StandardOutput=append:/var/log/gnosis_vpn/gnosis_vpn.log
+StandardError=append:/var/log/gnosis_vpn/gnosis_vpn.log
+SyslogIdentifier=gnosis_vpn
+
+# Directory management - systemd will create these with proper permissions
+# RuntimeDirectory creates /run/gnosis_vpn
+RuntimeDirectory=gnosis_vpn
+RuntimeDirectoryMode=0755
+# StateDirectory creates /var/lib/gnosis_vpn
+StateDirectory=gnosis_vpn
+StateDirectoryMode=0750
+# LogsDirectory creates /var/log/gnosis_vpn
+LogsDirectory=gnosis_vpn
+LogsDirectoryMode=0750
+
+# Security hardening for VPN service
+# VPN needs CAP_NET_ADMIN for tunnel management
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
+
+# File system protection
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/gnosis_vpn /var/log/gnosis_vpn /run/gnosis_vpn
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=512
+
+[Install]
+WantedBy=multi-user.target
