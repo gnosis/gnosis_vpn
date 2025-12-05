@@ -14,7 +14,8 @@ set -euo pipefail
 : "${GNOSISVPN_ENABLE_SIGNATURE:=false}"
 : "${GNOSISVPN_DISTRIBUTION:=deb}"
 : "${GNOSISVPN_ARCHITECTURE:=x86_64-linux}"
-: "${GNOSISVPN_GPG_PRIVATE_KEY_PATH:=}"  # Base64-encoded
+: "${GNOSISVPN_GPG_PRIVATE_KEY_PATH:=}"
+: "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD:=}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -177,7 +178,12 @@ parse_args() {
             log_error "'--gpg-private-key-path <path>' is required or environment variable GNOSISVPN_GPG_PRIVATE_KEY_PATH must be set"
             usage
         fi
+        if [[ -z $GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD ]]; then
+            log_error "The environment variable GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD must be set"
+            usage
+        fi
         export GNOSISVPN_GPG_PRIVATE_KEY_PATH=$GNOSISVPN_GPG_PRIVATE_KEY_PATH
+        export NFPM_PASSPHRASE=$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD
     fi
 
     log_success "Command-line arguments parsed successfully"
@@ -206,7 +212,7 @@ print_banner() {
     echo "App Version:                ${GNOSISVPN_APP_VERSION}"
     echo "Signing:                    $(if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then echo "Enabled"; else echo "Disabled"; fi)"
     if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then
-        echo "GPG private key path: $GNOSISVPN_GPG_PRIVATE_KEY_PATH"
+        echo "GPG private key path:       $GNOSISVPN_GPG_PRIVATE_KEY_PATH"
     fi
     echo "=========================================="
     echo ""
@@ -316,15 +322,20 @@ sign_package() {
         # Create isolated GPG keyring
         gnupghome="$(mktemp -d)"
         export GNUPGHOME="$gnupghome"
-        cat "$GNOSISVPN_GPG_PRIVATE_KEY_PATH" | gpg --batch --import
+        
+        # Import private key with passphrase
+        echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --import "$GNOSISVPN_GPG_PRIVATE_KEY_PATH"
 
         # Generate hash
         shasum -a 256 "${BUILD_DIR}/packages/${PKG_NAME}" > "${BUILD_DIR}/packages/${HASH_PKG_NAME}"
         log_info "Hash written to ${BUILD_DIR}/packages/${HASH_PKG_NAME}"
 
-        # Sign binary
-        gpg --armor --output "${BUILD_DIR}/packages/${SIGNED_PKG_NAME}" --detach-sign "${BUILD_DIR}/packages/${PKG_NAME}"
+        # Sign binary with passphrase
+        echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --armor --output "${BUILD_DIR}/packages/${SIGNED_PKG_NAME}" --detach-sign "${BUILD_DIR}/packages/${PKG_NAME}"
         log_info "Signature written to ${BUILD_DIR}/packages/${SIGNED_PKG_NAME}"
+        
+        # Cleanup
+        rm -rf "$gnupghome"
     fi
 }
 

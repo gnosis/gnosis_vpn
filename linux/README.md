@@ -12,7 +12,12 @@ Gnosis VPN has a ready to use package for the following variants:
 - Determine your processor architecture by running `uname -m`.  
   Note: `arm64` is equivalent to `aarch64`.
 - Choose the appropriate package format for your system: `deb`, `rpm`, or `pkg.tar.zst`.
-- Download the package
+- Download the package files:
+  - Main package (e.g., `gnosis_vpn-x86_64-linux.deb`)
+  - SHA256 checksum (e.g., `gnosis_vpn-x86_64-linux.deb.sha256`)
+  - GPG signature (e.g., `gnosis_vpn-x86_64-linux.deb.asc`)
+
+**⚠️ Security Notice:** We strongly recommend verifying package integrity before installation. See [SECURITY.md](../SECURITY.md) for complete verification instructions.
 
 ### Debian, Ubuntu and derivatives
 
@@ -115,7 +120,7 @@ This will:
 2. Install the Gnosis VPN package
 3. Install XFCE desktop environment
 4. Configure xrdp for remote desktop access
-5. Prompt you to set a password for RDP access
+5. Check the script output for credentials
 
 **Connect via RDP:**
 
@@ -125,8 +130,8 @@ just rdp-connect deb x86_64-linux
 
 # Then use Microsoft Remote Desktop or compatible RDP client:
 # - Server: localhost:3389
-# - Username: Your GCP username
-# - Password: The password you set during setup
+# - Username: Your GCP username (usually your email prefix before @)
+# - Password: Check the script output
 ```
 
 **Manual Testing:**
@@ -153,6 +158,16 @@ You can also run individual steps:
 ./test-vm.sh delete deb x86_64-linux
 ```
 
+Or use the just commands:
+
+```bash
+# Build package for specific distribution
+just package deb x86_64-linux
+
+# Delete test VM
+just delete-test-vm deb x86_64-linux
+```
+
 **Supported Test Configurations:**
 
 | Distribution | x86_64-linux | aarch64-linux |
@@ -166,5 +181,43 @@ You can also run individual steps:
 **Important:** Desktop testing VMs are NOT auto-deleted. Remember to clean up:
 
 ```bash
-./test-vm.sh delete deb x86_64-linux
+just delete-test-vm deb x86_64-linux
 ```
+
+---
+
+## Building Packages
+
+### Build Requirements
+
+- [nfpm](https://nfpm.goreleaser.com/) - Package builder
+- [just](https://github.com/casey/just) - Command runner
+- Google Cloud SDK for downloading binaries
+- GPG (optional, for signing packages)
+
+### Build Commands
+
+**Build a package:**
+
+```bash
+# Build Debian package
+just package deb x86_64-linux
+
+# Build RPM package
+just package rpm x86_64-linux
+
+# Build Arch Linux package
+just package archlinux x86_64-linux
+```
+
+**Build with signing:**
+
+```bash
+# Set GPG key path
+export GNOSISVPN_GPG_PRIVATE_KEY_PATH=/path/to/private-key.asc
+export GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD=<Bitwarden 'GnosisVPN GPG Binary Sign'>
+
+# Build and sign
+./build-package.sh --distribution deb --architecture x86_64-linux --sign --gpg-private-key-path "$GNOSISVPN_GPG_PRIVATE_KEY_PATH"
+```
+
