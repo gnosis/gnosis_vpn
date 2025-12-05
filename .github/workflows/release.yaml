@@ -83,11 +83,28 @@ jobs:
         with:
           google-credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
           install-sdk: "true"
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg curl binutils
+          # Install nfpm
+          echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+          sudo apt-get update
+          sudo apt-get install -y nfpm
+      - name: Setup GPG key for signing
+        if: inputs.sign
+        run: |
+          echo "${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}" > /tmp/gnosis_vpn_gpg_key.asc
+          chmod 600 /tmp/gnosis_vpn_gpg_key.asc
       - name: Build Linux package
         shell: bash
         working-directory: linux
         run: |
-          ./build-package.sh  --distribution ${{ matrix.distribution }} --architecture ${{ matrix.architecture }}
+          if [[ "${{ inputs.sign }}" == "true" ]]; then
+            ./build-package.sh --distribution ${{ matrix.distribution }} --architecture ${{ matrix.architecture }} --sign
+          else
+            ./build-package.sh --distribution ${{ matrix.distribution }} --architecture ${{ matrix.architecture }}
+          fi
           mkdir -p "../binaries"
           cp ./build/packages/gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}* "../binaries/"
         env:
@@ -95,6 +112,7 @@ jobs:
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
           GNOSISVPN_CLI_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLI_VERSION }}
           GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}
+          GNOSISVPN_GPG_PRIVATE_KEY_PATH: /tmp/gnosis_vpn_gpg_key.asc
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
         with:
