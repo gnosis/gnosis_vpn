@@ -1,0 +1,54 @@
+package distribution arch:
+    #!/usr/bin/env bash
+    ./build-package.sh --distribution {{ distribution }} --architecture {{ arch }}
+
+# Create the distribution packages using nfpm
+
+
+test-package packager arch:
+    #!/usr/bin/env bash
+    set -o errexit -o nounset -o pipefail
+    if [ "{{packager}}" == "archlinux" ] && [ "{{arch}}" == "aarch64-linux" ]; then
+        echo "Skipping test for archlinux aarch64-linux as it is not supported yet in GCP images."
+        exit 0
+    fi
+    # trap './test-vm.sh delete {{packager}} {{arch}} 2>&1 | tee test-package-{{packager}}-{{arch}}.log' EXIT
+    #./test-vm.sh create {{packager}} {{arch}} 2>&1 | tee test-package-{{packager}}-{{arch}}.log
+    ./test-vm.sh copy {{packager}} {{arch}} 2>&1 | tee -a test-package-{{packager}}-{{arch}}.log
+    ./test-vm.sh install {{packager}} {{arch}} 2>&1 | tee -a test-package-{{packager}}-{{arch}}.log
+
+# Test package with desktop environment (XFCE + xrdp) for GUI testing
+test-package-desktop packager arch:
+    #!/usr/bin/env bash
+    set -o errexit -o nounset -o pipefail
+    if [ "{{packager}}" == "archlinux" ] && [ "{{arch}}" == "aarch64-linux" ]; then
+        echo "Skipping test for archlinux aarch64-linux as it is not supported yet in GCP images."
+        exit 0
+    fi
+    echo "Creating VM with desktop environment for GUI testing..."
+    echo "NOTE: This target does NOT auto-delete the VM. Delete manually when done."
+    echo ""
+    ./test-vm.sh create {{packager}} {{arch}} 2>&1 | tee test-package-{{packager}}-{{arch}}.log
+    ./test-vm.sh copy {{packager}} {{arch}} 2>&1 | tee -a test-package-{{packager}}-{{arch}}.log
+    ./test-vm.sh install {{packager}} {{arch}} 2>&1 | tee -a test-package-{{packager}}-{{arch}}.log
+    ./test-vm.sh install-desktop {{packager}} {{arch}} 2>&1 | tee -a test-package-{{packager}}-{{arch}}.log
+    echo ""
+    echo "=========================================="
+    echo "VM is ready for desktop testing!"
+    echo "=========================================="
+    echo "To connect via RDP, run:"
+    echo "  just rdp-connect {{packager}} {{arch}}"
+    echo ""
+    echo "To delete the VM when done:"
+    echo "  just delete-test-vm {{packager}} {{arch}}"
+    echo ""
+
+# Connect to test VM via RDP
+rdp-connect packager arch:
+    #!/usr/bin/env bash
+    ./test-vm.sh rdp {{packager}} {{arch}}
+
+delete-test-vm packager arch:
+    #!/usr/bin/env bash
+    ./test-vm.sh delete {{packager}} {{arch}}
+

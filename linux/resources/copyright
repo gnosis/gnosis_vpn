@@ -1,0 +1,7 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: gnosis_vpn
+Source: https://github.com/gnosis/gnosis_vpn
+
+Files: *
+Copyright: TODO Fill in copyright holder information
+License: GPL-3
