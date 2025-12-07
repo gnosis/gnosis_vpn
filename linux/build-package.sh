@@ -275,7 +275,6 @@ download_binaries() {
 }
 
 prepare_contents() {
-    # TODO Function to extract app contents from debian package
     cd ${BUILD_DIR}/app-contents/
     ar -x ${BUILD_DIR}/binaries/gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}
     tar -xf ${BUILD_DIR}/app-contents/data.tar.gz -C ${BUILD_DIR}/app-contents/rootfs
