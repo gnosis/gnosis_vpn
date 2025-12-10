@@ -43,9 +43,8 @@ gh_api_call() {
 fetch_repo_release_notes() {
     local repo_name="$1"
     local display_name="$2"
-    local emoji="$3"
-    local previous_version="$4"
-    local current_version="$5"
+    local previous_version="$3"
+    local current_version="$4"
     
     # Skip if versions are the same (no changes)
     if [[ "$previous_version" == "$current_version" ]]; then
@@ -70,7 +69,7 @@ fetch_repo_release_notes() {
     
     # Only print section if we found release notes
     if [[ -s "$temp_notes" ]]; then
-        echo "## ${emoji} ${display_name} Changes (${repo_name})" >> release_notes.txt
+        echo "## ${display_name} Changes (${repo_name})" >> release_notes.txt
         echo "" >> release_notes.txt
         echo "**Full Changelog**: https://github.com/${repo_name}/compare/v${previous_version}...v${current_version}" >> release_notes.txt
         echo "" >> release_notes.txt
@@ -229,8 +228,8 @@ main() {
     echo "  App: v${previous_app_version} -> v${current_app_version}"
     
     generate_release_summary "$previous_cli_version" "$current_cli_version" "$previous_app_version" "$current_app_version"
-    fetch_repo_release_notes "gnosis/gnosis_vpn-client" "Client" "🔧" "$previous_cli_version" "$current_cli_version"
-    fetch_repo_release_notes "gnosis/gnosis_vpn-app" " App" "🖥️" "$previous_app_version" "$current_app_version"
+    fetch_repo_release_notes "gnosis/gnosis_vpn-client" "Client" "$previous_cli_version" "$current_cli_version"
+    fetch_repo_release_notes "gnosis/gnosis_vpn-app" "App" "$previous_app_version" "$current_app_version"
     fetch_packaging_prs "$next_release_version"
     
     # Display the generated notes
