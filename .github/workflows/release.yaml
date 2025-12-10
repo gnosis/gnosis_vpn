@@ -210,6 +210,9 @@ jobs:
           fi
           next_release_version=${{ vars.GNOSISVPN_NEXT_RELEASE_VERSION }}
 
+          # Delete existing release if it exists
+          gh release delete v${next_release_version} --yes 2>/dev/null || true
+
           gh release create v${next_release_version} \
             --title "GnosisVPN v${next_release_version}" \
             --notes-file release_notes.txt
