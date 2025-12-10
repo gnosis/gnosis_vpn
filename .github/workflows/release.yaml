@@ -221,7 +221,7 @@ jobs:
           
           echo "Release v${next_release_version} created and binaries uploaded"
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GNOSIS_GITHUB_WORKFLOW_TOKEN }}
       - name: Bump Version
         id: bump
         if: inputs.public_release
