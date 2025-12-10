@@ -28,9 +28,111 @@ concurrency:
   group: release
   cancel-in-progress: false
 jobs:
-  close-release:
+  setup:
+    runs-on: ubuntu-latest
+    name: Setup versions
+    outputs:
+      GNOSISVPN_PACKAGE_VERSION: ${{ steps.versions.outputs.GNOSISVPN_PACKAGE_VERSION }}
+      GNOSISVPN_CLI_VERSION: ${{ steps.versions.outputs.GNOSISVPN_CLI_VERSION }}
+      GNOSISVPN_APP_VERSION: ${{ steps.versions.outputs.GNOSISVPN_APP_VERSION }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Determine versions
+        id: versions
+        shell: bash
+        run: |
+          if [[ "${{ inputs.public_release }}" == true ]]; then
+            export GNOSISVPN_PACKAGE_VERSION=${{ vars.GNOSISVPN_NEXT_RELEASE_VERSION }}
+          else
+            export GNOSISVPN_PACKAGE_VERSION=$(date +%Y.%m.%d+build.%H%M%S)
+          fi
+          echo "GNOSISVPN_PACKAGE_VERSION=${GNOSISVPN_PACKAGE_VERSION}" | tee -a $GITHUB_OUTPUT
+          
+          if [[ -z "${{ inputs.client_version }}" ]] || [[ "${{ inputs.client_version }}" == "latest" ]]; then
+            export GNOSISVPN_CLI_VERSION=$(gh release view --repo gnosis/gnosis_vpn-client --json tagName --jq .tagName 2>/dev/null)
+            export GNOSISVPN_CLI_VERSION="${GNOSISVPN_CLI_VERSION#v}"
+          else
+            export GNOSISVPN_CLI_VERSION="${{ inputs.client_version }}"
+          fi
+          echo "GNOSISVPN_CLI_VERSION=${GNOSISVPN_CLI_VERSION}" | tee -a $GITHUB_OUTPUT
+          
+          if [[ -z "${{ inputs.app_version }}" ]] || [[ "${{ inputs.app_version }}" == "latest" ]]; then
+            export GNOSISVPN_APP_VERSION=$(gh release view --repo gnosis/gnosis_vpn-app --json tagName --jq .tagName 2>/dev/null)
+            export GNOSISVPN_APP_VERSION="${GNOSISVPN_APP_VERSION#v}"
+          else
+            export GNOSISVPN_APP_VERSION="${{ inputs.app_version }}"
+          fi
+          echo "GNOSISVPN_APP_VERSION=${GNOSISVPN_APP_VERSION}" | tee -a $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  linux:
+    runs-on: ubuntu-latest
+    name: Build Linux
+    needs: [setup]
+    strategy:
+      matrix:
+        architecture: [x86_64-linux]
+        distribution: [deb]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Setup GCP
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@master
+        with:
+          google-credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
+          install-sdk: "true"
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg curl binutils
+          # Install nfpm
+          echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+          sudo apt-get update
+          sudo apt-get install -y nfpm
+      - name: Setup GPG key for signing
+        if: inputs.sign
+        run: |
+          echo "${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}" > /tmp/gnosis_vpn_gpg_key.asc
+          chmod 600 /tmp/gnosis_vpn_gpg_key.asc
+      - name: Build Linux package
+        shell: bash
+        working-directory: linux
+        run: |
+          if [[ "${{ inputs.sign }}" == "true" ]]; then
+            ./build-package.sh --distribution ${{ matrix.distribution }} --architecture ${{ matrix.architecture }} --sign
+          else
+            ./build-package.sh --distribution ${{ matrix.distribution }} --architecture ${{ matrix.architecture }}
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+          GNOSISVPN_CLI_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLI_VERSION }}
+          GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}
+          GNOSISVPN_GPG_PRIVATE_KEY_PATH: /tmp/gnosis_vpn_gpg_key.asc
+          GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
+      - name: Upload Package
+        uses: actions/upload-artifact@v5
+        with:
+          name: gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}
+          path: ./linux/build/packages/gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}
+      - name: Upload Signature
+        if: inputs.sign
+        uses: actions/upload-artifact@v5
+        with:
+          name: gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.asc
+          path: ./linux/build/packages/gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.asc
+      - name: Upload Hash
+        uses: actions/upload-artifact@v5
+        with:
+          name: gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.sha256
+          path: ./linux/build/packages/gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.sha256
+
+  mac:
     runs-on: macos-15
-    name: Close release
+    name: Build Mac installer
+    needs: [setup]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -40,78 +142,84 @@ jobs:
           google-credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
           install-sdk: "true"
       - name: Create mac installer package
-        id: package
         shell: bash
+        working-directory: mac
         run: |
-          set -x
-          echo "github.event_name=${{ github.event_name }}"
-          if [[ "${{ inputs.public_release }}" == true ]]; then
-            export GNOSISVPN_PACKAGE_VERSION=$(cat LATEST)
-          else
-            export GNOSISVPN_PACKAGE_VERSION=$(date +%Y.%m.%d+build.%H%M%S)
-          fi
-          echo "GNOSISVPN_PACKAGE_VERSION=${GNOSISVPN_PACKAGE_VERSION}" | tee -a $GITHUB_OUTPUT
-          echo "Package version: ${GNOSISVPN_PACKAGE_VERSION}" >> "$GITHUB_STEP_SUMMARY"
-          if [[ -z "${{ inputs.client_version }}" ]] || [[ "${{ inputs.client_version }}" == "latest" ]]; then
-            export GNOSISVPN_CLI_VERSION=$(gh release view --repo gnosis/gnosis_vpn-client --json tagName --jq .tagName)
-            export GNOSISVPN_CLI_VERSION="${GNOSISVPN_CLI_VERSION#v}"
-          else
-            export GNOSISVPN_CLI_VERSION="${{ inputs.client_version }}"
-          fi
-          echo "Client Version: ${GNOSISVPN_CLI_VERSION}" >> "$GITHUB_STEP_SUMMARY"
-          echo "GNOSISVPN_CLI_VERSION=${GNOSISVPN_CLI_VERSION}" | tee -a $GITHUB_OUTPUT
-          if [[ -z "${{ inputs.app_version }}" ]] || [[ "${{ inputs.app_version }}" == "latest" ]]; then
-            export GNOSISVPN_APP_VERSION=$(gh release view --repo gnosis/gnosis_vpn-app --json tagName --jq .tagName)
-            export GNOSISVPN_APP_VERSION="${GNOSISVPN_APP_VERSION#v}"
-          else
-            export GNOSISVPN_APP_VERSION="${{ inputs.app_version }}"
-          fi
-          echo "App Version: ${GNOSISVPN_APP_VERSION}" >> "$GITHUB_STEP_SUMMARY"
-          echo "GNOSISVPN_APP_VERSION=${GNOSISVPN_APP_VERSION}" | tee -a $GITHUB_OUTPUT
-          cd mac
           if [[ -z "${{ inputs.sign }}" ]] || [[ "${{ inputs.sign }}" = true ]]; then
             echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER }}" | base64 --decode > gnosisvpn-developer.p12
             echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_INSTALLER }}" | base64 --decode > gnosisvpn-installer.p12
             SIGNING_PARAMETERS="--sign --binary-certificate-path gnosisvpn-developer.p12 --installer-certificate-path gnosisvpn-installer.p12"
-            echo "Package signed" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Unsigned package" >> "$GITHUB_STEP_SUMMARY"
           fi
           ./build-package.sh  $SIGNING_PARAMETERS
-          mkdir -p "../binaries"
-          cp ./build/GnosisVPN-Installer-*-signed.pkg "../binaries/GnosisVPN-Installer.pkg"
-          cp ./build/GnosisVPN-Installer-*-signed.pkg.sha256 "../binaries/GnosisVPN-Installer.pkg.sha256"
-          echo "SHA256: $(cat ../binaries/GnosisVPN-Installer.pkg.sha256)" >> "$GITHUB_STEP_SUMMARY"
+          mv ./build/GnosisVPN-Installer-*-signed.pkg "./build/GnosisVPN-Installer.pkg"
+          mv ./build/GnosisVPN-Installer-*-signed.pkg.sha256 "./build/GnosisVPN-Installer.pkg.sha256"
         env:
           GH_TOKEN: ${{ github.token }}
+          GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+          GNOSISVPN_CLI_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLI_VERSION }}
+          GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}
           GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD }}
           GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD }}
           GNOSISVPN_APPLE_ID: ${{ secrets.GNOSISVPN_APPLE_ID }}
           GNOSISVPN_APPLE_TEAM_ID: ${{ secrets.GNOSISVPN_APPLE_TEAM_ID }}
           GNOSISVPN_APPLE_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_PASSWORD }}
+      - name: Upload Package
+        uses: actions/upload-artifact@v5
+        with:
+          name: GnosisVPN-Installer.pkg
+          path: ./mac/build/GnosisVPN-Installer.pkg
+      - name: Upload Signature
+        uses: actions/upload-artifact@v5
+        with:
+          name: GnosisVPN-Installer.pkg.sha256
+          path: ./mac/build/GnosisVPN-Installer.pkg.sha256
+
+  release:
+    runs-on: ubuntu-latest
+    name: Release
+    needs: [setup, linux, mac]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Display versions
+        run: |
+          echo "- Package version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Client version: v${{ needs.setup.outputs.GNOSISVPN_CLI_VERSION }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- App version: v${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Download all artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: ./binaries
+      - name: Generate Release Notes
+        run: |
+          chmod +x .github/scripts/generate-release-notes.sh
+          .github/scripts/generate-release-notes.sh \
+            --next-release-version "${{ vars.GNOSISVPN_NEXT_RELEASE_VERSION }}" \
+            --previous-cli-version "${{ vars.GNOSISVPN_PREVIOUS_CLI_VERSION }}" \
+            --current-cli-version "${{ needs.setup.outputs.GNOSISVPN_CLI_VERSION }}" \
+            --previous-app-version "${{ vars.GNOSISVPN_PREVIOUS_APP_VERSION }}" \
+            --current-app-version "${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Create release
         if: inputs.public_release
         run: |
-          release_version=$(cat LATEST)
+          if [ ! -d ./binaries ]; then
+            echo "No binaries found to upload. Exiting."
+            exit 1
+          fi
+          next_release_version=${{ vars.GNOSISVPN_NEXT_RELEASE_VERSION }}
 
-          cat > release_header.txt <<EOF
-          Release v${release_version} of GnosisVPN.
-          - Client version: v${{ steps.package.outputs.GNOSISVPN_CLI_VERSION }}
-          - App version: v${{ steps.package.outputs.GNOSISVPN_APP_VERSION }}
-
-          EOF
-
-          gh release create v${release_version} \
-            --title "GnosisVPN v${release_version}" \
-            --notes-file release_header.txt \
-            --generate-notes
-
-          rm release_header.txt
+          gh release create v${next_release_version} \
+            --title "GnosisVPN v${next_release_version}" \
+            --notes-file release_notes.txt
 
           echo "Preparing binaries for upload"
-          gh release upload v${release_version} "./binaries/GnosisVPN-Installer.pkg" --clobber
-          gh release upload v${release_version} "./binaries/GnosisVPN-Installer.pkg.sha256" --clobber
-          echo "Release v${release_version} created and binaries uploaded"
+          
+          # Upload all files from all artifact directories
+          find ./binaries -type f -exec gh release upload v${next_release_version} {} --clobber \;
+          
+          echo "Release v${next_release_version} created and binaries uploaded"
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Bump Version
@@ -119,31 +227,39 @@ jobs:
         if: inputs.public_release
         shell: bash
         run: |
-          current_version=$(cat LATEST)
+          next_release_version=${{ vars.GNOSISVPN_NEXT_RELEASE_VERSION }}
           # Extract parts without IFS or read
-          IFS='.' read -r major_version minor_version patch_version <<< "${current_version}"
+          IFS='.' read -r major_version minor_version patch_version <<< "${next_release_version}"
           patch_version=$((patch_version+1))
-          bump_version="${major_version}.${minor_version}.${patch_version}"
-          echo "Updating version from $current_version to $bump_version"
-          echo "$bump_version" > LATEST
-          echo "bump_version=$bump_version" >> $GITHUB_OUTPUT
-          echo "current_version=$current_version" >> $GITHUB_OUTPUT
-      - name: Commit bumped version
-        uses: EndBug/add-and-commit@v9
-        if: inputs.public_release
-        with:
-          add: '["LATEST" ]'
-          new_branch: main
-          message: "Bump to version ${{ steps.bump.outputs.bump_version }}"
-          pathspec_error_handling: exitImmediately
-      - name: Upload artifacts
-        if: ${{ !inputs.public_release }}
-        uses: actions/upload-artifact@v5
-        with:
-          name: GnosisVPN-Installer.pkg
-          path: ./binaries/GnosisVPN-Installer.pkg
+          bumped_release_version="${major_version}.${minor_version}.${patch_version}"
+          echo "released_version=$next_release_version" >> $GITHUB_OUTPUT
+          gh variable set GNOSISVPN_NEXT_RELEASE_VERSION --body "$bumped_release_version"
+          gh variable set GNOSISVPN_PREVIOUS_CLI_VERSION --body "${{ needs.setup.outputs.GNOSISVPN_CLI_VERSION }}"
+          gh variable set GNOSISVPN_PREVIOUS_APP_VERSION --body "${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Prepare notification message
+        run: |
+          if [[ "${{ inputs.public_release }}" == "true" ]]; then
+            RELEASE_TYPE="official"
+          else
+            RELEASE_TYPE="snapshot"
+          fi
+          # Build the notification message with release notes content
+          {
+            echo "I'm thrilled to inform a new \`gnosis_vpn\` ${RELEASE_TYPE} version \`${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}\` has been released."
+            echo ""
+            cat release_notes.txt
+          } > notification_message.txt
+          
+          # Store content in environment variable for the Zulip action
+          {
+            echo "NOTIFICATION_CONTENT<<EOF"
+            cat notification_message.txt
+            echo "EOF"
+          } >> $GITHUB_ENV
       - name: Notify release
-        if: inputs.public_release
+        if: inputs.public_release || github.event_name == 'repository_dispatch'
         uses: zulip/github-actions-zulip/send-message@e4c8f27c732ba9bd98ac6be0583096dea82feea5 # v1.0.2
         with:
           api-key: ${{ secrets.ZULIP_API_KEY }}
@@ -152,23 +268,5 @@ jobs:
           type: "stream"
           to: "GnosisVPN"
           topic: "Releases"
-          content: |
-            I'm thrilled to inform the new `gnosis_vpn` official version `v${{ steps.bump.outputs.current_version }}` has been released.
-            - Client version: v${{ steps.package.outputs.GNOSISVPN_CLI_VERSION }}
-            - App version: v${{ steps.package.outputs.GNOSISVPN_APP_VERSION }}
-            [Release Notes](${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ steps.bump.outputs.current_version }})
-      - name: Notify snapshot
-        if: github.event_name == 'repository_dispatch'
-        uses: zulip/github-actions-zulip/send-message@e4c8f27c732ba9bd98ac6be0583096dea82feea5 # v1.0.2
-        with:
-          api-key: ${{ secrets.ZULIP_API_KEY }}
-          email: ${{ secrets.ZULIP_EMAIL }}
-          organization-url: "https://hopr.zulipchat.com"
-          type: "stream"
-          to: "GnosisVPN"
-          topic: "Releases"
-          content: |
-            I'm thrilled to inform a new `gnosis_vpn` snapshot version `${{ steps.package.outputs.GNOSISVPN_PACKAGE_VERSION }}` has been released.
-            - Client version: v${{ steps.package.outputs.GNOSISVPN_CLI_VERSION }}
-            - App version: v${{ steps.package.outputs.GNOSISVPN_APP_VERSION }}
-            You can download the installer package from the [Github Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          content: ${{ env.NOTIFICATION_CONTENT }}
+
