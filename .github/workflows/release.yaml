@@ -50,7 +50,7 @@ jobs:
           echo "GNOSISVPN_PACKAGE_VERSION=${GNOSISVPN_PACKAGE_VERSION}" | tee -a $GITHUB_OUTPUT
           
           if [[ -z "${{ inputs.client_version }}" ]] || [[ "${{ inputs.client_version }}" == "latest" ]]; then
-            export GNOSISVPN_CLI_VERSION=$(gh release view --repo gnosis/gnosis_vpn-client --json tagName --jq .tagName 2&>/dev/null)
+            export GNOSISVPN_CLI_VERSION=$(gh release view --repo gnosis/gnosis_vpn-client --json tagName --jq .tagName 2>/dev/null)
             export GNOSISVPN_CLI_VERSION="${GNOSISVPN_CLI_VERSION#v}"
           else
             export GNOSISVPN_CLI_VERSION="${{ inputs.client_version }}"
@@ -58,7 +58,7 @@ jobs:
           echo "GNOSISVPN_CLI_VERSION=${GNOSISVPN_CLI_VERSION}" | tee -a $GITHUB_OUTPUT
           
           if [[ -z "${{ inputs.app_version }}" ]] || [[ "${{ inputs.app_version }}" == "latest" ]]; then
-            export GNOSISVPN_APP_VERSION=$(gh release view --repo gnosis/gnosis_vpn-app --json tagName --jq .tagName 2&>/dev/null)
+            export GNOSISVPN_APP_VERSION=$(gh release view --repo gnosis/gnosis_vpn-app --json tagName --jq .tagName 2>/dev/null)
             export GNOSISVPN_APP_VERSION="${GNOSISVPN_APP_VERSION#v}"
           else
             export GNOSISVPN_APP_VERSION="${{ inputs.app_version }}"
