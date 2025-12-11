@@ -10,12 +10,6 @@
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ] (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        
-        # dpkg-sig wrapper - uses local script from tools directory
-        dpkg-sig = pkgs.writeShellScriptBin "dpkg-sig" ''
-          export PATH=${pkgs.lib.makeBinPath [ pkgs.dpkg pkgs.gnupg pkgs.perl ]}:$PATH
-          exec ${pkgs.perl}/bin/perl ${./tools/dpkg-sig} "$@"
-        '';
       in
       {
         devShells.default = pkgs.mkShell {
@@ -28,9 +22,16 @@
             help2man
             gzip
             gh
+            google-cloud-sdk
+            # Debian packaging tools
             dpkg
-            dpkg-sig
+            # Archive tools
+            libarchive  # provides bsdtar and bsdcpio (includes ar functionality)
           ];
+          
+          shellHook = ''
+            alias ll='ls -al'
+          '';
 
         };
       }

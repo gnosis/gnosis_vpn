@@ -1,0 +1,2 @@
+# This file is handled by debian/rules
+# All installation is done via override_dh_auto_install

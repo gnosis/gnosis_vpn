@@ -11,11 +11,8 @@ set -euo pipefail
 : "${GNOSISVPN_PACKAGE_VERSION:=$(date +%Y.%m.%d+build.%H%M%S)}"
 : "${GNOSISVPN_CLI_VERSION:=}"
 : "${GNOSISVPN_APP_VERSION:=}"
-: "${GNOSISVPN_ENABLE_SIGNATURE:=false}"
 : "${GNOSISVPN_DISTRIBUTION:=deb}"
 : "${GNOSISVPN_ARCHITECTURE:=x86_64-linux}"
-: "${GNOSISVPN_GPG_PRIVATE_KEY_PATH:=}"
-: "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD:=}"
 : "${GNOSISVPN_BUILD_STAGE:=all}"
 
 # Colors for output
@@ -56,8 +53,6 @@ generate_package_name() {
 }
 
 PKG_NAME="$(generate_package_name)"
-SIGNED_PKG_NAME="${PKG_NAME}.asc"
-HASH_PKG_NAME="${PKG_NAME}.sha256"
 
 
 # shellcheck disable=SC2317
@@ -95,8 +90,6 @@ usage() {
     echo "  --distribution <type>          Set the distribution type (deb, rpm, archlinux), default: deb"
     echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux), default: x86_64-linux"
     echo "  --stage <stage>                Build stage: download, package, all (default: all)"
-    echo "  --sign                         Enable code signing"
-    echo "  --gpg-private-key-path <path>  Path to GPG private key for signing"
     echo "  -h, --help                     Show this help message"
     exit 1
 }
@@ -125,8 +118,6 @@ parse_args() {
                 check_version_syntax "$GNOSISVPN_PACKAGE_VERSION"
             fi
             PKG_NAME="$(generate_package_name)"
-            SIGNED_PKG_NAME="${PKG_NAME}.asc"
-            HASH_PKG_NAME="${PKG_NAME}.sha256"
             shift 2
             ;;
         --cli-version)
@@ -173,23 +164,6 @@ parse_args() {
             fi
             shift 2
             ;;
-        --sign)
-            GNOSISVPN_ENABLE_SIGNATURE=true
-            shift
-            ;;
-        --gpg-private-key-path)
-            GNOSISVPN_GPG_PRIVATE_KEY_PATH="${2:-}"
-            if [[ -z $GNOSISVPN_GPG_PRIVATE_KEY_PATH ]]; then
-                log_error "'--gpg-private-key-path <path>' requires a value"
-                usage
-            else
-                if [[ ! -f $GNOSISVPN_GPG_PRIVATE_KEY_PATH ]]; then
-                    log_error "GPG private key file not found: $GNOSISVPN_GPG_PRIVATE_KEY_PATH"
-                    exit 1
-                fi
-            fi
-            shift 2
-            ;;
         -h | --help)
             usage
             ;;
@@ -208,20 +182,6 @@ parse_args() {
     if [[ -z $GNOSISVPN_APP_VERSION ]]; then
         GNOSISVPN_APP_VERSION=$(get_latest_release "gnosis/gnosis_vpn-app")
         log_info "Parameter '--app-version' not specified, defaulting to latest release"
-    fi
-
-    # Validate required arguments
-    if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then
-        if [[ -z $GNOSISVPN_GPG_PRIVATE_KEY_PATH ]]; then
-            log_error "'--gpg-private-key-path <path>' is required or environment variable GNOSISVPN_GPG_PRIVATE_KEY_PATH must be set"
-            usage
-        fi
-        if [[ -z $GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD ]]; then
-            log_error "The environment variable GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD must be set"
-            usage
-        fi
-        export GNOSISVPN_GPG_PRIVATE_KEY_PATH=$GNOSISVPN_GPG_PRIVATE_KEY_PATH
-        export NFPM_PASSPHRASE=$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD
     fi
 
     log_success "Command-line arguments parsed successfully"
@@ -248,10 +208,6 @@ print_banner() {
     echo "Package Version:            ${GNOSISVPN_PACKAGE_VERSION}"
     echo "Client Version:             ${GNOSISVPN_CLI_VERSION}"
     echo "App Version:                ${GNOSISVPN_APP_VERSION}"
-    echo "Signing:                    $(if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then echo "Enabled"; else echo "Disabled"; fi)"
-    if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then
-        echo "GPG private key path:       $GNOSISVPN_GPG_PRIVATE_KEY_PATH"
-    fi
     echo "=========================================="
     echo ""
 }
@@ -353,48 +309,13 @@ generate_nfpm_config() {
 
 # Generates the package for the given distribution
 generate_package() {
-
     nfpm package --config nfpm.yaml --packager "${GNOSISVPN_DISTRIBUTION}" --target "${BUILD_DIR}/packages/${PKG_NAME}"
 }
-
-# Sign package
-sign_package() {
-    if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then
-        log_info "Signing package for distribution..."
-
-        # Create isolated GPG keyring
-        gnupghome="$(mktemp -d)"
-        export GNUPGHOME="$gnupghome"
-        
-        # Import private key with passphrase
-        echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --import "$GNOSISVPN_GPG_PRIVATE_KEY_PATH"
-
-        # Generate hash
-        shasum -a 256 "${BUILD_DIR}/packages/${PKG_NAME}" > "${BUILD_DIR}/packages/${HASH_PKG_NAME}"
-        log_info "Hash written to ${BUILD_DIR}/packages/${HASH_PKG_NAME}"
-
-        # For Debian packages, use dpkg-sig for proper embedded signing
-        if [[ "${GNOSISVPN_DISTRIBUTION}" == "deb" ]]; then
-            log_info "Signing Debian package with dpkg-sig..."
-            echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" | dpkg-sig --sign builder --gpg-options "--batch --pinentry-mode loopback --passphrase-fd 0" "${BUILD_DIR}/packages/${PKG_NAME}"
-            log_info "Debian package signed with embedded signature"
-        fi
-
-        # Create detached signature for all package types
-        echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --armor --output "${BUILD_DIR}/packages/${SIGNED_PKG_NAME}" --detach-sign "${BUILD_DIR}/packages/${PKG_NAME}"
-        log_info "Detached signature written to ${BUILD_DIR}/packages/${SIGNED_PKG_NAME}"
-        
-        # Cleanup
-        rm -rf "$gnupghome"
-    fi
-}
-
 
 # Print build summary
 print_summary() {
     local package_name
     package_name="${BUILD_DIR}/packages/${PKG_NAME}"
-
 
     echo "=========================================="
     echo "  Build Summary"
@@ -404,10 +325,6 @@ print_summary() {
     echo "Client Version:    ${GNOSISVPN_CLI_VERSION}"
     echo "App Version:       ${GNOSISVPN_APP_VERSION}"
     echo "Package:           $package_name"
-    if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then
-    echo "Package signature: ${BUILD_DIR}/packages/${SIGNED_PKG_NAME}"
-    fi
-    echo "SHA:               ${BUILD_DIR}/packages/${HASH_PKG_NAME}"
     echo "=========================================="
     echo ""
 }
@@ -434,7 +351,6 @@ main() {
             fi
             generate_nfpm_config
             generate_package
-            sign_package
             print_summary
             log_success "🎉 Package stage completed successfully!"
             ;;
@@ -445,7 +361,6 @@ main() {
             prepare_contents
             generate_nfpm_config
             generate_package
-            sign_package
             print_summary
             log_success "🎉 Build completed successfully with all quality checks passed!"
             ;;

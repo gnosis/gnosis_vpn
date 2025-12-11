@@ -1,92 +1,41 @@
+# Export default package version (can be overridden by setting GNOSISVPN_PACKAGE_VERSION)
+export GNOSISVPN_PACKAGE_VERSION := env_var_or_default('GNOSISVPN_PACKAGE_VERSION', `date +%Y.%m.%d+build.%H%M%S`)
+
 # Download binaries from GCP
 download distribution arch:
-    #!/usr/bin/env bash
-    set -o errexit -o nounset -o pipefail
-    
-    echo "Downloading binaries..."
-    ./build-package.sh --distribution {{ distribution }} --architecture {{ arch }} --stage download
+    ./scripts/download-binaries.sh --distribution {{ distribution }} --architecture {{ arch }}
 
 # Generate Debian changelog
 changelog:
-    #!/usr/bin/env bash
-    set -o errexit -o nounset -o pipefail
-    
-    echo "Generating changelog..."
-    ../.github/scripts/generate-changelog.sh \
-        --next-release-version "${GNOSISVPN_PACKAGE_VERSION}" \
-        --previous-cli-version "${GNOSISVPN_PREVIOUS_CLI_VERSION:-0.0.0}" \
-        --current-cli-version "${GNOSISVPN_CLI_VERSION}" \
-        --previous-app-version "${GNOSISVPN_PREVIOUS_APP_VERSION:-0.0.0}" \
-        --current-app-version "${GNOSISVPN_APP_VERSION}" \
-        --format ${GNOSISVPN_CHANGELOG_FORMAT:-debian}
-    
-    # Create changelog directory and compress
-    mkdir -p build/changelog
-    gzip -9n -c release_notes.txt > build/changelog/changelog.gz
-    echo "Changelog generated and compressed"
+    ./scripts/generate-changelog.sh
 
 # Generate manual pages for binaries
 manual:
+    ./scripts/generate-manual.sh
+
+# Build nfpm package for GitHub releases (assumes binaries, changelog, and manual already exist)
+package-nfpm distribution arch:
+    ./scripts/build-nfpm-package.sh --distribution {{ distribution }} --architecture {{ arch }}
+
+# Sign package (creates .asc and .sha256 files)
+sign distribution arch:
     #!/usr/bin/env bash
     set -o errexit -o nounset -o pipefail
-    
-    # Check if running on macOS
-    if [[ "$(uname -s)" == "Darwin" ]]; then
-        echo "⚠️  Skipping manual generation on macOS (Linux binaries cannot run natively)"
-        echo "Manual pages will be generated in CI/CD pipeline on Linux"
-        mkdir -p build/man/man1
-        # Create empty placeholder files so the build doesn't fail
-        touch build/man/man1/gnosis_vpn.1.gz
-        touch build/man/man1/gnosis_vpn-ctl.1.gz
-        touch build/man/man1/gnosis_vpn-app.1.gz
-        echo "Created placeholder manual page files"
-        exit 0
+    PKG_FILE=$(ls build/packages/gnosisvpn* | grep "{{ distribution }}" | grep "{{ arch }}" | head -1)
+    if [ -z "$PKG_FILE" ]; then
+        echo "Error: Package file not found for {{ distribution }} {{ arch }}"
+        exit 1
     fi
-    
-    echo "Generating manual pages..."
-    mkdir -p build/man/man1
-    
-    # Generate man page for gnosis_vpn
-    if [ -f "./build/binaries/gnosis_vpn" ]; then
-        help2man --no-info \
-            --name="GnosisVPN - Daemon" \
-            --section=1 \
-            --output build/man/man1/gnosis_vpn.1 \
-            ./build/binaries/gnosis_vpn
-        gzip -9n build/man/man1/gnosis_vpn.1
-        echo "Generated gnosis_vpn.1.gz"
-    fi
-    
-    # Generate man page for gnosis_vpn-ctl
-    if [ -f "./build/binaries/gnosis_vpn-ctl" ]; then
-        help2man --no-info \
-            --name="GnosisVPN Control - CLI tool for managing GnosisVPN" \
-            --section=1 \
-            --output build/man/man1/gnosis_vpn-ctl.1 \
-            ./build/binaries/gnosis_vpn-ctl
-        gzip -9n build/man/man1/gnosis_vpn-ctl.1
-        echo "Generated gnosis_vpn-ctl.1.gz"
-    fi
-    
-    # Copy and compress man page for gnosis_vpn-app (GUI application)
-    gzip -9n -c resources/gnosis_vpn-app.1 > build/man/man1/gnosis_vpn-app.1.gz
-    echo "Generated gnosis_vpn-app.1.gz"
-    
-    echo "Manual pages generated and compressed"
+    echo "Signing $PKG_FILE..."
+    # Create detached signature
+    echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --armor --output "${PKG_FILE}.asc" --detach-sign "$PKG_FILE"
+    # Create SHA256 checksum
+    shasum -a 256 "$PKG_FILE" > "${PKG_FILE}.sha256"
+    echo "Created ${PKG_FILE}.asc and ${PKG_FILE}.sha256"
 
-# Build package using nfpm (assumes binaries, changelog, and manual already exist)
-package distribution arch sign="false":
-    #!/usr/bin/env bash
-    set -o errexit -o nounset -o pipefail
-    
-    echo "Building package..."
-    SIGN_FLAG=""
-    [ "{{ sign }}" == "true" ] && SIGN_FLAG="--sign"
-    ./build-package.sh --distribution {{ distribution }} --architecture {{ arch }} --stage package $SIGN_FLAG
-
-# Download binaries, generate changelog and manual pages, then build package
-package-all distribution arch sign="false": (download distribution arch) changelog manual (package distribution arch sign)
-
+# Build source package for distribution repositories (Debian/Ubuntu, etc.)
+package distribution arch:
+    ./scripts/generate-package.sh --package-version "${GNOSISVPN_PACKAGE_VERSION}" --distribution {{ distribution }} --architecture {{ arch }}
 
 test-package packager arch:
     #!/usr/bin/env bash
@@ -128,10 +77,8 @@ test-package-desktop packager arch:
 
 # Connect to test VM via RDP
 rdp-connect packager arch:
-    #!/usr/bin/env bash
     ./test-vm.sh rdp {{packager}} {{arch}}
 
 delete-test-vm packager arch:
-    #!/usr/bin/env bash
     ./test-vm.sh delete {{packager}} {{arch}}
 

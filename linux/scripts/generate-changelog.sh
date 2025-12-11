@@ -9,15 +9,25 @@
 #
 #
 # Example:
-#   ./generate-release-notes.sh --next-release-version 0.56.5 \
-#                                --previous-cli-version 0.54.4 \
-#                                --current-cli-version 0.56.1 \
-#                                --previous-app-version 0.5.0 \
-#                                --current-app-version 0.6.1 \
-#                                --format github
+#   GNOSISVPN_PACKAGE_VERSION=0.56.5 \
+#   GNOSISVPN_PREVIOUS_CLI_VERSION=0.54.4 \
+#   GNOSISVPN_CLI_VERSION=0.56.1 \
+#   GNOSISVPN_PREVIOUS_APP_VERSION=0.5.0 \
+#   GNOSISVPN_APP_VERSION=0.6.1 \
+#   GNOSISVPN_CHANGELOG_FORMAT=github \
+#   ./generate-changelog.sh
 #
 
 set -euo pipefail
+
+# Read from environment variables with defaults
+: "${GNOSISVPN_PACKAGE_VERSION:=$(date +%Y.%m.%d+build.%H%M%S)}"
+: "${GNOSISVPN_PREVIOUS_CLI_VERSION:?Error: GNOSISVPN_PREVIOUS_CLI_VERSION is required}"
+: "${GNOSISVPN_CLI_VERSION:?Error: GNOSISVPN_CLI_VERSION is required}"
+: "${GNOSISVPN_PREVIOUS_APP_VERSION:?Error: GNOSISVPN_PREVIOUS_APP_VERSION is required}"
+: "${GNOSISVPN_APP_VERSION:?Error: GNOSISVPN_APP_VERSION is required}"
+: "${GNOSISVPN_CHANGELOG_FORMAT:=github}"
+: "${GNOSISVPN_BRANCH:=main}"
 
 # Initialize changelog entries array
 declare -a changelog_entries
@@ -315,81 +325,15 @@ rpm_format_changelog() {
     echo -e "${rpm_changelog}"
 }
 
-# Parse and validate command line arguments
-# Returns: Sets global variables next_release_version, previous_cli_version, current_cli_version,
-#          previous_app_version, current_app_version, format
-parse_arguments() {
-    # Initialize variables
-    next_release_version=""
-    previous_cli_version=""
-    current_cli_version=""
-    previous_app_version=""
-    current_app_version=""
-    format="github"  # Default format
-    branch="main"    # Default branch
-    
-    # Parse named arguments
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --next-release-version)
-                next_release_version="$2"
-                shift 2
-                ;;
-            --previous-cli-version)
-                previous_cli_version="$2"
-                shift 2
-                ;;
-            --current-cli-version)
-                current_cli_version="$2"
-                shift 2
-                ;;
-            --previous-app-version)
-                previous_app_version="$2"
-                shift 2
-                ;;
-            --current-app-version)
-                current_app_version="$2"
-                shift 2
-                ;;
-            --format)
-                format="$2"
-                shift 2
-                ;;
-            --branch)
-                branch="$2"
-                shift 2
-                ;;
-            -h|--help)
-                echo "Usage: $0 --next-release-version <version> \\"
-                echo "          --previous-cli-version <version> \\"
-                echo "          --current-cli-version <version> \\"
-                echo "          --previous-app-version <version> \\"
-                echo "          --current-app-version <version> \\"
-                echo "          [--format <github|debian|json|rpm>] \\"
-                echo "          [--branch <branch-name>]"
-                exit 0
-                ;;
-            *)
-                echo "Error: Unknown option: $1"
-                echo "Use --help for usage information"
-                exit 1
-                ;;
-        esac
-    done
-    
-    # Check that all required arguments are provided
-    if [[ -z "$next_release_version" || -z "$previous_cli_version" || -z "$current_cli_version" || \
-          -z "$previous_app_version" || -z "$current_app_version" ]]; then
-        echo "Error: Missing required arguments"
-        echo "Usage: $0 --next-release-version <version> \\"
-        echo "          --previous-cli-version <version> \\"
-        echo "          --current-cli-version <version> \\"
-        echo "          --previous-app-version <version> \\"
-        echo "          --current-app-version <version> \\"
-        echo "          [--format <github|debian|json|rpm>] \\"
-        echo "          [--branch <branch-name>]"
-        exit 1
-    fi
+# Validate and assign variables from environment
+validate_inputs() {
+    next_release_version="$GNOSISVPN_PACKAGE_VERSION"
+    previous_cli_version="$GNOSISVPN_PREVIOUS_CLI_VERSION"
+    current_cli_version="$GNOSISVPN_CLI_VERSION"
+    previous_app_version="$GNOSISVPN_PREVIOUS_APP_VERSION"
+    current_app_version="$GNOSISVPN_APP_VERSION"
+    format="$GNOSISVPN_CHANGELOG_FORMAT"
+    branch="$GNOSISVPN_BRANCH"
     
     # Validate format
     case "$format" in
@@ -405,8 +349,8 @@ parse_arguments() {
 
 # Main function
 main() {
-    # Parse command line arguments
-    parse_arguments "$@"
+    # Validate inputs from environment
+    validate_inputs
     
     echo "Generating release notes..." >&2
     echo "  Package version: v${next_release_version}" >&2
@@ -464,19 +408,24 @@ main() {
     echo "✅ Fetched ${#changelog_entries[@]} PRs total" >&2
     echo "" >&2
     
-    # Generate changelog in the requested format
+    # Generate changelog to build directory
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    BUILD_DIR="${SCRIPT_DIR}/../build"
+    mkdir -p "${BUILD_DIR}/changelog"
+    
     case $format in
+        debian)
+            debian_format_changelog > "${BUILD_DIR}/changelog/changelog"
+
+            ;;
         github)
-            github_format_changelog > release_notes.txt
+            github_format_changelog > "${BUILD_DIR}/changelog/changelog"
             ;;
         json)
-            json_format_changelog > release_notes.txt
-            ;;
-        debian)
-            debian_format_changelog > release_notes.txt
+            json_format_changelog > "${BUILD_DIR}/changelog/changelog"
             ;;
         rpm)
-            rpm_format_changelog > release_notes.txt
+            rpm_format_changelog > "${BUILD_DIR}/changelog/changelog"
             ;;
         *)
             echo "Error: Unsupported format: ${format}" >&2
@@ -486,8 +435,9 @@ main() {
     
     # Display the generated notes
     echo "=========================================="
-    cat release_notes.txt
+    cat "${BUILD_DIR}/changelog/changelog"
     echo "=========================================="
+    echo "Changelog saved to ${BUILD_DIR}/changelog/changelog"
 }
 
 # Run main function with all arguments
