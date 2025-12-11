@@ -1,8 +1,95 @@
-package distribution arch:
+# Download binaries from GCP
+download distribution arch:
     #!/usr/bin/env bash
-    ./build-package.sh --distribution {{ distribution }} --architecture {{ arch }}
+    set -o errexit -o nounset -o pipefail
+    
+    echo "Downloading binaries..."
+    ./build-package.sh --distribution {{ distribution }} --architecture {{ arch }} --stage download
 
-# Create the distribution packages using nfpm
+# Generate Debian changelog
+changelog:
+    #!/usr/bin/env bash
+    set -o errexit -o nounset -o pipefail
+    
+    echo "Generating changelog..."
+    ../.github/scripts/generate-changelog.sh \
+        --next-release-version "${GNOSISVPN_PACKAGE_VERSION}" \
+        --previous-cli-version "${GNOSISVPN_PREVIOUS_CLI_VERSION:-0.0.0}" \
+        --current-cli-version "${GNOSISVPN_CLI_VERSION}" \
+        --previous-app-version "${GNOSISVPN_PREVIOUS_APP_VERSION:-0.0.0}" \
+        --current-app-version "${GNOSISVPN_APP_VERSION}" \
+        --format ${GNOSISVPN_CHANGELOG_FORMAT:-debian}
+    
+    # Create changelog directory and compress
+    mkdir -p build/changelog
+    gzip -c release_notes.txt > build/changelog/changelog.gz
+    echo "Changelog generated and compressed"
+
+# Generate manual pages for binaries
+manual:
+    #!/usr/bin/env bash
+    set -o errexit -o nounset -o pipefail
+    
+    # Check if running on macOS
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        echo "⚠️  Skipping manual generation on macOS (Linux binaries cannot run natively)"
+        echo "Manual pages will be generated in CI/CD pipeline on Linux"
+        mkdir -p build/man/man1
+        # Create empty placeholder files so the build doesn't fail
+        touch build/man/man1/gnosis_vpn.1.gz
+        touch build/man/man1/gnosis_vpn-ctl.1.gz
+        touch build/man/man1/gnosis_vpn-app.1.gz
+        echo "Created placeholder manual page files"
+        exit 0
+    fi
+    
+    echo "Generating manual pages..."
+    mkdir -p build/man/man1
+    
+    # Generate man page for gnosis_vpn
+    if [ -f "./build/binaries/gnosis_vpn" ]; then
+        help2man --no-info \
+            --name="GnosisVPN - Decentralized VPN daemon" \
+            --section=1 \
+            ./build/binaries/gnosis_vpn > build/man/man1/gnosis_vpn.1
+        gzip -f build/man/man1/gnosis_vpn.1
+        echo "Generated gnosis_vpn.1.gz"
+    fi
+    
+    # Generate man page for gnosis_vpn-ctl
+    if [ -f "./build/binaries/gnosis_vpn-ctl" ]; then
+        help2man --no-info \
+            --name="GnosisVPN Control - CLI tool for managing GnosisVPN" \
+            --section=1 \
+            ./build/binaries/gnosis_vpn-ctl > build/man/man1/gnosis_vpn-ctl.1
+        gzip -f build/man/man1/gnosis_vpn-ctl.1
+        echo "Generated gnosis_vpn-ctl.1.gz"
+    fi
+    
+    # Generate man page for gnosis_vpn-app
+    if [ -f "./build/binaries/gnosis_vpn-app" ]; then
+        help2man --no-info \
+            --name="GnosisVPN App - GUI application for GnosisVPN" \
+            --section=1 \
+            ./build/binaries/gnosis_vpn-app > build/man/man1/gnosis_vpn-app.1
+        gzip -f build/man/man1/gnosis_vpn-app.1
+        echo "Generated gnosis_vpn-app.1.gz"
+    fi
+    
+    echo "Manual pages generated and compressed"
+
+# Build package using nfpm (assumes binaries, changelog, and manual already exist)
+package distribution arch sign="false":
+    #!/usr/bin/env bash
+    set -o errexit -o nounset -o pipefail
+    
+    echo "Building package..."
+    SIGN_FLAG=""
+    [ "{{ sign }}" == "true" ] && SIGN_FLAG="--sign"
+    ./build-package.sh --distribution {{ distribution }} --architecture {{ arch }} --stage package $SIGN_FLAG
+
+# Download binaries, generate changelog and manual pages, then build package
+package-all distribution arch sign="false": (download distribution arch) changelog manual (package distribution arch sign)
 
 
 test-package packager arch:

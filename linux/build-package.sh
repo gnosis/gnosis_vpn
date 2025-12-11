@@ -16,6 +16,7 @@ set -euo pipefail
 : "${GNOSISVPN_ARCHITECTURE:=x86_64-linux}"
 : "${GNOSISVPN_GPG_PRIVATE_KEY_PATH:=}"
 : "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD:=}"
+: "${GNOSISVPN_BUILD_STAGE:=all}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -57,7 +58,7 @@ log_error() {
 
 # Usage help message
 usage() {
-    echo "Usage: $0 --package-version <version> --cli-version <version> --app-version <version> [--sign]"
+    echo "Usage: $0 --package-version <version> --cli-version <version> --app-version <version> [--sign] [--stage <stage>]"
     echo
     echo "Options:"
     echo "  --package-version <version>    Set the package version (e.g., 1.0.0)"
@@ -65,6 +66,7 @@ usage() {
     echo "  --app-version <version>        Set the App version (e.g., latest, v0.2.2, 0.2.2+pr.10)"
     echo "  --distribution <type>          Set the distribution type (deb, rpm, archlinux), default: deb"
     echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux), default: x86_64-linux"
+    echo "  --stage <stage>                Build stage: download, package, all (default: all)"
     echo "  --sign                         Enable code signing"
     echo "  --gpg-private-key-path <path>  Path to GPG private key for signing"
     echo "  -h, --help                     Show this help message"
@@ -131,6 +133,14 @@ parse_args() {
             GNOSISVPN_ARCHITECTURE="${2:-}"
             if [[ -z $GNOSISVPN_ARCHITECTURE ]] || [[ ! $GNOSISVPN_ARCHITECTURE =~ ^(x86_64-linux|aarch64-linux)$ ]]; then
                 log_error "'--architecture <arch>' requires a value (x86_64-linux or aarch64-linux)"
+                usage
+            fi
+            shift 2
+            ;;
+        --stage)
+            GNOSISVPN_BUILD_STAGE="${2:-}"
+            if [[ -z $GNOSISVPN_BUILD_STAGE ]] || [[ ! $GNOSISVPN_BUILD_STAGE =~ ^(download|package|all)$ ]]; then
+                log_error "'--stage <stage>' requires a value (download, package, or all)"
                 usage
             fi
             shift 2
@@ -365,15 +375,41 @@ print_summary() {
 main() {
     print_banner
     check_prerequisites
-    prepare_build_dir
-    download_binaries
-    prepare_contents
-    generate_nfpm_config
-    generate_package
-    sign_package
-    print_summary
+    
+    case "$GNOSISVPN_BUILD_STAGE" in
+        download)
+            log_info "Running download stage only..."
+            prepare_build_dir
+            download_binaries
+            prepare_contents
+            log_success "🎉 Download stage completed successfully!"
+            ;;
+        package)
+            log_info "Running package stage only (assuming binaries already downloaded)..."
+            if [[ ! -d "${BUILD_DIR}/binaries" ]] || [[ ! -f "${BUILD_DIR}/binaries/gnosis_vpn" ]]; then
+                log_error "Binaries not found in ${BUILD_DIR}/binaries/"
+                log_error "Run with --stage download first to download binaries"
+                exit 1
+            fi
+            generate_nfpm_config
+            generate_package
+            sign_package
+            print_summary
+            log_success "🎉 Package stage completed successfully!"
+            ;;
+        all)
+            log_info "Running all stages..."
+            prepare_build_dir
+            download_binaries
+            prepare_contents
+            generate_nfpm_config
+            generate_package
+            sign_package
+            print_summary
+            log_success "🎉 Build completed successfully with all quality checks passed!"
+            ;;
+    esac
     echo ""
-    log_success "🎉 Build completed successfully with all quality checks passed!"
 }
 
 # Execute main

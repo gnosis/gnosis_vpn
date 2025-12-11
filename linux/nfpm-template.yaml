@@ -93,6 +93,31 @@ contents:
     dst: /usr/lib/systemd/system/gnosis_vpn.service
   - src: ./resources/copyright
     dst: /usr/share/doc/gnosis_vpn/copyright
+  - src: ./build/changelog/changelog.gz
+    dst: /usr/share/doc/gnosis_vpn/changelog.gz
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  # Manual pages
+  - src: ./build/man/man1/gnosis_vpn.1.gz
+    dst: /usr/share/man/man1/gnosis_vpn.1.gz
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  - src: ./build/man/man1/gnosis_vpn-ctl.1.gz
+    dst: /usr/share/man/man1/gnosis_vpn-ctl.1.gz
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  - src: ./build/man/man1/gnosis_vpn-app.1.gz
+    dst: /usr/share/man/man1/gnosis_vpn-app.1.gz
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
 __GNOSIS_VPN_APP_CONTENTS__
 scripts:
   preinstall: ./scripts/preinstall.sh
