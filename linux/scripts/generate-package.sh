@@ -85,19 +85,31 @@ parse_args() {
 
 # Import GPG private key if provided
 import_gpg_key() {
-    if [[ -n "${GNOSISVPN_GPG_PRIVATE_KEY_PATH}" && -f "${GNOSISVPN_GPG_PRIVATE_KEY_PATH}" ]]; then
-        log_info "Importing GPG private key from ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}..."
-        
-        if [[ -n "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" ]]; then
-            echo "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --import "${GNOSISVPN_GPG_PRIVATE_KEY_PATH}" 2>&1 | grep -v "already in secret keyring" || true
-        else
-            gpg --import "${GNOSISVPN_GPG_PRIVATE_KEY_PATH}" 2>&1 | grep -v "already in secret keyring" || true
-        fi
-        
-        log_success "GPG key imported"
-    else
+    if [[ -z "${GNOSISVPN_GPG_PRIVATE_KEY_PATH}" ]]; then
         log_info "No GPG key path provided (GNOSISVPN_GPG_PRIVATE_KEY_PATH not set)"
+        return
     fi
+    
+    # Resolve relative path from parent directory (where justfile is)
+    local key_path="${GNOSISVPN_GPG_PRIVATE_KEY_PATH}"
+    if [[ ! "${key_path}" = /* ]]; then
+        key_path="${SCRIPT_DIR}/../${key_path}"
+    fi
+    
+    if [[ ! -f "${key_path}" ]]; then
+        log_warn "GPG key file not found: ${key_path}"
+        return
+    fi
+    
+    log_info "Importing GPG private key from ${key_path}..."
+    
+    if [[ -n "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" ]]; then
+        echo "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --import "${key_path}" 2>&1 | grep -v "already in secret keyring" || true
+    else
+        gpg --import "${key_path}" 2>&1 | grep -v "already in secret keyring" || true
+    fi
+    
+    log_success "GPG key imported"
 }
 
 # Sign the Debian package
