@@ -25,6 +25,7 @@
             google-cloud-sdk
             # Debian packaging tools
             dpkg
+            debhelper
             # Archive tools
             libarchive  # provides bsdtar and bsdcpio (includes ar functionality)
           ];
