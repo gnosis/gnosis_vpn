@@ -251,7 +251,7 @@ get_urgency_level() {
 debian_format_changelog() {
     local distribution=$(get_release_type)
     local urgency=$(get_urgency_level "${next_release_version}")
-    local maintainer="Hopr Association <tech@hoprnet.org>"
+    local maintainer="GnosisVPN (Gnosis VPN) <tech@hoprnet.org>"
     local date="$(date -R)"
     
     # Ensure clean assignment to debian_changelog
