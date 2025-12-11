@@ -25,9 +25,11 @@
             google-cloud-sdk
             # Debian packaging tools
             dpkg
-            debhelper
             # Archive tools
             libarchive  # provides bsdtar and bsdcpio (includes ar functionality)
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            # Linux-only tools
+            debhelper
           ];
           
           shellHook = ''
