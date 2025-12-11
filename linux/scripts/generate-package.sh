@@ -100,12 +100,15 @@ generate_debian_source() {
         exit 1
     fi
     
-    # Verify changelog exists (will be used by debian/rules during build)
+    # Copy changelog (dpkg-buildpackage requires it before build starts)
     if [[ ! -f "${BUILD_DIR}/changelog/changelog" ]]; then
         log_error "Changelog not found at ${BUILD_DIR}/changelog/changelog"
         log_error "Run 'just changelog' first"
         exit 1
     fi
+    
+    cp "${BUILD_DIR}/changelog/changelog" "${SCRIPT_DIR}/../debian/changelog"
+    log_info "Copied changelog to debian/changelog"
     
     # Build source package
     DEBVERSION="${GNOSISVPN_PACKAGE_VERSION}-1"
