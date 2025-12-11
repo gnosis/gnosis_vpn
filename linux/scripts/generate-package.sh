@@ -16,6 +16,11 @@ source "${SCRIPT_DIR}/common.sh"
 : "${GNOSISVPN_DISTRIBUTION:=deb}"
 : "${GNOSISVPN_ARCHITECTURE:=x86_64-linux}"
 
+# GPG signing variables (from justfile sign recipe)
+: "${GNOSISVPN_GPG_PRIVATE_KEY_PATH:=}"
+: "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD:=}"
+: "${DEBSIGN_KEYID:=}"
+
 # Usage help message
 usage() {
     echo "Usage: $0 --package-version <version> --distribution <type> [options]"
@@ -78,8 +83,67 @@ parse_args() {
     log_success "Command-line arguments parsed successfully"
 }
 
+# Import GPG private key if provided
+import_gpg_key() {
+    if [[ -n "${GNOSISVPN_GPG_PRIVATE_KEY_PATH}" && -f "${GNOSISVPN_GPG_PRIVATE_KEY_PATH}" ]]; then
+        log_info "Importing GPG private key from ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}..."
+        
+        if [[ -n "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" ]]; then
+            echo "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --import "${GNOSISVPN_GPG_PRIVATE_KEY_PATH}" 2>&1 | grep -v "already in secret keyring" || true
+        else
+            gpg --import "${GNOSISVPN_GPG_PRIVATE_KEY_PATH}" 2>&1 | grep -v "already in secret keyring" || true
+        fi
+        
+        log_success "GPG key imported"
+    else
+        log_info "No GPG key path provided (GNOSISVPN_GPG_PRIVATE_KEY_PATH not set)"
+    fi
+}
+
+# Sign the Debian package
+sign_debian_package() {
+    local changes_file="$1"
+    
+    if ! command -v debsign &>/dev/null; then
+        log_warn "debsign not found. Install devscripts package to enable signing."
+        log_warn "To sign manually: debsign ${changes_file}"
+        return 1
+    fi
+    
+    log_info "Signing package with debsign..."
+    
+    # Build debsign command
+    local sign_cmd="debsign"
+    
+    # Use DEBSIGN_KEYID if set
+    if [[ -n "${DEBSIGN_KEYID}" ]]; then
+        log_info "Using GPG key: ${DEBSIGN_KEYID}"
+        sign_cmd="debsign -k${DEBSIGN_KEYID}"
+    else
+        log_info "Using default GPG key (set DEBSIGN_KEYID to specify)"
+    fi
+    
+    # Sign with or without password
+    if [[ -n "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" ]]; then
+        if echo "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" | ${sign_cmd} --re-sign "${changes_file}" 2>&1; then
+            log_success "Package signed successfully"
+            return 0
+        fi
+    else
+        if ${sign_cmd} "${changes_file}" 2>&1; then
+            log_success "Package signed successfully"
+            return 0
+        fi
+    fi
+    
+    log_warn "Package signing failed. You can sign manually with:"
+    log_warn "  debsign ${changes_file}"
+    log_warn "Or with specific key: debsign -kKEYID ${changes_file}"
+    return 1
+}
+
 # Generate Debian source package
-generate_debian_source() {
+generate_debian_package() {
     log_info "Generating Debian source package..."
     
     # Check if we're on macOS
@@ -110,29 +174,41 @@ generate_debian_source() {
     cp "${BUILD_DIR}/changelog/changelog" "${SCRIPT_DIR}/../debian/changelog"
     log_info "Copied changelog to debian/changelog"
     
+    # Import GPG key if provided
+    import_gpg_key
+    
     # Build source package
-    DEBVERSION="${GNOSISVPN_PACKAGE_VERSION}-1"
-    log_info "Building Debian source package version ${DEBVERSION}..."
+    log_info "Building Debian source package version ${GNOSISVPN_PACKAGE_VERSION}..."
     dpkg-buildpackage -S -sa -d --no-sign
+    
+    PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+    CHANGES_FILE="../gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_source.changes"
+    
+    # Sign the package
+    sign_debian_package "${CHANGES_FILE}"
     
     # Print results
     echo ""
     echo "=========================================="
     echo "  Debian Source Package Created"
     echo "=========================================="
-    echo "Version:           ${DEBVERSION}"
+    echo "Version:           ${GNOSISVPN_PACKAGE_VERSION}"
     echo "Build Date:        $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
     echo "=========================================="
     echo ""
-    echo "Files created in parent directory:"
-    ls -lh ../gnosisvpn_${DEBVERSION}.* 2>/dev/null || true
+    echo "📦 Generated files in ${PARENT_DIR}:"
     echo ""
-    echo "To sign the .changes file:"
-    echo "  debsign ../gnosisvpn_${DEBVERSION}_source.changes"
+    ls -lh ../gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}.* 2>/dev/null | awk '{printf "  %-50s %6s  %s\n", $9, $5, $6" "$7" "$8}' || true
     echo ""
-    echo "To upload to Debian:"
-    echo "  dput mentors ../gnosisvpn_${DEBVERSION}_source.changes  # For testing"
-    echo "  dput ftp-master ../gnosisvpn_${DEBVERSION}_source.changes  # For official upload"
+    echo "Files:"
+    echo "  • gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}.dsc          - Package description"
+    echo "  • gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}.tar.xz       - Source tarball"
+    echo "  • gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_source.changes - Upload control file"
+    echo "  • gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_source.buildinfo - Build metadata"
+    echo ""
+    echo "Next steps:"
+    echo "  1. Test:   dput mentors ../gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_source.changes"
+    echo "  2. Upload: dput ftp-master ../gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_source.changes"
     echo ""
 }
 
@@ -140,7 +216,7 @@ generate_debian_source() {
 main() {
     case "${GNOSISVPN_DISTRIBUTION}" in
         deb)
-            generate_debian_source
+            generate_debian_package
             ;;
         *)
             log_error "Unsupported distribution: ${GNOSISVPN_DISTRIBUTION}"
