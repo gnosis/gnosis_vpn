@@ -22,7 +22,7 @@ changelog:
     
     # Create changelog directory and compress
     mkdir -p build/changelog
-    gzip -c release_notes.txt > build/changelog/changelog.gz
+    gzip -9n -c release_notes.txt > build/changelog/changelog.gz
     echo "Changelog generated and compressed"
 
 # Generate manual pages for binaries
@@ -49,10 +49,11 @@ manual:
     # Generate man page for gnosis_vpn
     if [ -f "./build/binaries/gnosis_vpn" ]; then
         help2man --no-info \
-            --name="GnosisVPN - Decentralized VPN daemon" \
+            --name="GnosisVPN - Daemon" \
             --section=1 \
-            ./build/binaries/gnosis_vpn > build/man/man1/gnosis_vpn.1
-        gzip -f build/man/man1/gnosis_vpn.1
+            --output build/man/man1/gnosis_vpn.1 \
+            ./build/binaries/gnosis_vpn
+        gzip -9n build/man/man1/gnosis_vpn.1
         echo "Generated gnosis_vpn.1.gz"
     fi
     
@@ -61,8 +62,9 @@ manual:
         help2man --no-info \
             --name="GnosisVPN Control - CLI tool for managing GnosisVPN" \
             --section=1 \
-            ./build/binaries/gnosis_vpn-ctl > build/man/man1/gnosis_vpn-ctl.1
-        gzip -f build/man/man1/gnosis_vpn-ctl.1
+            --output build/man/man1/gnosis_vpn-ctl.1 \
+            ./build/binaries/gnosis_vpn-ctl
+        gzip -9n build/man/man1/gnosis_vpn-ctl.1
         echo "Generated gnosis_vpn-ctl.1.gz"
     fi
     
@@ -71,8 +73,9 @@ manual:
         help2man --no-info \
             --name="GnosisVPN App - GUI application for GnosisVPN" \
             --section=1 \
-            ./build/binaries/gnosis_vpn-app > build/man/man1/gnosis_vpn-app.1
-        gzip -f build/man/man1/gnosis_vpn-app.1
+            --output build/man/man1/gnosis_vpn-app.1 \
+            ./build/binaries/gnosis_vpn-app
+        gzip -9n build/man/man1/gnosis_vpn-app.1
         echo "Generated gnosis_vpn-app.1.gz"
     fi
     

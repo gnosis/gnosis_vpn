@@ -281,6 +281,10 @@ download_binaries() {
     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BUILD_DIR}/binaries" \
         "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" --local-filename=gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}
 
+    # Set execute permissions on downloaded binaries
+    chmod +x "${BUILD_DIR}/binaries/gnosis_vpn"
+    chmod +x "${BUILD_DIR}/binaries/gnosis_vpn-ctl"
+
     log_success "All downloads completed"
 }
 
@@ -290,6 +294,7 @@ prepare_contents() {
     tar -xf ${BUILD_DIR}/app-contents/data.tar.gz -C ${BUILD_DIR}/app-contents/rootfs
     # The binary is defined in nfpm-template.yaml as it requires to specify file permissions
     mv ${BUILD_DIR}/app-contents/rootfs/usr/bin/gnosis_vpn-app ${BUILD_DIR}/binaries/gnosis_vpn-app
+    chmod +x ${BUILD_DIR}/binaries/gnosis_vpn-app
     rm -rf ${BUILD_DIR}/app-contents/*.tar.gz
     log_info "Prepared application contents from package"
     cd ${SCRIPT_DIR}
