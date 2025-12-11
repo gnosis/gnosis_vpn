@@ -27,13 +27,16 @@
             dpkg
             # Archive tools
             libarchive  # provides bsdtar and bsdcpio (includes ar functionality)
-          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-            # Linux-only tools
-            debhelper
           ];
           
           shellHook = ''
             alias ll='ls -al'
+            
+            # Install debhelper on Linux if not already installed
+            if [[ "$(uname -s)" == "Linux" ]] && ! command -v dh &>/dev/null; then
+              echo "📦 Installing debhelper (requires sudo)..."
+              sudo apt-get update -qq && sudo apt-get install -y debhelper
+            fi
           '';
 
         };
