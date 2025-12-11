@@ -23,6 +23,7 @@
             gzip
             gh
             dpkg
+            dpkg-repack
           ];
 
         };
