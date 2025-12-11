@@ -68,16 +68,9 @@ manual:
         echo "Generated gnosis_vpn-ctl.1.gz"
     fi
     
-    # Generate man page for gnosis_vpn-app
-    if [ -f "./build/binaries/gnosis_vpn-app" ]; then
-        help2man --no-info \
-            --name="GnosisVPN App - GUI application for GnosisVPN" \
-            --section=1 \
-            --output build/man/man1/gnosis_vpn-app.1 \
-            ./build/binaries/gnosis_vpn-app
-        gzip -9n build/man/man1/gnosis_vpn-app.1
-        echo "Generated gnosis_vpn-app.1.gz"
-    fi
+    # Copy and compress man page for gnosis_vpn-app (GUI application)
+    gzip -9n -c resources/gnosis_vpn-app.1 > build/man/man1/gnosis_vpn-app.1.gz
+    echo "Generated gnosis_vpn-app.1.gz"
     
     echo "Manual pages generated and compressed"
 

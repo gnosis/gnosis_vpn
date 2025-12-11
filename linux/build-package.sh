@@ -27,9 +27,37 @@ NC='\033[0m' # No Color
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="${SCRIPT_DIR}/build"
-PKG_NAME="gnosis_vpn-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}"
-SIGNED_PKG_NAME="gnosis_vpn-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}.asc"
-HASH_PKG_NAME="gnosis_vpn-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}.sha256"
+
+# Generate package name based on distribution conventions
+generate_package_name() {
+    local arch_name="${GNOSISVPN_ARCHITECTURE}"
+    
+    # Convert architecture name based on distribution
+    case "${GNOSISVPN_DISTRIBUTION}" in
+        deb)
+            arch_name="${arch_name/x86_64-linux/amd64}"
+            arch_name="${arch_name/aarch64-linux/arm64}"
+            echo "gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_${arch_name}.deb"
+            ;;
+        rpm)
+            arch_name="${arch_name/x86_64-linux/x86_64}"
+            arch_name="${arch_name/aarch64-linux/aarch64}"
+            echo "gnosisvpn-${GNOSISVPN_PACKAGE_VERSION}.${arch_name}.rpm"
+            ;;
+        archlinux)
+            arch_name="${arch_name/x86_64-linux/x86_64}"
+            arch_name="${arch_name/aarch64-linux/aarch64}"
+            echo "gnosisvpn-${GNOSISVPN_PACKAGE_VERSION}-${arch_name}.pkg.tar.zst"
+            ;;
+        *)
+            echo "gnosisvpn-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}"
+            ;;
+    esac
+}
+
+PKG_NAME="$(generate_package_name)"
+SIGNED_PKG_NAME="${PKG_NAME}.asc"
+HASH_PKG_NAME="${PKG_NAME}.sha256"
 
 
 # shellcheck disable=SC2317
@@ -96,9 +124,9 @@ parse_args() {
             else
                 check_version_syntax "$GNOSISVPN_PACKAGE_VERSION"
             fi
-            PKG_NAME="gnosis_vpn-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}"
-            SIGNED_PKG_NAME="gnosis_vpn-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}.asc"
-            HASH_PKG_NAME="gnosis_vpn-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}.sha256"
+            PKG_NAME="$(generate_package_name)"
+            SIGNED_PKG_NAME="${PKG_NAME}.asc"
+            HASH_PKG_NAME="${PKG_NAME}.sha256"
             shift 2
             ;;
         --cli-version)
@@ -295,6 +323,7 @@ prepare_contents() {
     # The binary is defined in nfpm-template.yaml as it requires to specify file permissions
     mv ${BUILD_DIR}/app-contents/rootfs/usr/bin/gnosis_vpn-app ${BUILD_DIR}/binaries/gnosis_vpn-app
     chmod +x ${BUILD_DIR}/binaries/gnosis_vpn-app
+    strip ${BUILD_DIR}/binaries/gnosis_vpn-app
     rm -rf ${BUILD_DIR}/app-contents/*.tar.gz
     log_info "Prepared application contents from package"
     cd ${SCRIPT_DIR}
@@ -344,9 +373,16 @@ sign_package() {
         shasum -a 256 "${BUILD_DIR}/packages/${PKG_NAME}" > "${BUILD_DIR}/packages/${HASH_PKG_NAME}"
         log_info "Hash written to ${BUILD_DIR}/packages/${HASH_PKG_NAME}"
 
-        # Sign binary with passphrase
+        # For Debian packages, use dpkg-sig for proper embedded signing
+        if [[ "${GNOSISVPN_DISTRIBUTION}" == "deb" ]]; then
+            log_info "Signing Debian package with dpkg-sig..."
+            echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" | dpkg-sig --sign builder --gpg-options "--batch --pinentry-mode loopback --passphrase-fd 0" "${BUILD_DIR}/packages/${PKG_NAME}"
+            log_info "Debian package signed with embedded signature"
+        fi
+
+        # Create detached signature for all package types
         echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --armor --output "${BUILD_DIR}/packages/${SIGNED_PKG_NAME}" --detach-sign "${BUILD_DIR}/packages/${PKG_NAME}"
-        log_info "Signature written to ${BUILD_DIR}/packages/${SIGNED_PKG_NAME}"
+        log_info "Detached signature written to ${BUILD_DIR}/packages/${SIGNED_PKG_NAME}"
         
         # Cleanup
         rm -rf "$gnupghome"

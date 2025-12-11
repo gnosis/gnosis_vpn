@@ -1,5 +1,5 @@
 ---
-name: gnosis_vpn
+name: gnosisvpn
 arch: "${NFPM_ARCHITECTURE}"
 platform: linux
 version: "${GNOSISVPN_PACKAGE_VERSION}"
@@ -14,12 +14,10 @@ homepage: https://gnosisvpn.com/
 rpm:
   signature:
     key_file: ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}
-deb:
-  signature:
-    key_file: ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}
 overrides:
   deb:
     depends:
+      - libc6
       - systemd
       - curl
       - iptables
@@ -69,21 +67,21 @@ contents:
       group: root
   # Resource files
   - src: ./resources/gnosis_vpn.env
-    dst: /etc/gnosis_vpn/gnosis_vpn.env
+    dst: /etc/gnosisvpn/gnosis_vpn.env
     type: config
     file_info:
       mode: 0644
       owner: root
       group: root
   - src: ./resources/rotsee-config.toml
-    dst: /etc/gnosis_vpn/config.toml
+    dst: /etc/gnosisvpn/config.toml
     type: config
     file_info:
       mode: 0644
       owner: root
       group: root
   - src: ./resources/logrotate.conf
-    dst: /etc/logrotate.d/gnosis_vpn
+    dst: /etc/logrotate.d/gnosisvpn
     type: config
     file_info:
       mode: 0644
@@ -92,9 +90,15 @@ contents:
   - src: ./resources/gnosis_vpn.service
     dst: /usr/lib/systemd/system/gnosis_vpn.service
   - src: ./resources/copyright
-    dst: /usr/share/doc/gnosis_vpn/copyright
+    dst: /usr/share/doc/gnosisvpn/copyright
   - src: ./build/changelog/changelog.gz
-    dst: /usr/share/doc/gnosis_vpn/changelog.gz
+    dst: /usr/share/doc/gnosisvpn/changelog.gz
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  - src: ./resources/lintian-overrides
+    dst: /usr/share/lintian/overrides/gnosisvpn
     file_info:
       mode: 0644
       owner: root

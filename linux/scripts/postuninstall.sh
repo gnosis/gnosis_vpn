@@ -29,7 +29,7 @@ fi
 
 # Reload systemd after service file removal
 echo "$LOG_PREFIX INFO: Reloading systemd daemon..."
-systemctl daemon-reload || true
+deb-systemd-helper daemon-reload || true
 
 # Check if this is a complete purge
 IS_PURGE=false
@@ -67,9 +67,9 @@ if [[ "$IS_PURGE" == "true" ]]; then
   fi
   
   # Remove configuration directory (including backups)
-  if [[ -d /etc/gnosis_vpn ]]; then
-    echo "$LOG_PREFIX INFO: Removing configuration directory: /etc/gnosis_vpn"
-    rm -rf /etc/gnosis_vpn
+  if [[ -d /etc/gnosisvpn ]]; then
+    echo "$LOG_PREFIX INFO: Removing configuration directory: /etc/gnosisvpn"
+    rm -rf /etc/gnosisvpn
   fi
   
   # Remove logrotate configuration
@@ -98,7 +98,7 @@ if [[ "$IS_PURGE" == "true" ]]; then
   echo "$LOG_PREFIX SUCCESS: Complete removal finished"
 else
   echo "$LOG_PREFIX INFO: Package removed, user data preserved"
-  echo "$LOG_PREFIX INFO: Configuration: /etc/gnosis_vpn"
+  echo "$LOG_PREFIX INFO: Configuration: /etc/gnosisvpn"
   echo "$LOG_PREFIX INFO: State data: /var/lib/gnosis_vpn"
   echo "$LOG_PREFIX INFO: Logs: /var/log/gnosis_vpn"
   
@@ -116,8 +116,10 @@ else
   esac
 fi
 
-# Clean up any temporary files
-rm -f /tmp/.gnosisvpn-* 2>/dev/null || true
+# Clean up any temporary files (use find with -user for safety)
+if [[ -d /tmp ]]; then
+  find /tmp -maxdepth 1 -name '.gnosisvpn-*' -user gnosisvpn -delete 2>/dev/null || true
+fi
 
 echo "$LOG_PREFIX SUCCESS: Post-uninstall completed successfully"
 exit 0

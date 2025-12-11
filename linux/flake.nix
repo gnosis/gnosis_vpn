@@ -22,6 +22,7 @@
             help2man
             gzip
             gh
+            dpkg
           ];
 
         };

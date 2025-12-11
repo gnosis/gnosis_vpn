@@ -47,10 +47,12 @@ configure_filesystem_permissions() {
     echo "$LOG_PREFIX INFO: Setting up directory permissions..."
     
     # Fix ownership of configuration files (nfpm may have created them with numeric UID)
-    if [[ -d /etc/gnosis_vpn ]]; then
-        chown -R gnosisvpn:gnosisvpn /etc/gnosis_vpn
-        chmod 755 /etc/gnosis_vpn
-        chmod 644 /etc/gnosis_vpn/*.toml 2>/dev/null || true
+    if [[ -d /etc/gnosisvpn ]]; then
+        chown gnosisvpn:gnosisvpn /etc/gnosisvpn
+        chmod 755 /etc/gnosisvpn
+        # Fix ownership of config files individually (avoid recursive chown)
+        find /etc/gnosisvpn -maxdepth 1 -type f -exec chown gnosisvpn:gnosisvpn {} \;
+        chmod 644 /etc/gnosisvpn/*.toml 2>/dev/null || true
     fi
 
     # Ensure log directory exists with correct permissions
@@ -89,14 +91,14 @@ enable_and_start_systemd_service() {
     echo "$LOG_PREFIX INFO: Setting up systemd service..."
     
     # Reload systemd to pick up the service file
-    systemctl daemon-reload
+    deb-systemd-helper daemon-reload
 
     # Enable and start service
     echo "$LOG_PREFIX INFO: Enabling gnosis_vpn.service..."
-    systemctl enable gnosis_vpn.service
+    deb-systemd-helper enable gnosis_vpn.service
 
     echo "$LOG_PREFIX INFO: Starting gnosis_vpn.service..."
-    systemctl start gnosis_vpn.service
+    deb-systemd-invoke start gnosis_vpn.service
 
     sleep 2
 

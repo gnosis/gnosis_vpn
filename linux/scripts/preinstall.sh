@@ -20,16 +20,16 @@ fi
 # Stop running service to prevent file conflicts during upgrade
 if command -v systemctl >/dev/null 2>&1; then
   if systemctl is-active --quiet gnosis_vpn 2>/dev/null; then
-    echo "$LOG_PREFIX INFO: Stopping gnosis_vpn service..."
-    systemctl stop gnosis_vpn || true
+    echo "$LOG_PREFIX INFO: Stopping existing gnosis_vpn service..."
+    deb-systemd-invoke stop gnosis_vpn || true
   fi
 fi
 
 # Backup existing configuration if modified
-if [[ -f /etc/gnosis_vpn/config.toml ]]; then
-  backup_path="/etc/gnosis_vpn/config.toml.backup.$(date +%Y%m%d_%H%M%S)"
-  echo "$LOG_PREFIX INFO: Backing up configuration to ${backup_path}"
-  cp -a /etc/gnosis_vpn/config.toml "$backup_path" || true
+if [[ -f /etc/gnosisvpn/config.toml ]]; then
+  backup_path="/etc/gnosisvpn/config.toml.backup.$(date +%Y%m%d_%H%M%S)"
+  echo "$LOG_PREFIX INFO: Backing up existing configuration to $backup_path"
+  cp -a /etc/gnosisvpn/config.toml "$backup_path" || true
 fi
 
 # Verify kernel module support for WireGuard (dependency installs package, not kernel module)
