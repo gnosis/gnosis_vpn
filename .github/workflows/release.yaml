@@ -110,18 +110,18 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}
-          path: ./linux/build/packages/gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}
+          path: ./linux/build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture }}.${{ matrix.distribution }}
       - name: Upload Signature
         if: inputs.sign
         uses: actions/upload-artifact@v5
         with:
           name: gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.asc
-          path: ./linux/build/packages/gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.asc
+          path: ./linux/build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture }}.${{ matrix.distribution }}.asc
       - name: Upload Hash
         uses: actions/upload-artifact@v5
         with:
           name: gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.sha256
-          path: ./linux/build/packages/gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.sha256
+          path: ./linux/build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture }}.${{ matrix.distribution }}.sha256
 
   mac:
     runs-on: macos-15
@@ -185,16 +185,16 @@ jobs:
         with:
           path: ./binaries
       - name: Generate Release Notes
-        run: |
-          chmod +x .github/scripts/generate-release-notes.sh
-          .github/scripts/generate-release-notes.sh \
-            --next-release-version "${{ vars.GNOSISVPN_NEXT_RELEASE_VERSION }}" \
-            --previous-cli-version "${{ vars.GNOSISVPN_PREVIOUS_CLI_VERSION }}" \
-            --current-cli-version "${{ needs.setup.outputs.GNOSISVPN_CLI_VERSION }}" \
-            --previous-app-version "${{ vars.GNOSISVPN_PREVIOUS_APP_VERSION }}" \
-            --current-app-version "${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}"
+        run: linux/scripts/generate-changelog.sh
         env:
           GH_TOKEN: ${{ github.token }}
+          GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+          GNOSISVPN_CLI_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLI_VERSION }}
+          GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}
+          GNOSISVPN_PREVIOUS_CLI_VERSION: ${{ vars.GNOSISVPN_PREVIOUS_CLI_VERSION }}
+          GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_PREVIOUS_APP_VERSION }}
+          GNOSISVPN_CHANGELOG_FORMAT: github
+
       - name: Create release
         if: inputs.public_release
         run: |
