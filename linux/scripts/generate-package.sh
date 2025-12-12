@@ -134,36 +134,22 @@ sign_debian_package() {
 
     log_info "Signing package with debsign..."
     
-    # Debug: Show environment setup
-    log_info "DEBUG: GNUPGHOME = ${GNUPGHOME}"
-    log_info "DEBUG: GPG wrapper = ${SCRIPT_DIR}/gpg-wrapper.sh"
-    log_info "DEBUG: Changes file = ${changes_file}"
-    log_info "DEBUG: Password length = ${#GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}"
-    
     # Export variables that the wrapper needs
     export GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD
     export GNUPGHOME
     
-    # Debug: Test GPG setup directly
-    log_info "DEBUG: Testing GPG with wrapper directly..."
-    echo "test" | "${SCRIPT_DIR}/gpg-wrapper.sh" --clearsign > /dev/null 2>&1 && log_info "DEBUG: Direct GPG test PASSED" || log_warn "DEBUG: Direct GPG test FAILED"
+    # # Debug: Test GPG setup directly
+    # log_info "DEBUG: Testing GPG with wrapper directly..."
+    # echo "test" | "${SCRIPT_DIR}/gpg-wrapper.sh" --clearsign > /dev/null 2>&1 && log_info "DEBUG: Direct GPG test PASSED" || log_warn "DEBUG: Direct GPG test FAILED"
     
-    # Debug: List keys in GNUPGHOME
-    log_info "DEBUG: Keys in GNUPGHOME:"
-    gpg --homedir "${GNUPGHOME}" --list-secret-keys 2>&1 || log_warn "DEBUG: Failed to list keys"
-    
-    # Debug: Show gpg-agent.conf
-    log_info "DEBUG: gpg-agent.conf contents:"
-    cat "${GNUPGHOME}/gpg-agent.conf"
-    set -x
-    # Use the GPG wrapper script for debsign
-    log_info "DEBUG: Calling debsign with DEBSIGN_PROGRAM=${SCRIPT_DIR}/gpg-wrapper.sh"
+    # # Debug: List keys in GNUPGHOME
+    # log_info "DEBUG: Keys in GNUPGHOME:"
+    # gpg --homedir "${GNUPGHOME}" --list-secret-keys 2>&1 || log_warn "DEBUG: Failed to list keys"
+
     if DEBSIGN_PROGRAM="${SCRIPT_DIR}/gpg-wrapper.sh" debsign --re-sign "${changes_file}" 2>&1; then
         log_success "Package signed successfully"
     else
         log_warn "Package signing failed"
-        log_info "DEBUG: Wrapper script contents:"
-        cat "${SCRIPT_DIR}/gpg-wrapper.sh"
         exit 1
     fi
 
