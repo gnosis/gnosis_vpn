@@ -24,6 +24,12 @@ package distribution arch sign="false":
         --architecture {{ arch }} \
         $SIGN_FLAG
 
+all distribution arch sign="false":
+    just download {{ distribution }} {{ arch }}
+    just changelog
+    just manual
+    just package {{ distribution }} {{ arch }} {{ sign }}
+
 test-package packager arch:
     #!/usr/bin/env bash
     set -o errexit -o nounset -o pipefail
