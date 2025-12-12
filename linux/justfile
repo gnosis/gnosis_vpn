@@ -5,7 +5,7 @@ export GNOSISVPN_PACKAGE_VERSION := env_var_or_default('GNOSISVPN_PACKAGE_VERSIO
 download distribution arch:
     ./scripts/download-binaries.sh --distribution {{ distribution }} --architecture {{ arch }}
 
-# Generate Debian changelog
+# Generate changelog
 changelog:
     ./scripts/generate-changelog.sh
 
@@ -13,33 +13,33 @@ changelog:
 manual:
     ./scripts/generate-manual.sh
 
-# Build nfpm package for GitHub releases (assumes binaries, changelog, and manual already exist)
-package-nfpm distribution arch:
-    ./scripts/build-nfpm-package.sh --distribution {{ distribution }} --architecture {{ arch }}
-
-# Sign package (creates .asc and .sha256 files)
-sign distribution arch:
+# Build package for GitHub releases (assumes binaries, changelog, and manual already exist)
+package distribution arch sign="false":
     #!/usr/bin/env bash
     set -o errexit -o nounset -o pipefail
-    PKG_FILE=$(ls build/packages/gnosisvpn* | grep "{{ distribution }}" | grep "{{ arch }}" | head -1)
-    if [ -z "$PKG_FILE" ]; then
-        echo "Error: Package file not found for {{ distribution }} {{ arch }}"
-        exit 1
+    SIGN_FLAG=""
+    if [ "{{ sign }}" = "true" ]; then
+        SIGN_FLAG="--sign"
+        if [ -z "${GNOSISVPN_GPG_PRIVATE_KEY_PATH:-}" ]; then
+            echo "Error: GNOSISVPN_GPG_PRIVATE_KEY_PATH environment variable must be set when signing"
+            exit 1
+        fi
+        SIGN_FLAG="$SIGN_FLAG --gpg-private-key-path ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}"
     fi
-    echo "Signing $PKG_FILE..."
-    # Create detached signature
-    echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --armor --output "${PKG_FILE}.asc" --detach-sign "$PKG_FILE"
-    # Create SHA256 checksum
-    shasum -a 256 "$PKG_FILE" > "${PKG_FILE}.sha256"
-    echo "Created ${PKG_FILE}.asc and ${PKG_FILE}.sha256"
+    ./scripts/generate-package.sh \
+        --package-version "${GNOSISVPN_PACKAGE_VERSION}" \
+        --distribution {{ distribution }} \
+        --architecture {{ arch }} \
+        $SIGN_FLAG
 
-# Build source package for distribution repositories (Debian/Ubuntu, etc.)
-package distribution arch:
-    ./scripts/generate-package.sh --package-version "${GNOSISVPN_PACKAGE_VERSION}" --distribution {{ distribution }} --architecture {{ arch }}
-
-# Publish Debian source package (environment: test or prod)
-publish environment="test":
-    ./scripts/publish-package.sh {{ environment }}
+# Build all packages and sign them (convenience target)
+package-all sign="false":
+    just package deb x86_64-linux {{ sign }}
+    just package deb aarch64-linux {{ sign }}
+    just package rpm x86_64-linux {{ sign }}
+    just package rpm aarch64-linux {{ sign }}
+    just package archlinux x86_64-linux {{ sign }}
+    just package archlinux aarch64-linux {{ sign }}
 
 test-package packager arch:
     #!/usr/bin/env bash

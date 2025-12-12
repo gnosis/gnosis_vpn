@@ -1,0 +1,130 @@
+---
+name: gnosisvpn
+arch: "${NFPM_ARCHITECTURE}"
+platform: linux
+version: "${GNOSISVPN_PACKAGE_VERSION}"
+section: net
+priority: optional
+maintainer: Hoprnet <tech@hoprnet.org>
+description: |
+  GnosisVPN is a decentralized, trustless, uncensorable VPN for the web3 age.
+  Fully anonymous browsing over a decentralized mixnet.
+license: GNU General Public License v3.0
+homepage: https://gnosisvpn.com/
+rpm:
+  signature:
+    key_file: ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}
+overrides:
+  deb:
+    depends:
+      - libc6
+      - systemd
+      - curl
+      - iptables
+      - logrotate
+      - jq
+      - wireguard
+      - ca-certificates
+      - libwebkit2gtk-4.1-0
+      - libgtk-3-0
+      - libayatana-appindicator3-1
+  rpm:
+    depends:
+      - systemd
+      - curl
+      - iptables
+      - logrotate
+      - jq
+      - wireguard
+      - ca-certificates
+      - webkit2gtk4.1
+      - gtk3
+      - libayatana-appindicator-gtk3
+  archlinux:
+    depends:
+      - webkit2gtk-4.1
+      - gtk3
+      - libayatana-appindicator
+contents:
+  # Binaries
+  - src: ./build/download/gnosis_vpn
+    dst: /usr/bin/gnosis_vpn
+    file_info:
+      mode: 0755
+      owner: root
+      group: root
+  - src: ./build/download/gnosis_vpn-ctl
+    dst: /usr/bin/gnosis_vpn-ctl
+    file_info:
+      mode: 0755
+      owner: root
+      group: root
+  - src: ./build/gnosis_vpn-app
+    dst: /usr/bin/gnosis_vpn-app
+    file_info:
+      mode: 0755
+      owner: root
+      group: root
+  # Resource files
+  - src: ./resources/gnosis_vpn.env
+    dst: /etc/gnosisvpn/gnosis_vpn.env
+    type: config
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  - src: ./resources/rotsee-config.toml
+    dst: /etc/gnosisvpn/config.toml
+    type: config
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  - src: ./resources/logrotate.conf
+    dst: /etc/logrotate.d/gnosisvpn
+    type: config
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  - src: ./resources/gnosis_vpn.service
+    dst: /usr/lib/systemd/system/gnosis_vpn.service
+  - src: ./resources/copyright
+    dst: /usr/share/doc/gnosisvpn/copyright
+  - src: ./build/changelog/changelog.gz
+    dst: /usr/share/doc/gnosisvpn/changelog.gz
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  - src: ./resources/lintian-overrides
+    dst: /usr/share/lintian/overrides/gnosisvpn
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  # Manual pages
+  - src: ./build/man/man1/gnosis_vpn.1.gz
+    dst: /usr/share/man/man1/gnosis_vpn.1.gz
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  - src: ./build/man/man1/gnosis_vpn-ctl.1.gz
+    dst: /usr/share/man/man1/gnosis_vpn-ctl.1.gz
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  - src: ./build/man/man1/gnosis_vpn-app.1.gz
+    dst: /usr/share/man/man1/gnosis_vpn-app.1.gz
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+__GNOSIS_VPN_APP_CONTENTS__
+scripts:
+  preinstall: ./scripts/preinstall.sh
+  postinstall: ./scripts/postinstall.sh
+  preremove: ./scripts/preuninstall.sh
+  postremove: ./scripts/postuninstall.sh

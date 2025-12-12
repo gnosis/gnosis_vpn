@@ -64,6 +64,25 @@ main() {
     fi
     
     log_success "🎉 Manual pages generated and compressed"
+
+    # Print summary of generated files and their locations
+    echo
+    echo "================ Manual Generation Summary ================"
+    echo "Manual pages directory: ${BUILD_DIR}/man/man1"
+    echo
+    for manfile in "${BUILD_DIR}/man/man1/gnosis_vpn.1.gz" \
+                    "${BUILD_DIR}/man/man1/gnosis_vpn-ctl.1.gz" \
+                    "${BUILD_DIR}/man/man1/gnosis_vpn-app.1.gz"; do
+        if [[ -f "$manfile" ]]; then
+            echo "  - $(basename "$manfile") [$(du -h "$manfile" | cut -f1)]"
+        else
+            echo "  - $(basename "$manfile") [not generated]"
+        fi
+    done
+    echo
+    echo "You can find the generated manual pages in:"
+    echo "  ${BUILD_DIR}/man/man1/"
+    echo "==========================================================="
 }
 
 # Execute

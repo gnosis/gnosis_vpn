@@ -1,5 +1,6 @@
 *.log
 build/
+nfpm.yaml
 gnosisvpn-private-key.asc
 debian/*.1.gz
 debian/changelog

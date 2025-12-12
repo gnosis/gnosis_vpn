@@ -7,6 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="${SCRIPT_DIR}/../build"
+BINARY_DIR="${BUILD_DIR}/download"
 
 # Source common functions
 source "${SCRIPT_DIR}/common.sh"
@@ -107,8 +108,8 @@ prepare_build_dir() {
         rm -rf "${BUILD_DIR}"
     fi
 
-    mkdir -p ${BUILD_DIR}/binaries
-    chmod 700 "${BUILD_DIR}/binaries"
+        mkdir -p ${BINARY_DIR}
+        chmod 700 "${BINARY_DIR}"
     mkdir -p ${BUILD_DIR}/app-contents/rootfs
 
     log_success "Build directory prepared"
@@ -118,37 +119,22 @@ prepare_build_dir() {
 download_binaries() {
     log_info "Downloading binaries from GCP Artifact Registry..."
 
-    gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BUILD_DIR}/binaries" \
+     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
         "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:gnosis_vpn-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn
 
-    gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BUILD_DIR}/binaries" \
+     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
         "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:gnosis_vpn-ctl-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn-ctl
 
-    gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BUILD_DIR}/binaries" \
+     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
         "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" --local-filename=gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}
 
     # Set execute permissions on downloaded binaries
-    chmod +x "${BUILD_DIR}/binaries/gnosis_vpn"
-    chmod +x "${BUILD_DIR}/binaries/gnosis_vpn-ctl"
+     chmod +x "${BINARY_DIR}/gnosis_vpn"
+     chmod +x "${BINARY_DIR}/gnosis_vpn-ctl"
 
     log_success "All binaries downloaded"
 }
 
-# Extract app contents from package
-prepare_contents() {
-    log_info "Extracting application contents..."
-    
-    cd ${BUILD_DIR}/app-contents/
-    ar -x ${BUILD_DIR}/binaries/gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}
-    tar -xf ${BUILD_DIR}/app-contents/data.tar.gz -C ${BUILD_DIR}/app-contents/rootfs
-    
-    # Clean up temporary files
-    rm -rf ${BUILD_DIR}/app-contents/*.tar.gz
-    rm -f ${BUILD_DIR}/binaries/gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}
-    
-    cd ${SCRIPT_DIR}
-    log_success "Application contents prepared"
-}
 
 # Print summary
 print_summary() {
@@ -164,7 +150,7 @@ print_summary() {
     echo "=========================================="
     echo ""
     echo "Binaries downloaded:"
-    ls -lh ${BUILD_DIR}/binaries/
+        ls -lh ${BINARY_DIR}/
     echo ""
 }
 
@@ -172,7 +158,6 @@ print_summary() {
 main() {
     prepare_build_dir
     download_binaries
-    prepare_contents
     print_summary
     log_success "🎉 Download completed successfully!"
 }

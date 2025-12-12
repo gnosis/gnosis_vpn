@@ -433,11 +433,15 @@ main() {
             ;;
     esac
     
+    # Compress the changelog for packaging compatibility
+    gzip -9n -c "${BUILD_DIR}/changelog/changelog" > "${BUILD_DIR}/changelog/changelog.gz"
+
     # Display the generated notes
     echo "=========================================="
     cat "${BUILD_DIR}/changelog/changelog"
     echo "=========================================="
     echo "Changelog saved to ${BUILD_DIR}/changelog/changelog"
+    echo "Compressed changelog saved to ${BUILD_DIR}/changelog/changelog.gz"
 }
 
 # Run main function with all arguments
