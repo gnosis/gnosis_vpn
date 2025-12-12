@@ -16,7 +16,7 @@ EnvironmentFile=/etc/gnosis_vpn/gnosis_vpn.env
 WorkingDirectory=/var/lib/gnosis_vpn
 
 # Main service command
-ExecStart=/usr/bin/gnosis_vpn -c /etc/gnosis_vpn/config.toml --hopr-rpc-provider https://rpc-provider.hoprnet.link --hopr-network rotsee
+ExecStart=/usr/bin/gnosis_vpn -c /etc/gnosis_vpn/config.toml --hopr-rpc-provider https://rpc-provider.hoprnet.org --hopr-network rotsee
 
 # Restart configuration
 Restart=always
