@@ -7,7 +7,7 @@ section: net
 priority: optional
 maintainer: Hoprnet <tech@hoprnet.org>
 description: |
-  A decentralized, trustless, uncensorable VPN for the web3 age.
+  Decentralized, trustless, uncensorable VPN for the web3 age.
   Fully anonymous browsing over a decentralized mixnet.
 license: GNU General Public License v3.0
 homepage: https://gnosisvpn.com/
