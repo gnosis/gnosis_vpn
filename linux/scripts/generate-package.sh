@@ -115,8 +115,12 @@ setup_gpg() {
     # Configure gpg-agent for non-interactive signing
     cp "${SCRIPT_DIR}/../resources/gpg-agent.conf" "${GNUPGHOME}/gpg-agent.conf"
     
-    # Start gpg-agent
+    # Start gpg-agent with proper configuration
     gpg-agent --homedir "${GNUPGHOME}" --daemon 2>/dev/null || true
+    
+    # Ensure GPG knows to use loopback pinentry
+    echo "allow-loopback-pinentry" >> "${GNUPGHOME}/gpg-agent.conf"
+    gpgconf --reload gpg-agent 2>/dev/null || true
 
     log_info "Importing GPG private key from ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}..."
     echo "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --import "${GNOSISVPN_GPG_PRIVATE_KEY_PATH}" 2>&1 | grep -v "already in secret keyring" || true
