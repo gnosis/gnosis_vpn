@@ -73,7 +73,11 @@ jobs:
     needs: [setup]
     strategy:
       matrix:
-        architecture: [x86_64-linux]
+        architecture:
+          - nix: x86_64-linux
+            nfpm: amd64
+          - nix: aarch64-linux
+            nfpm: arm64
         distribution: [deb]
     steps:
       - name: Checkout repository
@@ -96,7 +100,7 @@ jobs:
         shell: bash
         working-directory: linux
         run: |
-          nix develop -c just all ${{ matrix.distribution }} ${{ matrix.architecture }} ${{ inputs.sign || false }}
+          nix develop -c just all ${{ matrix.distribution }} ${{ matrix.architecture.nix }} ${{ inputs.sign || false }}
         env:
           GH_TOKEN: ${{ github.token }}
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
@@ -109,19 +113,19 @@ jobs:
       - name: Upload Package
         uses: actions/upload-artifact@v5
         with:
-          name: gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}
-          path: ./linux/build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture }}.${{ matrix.distribution }}
+          name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}
+          path: ./linux/build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}
       - name: Upload Signature
         if: inputs.sign
         uses: actions/upload-artifact@v5
         with:
-          name: gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.asc
-          path: ./linux/build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture }}.${{ matrix.distribution }}.asc
+          name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}.asc
+          path: ./linux/build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}.asc
       - name: Upload Hash
         uses: actions/upload-artifact@v5
         with:
-          name: gnosis_vpn-${{ matrix.architecture }}.${{ matrix.distribution }}.sha256
-          path: ./linux/build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture }}.${{ matrix.distribution }}.sha256
+          name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}.sha256
+          path: ./linux/build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}.sha256
 
   mac:
     runs-on: macos-15
