@@ -120,7 +120,12 @@ setup_gpg() {
 
     log_info "Importing GPG private key from ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}..."
     echo "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --import "${GNOSISVPN_GPG_PRIVATE_KEY_PATH}" 2>&1 | grep -v "already in secret keyring" || true
-    log_success "GPG key imported"
+    
+    # Pre-sign a test message to cache passphrase in gpg-agent
+    log_info "Caching passphrase in gpg-agent..."
+    echo "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --clearsign --output /dev/null <<<'test' 2>&1 || true
+    
+    log_success "GPG key imported and passphrase cached"
 }
 
 # Sign the Debian package
@@ -129,9 +134,8 @@ sign_debian_package() {
 
     log_info "Signing package with debsign..."
 
-    # Sign with password (non-interactive)
-    local gpg_opts="--batch --pinentry-mode loopback --passphrase-fd 0"
-    if echo "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" | DEBSIGN_PROGRAM="gpg ${gpg_opts}" debsign --re-sign "${changes_file}" 2>&1; then
+    # debsign will use the gpg-agent with cached passphrase
+    if debsign --re-sign "${changes_file}" 2>&1; then
         log_success "Package signed successfully"
     else
         log_warn "Package signing failed"
