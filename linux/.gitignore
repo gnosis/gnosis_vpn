@@ -1,4 +1,12 @@
 *.log
+build/
 nfpm.yaml
-privatekey.asc
-build/*
+gnosisvpn-private-key.asc
+debian/*.1.gz
+debian/changelog
+debian/copyright
+debian/preinst
+debian/postinst
+debian/prerm
+debian/postrm
+

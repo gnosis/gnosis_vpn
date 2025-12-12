@@ -1,9 +1,34 @@
-package distribution arch:
+# Export default package version (can be overridden by setting GNOSISVPN_PACKAGE_VERSION)
+export GNOSISVPN_PACKAGE_VERSION := env_var_or_default('GNOSISVPN_PACKAGE_VERSION', `date +%Y.%m.%d+build.%H%M%S`)
+
+# Download binaries from GCP
+download distribution arch:
+    ./scripts/download-binaries.sh --distribution {{ distribution }} --architecture {{ arch }}
+
+# Generate changelog
+changelog:
+    ./scripts/generate-changelog.sh
+
+# Generate manual pages for binaries
+manual:
+    ./scripts/generate-manual.sh
+
+# Build package for GitHub releases (assumes binaries, changelog, and manual already exist)
+package distribution arch sign="false":
     #!/usr/bin/env bash
-    ./build-package.sh --distribution {{ distribution }} --architecture {{ arch }}
+    set -o errexit -o nounset -o pipefail
+    SIGN_FLAG=$([ "{{ sign }}" = "true" ] && echo "--sign" || echo "")
+    ./scripts/generate-package.sh \
+        --package-version "${GNOSISVPN_PACKAGE_VERSION}" \
+        --distribution {{ distribution }} \
+        --architecture {{ arch }} \
+        $SIGN_FLAG
 
-# Create the distribution packages using nfpm
-
+all distribution arch sign="false":
+    just download {{ distribution }} {{ arch }}
+    just changelog
+    just manual
+    just package {{ distribution }} {{ arch }} {{ sign }}
 
 test-package packager arch:
     #!/usr/bin/env bash
@@ -45,10 +70,8 @@ test-package-desktop packager arch:
 
 # Connect to test VM via RDP
 rdp-connect packager arch:
-    #!/usr/bin/env bash
     ./test-vm.sh rdp {{packager}} {{arch}}
 
 delete-test-vm packager arch:
-    #!/usr/bin/env bash
     ./test-vm.sh delete {{packager}} {{arch}}
 
