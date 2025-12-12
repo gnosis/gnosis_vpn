@@ -1,7 +1,7 @@
 # Rust binaries are statically linked and don't need shared library dependencies
 gnosisvpn: shared-library-lacks-prerequisites usr/bin/gnosis_vpn
 gnosisvpn: shared-library-lacks-prerequisites usr/bin/gnosis_vpn-ctl
-gnosisvpn: embedded-library usr/bin/gnosis_vpn
+gnosisvpn embedded-library libyaml usr/bin/gnosis_vpn
 
 # Tauri app bundles assets in /usr/lib/<app-name>/ - this is standard for Tauri applications
 gnosisvpn: image-file-in-usr-lib usr/lib/Gnosis VPN/icons/tray-icon.png
