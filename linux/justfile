@@ -37,6 +37,10 @@ sign distribution arch:
 package distribution arch:
     ./scripts/generate-package.sh --package-version "${GNOSISVPN_PACKAGE_VERSION}" --distribution {{ distribution }} --architecture {{ arch }}
 
+# Publish Debian source package (environment: test or prod)
+publish environment:
+    ./scripts/publish-package.sh {{ environment }}
+
 test-package packager arch:
     #!/usr/bin/env bash
     set -o errexit -o nounset -o pipefail

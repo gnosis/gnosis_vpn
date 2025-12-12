@@ -15,11 +15,34 @@ source "${SCRIPT_DIR}/common.sh"
 : "${GNOSISVPN_PACKAGE_VERSION:=$(date +%Y.%m.%d+build.%H%M%S)}"
 : "${GNOSISVPN_DISTRIBUTION:=deb}"
 : "${GNOSISVPN_ARCHITECTURE:=x86_64-linux}"
+: "${GNOSISVPN_GPG_PRIVATE_KEY_PATH:=gnosisvpn-private-key.asc}"
 
-# GPG signing variables (from justfile sign recipe)
-: "${GNOSISVPN_GPG_PRIVATE_KEY_PATH:=}"
-: "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD:=}"
-: "${DEBSIGN_KEYID:=}"
+# Check prerequisites
+check_prerequisites() {
+    # Check if we're on macOS
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        log_error "Debian source packages must be built on Linux"
+        exit 1
+    fi
+
+    # Copy changelog (dpkg-buildpackage requires it before build starts)
+    if [[ ! -f "${BUILD_DIR}/changelog/changelog" ]]; then
+        log_error "Changelog not found at ${BUILD_DIR}/changelog/changelog"
+        log_error "Run 'just changelog' first"
+        exit 1
+    fi
+
+    if [[ ! -f "${GNOSISVPN_GPG_PRIVATE_KEY_PATH}" ]]; then
+        log_error "GPG key file not found: ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}"
+        exit 1
+    fi
+
+    # Required for non-interactive signing
+    if [[ -z "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD:-}" ]]; then
+        log_error "GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD is required for package signing"
+        exit 1
+    fi
+}
 
 # Usage help message
 usage() {
@@ -83,118 +106,57 @@ parse_args() {
     log_success "Command-line arguments parsed successfully"
 }
 
-# Import GPG private key if provided
-import_gpg_key() {
-    if [[ -z "${GNOSISVPN_GPG_PRIVATE_KEY_PATH}" ]]; then
-        log_info "No GPG key path provided (GNOSISVPN_GPG_PRIVATE_KEY_PATH not set)"
-        return
-    fi
+# Setup GPG environment and import key
+setup_gpg() {
+    # Create temporary GPG home to avoid interfering with existing config
+    export GNUPGHOME=$(mktemp -d)
+    log_info "Created temporary GPG home: ${GNUPGHOME}"
     
-    # Resolve relative path from parent directory (where justfile is)
-    local key_path="${GNOSISVPN_GPG_PRIVATE_KEY_PATH}"
-    if [[ ! "${key_path}" = /* ]]; then
-        key_path="${SCRIPT_DIR}/../${key_path}"
-    fi
+    # Configure gpg-agent for non-interactive signing
+    cp "${SCRIPT_DIR}/../resources/gpg-agent.conf" "${GNUPGHOME}/gpg-agent.conf"
     
-    if [[ ! -f "${key_path}" ]]; then
-        log_warn "GPG key file not found: ${key_path}"
-        return
-    fi
-    
-    log_info "Importing GPG private key from ${key_path}..."
-    
-    if [[ -n "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" ]]; then
-        echo "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --import "${key_path}" 2>&1 | grep -v "already in secret keyring" || true
-    else
-        gpg --import "${key_path}" 2>&1 | grep -v "already in secret keyring" || true
-    fi
-    
+    # Start gpg-agent
+    gpg-agent --homedir "${GNUPGHOME}" --daemon 2>/dev/null || true
+
+    log_info "Importing GPG private key from ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}..."
+    echo "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --import "${GNOSISVPN_GPG_PRIVATE_KEY_PATH}" 2>&1 | grep -v "already in secret keyring" || true
     log_success "GPG key imported"
 }
 
 # Sign the Debian package
 sign_debian_package() {
     local changes_file="$1"
-    
-    if ! command -v debsign &>/dev/null; then
-        log_warn "debsign not found. Install devscripts package to enable signing."
-        log_warn "To sign manually: debsign ${changes_file}"
-        return 1
-    fi
-    
+
     log_info "Signing package with debsign..."
-    
-    # Build debsign command
-    local sign_cmd="debsign"
-    
-    # Use DEBSIGN_KEYID if set
-    if [[ -n "${DEBSIGN_KEYID}" ]]; then
-        log_info "Using GPG key: ${DEBSIGN_KEYID}"
-        sign_cmd="debsign -k${DEBSIGN_KEYID}"
+
+    # Sign with password (non-interactive)
+    local gpg_opts="--batch --pinentry-mode loopback --passphrase-fd 0"
+    if echo "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" | DEBSIGN_PROGRAM="gpg ${gpg_opts}" debsign --re-sign "${changes_file}" 2>&1; then
+        log_success "Package signed successfully"
     else
-        log_info "Using default GPG key (set DEBSIGN_KEYID to specify)"
+        log_warn "Package signing failed"
+        exit 1
     fi
-    
-    # Sign with or without password
-    if [[ -n "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" ]]; then
-        if echo "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD}" | ${sign_cmd} --re-sign "${changes_file}" 2>&1; then
-            log_success "Package signed successfully"
-            return 0
-        fi
-    else
-        if ${sign_cmd} "${changes_file}" 2>&1; then
-            log_success "Package signed successfully"
-            return 0
-        fi
-    fi
-    
-    log_warn "Package signing failed. You can sign manually with:"
-    log_warn "  debsign ${changes_file}"
-    log_warn "Or with specific key: debsign -kKEYID ${changes_file}"
-    return 1
+
 }
 
 # Generate Debian source package
 generate_debian_package() {
     log_info "Generating Debian source package..."
-    
-    # Check if we're on macOS
-    if [[ "$(uname -s)" == "Darwin" ]]; then
-        log_error "Debian source packages must be built on Linux"
-        echo ""
-        echo "Use Docker:"
-        echo "  docker run --rm -v \$(pwd):/work -w /work/linux debian:bookworm bash -c '"
-        echo "    apt-get update && apt-get install -y dpkg-dev debhelper devscripts just && "
-        echo "    ./generate-package.sh --package-version ${GNOSISVPN_PACKAGE_VERSION} --distribution deb"
-        echo "  '"
-        exit 1
-    fi
-    
-    # Check prerequisites
-    if ! command -v dpkg-buildpackage &>/dev/null; then
-        log_error "dpkg-buildpackage not found. Install dpkg-dev package."
-        exit 1
-    fi
-    
-    # Copy changelog (dpkg-buildpackage requires it before build starts)
-    if [[ ! -f "${BUILD_DIR}/changelog/changelog" ]]; then
-        log_error "Changelog not found at ${BUILD_DIR}/changelog/changelog"
-        log_error "Run 'just changelog' first"
-        exit 1
-    fi
-    
+
     cp "${BUILD_DIR}/changelog/changelog" "${SCRIPT_DIR}/../debian/changelog"
     log_info "Copied changelog to debian/changelog"
     
-    # Import GPG key if provided
-    import_gpg_key
+    # Setup GPG environment
+    setup_gpg
     
     # Build source package
     log_info "Building Debian source package version ${GNOSISVPN_PACKAGE_VERSION}..."
+    cd "${SCRIPT_DIR}/.."
     dpkg-buildpackage -S -sa -d --no-sign
     
-    PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-    CHANGES_FILE="../gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_source.changes"
+    PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && cd .. && pwd)"
+    CHANGES_FILE="${PARENT_DIR}/gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_source.changes"
     
     # Sign the package
     sign_debian_package "${CHANGES_FILE}"
@@ -210,17 +172,13 @@ generate_debian_package() {
     echo ""
     echo "📦 Generated files in ${PARENT_DIR}:"
     echo ""
-    ls -lh ../gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}.* 2>/dev/null | awk '{printf "  %-50s %6s  %s\n", $9, $5, $6" "$7" "$8}' || true
+    ls -lh ${PARENT_DIR}/gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}.* 2>/dev/null | awk '{printf "  %-50s %6s  %s\n", $9, $5, $6" "$7" "$8}' || true
     echo ""
     echo "Files:"
     echo "  • gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}.dsc          - Package description"
     echo "  • gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}.tar.xz       - Source tarball"
     echo "  • gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_source.changes - Upload control file"
     echo "  • gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_source.buildinfo - Build metadata"
-    echo ""
-    echo "Next steps:"
-    echo "  1. Test:   dput mentors ../gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_source.changes"
-    echo "  2. Upload: dput ftp-master ../gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_source.changes"
     echo ""
 }
 
@@ -240,7 +198,7 @@ main() {
     log_success "🎉 Source package generation completed successfully!"
 }
 
-# Execute
+check_prerequisites
 parse_args "$@"
 main
 
