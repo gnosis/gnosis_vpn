@@ -30,29 +30,29 @@ main() {
     mkdir -p ${BUILD_DIR}/man/man1
     
     # Generate man page for gnosis_vpn
-    if [[ -f "${BUILD_DIR}/binaries/gnosis_vpn" ]]; then
+    if [[ -f "${BUILD_DIR}/download/gnosis_vpn" ]]; then
         help2man --no-info \
             --name="GnosisVPN - Daemon" \
             --section=1 \
             --output ${BUILD_DIR}/man/man1/gnosis_vpn.1 \
-            ${BUILD_DIR}/binaries/gnosis_vpn
+            ${BUILD_DIR}/download/gnosis_vpn
         gzip -9n ${BUILD_DIR}/man/man1/gnosis_vpn.1
         log_success "Generated gnosis_vpn.1.gz"
     else
-        log_warn "Binary not found: ${BUILD_DIR}/binaries/gnosis_vpn"
+        log_warn "Binary not found: ${BUILD_DIR}/download/gnosis_vpn"
     fi
     
     # Generate man page for gnosis_vpn-ctl
-    if [[ -f "${BUILD_DIR}/binaries/gnosis_vpn-ctl" ]]; then
+    if [[ -f "${BUILD_DIR}/download/gnosis_vpn-ctl" ]]; then
         help2man --no-info \
             --name="GnosisVPN Control - CLI tool for managing GnosisVPN" \
             --section=1 \
             --output ${BUILD_DIR}/man/man1/gnosis_vpn-ctl.1 \
-            ${BUILD_DIR}/binaries/gnosis_vpn-ctl
+            ${BUILD_DIR}/download/gnosis_vpn-ctl
         gzip -9n ${BUILD_DIR}/man/man1/gnosis_vpn-ctl.1
         log_success "Generated gnosis_vpn-ctl.1.gz"
     else
-        log_warn "Binary not found: ${BUILD_DIR}/binaries/gnosis_vpn-ctl"
+        log_warn "Binary not found: ${BUILD_DIR}/download/gnosis_vpn-ctl"
     fi
     
     # Copy and compress man page for gnosis_vpn-app (GUI application)
