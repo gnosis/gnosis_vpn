@@ -8,8 +8,8 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-User=gnosisvpn
-Group=gnosisvpn
+User=root
+Group=root
 
 # Environment and configuration
 EnvironmentFile=/etc/gnosis_vpn/gnosis_vpn.env
