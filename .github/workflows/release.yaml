@@ -246,7 +246,7 @@ jobs:
           {
             echo "I'm thrilled to inform a new \`gnosis_vpn\` ${RELEASE_TYPE} version \`${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}\` has been released."
             echo ""
-            cat release_notes.txt
+            cat linux/build/changelog/changelog
           } > notification_message.txt
           
           # Store content in environment variable for the Zulip action
