@@ -166,7 +166,17 @@ check_prerequisites() {
         missing=$((missing + 1))
     fi
     if [[ ! -f "${BUILD_DIR}/man/man1/gnosis_vpn.1.gz" ]]; then
-        log_error "Manual pages not found in ${BUILD_DIR}/man/"
+        log_error "Manual page not found: ${BUILD_DIR}/man/man1/gnosis_vpn.1.gz"
+        log_error "Run 'just manual' first"
+        missing=$((missing + 1))
+    fi
+    if [[ ! -f "${BUILD_DIR}/man/man1/gnosis_vpn-ctl.1.gz" ]]; then
+        log_error "Manual page not found: ${BUILD_DIR}/man/man1/gnosis_vpn-ctl.1.gz"
+        log_error "Run 'just manual' first"
+        missing=$((missing + 1))
+    fi
+    if [[ ! -f "${BUILD_DIR}/man/man1/gnosis_vpn-app.1.gz" ]]; then
+        log_error "Manual page not found: ${BUILD_DIR}/man/man1/gnosis_vpn-app.1.gz"
         log_error "Run 'just manual' first"
         missing=$((missing + 1))
     fi
