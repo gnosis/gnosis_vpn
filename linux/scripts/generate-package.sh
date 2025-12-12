@@ -134,6 +134,10 @@ sign_debian_package() {
 
     log_info "Signing package with debsign..."
 
+    # Export variables that the wrapper needs
+    export GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD
+    export GNUPGHOME
+    
     # Use the GPG wrapper script for debsign
     if DEBSIGN_PROGRAM="${SCRIPT_DIR}/gpg-wrapper.sh" debsign --re-sign "${changes_file}" 2>&1; then
         log_success "Package signed successfully"
