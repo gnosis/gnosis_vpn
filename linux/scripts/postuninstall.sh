@@ -73,15 +73,15 @@ if [[ "$IS_PURGE" == "true" ]]; then
   fi
   
   # Remove logrotate configuration
-  if [[ -f /etc/logrotate.d/gnosis_vpn ]]; then
+  if [[ -f /etc/logrotate.d/gnosisvpn ]]; then
     echo "$LOG_PREFIX INFO: Removing logrotate configuration"
-    rm -f /etc/logrotate.d/gnosis_vpn
+    rm -f /etc/logrotate.d/gnosisvpn
   fi
   
   # Remove documentation directory
-  if [[ -d /usr/share/doc/gnosis_vpn ]]; then
-    echo "$LOG_PREFIX INFO: Removing documentation directory: /usr/share/doc/gnosis_vpn"
-    rm -rf /usr/share/doc/gnosis_vpn
+  if [[ -d /usr/share/doc/gnosisvpn ]]; then
+    echo "$LOG_PREFIX INFO: Removing documentation directory: /usr/share/doc/gnosisvpn"
+    rm -rf /usr/share/doc/gnosisvpn
   fi
   
   # Remove user and group
