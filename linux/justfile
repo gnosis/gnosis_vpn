@@ -17,29 +17,12 @@ manual:
 package distribution arch sign="false":
     #!/usr/bin/env bash
     set -o errexit -o nounset -o pipefail
-    SIGN_FLAG=""
-    if [ "{{ sign }}" = "true" ]; then
-        SIGN_FLAG="--sign"
-        if [ -z "${GNOSISVPN_GPG_PRIVATE_KEY_PATH:-}" ]; then
-            echo "Error: GNOSISVPN_GPG_PRIVATE_KEY_PATH environment variable must be set when signing"
-            exit 1
-        fi
-        SIGN_FLAG="$SIGN_FLAG --gpg-private-key-path ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}"
-    fi
+    SIGN_FLAG=$([ "{{ sign }}" = "true" ] && echo "--sign" || echo "")
     ./scripts/generate-package.sh \
         --package-version "${GNOSISVPN_PACKAGE_VERSION}" \
         --distribution {{ distribution }} \
         --architecture {{ arch }} \
         $SIGN_FLAG
-
-# Build all packages and sign them (convenience target)
-package-all sign="false":
-    just package deb x86_64-linux {{ sign }}
-    just package deb aarch64-linux {{ sign }}
-    just package rpm x86_64-linux {{ sign }}
-    just package rpm aarch64-linux {{ sign }}
-    just package archlinux x86_64-linux {{ sign }}
-    just package archlinux aarch64-linux {{ sign }}
 
 test-package packager arch:
     #!/usr/bin/env bash
