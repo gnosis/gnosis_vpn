@@ -48,7 +48,7 @@ jobs:
             export GNOSISVPN_PACKAGE_VERSION=$(date +%Y.%m.%d+build.%H%M%S)
           fi
           echo "GNOSISVPN_PACKAGE_VERSION=${GNOSISVPN_PACKAGE_VERSION}" | tee -a $GITHUB_OUTPUT
-          
+
           if [[ -z "${{ inputs.client_version }}" ]] || [[ "${{ inputs.client_version }}" == "latest" ]]; then
             export GNOSISVPN_CLI_VERSION=$(gh release view --repo gnosis/gnosis_vpn-client --json tagName --jq .tagName 2>/dev/null)
             export GNOSISVPN_CLI_VERSION="${GNOSISVPN_CLI_VERSION#v}"
@@ -56,7 +56,7 @@ jobs:
             export GNOSISVPN_CLI_VERSION="${{ inputs.client_version }}"
           fi
           echo "GNOSISVPN_CLI_VERSION=${GNOSISVPN_CLI_VERSION}" | tee -a $GITHUB_OUTPUT
-          
+
           if [[ -z "${{ inputs.app_version }}" ]] || [[ "${{ inputs.app_version }}" == "latest" ]]; then
             export GNOSISVPN_APP_VERSION=$(gh release view --repo gnosis/gnosis_vpn-app --json tagName --jq .tagName 2>/dev/null)
             export GNOSISVPN_APP_VERSION="${GNOSISVPN_APP_VERSION#v}"
@@ -213,13 +213,15 @@ jobs:
 
           gh release create v${next_release_version} \
             --title "GnosisVPN v${next_release_version}" \
-            --notes-file release_notes.txt
+            --generate-notes
+            # FIXME: release notes file not found
+            # --notes-file release_notes.txt
 
           echo "Preparing binaries for upload"
-          
+
           # Upload all files from all artifact directories
           find ./binaries -type f -exec gh release upload v${next_release_version} {} --clobber \;
-          
+
           echo "Release v${next_release_version} created and binaries uploaded"
         env:
           GH_TOKEN: ${{ secrets.GNOSIS_GITHUB_WORKFLOW_TOKEN }}
@@ -252,7 +254,7 @@ jobs:
             echo ""
             cat linux/build/changelog/changelog
           } > notification_message.txt
-          
+
           # Store content in environment variable for the Zulip action
           {
             echo "NOTIFICATION_CONTENT<<EOF"
@@ -270,4 +272,3 @@ jobs:
           to: "GnosisVPN"
           topic: "Releases"
           content: ${{ env.NOTIFICATION_CONTENT }}
-
