@@ -23,7 +23,7 @@ if systemctl is-active --quiet gnosis_vpn.service 2>/dev/null; then
     echo "$LOG_PREFIX SUCCESS: Service stopped successfully"
   else
     echo "$LOG_PREFIX WARNING: Failed to stop service gracefully, forcing stop..."
-    systemctl kill gnosis_vpn.service 2>/dev/null || true
+    deb-systemd-invoke kill gnosis_vpn.service || true
   fi
 fi
 

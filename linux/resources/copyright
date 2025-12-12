@@ -4,6 +4,7 @@ Source: https://github.com/gnosis/gnosis_vpn
 
 Files: *
 Copyright: 2024-2025 Maelcum Inc
+Comment: Statically linked to libyaml to ensure compatibility across distributions.
 License: GPL-3.0+
 
 License: GPL-3.0+

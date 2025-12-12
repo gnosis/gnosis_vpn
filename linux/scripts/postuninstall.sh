@@ -116,10 +116,5 @@ else
   esac
 fi
 
-# Clean up any temporary files (use find with -user for safety)
-if [[ -d /tmp ]]; then
-  find /tmp -maxdepth 1 -name '.gnosisvpn-*' -user gnosisvpn -delete 2>/dev/null || true
-fi
-
 echo "$LOG_PREFIX SUCCESS: Post-uninstall completed successfully"
 exit 0

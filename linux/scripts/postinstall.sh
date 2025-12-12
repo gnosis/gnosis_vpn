@@ -50,8 +50,7 @@ configure_filesystem_permissions() {
     if [[ -d /etc/gnosisvpn ]]; then
         chown gnosisvpn:gnosisvpn /etc/gnosisvpn
         chmod 755 /etc/gnosisvpn
-        # Fix ownership of config files individually (avoid recursive chown)
-        find /etc/gnosisvpn -maxdepth 1 -type f -exec chown gnosisvpn:gnosisvpn {} \;
+        chown gnosisvpn:gnosisvpn /etc/gnosisvpn/*.toml 2>/dev/null || true
         chmod 644 /etc/gnosisvpn/*.toml 2>/dev/null || true
     fi
 
