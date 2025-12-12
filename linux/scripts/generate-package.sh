@@ -140,7 +140,7 @@ sign_debian_package() {
     
     # # Debug: Test GPG setup directly
     # log_info "DEBUG: Testing GPG with wrapper directly..."
-    # echo "test" | "${SCRIPT_DIR}/gpg-wrapper.sh" --clearsign > /dev/null 2>&1 && log_info "DEBUG: Direct GPG test PASSED" || log_warn "DEBUG: Direct GPG test FAILED"
+    echo "test" | "${SCRIPT_DIR}/gpg-wrapper.sh" --clearsign > /dev/null 2>&1 && log_info "DEBUG: Direct GPG test PASSED" || log_warn "DEBUG: Direct GPG test FAILED"
     
     # # Debug: List keys in GNUPGHOME
     # log_info "DEBUG: Keys in GNUPGHOME:"
