@@ -96,7 +96,7 @@ jobs:
         shell: bash
         working-directory: linux
         run: |
-          nix develop -c just package-all ${{ matrix.distribution }} ${{ matrix.architecture }} ${{ inputs.sign || false }}
+          nix develop -c just all ${{ matrix.distribution }} ${{ matrix.architecture }} ${{ inputs.sign || false }}
         env:
           GH_TOKEN: ${{ github.token }}
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
