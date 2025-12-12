@@ -39,10 +39,18 @@ fi
 log_info "Found: $(basename "$CHANGES_FILE")"
 log_info "Publishing to $TARGET..."
 
-if dput "$TARGET" "$CHANGES_FILE"; then
+# Create temporary dput config to avoid modifying user's ~/.dput.cf
+TEMP_DPUT_CF=$(mktemp)
+cp "${SCRIPT_DIR}/../resources/dput.cf" "$TEMP_DPUT_CF"
+log_info "Using temporary dput config: $TEMP_DPUT_CF"
+
+# Use temporary config with dput
+if dput -c "$TEMP_DPUT_CF" "$TARGET" "$CHANGES_FILE"; then
     log_success "Package published successfully to ${ENVIRONMENT}!"
+    rm -f "$TEMP_DPUT_CF"
 else
     log_error "Failed to publish package"
+    rm -f "$TEMP_DPUT_CF"
     exit 1
 fi
 

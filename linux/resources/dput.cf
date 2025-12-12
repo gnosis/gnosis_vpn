@@ -1,0 +1,11 @@
+[mentors]
+fqdn = mentors.debian.net
+incoming = /upload
+method = https
+allow_unsigned_uploads = 0
+
+[ftp-master]
+fqdn = ftp-master.debian.org
+incoming = /srv/upload.debian.org/UploadQueue/
+method = ftp
+allow_unsigned_uploads = 0

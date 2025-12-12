@@ -1,2 +1,6 @@
 .DS_Store
 linux/.env
+gnosisvpn_*.dsc
+gnosisvpn_*.tar.xz
+gnosisvpn_*_source.changes
+gnosisvpn_*_source.buildinfo
