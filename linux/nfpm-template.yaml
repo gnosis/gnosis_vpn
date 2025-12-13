@@ -19,10 +19,8 @@ overrides:
     depends:
       - libc6
       - systemd
-      - curl
       - iptables
       - logrotate
-      - jq
       - wireguard
       - ca-certificates
       - libwebkit2gtk-4.1-0
@@ -31,10 +29,8 @@ overrides:
   rpm:
     depends:
       - systemd
-      - curl
       - iptables
       - logrotate
-      - jq
       - wireguard
       - ca-certificates
       - webkit2gtk4.1
