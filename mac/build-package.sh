@@ -719,7 +719,7 @@ notarize_package() {
     if [[ $submit_rc -ne 0 ]]; then
         log_error "Notarytool command failed (exit code $submit_rc)"
         log_error "$notary_json"
-    exit 1
+        exit 1
     fi
     status="$(printf '%s' "$notary_json" | jq -r '.status // empty')"
     id="$(printf '%s' "$notary_json" | jq -r '.id // empty')"
