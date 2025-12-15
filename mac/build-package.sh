@@ -707,18 +707,33 @@ sign_package() {
 # Submit for notarization
 notarize_package() {
     log_info "Submitting package for notarization to Apple (this may take a while)..."
-    if xcrun notarytool submit "${BUILD_DIR}/${SIGNED_PKG_NAME}" \
+    notary_json="$(
+    xcrun notarytool submit "${BUILD_DIR}/${SIGNED_PKG_NAME}" \
         --apple-id "$GNOSISVPN_APPLE_ID" \
         --team-id "$GNOSISVPN_APPLE_TEAM_ID" \
         --password "$GNOSISVPN_APPLE_PASSWORD" \
-        --wait; then
-        log_success "Notarization successful"
-    else
-        local exit_code=$?
-        log_error "Notarization failed with exit code: $exit_code"
-        log_info "Run with verbose output to see detailed error information"
-        exit 1
+        --wait \
+        --output-format json 2>&1
+    )"
+    submit_rc=$?
+    if [[ $submit_rc -ne 0 ]]; then
+    log_error "Notarytool command failed (exit code $submit_rc)"
+    log_error "$notary_json"
+    exit 1
     fi
+    status="$(printf '%s' "$notary_json" | jq -r '.status // empty')"
+    id="$(printf '%s' "$notary_json" | jq -r '.id // empty')"
+
+    if [[ "$status" != "Accepted" ]]; then
+    log_error "Notarization finished but status is '$status' (id: $id)"
+    # Optional: fetch the detailed log from Apple for debugging:
+    xcrun notarytool log "$id" \
+        --apple-id "$GNOSISVPN_APPLE_ID" \
+        --team-id "$GNOSISVPN_APPLE_TEAM_ID" \
+        --password "$GNOSISVPN_APPLE_PASSWORD" || true
+    exit 1
+    fi
+
 }
 
 # Staple notarization ticket
