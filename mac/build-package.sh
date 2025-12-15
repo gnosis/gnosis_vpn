@@ -716,7 +716,6 @@ notarize_package() {
         --output-format json 2>&1
     )"
     submit_rc=$?
-    log_info "Notarytool output: $notary_json"
     if [[ $submit_rc -ne 0 ]]; then
     log_error "Notarytool command failed (exit code $submit_rc)"
     log_error "$notary_json"
