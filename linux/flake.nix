@@ -16,7 +16,7 @@
           buildInputs = with pkgs; [
             just
             gnupg
-            curl
+            jq
             binutils
             nfpm
             help2man

@@ -366,6 +366,7 @@ main() {
     local app_previous_date=""
     local app_current_date=""
     local pkg_last_release_date=""
+    local changelog_entries=()
     
     # Fetch CLI dates if versions differ
     if [[ "$previous_cli_version" != "$current_cli_version" ]]; then
