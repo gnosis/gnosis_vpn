@@ -733,6 +733,8 @@ notarize_package() {
         --password "$GNOSISVPN_APPLE_PASSWORD" || true
     exit 1
     fi
+    log_success "Notarization accepted (id: $id)"
+    echo ""
 
 }
 
