@@ -213,9 +213,7 @@ jobs:
 
           gh release create v${next_release_version} \
             --title "GnosisVPN v${next_release_version}" \
-            --generate-notes
-            # FIXME: release notes file not found
-            # --notes-file release_notes.txt
+            --notes-file linux/build/changelog/changelog
 
           echo "Preparing binaries for upload"
 
