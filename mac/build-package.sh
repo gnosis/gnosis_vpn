@@ -717,21 +717,21 @@ notarize_package() {
     )"
     submit_rc=$?
     if [[ $submit_rc -ne 0 ]]; then
-    log_error "Notarytool command failed (exit code $submit_rc)"
-    log_error "$notary_json"
+        log_error "Notarytool command failed (exit code $submit_rc)"
+        log_error "$notary_json"
     exit 1
     fi
     status="$(printf '%s' "$notary_json" | jq -r '.status // empty')"
     id="$(printf '%s' "$notary_json" | jq -r '.id // empty')"
 
     if [[ "$status" != "Accepted" ]]; then
-    log_error "Notarization finished but status is '$status' (id: $id)"
-    # Optional: fetch the detailed log from Apple for debugging:
-    xcrun notarytool log "$id" \
-        --apple-id "$GNOSISVPN_APPLE_ID" \
-        --team-id "$GNOSISVPN_APPLE_TEAM_ID" \
-        --password "$GNOSISVPN_APPLE_PASSWORD" || true
-    exit 1
+        log_error "Notarization finished but status is '$status' (id: $id)"
+        #Optional: fetch the detailed log from Apple for debugging:
+        xcrun notarytool log "$id" \
+            --apple-id "$GNOSISVPN_APPLE_ID" \
+            --team-id "$GNOSISVPN_APPLE_TEAM_ID" \
+            --password "$GNOSISVPN_APPLE_PASSWORD" || true
+        exit 1
     fi
     log_success "Notarization accepted (id: $id)"
     echo ""
