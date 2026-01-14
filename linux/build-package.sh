@@ -257,7 +257,10 @@ download_binaries() {
     log_info "Downloading binaries into staging directory..."
 
     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BUILD_DIR}/binaries" \
-        "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:gnosis_vpn-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn
+        "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:gnosis_vpn-root-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn-root
+
+    gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BUILD_DIR}/binaries" \
+        "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:gnosis_vpn-worker-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn-worker
 
     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BUILD_DIR}/binaries" \
         "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:gnosis_vpn-ctl-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn-ctl
@@ -266,7 +269,8 @@ download_binaries() {
         "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" --local-filename=gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}
 
     # Set execute permissions on downloaded binaries
-    chmod +x "${BUILD_DIR}/binaries/gnosis_vpn"
+    chmod +x "${BUILD_DIR}/binaries/gnosis_vpn-root"
+    chmod +x "${BUILD_DIR}/binaries/gnosis_vpn-worker"
     chmod +x "${BUILD_DIR}/binaries/gnosis_vpn-ctl"
 
     log_success "All downloads completed"
@@ -344,7 +348,7 @@ main() {
             ;;
         package)
             log_info "Running package stage only (assuming binaries already downloaded)..."
-            if [[ ! -d "${BUILD_DIR}/binaries" ]] || [[ ! -f "${BUILD_DIR}/binaries/gnosis_vpn" ]]; then
+            if [[ ! -d "${BUILD_DIR}/binaries" ]] || [[ ! -f "${BUILD_DIR}/binaries/gnosis_vpn-root" ]]; then
                 log_error "Binaries not found in ${BUILD_DIR}/binaries/"
                 log_error "Run with --stage download first to download binaries"
                 exit 1

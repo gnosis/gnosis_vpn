@@ -155,7 +155,7 @@ print_banner() {
 check_prerequisites() {
     log_info "Checking prerequisites..."
     local missing=0
-    if [[ ! -d "${BINARY_DIR}" ]] || [[ ! -f "${BINARY_DIR}/gnosis_vpn" ]]; then
+    if [[ ! -d "${BINARY_DIR}" ]] || [[ ! -f "${BINARY_DIR}/gnosis_vpn-root" ]]; then
         log_error "Binaries not found in ${BINARY_DIR}/"
         log_error "Run 'just download ${GNOSISVPN_DISTRIBUTION} ${GNOSISVPN_ARCHITECTURE}' first"
         missing=$((missing + 1))
@@ -165,8 +165,13 @@ check_prerequisites() {
         log_error "Run 'just changelog' first"
         missing=$((missing + 1))
     fi
-    if [[ ! -f "${BUILD_DIR}/man/man1/gnosis_vpn.1.gz" ]]; then
-        log_error "Manual page not found: ${BUILD_DIR}/man/man1/gnosis_vpn.1.gz"
+    if [[ ! -f "${BUILD_DIR}/man/man1/gnosis_vpn-worker.1.gz" ]]; then
+        log_error "Manual page not found: ${BUILD_DIR}/man/man1/gnosis_vpn-worker.1.gz"
+        log_error "Run 'just manual' first"
+        missing=$((missing + 1))
+    fi
+    if [[ ! -f "${BUILD_DIR}/man/man1/gnosis_vpn-root.1.gz" ]]; then
+        log_error "Manual page not found: ${BUILD_DIR}/man/man1/gnosis_vpn-root.1.gz"
         log_error "Run 'just manual' first"
         missing=$((missing + 1))
     fi

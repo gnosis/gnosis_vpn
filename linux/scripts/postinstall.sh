@@ -32,7 +32,7 @@ create_system_user_and_group() {
         echo "$LOG_PREFIX INFO: Creating system user 'gnosisvpn'..."
         useradd --system \
             --gid gnosisvpn \
-            --home-dir /var/lib/gnosis_vpn \
+            --home-dir /var/lib/gnosisvpn \
             --shell /usr/sbin/nologin \
             --comment "Gnosis VPN Service User" \
             gnosisvpn
@@ -47,39 +47,36 @@ configure_filesystem_permissions() {
     echo "$LOG_PREFIX INFO: Setting up directory permissions..."
     
     # Fix ownership of configuration files (nfpm may have created them with numeric UID)
-    if [[ -d /etc/gnosisvpn ]]; then
-        chown gnosisvpn:gnosisvpn /etc/gnosisvpn
-        chmod 755 /etc/gnosisvpn
-        chown gnosisvpn:gnosisvpn /etc/gnosisvpn/*.toml 2>/dev/null || true
-        chmod 644 /etc/gnosisvpn/*.toml 2>/dev/null || true
+    if [[ ! -d /etc/gnosisvpn ]]; then
+        mkdir -p /etc/gnosisvpn
     fi
+    chown gnosisvpn:gnosisvpn /etc/gnosisvpn
+    chmod 755 /etc/gnosisvpn
+    chown gnosisvpn:gnosisvpn /etc/gnosisvpn/*.toml 2>/dev/null || true
+    chmod 644 /etc/gnosisvpn/*.toml 2>/dev/null || true
 
     # Ensure log directory exists with correct permissions
-    if [[ ! -d /var/log/gnosis_vpn ]]; then
-        mkdir -p /var/log/gnosis_vpn
+    if [[ ! -d /var/log/gnosisvpn ]]; then
+        mkdir -p /var/log/gnosisvpn
     fi
-    chown gnosisvpn:gnosisvpn /var/log/gnosis_vpn
-    chmod 750 /var/log/gnosis_vpn
-
+    chown gnosisvpn:gnosisvpn /var/log/gnosisvpn
+    chmod 750 /var/log/gnosisvpn
     # Ensure state directory exists with correct permissions
-    if [[ ! -d /var/lib/gnosis_vpn ]]; then
-        mkdir -p /var/lib/gnosis_vpn
+    if [[ ! -d /var/lib/gnosisvpn ]]; then
+        mkdir -p /var/lib/gnosisvpn
     fi
-    chown gnosisvpn:gnosisvpn /var/lib/gnosis_vpn
-    chmod 750 /var/lib/gnosis_vpn
+    chown gnosisvpn:gnosisvpn /var/lib/gnosisvpn
+    chmod 750 /var/lib/gnosisvpn
 
-    # Fix binary ownership and permissions
-    if [[ -f /usr/bin/gnosis_vpn ]]; then
-        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn
-        chmod 755 /usr/bin/gnosis_vpn
+    # Fix binary ownership and permissions. Cannot be done in nfpm as the user may not exist yet.
+    if [[ -f /usr/bin/gnosis_vpn-worker ]]; then
+        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-worker
     fi
     if [[ -f /usr/bin/gnosis_vpn-ctl ]]; then
         chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-ctl
-        chmod 755 /usr/bin/gnosis_vpn-ctl
     fi
     if [[ -f /usr/bin/gnosis_vpn-app ]]; then
         chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-app
-        chmod 755 /usr/bin/gnosis_vpn-app
     fi
     
     echo "$LOG_PREFIX SUCCESS: Directory permissions configured"
@@ -93,21 +90,21 @@ enable_and_start_systemd_service() {
     deb-systemd-helper daemon-reload
 
     # Enable and start service
-    echo "$LOG_PREFIX INFO: Enabling gnosis_vpn.service..."
-    deb-systemd-helper enable gnosis_vpn.service
+    echo "$LOG_PREFIX INFO: Enabling gnosisvpn.service..."
+    deb-systemd-helper enable gnosisvpn.service
 
-    echo "$LOG_PREFIX INFO: Starting gnosis_vpn.service..."
-    deb-systemd-invoke start gnosis_vpn.service
+    echo "$LOG_PREFIX INFO: Starting gnosisvpn.service..."
+    deb-systemd-invoke start gnosisvpn.service
 
     sleep 2
 
-    if systemctl is-active --quiet gnosis_vpn.service; then
+    if systemctl is-active --quiet gnosisvpn.service; then
         echo "$LOG_PREFIX SUCCESS: Service started successfully"
     else
-        echo "$LOG_PREFIX WARNING: Service failed to start. Check logs with: journalctl -u gnosis_vpn.service"
+        echo "$LOG_PREFIX WARNING: Service failed to start. Check logs with: journalctl -u gnosisvpn.service"
     fi
     
-    echo "$LOG_PREFIX INFO: Service status: $(systemctl is-enabled gnosis_vpn.service 2>/dev/null || echo 'unknown')"
+    echo "$LOG_PREFIX INFO: Service status: $(systemctl is-enabled gnosisvpn.service 2>/dev/null || echo 'unknown')"
 }
 
 # Create desktop shortcut for a user

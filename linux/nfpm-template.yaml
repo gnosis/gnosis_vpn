@@ -43,39 +43,35 @@ overrides:
       - libayatana-appindicator
 contents:
   # Binaries
-  - src: ./build/download/gnosis_vpn
-    dst: /usr/bin/gnosis_vpn
+  - src: ./build/download/gnosis_vpn-root
+    dst: /usr/bin/gnosis_vpn-root
     file_info:
-      mode: 0755
+      mode: 0750
       owner: root
       group: root
+  - src: ./build/download/gnosis_vpn-worker
+    dst: /usr/bin/gnosis_vpn-worker
+    file_info:
+      mode: 0755
   - src: ./build/download/gnosis_vpn-ctl
     dst: /usr/bin/gnosis_vpn-ctl
     file_info:
       mode: 0755
-      owner: root
-      group: root
   - src: ./build/gnosis_vpn-app
     dst: /usr/bin/gnosis_vpn-app
     file_info:
       mode: 0755
-      owner: root
-      group: root
   # Resource files
-  - src: ./resources/gnosis_vpn.env
-    dst: /etc/gnosisvpn/gnosis_vpn.env
+  - src: ./resources/gnosisvpn.env
+    dst: /etc/gnosisvpn/gnosisvpn.env
     type: config
     file_info:
       mode: 0644
-      owner: root
-      group: root
   - src: ./resources/rotsee-config.toml
     dst: /etc/gnosisvpn/config.toml
     type: config
     file_info:
       mode: 0644
-      owner: root
-      group: root
   - src: ./resources/logrotate.conf
     dst: /etc/logrotate.d/gnosisvpn
     type: config
@@ -83,8 +79,8 @@ contents:
       mode: 0644
       owner: root
       group: root
-  - src: ./resources/gnosis_vpn.service
-    dst: /usr/lib/systemd/system/gnosis_vpn.service
+  - src: ./resources/gnosisvpn.service
+    dst: /usr/lib/systemd/system/gnosisvpn.service
   - src: ./resources/copyright
     dst: /usr/share/doc/gnosisvpn/copyright
   - src: ./build/changelog/changelog.gz
@@ -100,8 +96,14 @@ contents:
       owner: root
       group: root
   # Manual pages
-  - src: ./build/man/man1/gnosis_vpn.1.gz
-    dst: /usr/share/man/man1/gnosis_vpn.1.gz
+  - src: ./build/man/man1/gnosis_vpn-root.1.gz
+    dst: /usr/share/man/man1/gnosis_vpn-root.1.gz
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  - src: ./build/man/man1/gnosis_vpn-worker.1.gz
+    dst: /usr/share/man/man1/gnosis_vpn-worker.1.gz
     file_info:
       mode: 0644
       owner: root

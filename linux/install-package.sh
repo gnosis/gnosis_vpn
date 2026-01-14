@@ -11,10 +11,10 @@ GNOSISVPN_DISTRIBUTION="${1:?Error: GNOSISVPN_DISTRIBUTION parameter is required
 case "$GNOSISVPN_DISTRIBUTION" in
 deb)
   sudo apt-get update
-  sudo -E apt install -y "/tmp/gnosis_vpn.${GNOSISVPN_DISTRIBUTION}"
+  sudo -E apt install -y "/tmp/gnosisvpn.${GNOSISVPN_DISTRIBUTION}"
   ;;
 rpm)
-  sudo -E dnf install -y "/tmp/gnosis_vpn.${GNOSISVPN_DISTRIBUTION}"
+  sudo -E dnf install -y "/tmp/gnosisvpn.${GNOSISVPN_DISTRIBUTION}"
   ;;
 archlinux)
   # Archlinux mirrors conf in the GCP image is outdated by default
@@ -31,7 +31,7 @@ Include = /etc/pacman.d/mirrorlist
 Include = /etc/pacman.d/mirrorlist
 EOF
   sudo pacman -Syy
-  sudo -E pacman --noconfirm -U "/tmp/gnosis_vpn.${GNOSISVPN_DISTRIBUTION}" # --verbose --debug
+  sudo -E pacman --noconfirm -U "/tmp/gnosisvpn.${GNOSISVPN_DISTRIBUTION}" # --verbose --debug
   ;;
 *)
   echo "Unsupported distribution: $GNOSISVPN_DISTRIBUTION"
@@ -39,10 +39,10 @@ EOF
   ;;
 esac
 
-# Check the health status of the gnosis_vpn service
-if systemctl is-active --quiet gnosis_vpn; then
-  echo "gnosis_vpn service is running."
+# Check the health status of the gnosisvpn service
+if systemctl is-active --quiet gnosisvpn; then
+  echo "gnosisvpn service is running."
 else
-  echo "gnosis_vpn service is not running."
+  echo "gnosisvpn service is not running."
   exit 1
 fi

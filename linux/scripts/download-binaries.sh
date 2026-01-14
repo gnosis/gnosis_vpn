@@ -120,7 +120,10 @@ download_binaries() {
     log_info "Downloading binaries from GCP Artifact Registry..."
 
      gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
-        "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:gnosis_vpn-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn
+        "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:gnosis_vpn-root-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn-root
+
+     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
+        "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:gnosis_vpn-worker-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn-worker
 
      gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
         "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:gnosis_vpn-ctl-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn-ctl
@@ -129,7 +132,8 @@ download_binaries() {
         "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" --local-filename=gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}
 
     # Set execute permissions on downloaded binaries
-     chmod +x "${BINARY_DIR}/gnosis_vpn"
+     chmod +x "${BINARY_DIR}/gnosis_vpn-root"
+     chmod +x "${BINARY_DIR}/gnosis_vpn-worker"
      chmod +x "${BINARY_DIR}/gnosis_vpn-ctl"
 
     log_success "All binaries downloaded"

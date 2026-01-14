@@ -19,9 +19,9 @@ fi
 
 # Stop running service to prevent file conflicts during upgrade
 if command -v systemctl >/dev/null 2>&1; then
-  if systemctl is-active --quiet gnosis_vpn 2>/dev/null; then
-    echo "$LOG_PREFIX INFO: Stopping existing gnosis_vpn service..."
-    deb-systemd-invoke stop gnosis_vpn || true
+  if systemctl is-active --quiet gnosisvpn 2>/dev/null; then
+    echo "$LOG_PREFIX INFO: Stopping existing gnosisvpn service..."
+    deb-systemd-invoke stop gnosisvpn || true
   fi
 fi
 

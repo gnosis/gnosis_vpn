@@ -12,11 +12,11 @@ User=root
 Group=root
 
 # Environment and configuration
-EnvironmentFile=/etc/gnosisvpn/gnosis_vpn.env
-WorkingDirectory=/var/lib/gnosis_vpn
+EnvironmentFile=/etc/gnosisvpn/gnosisvpn.env
+WorkingDirectory=/var/lib/gnosisvpn
 
 # Main service command
-ExecStart=/usr/bin/gnosis_vpn -c /etc/gnosisvpn/config.toml --hopr-rpc-provider https://rpc-provider.hoprnet.org --hopr-network rotsee
+ExecStart=/usr/bin/gnosis_vpn-worker -c /etc/gnosisvpn/config.toml --hopr-blokli-url https://blokli.staging.hoprnet.link
 
 # Restart configuration
 Restart=always
@@ -29,19 +29,19 @@ TimeoutStopSec=90
 TimeoutStartSec=60
 
 # Logging
-StandardOutput=append:/var/log/gnosis_vpn/gnosis_vpn.log
-StandardError=append:/var/log/gnosis_vpn/gnosis_vpn.log
-SyslogIdentifier=gnosis_vpn
+StandardOutput=append:/var/log/gnosisvpn/gnosisvpn.log
+StandardError=append:/var/log/gnosisvpn/gnosisvpn.log
+SyslogIdentifier=gnosisvpn
 
 # Directory management - systemd will create these with proper permissions
-# RuntimeDirectory creates /run/gnosis_vpn
-RuntimeDirectory=gnosis_vpn
+# RuntimeDirectory creates /run/gnosisvpn
+RuntimeDirectory=gnosisvpn
 RuntimeDirectoryMode=0755
-# StateDirectory creates /var/lib/gnosis_vpn
-StateDirectory=gnosis_vpn
+# StateDirectory creates /var/lib/gnosisvpn
+StateDirectory=gnosisvpn
 StateDirectoryMode=0750
-# LogsDirectory creates /var/log/gnosis_vpn
-LogsDirectory=gnosis_vpn
+# LogsDirectory creates /var/log/gnosisvpn
+LogsDirectory=gnosisvpn
 LogsDirectoryMode=0750
 
 # Security hardening for VPN service
@@ -52,7 +52,7 @@ AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
 # File system protection
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/gnosis_vpn /var/log/gnosis_vpn /run/gnosis_vpn
+ReadWritePaths=/var/lib/gnosisvpn /var/log/gnosisvpn /run/gnosisvpn
 
 # Resource limits
 LimitNOFILE=65536

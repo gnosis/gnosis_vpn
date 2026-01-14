@@ -77,7 +77,7 @@ parse_args() {
 
 # Check if binaries are available
 check_binaries() {
-    if [[ ! -d "${BUILD_DIR}/binaries" ]] || [[ ! -f "${BUILD_DIR}/binaries/gnosis_vpn" ]]; then
+    if [[ ! -d "${BUILD_DIR}/binaries" ]] || [[ ! -f "${BUILD_DIR}/binaries/gnosis_vpn-worker" ]]; then
         log_error "Binaries not found in ${BUILD_DIR}/binaries/"
         log_error "Run download-binaries.sh first to download binaries"
         exit 1
