@@ -95,7 +95,7 @@ copy_action() {
   echo "Copying artifacts on ${INSTANCE_NAME}"
   script_dir=$(cd "$(dirname "$0")" && pwd)
   gcloud compute scp --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${script_dir}/install-package.sh" "${INSTANCE_NAME}":/tmp/install-package.sh
-  gcloud compute scp --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${script_dir}/build/packages/gnosisvpn-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" "${INSTANCE_NAME}":/tmp/gnosisvpn."${GNOSISVPN_DISTRIBUTION}"
+  gcloud compute scp --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${script_dir}"/build/packages/gnosisvpn*."${GNOSISVPN_DISTRIBUTION}" "${INSTANCE_NAME}":/tmp/gnosisvpn."${GNOSISVPN_DISTRIBUTION}"
   echo "Artifacts successfully copied on ${INSTANCE_NAME}"
 }
 

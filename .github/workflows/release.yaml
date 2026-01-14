@@ -110,6 +110,7 @@ jobs:
           GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_PREVIOUS_APP_VERSION }}
           GNOSISVPN_GPG_PRIVATE_KEY_PATH: /tmp/gnosis_vpn_gpg_key.asc
           GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
+          GNOSISVPN_CHANGELOG_FORMAT: debian
       - name: Upload Package
         uses: actions/upload-artifact@v5
         with:
