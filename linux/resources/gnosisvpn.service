@@ -16,7 +16,7 @@ EnvironmentFile=/etc/gnosisvpn/gnosisvpn.env
 WorkingDirectory=/var/lib/gnosisvpn
 
 # Main service command
-ExecStart=/usr/bin/gnosis_vpn-worker -c /etc/gnosisvpn/config.toml --hopr-blokli-url https://blokli.staging.hoprnet.link
+ExecStart=/usr/bin/gnosis_vpn-root -c /etc/gnosisvpn/config.toml --hopr-blokli-url https://blokli.staging.hoprnet.link --worker-binary /usr/bin/gnosis_vpn-worker
 
 # Restart configuration
 Restart=always
