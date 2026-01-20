@@ -5,18 +5,16 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUILD_DIR="${SCRIPT_DIR}/../build"
-BINARY_DIR="${BUILD_DIR}/download"
-
 # Source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 # Safe default values
 : "${GNOSISVPN_CLI_VERSION:=}"
 : "${GNOSISVPN_APP_VERSION:=}"
-: "${GNOSISVPN_DISTRIBUTION:=deb}"
 : "${GNOSISVPN_ARCHITECTURE:=x86_64-linux}"
+: "${GNOSISVPN_DISTRIBUTION:=deb}"
+
 
 # Usage help message
 usage() {
@@ -25,8 +23,8 @@ usage() {
     echo "Options:"
     echo "  --cli-version <version>        Set the CLI version (e.g., latest, v0.50.7, 0.50.7+pr.465)"
     echo "  --app-version <version>        Set the App version (e.g., latest, v0.2.2, 0.2.2+pr.10)"
-    echo "  --distribution <type>          Set the distribution type (deb, rpm, archlinux), default: deb"
-    echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux), default: x86_64-linux"
+    echo "  --architecture <arch>          Set the target architecture (x86_64-linux, x86_64-darwin, aarch64-darwin), default: x86_64-linux"
+    echo "  --distribution <type>          Set the distribution type (deb, dmg), default: deb"
     echo "  -h, --help                     Show this help message"
     exit 1
 }
@@ -55,22 +53,22 @@ parse_args() {
             fi
             shift 2
             ;;
-        --distribution)
-            GNOSISVPN_DISTRIBUTION="${2:-}"
-            if [[ -z $GNOSISVPN_DISTRIBUTION ]]; then
-                log_error "'--distribution <type>' requires a value"
-                usage
-            elif ! validate_distribution "$GNOSISVPN_DISTRIBUTION"; then
-                exit 1
-            fi
-            shift 2
-            ;;
         --architecture)
             GNOSISVPN_ARCHITECTURE="${2:-}"
             if [[ -z $GNOSISVPN_ARCHITECTURE ]]; then
                 log_error "'--architecture <arch>' requires a value"
                 usage
             elif ! validate_architecture "$GNOSISVPN_ARCHITECTURE"; then
+                exit 1
+            fi
+            shift 2
+            ;;
+        --distribution)
+            GNOSISVPN_DISTRIBUTION="${2:-}"
+            if [[ -z $GNOSISVPN_DISTRIBUTION ]]; then
+                log_error "'--distribution <type>' requires a value"
+                usage
+            elif ! validate_distribution "$GNOSISVPN_DISTRIBUTION"; then
                 exit 1
             fi
             shift 2
@@ -108,37 +106,49 @@ prepare_build_dir() {
         rm -rf "${BUILD_DIR}"
     fi
 
-        mkdir -p ${BINARY_DIR}
-        chmod 700 "${BINARY_DIR}"
-    mkdir -p ${BUILD_DIR}/app-contents/rootfs
+    mkdir -p ${BINARY_DIR}
+    chmod 700 "${BINARY_DIR}"
 
     log_success "Build directory prepared"
 }
 
 # Download binaries from GCP
-download_binaries() {
+download_linux_binaries() {
     log_info "Downloading binaries from GCP Artifact Registry..."
 
-     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
-        "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:gnosis_vpn-root-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn-root
+    for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
+        gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
+            "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-${GNOSISVPN_ARCHITECTURE}" --local-filename=${artifact}
+        # Set execute permissions on downloaded binaries
+        chmod +x "${BINARY_DIR}/${artifact}"
+    done
 
-     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
-        "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:gnosis_vpn-worker-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn-worker
-
-     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
-        "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:gnosis_vpn-ctl-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn-ctl
-
-     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
+    gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
         "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" --local-filename=gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}
-
-    # Set execute permissions on downloaded binaries
-     chmod +x "${BINARY_DIR}/gnosis_vpn-root"
-     chmod +x "${BINARY_DIR}/gnosis_vpn-worker"
-     chmod +x "${BINARY_DIR}/gnosis_vpn-ctl"
 
     log_success "All binaries downloaded"
 }
 
+download_darwin_binaries() {
+log_info "Downloading binaries from GCP Artifact Registry..."
+
+    for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
+        for arch in aarch64-darwin x86_64-darwin; do
+            gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
+                "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-${arch}" --local-filename=${artifact}-${arch}
+        done
+        lipo -create -output "${BINARY_DIR}/${artifact}" "${BINARY_DIR}/${artifact}-aarch64-darwin" "${BINARY_DIR}/${artifact}-x86_64-darwin"
+        chmod 755 "${BINARY_DIR}/${artifact}"
+        lipo -info "${BINARY_DIR}/${artifact}" || true
+        echo "Created universal binary for ${artifact}"
+    done
+
+    gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
+        "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-universal-darwin.dmg" --local-filename=gnosis_vpn-app-universal-darwin.dmg
+
+    log_success "All downloads completed"
+
+}
 
 # Print summary
 print_summary() {
@@ -161,7 +171,11 @@ print_summary() {
 # Main
 main() {
     prepare_build_dir
-    download_binaries
+    if [[ "${GNOSISVPN_ARCHITECTURE}" =~ ^(x86_64-linux)$ ]]; then
+        download_linux_binaries
+    else
+        download_darwin_binaries
+    fi
     print_summary
     log_success "🎉 Download completed successfully!"
 }

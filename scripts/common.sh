@@ -3,6 +3,9 @@
 # Common functions for GnosisVPN packaging scripts
 #
 
+BUILD_DIR="${SCRIPT_DIR}/../build"
+BINARY_DIR="${BUILD_DIR}/download"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -54,30 +57,28 @@ get_latest_release() {
 
 # Generate package name based on distribution conventions
 generate_package_name() {
-    local package_version="$1"
-    local distribution="$2"
-    local architecture="$3"
-    local arch_name="${architecture}"
-    
     # Convert architecture name based on distribution
-    case "${distribution}" in
+    case "${GNOSISVPN_DISTRIBUTION}" in
+        dmg)
+            echo "GnosisVPN-${GNOSISVPN_PACKAGE_VERSION}-${GNOSISVPN_ARCHITECTURE}.dmg"
+            ;;
         deb)
-            arch_name="${arch_name/x86_64-linux/amd64}"
-            arch_name="${arch_name/aarch64-linux/arm64}"
-            echo "gnosisvpn_${package_version}_${arch_name}.deb"
+            arch_name="${GNOSISVPN_ARCHITECTURE/x86_64-linux/amd64}"
+            arch_name="${GNOSISVPN_ARCHITECTURE/aarch64-linux/arm64}"
+            echo "gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_${arch_name}.deb"
             ;;
         rpm)
-            arch_name="${arch_name/x86_64-linux/x86_64}"
-            arch_name="${arch_name/aarch64-linux/aarch64}"
-            echo "gnosisvpn-${package_version}.${arch_name}.rpm"
+            arch_name="${GNOSISVPN_ARCHITECTURE/x86_64-linux/x86_64}"
+            arch_name="${GNOSISVPN_ARCHITECTURE/aarch64-linux/aarch64}"
+            echo "gnosisvpn-${GNOSISVPN_PACKAGE_VERSION}.${arch_name}.rpm"
             ;;
         archlinux)
-            arch_name="${arch_name/x86_64-linux/x86_64}"
-            arch_name="${arch_name/aarch64-linux/aarch64}"
-            echo "gnosisvpn-${package_version}-${arch_name}.pkg.tar.zst"
+            arch_name="${GNOSISVPN_ARCHITECTURE/x86_64-linux/x86_64}"
+            arch_name="${GNOSISVPN_ARCHITECTURE/aarch64-linux/aarch64}"
+            echo "gnosisvpn-${GNOSISVPN_PACKAGE_VERSION}-${arch_name}.pkg.tar.zst"
             ;;
         *)
-            echo "gnosisvpn-${architecture}.${distribution}"
+            echo "gnosisvpn-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}"
             ;;
     esac
 }
@@ -85,9 +86,9 @@ generate_package_name() {
 # Validate distribution type
 validate_distribution() {
     local distribution="$1"
-    if [[ ! $distribution =~ ^(deb|rpm|archlinux)$ ]]; then
+    if [[ ! $distribution =~ ^(deb|dmg)$ ]]; then
         log_error "Invalid distribution: $distribution"
-        log_error "Valid options: deb, rpm, archlinux"
+        log_error "Valid options: deb, dmg"
         return 1
     fi
     return 0
@@ -96,9 +97,9 @@ validate_distribution() {
 # Validate architecture
 validate_architecture() {
     local architecture="$1"
-    if [[ ! $architecture =~ ^(x86_64-linux|aarch64-linux)$ ]]; then
+    if [[ ! $architecture =~ ^(x86_64-linux|x86_64-darwin|aarch64-darwin)$ ]]; then
         log_error "Invalid architecture: $architecture"
-        log_error "Valid options: x86_64-linux, aarch64-linux"
+        log_error "Valid options: x86_64-linux, x86_64-darwin, aarch64-darwin"
         return 1
     fi
     return 0

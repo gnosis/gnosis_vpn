@@ -60,10 +60,10 @@ print_banner() {
 # Confirm uninstallation
 confirm_uninstall() {
     echo "This will remove:"
-    echo "  - Binaries: $BIN_DIR/gnosis_vpn, $BIN_DIR/gnosis_vpn-ctl, $BIN_DIR/gnosis-vpn-manager"
+    echo "  - Binaries: $BIN_DIR/gnosis_vpn-root, $BIN_DIR/gnosis_vpn-worker, $BIN_DIR/gnosis_vpn-ctl, $BIN_DIR/gnosis-vpn-manager"
     echo "  - Launchd service: /Library/LaunchDaemons/org.gnosis.vpn.plist"
     echo "  - Configuration: $CONFIG_DIR/"
-    echo "  - Service logs: /var/log/gnosis_vpn/"
+    echo "  - Service logs: /var/log/gnosisvpn/"
     echo "  - Installation logs: $LOG_DIR/"
     echo "  - Package receipt: $PKG_ID"
     echo ""
@@ -162,9 +162,9 @@ cleanup_system_directories() {
     log_info "Cleaning up system directories..."
 
     local directories=(
-        "/var/run/gnosis_vpn"
-        # "/var/lib/gnosis_vpn" # should not remove the identity store
-        "/var/log/gnosis_vpn"
+        "/var/run/gnosisvpn"
+        # "/var/lib/gnosisvpn" # should not remove the identity store
+        "/var/log/gnosisvpn"
     )
 
     for dir in "${directories[@]}"; do
@@ -342,7 +342,7 @@ remove_logs() {
     fi
 
     # Also remove service logs
-    local service_log_dir="/var/log/gnosis_vpn"
+    local service_log_dir="/var/log/gnosisvpn"
     if [[ -d $service_log_dir ]]; then
         rm -rf "$service_log_dir"
         log_success "Removed service logs: $service_log_dir"
@@ -419,7 +419,7 @@ verify_uninstall() {
     fi
 
     # Check system directories removal
-    local system_dirs=("/var/run/gnosis_vpn" "/var/log/gnosis_vpn")
+    local system_dirs=("/var/run/gnosisvpn" "/var/log/gnosisvpn")
     for dir in "${system_dirs[@]}"; do
         if [[ -d $dir ]]; then
             log_error "System directory still exists: $dir"
@@ -456,7 +456,7 @@ print_summary() {
     echo "  ✓ Launchd service"
     echo "  ✓ System user and group (gnosisvpn)"
     echo "  ✓ Sudo privileges configuration"
-    echo "  ✓ System directories (/var/lib/gnosis_vpn, /var/run/gnosis_vpn)"
+    echo "  ✓ System directories (/var/lib/gnosisvpn, /var/run/gnosisvpn)"
     echo "  ✓ Configuration (backed up to ~/gnosis-vpn-config-backup-*)"
     echo "  ✓ Service logs"
     echo "  ✓ Installation logs"

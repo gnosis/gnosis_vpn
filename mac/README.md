@@ -6,131 +6,17 @@ installing and configuring the Gnosis VPN client on macOS systems.
 
 ## Features
 
-- **Custom UI**: Professional welcome, readme, and completion screens with
-  branding
-- **System Requirements Check**: Validates macOS version, architecture, and disk
-  space
-- **Incremental Updates**: Detects previous installations and only updates
-  changed binaries
-- **Configuration Preservation**: Maintains user settings during updates when
-  possible
-- **Version Tracking**: Tracks installation versions for better update
-  management
-- **Automatic Backups**: Creates backups of binaries and configurations before
-  updates
-- **WireGuard Integration**: Automatically detects and installs WireGuard tools
-  if needed
-- **Network Selection**: Choose between Production (Gnosis Chain) or Rotsee
-  testnet
-- **Configuration Generation**: Creates `config.toml` with selected network
-  destinations
-- **macOS Integration**: Removes quarantine attributes and sets proper
-  permissions
+- **Custom UI**: Professional welcome, readme, and completion screens with branding
+- **System Requirements Check**: Validates macOS version, architecture, and disk space
+- **Incremental Updates**: Detects previous installations and only updates changed binaries
+- **Configuration Preservation**: Maintains user settings during updates when possible
+- **Version Tracking**: Tracks installation versions for better update management
+- **Automatic Backups**: Creates backups of binaries and configurations before updates
+- **WireGuard Integration**: Automatically detects and installs WireGuard tools if needed
+- **Network Selection**: Choose between Production (Gnosis Chain) or Rotsee testnet
+- **Configuration Generation**: Creates `config.toml` with selected network destinations
+- **macOS Integration**: Removes quarantine attributes and sets proper permissions
 - **Management Tools**: Includes utility for managing installations and backups
-
-## Directory Structure
-
-```
-mac/
-├── build/                      # Build output directory (generated)
-├── resources/                  # Installer resources
-│   ├── welcome.html           # Welcome screen
-│   ├── readme.html            # Requirements and info screen
-│   ├── conclusion.html        # Completion screen with instructions
-│   ├── config/                # Configuration files directory
-│   │   ├── templates/         # Network configuration templates
-│   │   │   ├── rotsee.toml.template   # Production network config
-│   │   │   └── dufour.toml.template   # Development network config
-│   │   └── system/            # System service configuration
-│   │       └── org.gnosis.vpn.plist  # LaunchD service configuration
-│   └── scripts/
-│       ├── installationCheck.js      # Pre-flight system checks
-│       ├── preinstall                # Downloads binaries and verifies WireGuard
-│       ├── postinstall               # Generates configuration & installs service
-│       └── manage-installation.sh    # Management utility for service control
-├── Distribution.xml           # Installer flow and UI configuration
-├── build-package.sh              # Script to generate the installer package
-└── README.md                 # This file
-```
-
-## Building the Installer
-
-### Prerequisites
-
-- macOS 11.0 or later
-- Xcode Command Line Tools installed: `$ xcode-select --install`
-- [Github CLI tools](https://cli.github.com) installed
-- [Gcloud SDK](https://cloud.google.com/sdk/docs/install) installed
-- (Optional) Apple certificates and passwords for building and installer
-
-### Build Steps
-
-1. **Build the unsigned installer:**
-   ```bash
-   cd mac
-   ./build-package.sh
-   ```
-
-   This downloads the latest releases and creates universal binaries
-   (x86_64 + arm64), and packages them into
-   `build/GnosisVPN-Installer-<build-date>.pkg`
-
-   You can also specify a specific version:
-   ```bash
-   ./build-package.sh --package-version 1.0.0
-   ```
-
-   You can also specify particular versions for `gnosis_vpn-client` and `gnosis_vpn-app`:
-   ```bash
-   ./build-package.sh --package-version 1.0.0 --cli-version 0.50.7 --app-version 0.2.3
-   ```
-   If no versions are provided, the script will get the latest published release.
-
-2. **Test the installer:**
-   ```bash
-   open build/GnosisVPN-Installer-1.0.0.pkg
-   ```
-
-3. **Build a signed installer for distribution:**
-   ```bash
-   export GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH="path/to/developer/certificate.p12"
-   export GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD="YourDeveloperCertificatePassword"
-   export GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH="path/to/installer/certificate.p12"
-   export GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD="YourInstallerCertificatePassword"
-   export GNOSISVPN_APPLE_ID="your@email.com"
-   export GNOSISVPN_APPLE_PASSWORD="Your Apple specific password"
-   export GNOSISVPN_APPLE_TEAM_ID="ABC123XYZ"
-   ./build-package.sh --sign
-   ```
-
-   Alternatively you can execute passing them as parameters:
-   ```bash
-   export GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD="YourDeveloperCertificatePassword"
-   export GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD="YourInstallerCertificatePassword"
-   export GNOSISVPN_APPLE_PASSWORD="Your Apple specific password"
-   ./build-package.sh --sign --binary-certificate-path gnosisvpn-developer.p12 --installer-certificate-path gnosisvpn-installer.p12 --apple-id your@email.com --apple-team-id ABC123XYZ
-   ```
-
-
-## Incremental Updates
-
-The installer intelligently detects previous installations and performs
-incremental updates:
-
-### Update Detection
-
-- **Version Tracking**: Maintains version information in
-  `/etc/gnosisvpn/version.txt`
-- **Binary Comparison**: Uses SHA-256 checksums to detect binary changes
-- **Configuration Preservation**: Keeps user settings when compatible
-
-### Update Process
-
-1. **Detection Phase**: Checks for existing installation and version
-2. **Backup Phase**: Creates timestamped backups of existing files
-3. **Update Phase**: Only updates binaries that have changed
-4. **Configuration Phase**: Preserves compatible configurations
-5. **Cleanup Phase**: Removes old backup files (keeps 5 most recent)
 
 ### Management Tools
 
@@ -148,75 +34,8 @@ gnosis-vpn-manager [command]
 - `restore` - Restore configuration from backup (requires sudo)
 - `cleanup` - Clean up old backup files (requires sudo)
 
-### Benefits
-
-- **Faster Updates**: Only changed binaries are replaced
-- **Configuration Safety**: User settings preserved during updates
-- **Rollback Capability**: Easy restoration from automatic backups
-- **Space Efficiency**: Automatic cleanup of old backup files
-
-## What the Installer Does
-
-### Build-Time Phase (NEW)
-
-**The build script now downloads and packages binaries at build time, not during
-installation:**
-
-1. **Binary Download & Packaging** (build-pkg.sh):
-   - Fetches latest version tag from GitHub (or uses specified version)
-   - Downloads both x86_64 and aarch64 binaries for `gnosis_vpn` and
-     `gnosis_vpn-ctl`
-   - Downloads x86_64 UI app binary (used on both Intel and ARM Macs via
-     Rosetta)
-   - Creates universal binaries using `lipo` (supports both Intel and Apple
-     Silicon)
-   - Packages binaries into the PKG payload
-
-**Benefits:**
-
-- ✅ Installation progress is visible in macOS Installer UI
-- ✅ Faster installations (no network downloads during install)
-- ✅ Works offline
-- ✅ More reliable (no network failure points during install)
-
-### Pre-Installation Phase
-
-1. **System Checks** (installationCheck.js):
-   - Validates macOS version (requires 11.0+)
-   - Checks system architecture (Intel or Apple Silicon)
-   - Verifies available disk space (minimum 50MB)
-
-2. **Pre-Install Script** (preinstall):
-   - Minimal checks only
-   - Warns if WireGuard tools are not installed (non-blocking)
-
-### Installation Phase
-
-- Installs universal binaries to `/usr/local/bin/`
-- Creates `/etc/gnosisvpn/` directory
-
-### Post-Installation Phase
-
-1. **Post-Install Script** (postinstall):
-   - Backs up existing `config.toml` if present
-   - Generates new configuration based on network selection (rotsee or dufour)
-   - Sets proper file permissions
-   - Verifies installation integrity
 
 ## Configuration
-
-### Configuration Structure
-
-The installer uses a consolidated configuration directory structure:
-
-```
-resources/config/
-├── templates/          # Network configuration templates
-│   ├── rotsee.toml.template    # Production network
-│   └── dufour.toml.template    # Development network
-└── system/            # System service configurations
-    └── org.gnosis.vpn.plist    # LaunchD service definition
-```
 
 ### Environment Variables
 
@@ -229,171 +48,13 @@ The installer scripts support these environment variables:
 
 After installation, files are located at:
 
-- **Binaries**: `/usr/local/bin/`
+- Binaries: `/usr/local/bin/`
   - `gnosis_vpn` - Main VPN daemon
   - `gnosis_vpn-ctl` - Control utility
-- **Application**: `/Applications/Gnosis VPN.app`
-- **Configuration**: `/etc/gnosisvpn/config.toml`
-
-## Customization
-
-### Modifying UI Content
-
-Edit the HTML files in `resources/`:
-
-- `welcome.html` - Introduction and requirements
-- `readme.html` - Detailed information and checks
-- `conclusion.html` - Post-installation instructions
-
-### Changing Installation Logic
-
-- **System checks**: Edit `resources/scripts/installationCheck.js`
-- **Download/setup**: Edit `resources/scripts/preinstall`
-- **Configuration**: Edit `resources/scripts/postinstall`
-
-### Modifying Installer Flow
-
-Edit `Distribution.xml` to change:
-
-- Installation choices
-- UI panels
-- Package metadata
-- Localization
-
-## Troubleshooting
-
-### Build Issues
-
-**Error: "productsign: command not found"**
-
-- Install Xcode Command Line Tools: `xcode-select --install`
-
-**Error: "Distribution.xml not found"**
-
-- Ensure you're running the script from the `mac/` directory
-
-### Signing Issues
-
-**Error: "No Developer ID Installer certificate found"**
-
-- Download and install your certificate from https://developer.apple.com
-- Double-click the `.cer` file to add it to Keychain Access
-
-**Error: "productsign failed"**
-
-- Verify your signing identity name:
-  ```bash
-  security find-identity -v -p basic | grep "Developer ID Installer"
-  ```
-- Set the exact identity name:
-  ```bash
-  export SIGNING_IDENTITY="Developer ID Installer: Your Name (TEAM123)"
-  ```
-
-### Notarization Issues
-
-**Error: "APPLE_ID environment variable not set"**
-
-- Set required environment variables:
-  ```bash
-  export APPLE_ID="your@email.com"
-  export TEAM_ID="ABC123XYZ"
-  ```
-
-**Error: "No keychain profile found"**
-
-- Create an app-specific password at https://appleid.apple.com
-- Store it in keychain:
-  ```bash
-  xcrun notarytool store-credentials AC_PASSWORD \
-    --apple-id "your@email.com" \
-    --team-id "TEAM123"
-  ```
-
-### Installation Issues
-
-**"WireGuard installation failed"**
-
-- Install Homebrew: https://brew.sh
-- Or install WireGuard manually: `brew install wireguard-tools`
-
-**"Failed to download binaries during build"**
-
-- Check internet connection during PKG build
-- Verify GitHub releases are accessible
-- Try specifying a specific version: `./build-pkg.sh v0.50.1`
-
-**"Checksum verification failed"**
-
-- The build process detected a checksum mismatch
-- This could indicate:
-  - Corrupted download (try building again)
-  - Network proxy interfering with downloads
-  - Security issue with the release assets
-- If the problem persists, verify the checksums manually:
-  ```bash
-  curl -L https://github.com/gnosis/gnosis_vpn-client/releases/download/v0.12.0/gnosis_vpn-aarch64-darwin -o /tmp/test-binary
-  curl -L https://github.com/gnosis/gnosis_vpn-client/releases/download/v0.12.0/gnosis_vpn-aarch64-darwin.sha256 -o /tmp/test.sha256
-  shasum -a 256 /tmp/test-binary
-  cat /tmp/test.sha256
-  ```
-
-**"Gnosis VPN.app not found"**
-
-- The app may not be available for all platforms
-- The installer will still complete successfully with just the command-line
-  tools
-
-## Logs
-
-Installation logs are written to:
-
-- Pre-install: `/Library/Logs/GnosisVPNInstaller/preinstall.log`
-- Post-install: `/Library/Logs/GnosisVPNInstaller/postinstall.log`
-
-View logs:
-
-```bash
-cat /Library/Logs/GnosisVPNInstaller/preinstall.log
-cat /Library/Logs/GnosisVPNInstaller/postinstall.log
-```
-
-## Development
-
-### Testing Changes
-
-After modifying any files:
-
-1. Rebuild the installer:
-   ```bash
-   ./build-pkg.sh 1.0.0-dev
-   ```
-
-2. Test in a clean environment or VM
-3. Check log files for errors
-4. Verify installed files:
-   - Binaries in `/usr/local/bin/`
-   - App in `/Applications/GnosisVPN.app`
-   - Config in `/etc/gnosisvpn/config.toml`
-
-### Debugging
-
-Enable verbose output:
-
-```bash
-set -x  # Add to script for bash tracing
-```
-
-Test scripts independently:
-
-```bash
-# Test preinstall (downloads binaries and app)
-sudo ./resources/scripts/preinstall "" "/" "/" "/"
-
-# Test postinstall (generates config)
-export INSTALLER_CHOICE_NETWORK="rotsee"
-sudo ./resources/scripts/postinstall "" "/" "/" "/"
-```
+- Application: `/Applications/Gnosis VPN.app`
+- Configuration: `/etc/gnosisvpn/config.toml`
+- Logs Pre-install: `/Library/Logs/GnosisVPNInstaller/preinstall.log`
+- Logs Post-install: `/Library/Logs/GnosisVPNInstaller/postinstall.log`
 
 ## Uninstallation
 
@@ -420,8 +81,7 @@ If you prefer to uninstall manually:
 
 1. **Remove the binaries:**
    ```bash
-   sudo rm -f /usr/local/bin/gnosis_vpn
-   sudo rm -f /usr/local/bin/gnosis_vpn-ctl
+   sudo rm -f /usr/local/bin/gnosis_vpn*
    ```
 
 2. **Remove the configuration (backup first if needed):**
@@ -440,21 +100,6 @@ If you prefer to uninstall manually:
    sudo pkgutil --forget org.gnosis.vpn.client
    ```
 
-### Verifying Uninstallation
-
-Check that all components are removed:
-
-```bash
-# Verify binaries are removed
-ls -l /usr/local/bin/gnosis_vpn* 2>/dev/null || echo "✓ Binaries removed"
-
-# Verify configuration is removed
-ls -ld /etc/gnosisvpn 2>/dev/null || echo "✓ Configuration removed"
-
-# Verify package receipt is removed
-pkgutil --pkgs | grep gnosis || echo "✓ Package receipt removed"
-```
-
 ## Security
 
 - Scripts run with root privileges during installation
@@ -470,9 +115,9 @@ The installer creates dedicated system credentials for enhanced security:
 
 - **System User**: `gnosisvpn` (UID: 200-499 range)
   - Hidden from login window and Users & Groups preferences
-  - Home directory: `/var/lib/gnosis_vpn`
+  - Home directory: `/var/lib/gnosisvpn`
   - Shell: `/bin/bash` (no interactive login)
-  - Used to run the VPN service with minimal privileges
+  - Used to run some VPN binaries with minimal privileges. The `gnosis_vpn-root` binary will be running as `root`.
 
 - **System Group**: `gnosisvpn` (GID: 200-499 range)
   - Contains the current user and system user
@@ -483,49 +128,4 @@ The installer creates dedicated system credentials for enhanced security:
   - Configuration files: `root:gnosisvpn` with group read access
   - Binaries: `root:gnosisvpn` with group execute access
   - Log directories: `gnosisvpn:gnosisvpn` for service logging
-  - Runtime directories: `/var/run/gnosis_vpn`, `/var/lib/gnosis_vpn`
-
-This eliminates the need to run the service as root and provides controlled
-access for regular users.
-
-### Sudo Privileges for Service Management
-
-The installer configures passwordless sudo access for gnosisvpn group members:
-
-- **Sudoers Configuration**: `/etc/sudoers.d/gnosis-vpn`
-- **Allowed Commands**:
-  - `launchctl bootstrap system /Library/LaunchDaemons/org.gnosis.vpn.plist`
-  - `launchctl bootout system /Library/LaunchDaemons/org.gnosis.vpn.plist`
-  - `launchctl kickstart system/org.gnosis.vpn`
-  - `launchctl print system/org.gnosis.vpn`
-  - `launchctl list org.gnosis.vpn`
-
-- **Benefits**:
-  - Group members can start/stop/restart the service without entering a password
-  - Management commands work seamlessly: `gnosis-vpn-manager start-service`
-  - Maintains security by limiting privileges to specific launchctl operations
-  - Automatically handles sudo escalation when needed
-
-### Checksum Verification
-
-The build process automatically verifies SHA-256 checksums for all downloaded
-binaries:
-
-- Checksum files (`.sha256`) are downloaded from the same GitHub release
-- Each binary is verified before being packaged
-- **Build fails immediately if:**
-  - Checksum file cannot be downloaded
-  - Checksum file is empty or invalid
-  - Calculated checksum doesn't match the expected checksum
-- This protects against corrupted downloads and potential security issues
-
-## License
-
-This installer is part of the Gnosis VPN Client project. See the main repository
-for license information.
-
-## Support
-
-- Documentation: https://github.com/gnosis/gnosis_vpn-client
-- Issues: https://github.com/gnosis/gnosis_vpn-client/issues
-- Releases: https://github.com/gnosis/gnosis_vpn-client/releases
+  - Runtime directories: `/var/run/gnosisvpn`, `/var/lib/gnosisvpn`

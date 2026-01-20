@@ -363,7 +363,7 @@ start_service() {
         log_success "Service started successfully"
     else
         log_error "Service failed to start"
-        log_info "Check logs: tail -f /var/log/gnosis_vpn/gnosis_vpn.error.log"
+        log_info "Check logs: tail -f /var/log/gnosisvpn/gnosisvpn.log"
         exit 1
     fi
 }
@@ -410,7 +410,7 @@ show_logs() {
     "service" | "info")
         log_info "Showing service logs (last 50 lines):"
         echo ""
-        tail -n 50 /var/log/gnosis_vpn/gnosis_vpn.log 2>/dev/null || {
+        tail -n 50 /var/log/gnosisvpn/gnosisvpn.log 2>/dev/null || {
             log_error "Service log file not found"
             exit 1
         }
@@ -418,7 +418,7 @@ show_logs() {
     "error" | "errors")
         log_info "Showing error logs (last 50 lines):"
         echo ""
-        tail -n 50 /var/log/gnosis_vpn/gnosis_vpn.error.log 2>/dev/null || {
+        tail -n 50 /var/log/gnosisvpn/gnosisvpn.log 2>/dev/null || {
             log_error "Error log file not found"
             exit 1
         }
@@ -426,7 +426,7 @@ show_logs() {
     "follow" | "tail")
         log_info "Following service logs (Ctrl+C to stop):"
         echo ""
-        tail -f /var/log/gnosis_vpn/gnosis_vpn.log 2>/dev/null || {
+        tail -f /var/log/gnosisvpn/gnosisvpn.log 2>/dev/null || {
             log_error "Service log file not found"
             exit 1
         }

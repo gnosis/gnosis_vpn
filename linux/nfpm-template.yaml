@@ -52,7 +52,7 @@ contents:
   - src: ./build/download/gnosis_vpn-worker
     dst: /usr/bin/gnosis_vpn-worker
     file_info:
-      mode: 0755
+      mode: 0750
   - src: ./build/download/gnosis_vpn-ctl
     dst: /usr/bin/gnosis_vpn-ctl
     file_info:
@@ -62,26 +62,26 @@ contents:
     file_info:
       mode: 0755
   # Resource files
-  - src: ./resources/gnosisvpn.env
+  - src: ./linux/resources/gnosisvpn.env
     dst: /etc/gnosisvpn/gnosisvpn.env
     type: config
     file_info:
       mode: 0644
-  - src: ./resources/rotsee-config.toml
+  - src: ./linux/resources/rotsee-config.toml
     dst: /etc/gnosisvpn/config.toml
     type: config
     file_info:
       mode: 0644
-  - src: ./resources/logrotate.conf
+  - src: ./linux/resources/logrotate.conf
     dst: /etc/logrotate.d/gnosisvpn
     type: config
     file_info:
       mode: 0644
       owner: root
       group: root
-  - src: ./resources/gnosisvpn.service
+  - src: ./linux/resources/gnosisvpn.service
     dst: /usr/lib/systemd/system/gnosisvpn.service
-  - src: ./resources/copyright
+  - src: ./linux/resources/copyright
     dst: /usr/share/doc/gnosisvpn/copyright
   - src: ./build/changelog/changelog.gz
     dst: /usr/share/doc/gnosisvpn/changelog.gz
@@ -89,7 +89,7 @@ contents:
       mode: 0644
       owner: root
       group: root
-  - src: ./resources/lintian-overrides
+  - src: ./linux/resources/lintian-overrides
     dst: /usr/share/lintian/overrides/gnosisvpn
     file_info:
       mode: 0644
@@ -122,7 +122,7 @@ contents:
       group: root
 __GNOSIS_VPN_APP_CONTENTS__
 scripts:
-  preinstall: ./scripts/preinstall.sh
-  postinstall: ./scripts/postinstall.sh
-  preremove: ./scripts/preuninstall.sh
-  postremove: ./scripts/postuninstall.sh
+  preinstall: ./linux/scripts/preinstall.sh
+  postinstall: ./linux/scripts/postinstall.sh
+  preremove: ./linux/scripts/preuninstall.sh
+  postremove: ./linux/scripts/postuninstall.sh
