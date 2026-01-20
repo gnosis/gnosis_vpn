@@ -14,8 +14,6 @@
         <string>/etc/gnosisvpn/config.toml</string>
         <string>--hopr-blokli-url</string>
         <string>https://blokli.staging.hoprnet.link</string>
-        <string>--hopr-network</string>
-        <string>rotsee</string>
         <string>--worker-binary</string>
         <string>/usr/local/bin/gnosis_vpn-worker</string>
     </array>
