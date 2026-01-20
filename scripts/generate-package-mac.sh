@@ -514,9 +514,12 @@ print_platform_summary() {
     if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then
         package_path="${BUILD_DIR}/packages/${SIGNED_PKG_NAME}"
     fi
+    local sha256
+    sha256=$(shasum -a 256 "$package_path" | cut -d' ' -f1 | tee "$package_path".sha256)
     pkg_size=$(du -h "$package_path" | cut -f1)
     echo "Package:           ${package_path}"
     echo "Package size:      ${pkg_size}"
+    echo "SHA256:            ${sha256}"
 }
 
 # Run basic functionality tests
