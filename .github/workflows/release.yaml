@@ -114,18 +114,18 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}
-          path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nix }}.${{ matrix.distribution }}
+          path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}
       - name: Upload Signature
         if: inputs.sign
         uses: actions/upload-artifact@v5
         with:
           name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}.asc
-          path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nix }}.${{ matrix.distribution }}.asc
+          path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}.asc
       - name: Upload Hash
         uses: actions/upload-artifact@v5
         with:
           name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}.sha256
-          path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nix }}.${{ matrix.distribution }}.sha256
+          path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}.sha256
 
   mac:
     runs-on: macos-15
