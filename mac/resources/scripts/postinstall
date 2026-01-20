@@ -433,87 +433,6 @@ configure_plist() {
     return 0
 }
 
-# Set up permissions for system user
-setup_user_permissions() {
-    log_info "Setting up permissions for system user..."
-
-    local username="gnosisvpn"
-    local groupname="gnosisvpn"
-
-    # Verify user exists
-    if ! dscl . -read "/Users/$username" >/dev/null 2>&1; then
-        log_warn "System user '$username' not found, skipping permission setup"
-        return 0
-    fi
-
-    log_info "Configuring file permissions for user '$username'"
-
-    # Set ownership and permissions for configuration directory
-    if [[ -d "$CONFIG_DIR" ]]; then
-        chown -R root:$groupname "$CONFIG_DIR"
-        chmod -R g+r "$CONFIG_DIR"
-        chmod g+x "$CONFIG_DIR"
-        log_info "Configuration directory permissions updated: $CONFIG_DIR"
-    fi
-
-    # Set ownership and permissions for log directory
-
-    if [[ ! -d "$INSTALLED_LOG_DIR_PATH" ]]; then
-        mkdir -p "$INSTALLED_LOG_DIR_PATH"
-    fi
-    chown -R $username:$groupname "$INSTALLED_LOG_DIR_PATH"
-    chmod -R 755 "$INSTALLED_LOG_DIR_PATH"
-    log_info "Log directory permissions updated: $INSTALLED_LOG_DIR_PATH"
-
-    # Set ownership and permissions for binaries (allow execution by group)
-    if [[ -f "${BIN_DIR}/gnosis_vpn" ]]; then
-        chown $username:wheel "${BIN_DIR}/gnosis_vpn"
-        chmod 750 "${BIN_DIR}/gnosis_vpn"
-        log_info "Binary permissions updated: ${BIN_DIR}/gnosis_vpn"
-    fi
-
-    if [[ -f "${BIN_DIR}/gnosis_vpn-ctl" ]]; then
-        chown root:$groupname "${BIN_DIR}/gnosis_vpn-ctl"
-        chmod 750 "${BIN_DIR}/gnosis_vpn-ctl"
-        log_info "CLI binary permissions updated: ${BIN_DIR}/gnosis_vpn-ctl"
-    fi
-
-    # Set permissions for management script (allow group access)
-    if [[ -f "${BIN_DIR}/gnosis-vpn-manager" ]]; then
-        chown root:$groupname "${BIN_DIR}/gnosis-vpn-manager"
-        chmod 750 "${BIN_DIR}/gnosis-vpn-manager"
-        log_info "Management script permissions updated: ${BIN_DIR}/gnosis-vpn-manager"
-    fi
-
-    # add current user to the gnosisvpn group to allow interactions with binaries without privilige escalation
-    CURRENT_USER=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }')
-    log_info "Current user detected: $CURRENT_USER"
-    dseditgroup -o edit -a "$CURRENT_USER" -t user gnosisvpn
-
-    # Create and set permissions for runtime directory
-    local runtime_dir="/var/run/gnosisvpn"
-    mkdir -p "$runtime_dir"
-    chown $username:$groupname "$runtime_dir"
-    chmod 755 "$runtime_dir"
-    log_info "Runtime directory created: $runtime_dir"
-
-    # Create and set permissions for state directory
-    local state_dir="$INSTALLED_LIB_DIR_PATH"
-    mkdir -p "$state_dir"
-    chown $username:$groupname "$state_dir"
-    chmod 750 "$state_dir"
-    log_info "State directory created: $state_dir"
-
-    # Create HOPR application support directory
-    local hopr_support_dir="$state_dir/Library/Application Support/org.hoprnet.gnosisvpn"
-    mkdir -p "$hopr_support_dir"
-    chown $username:$groupname "$hopr_support_dir"
-    chmod 755 "$hopr_support_dir"
-    log_info "HOPR application support directory created: $hopr_support_dir"
-
-    log_success "User permissions configured successfully"
-}
-
 # Install launchd service
 install_launchd_service() {
     local installation_type="$1"
@@ -1028,12 +947,49 @@ update_binaries() {
 
 # Set proper file permissions
 set_permissions() {
-    log_info "Setting file permissions..."
+    log_info "Setting permissions..."
 
-    chmod 755 "$CONFIG_DIR" 2>/dev/null || true
+    local username="gnosisvpn"
+    local groupname="gnosisvpn"
+
+    # Set ownership and permissions for configuration directory
+    mkdir -p "$CONFIG_DIR"
+    chown -R root:$groupname "$CONFIG_DIR"
+    chmod -R g+r "$CONFIG_DIR"
     chmod 644 "$CONFIG_FILE" 2>/dev/null || true
-    chown root:wheel "$CONFIG_FILE" 2>/dev/null || true
-    chown root:wheel "$CONFIG_DIR" 2>/dev/null || true
+    log_info "Configuration directory permissions updated: $CONFIG_DIR"
+
+    # Set ownership and permissions for log directory
+    mkdir -p "$INSTALLED_LOG_DIR_PATH"
+    chown -R $username:$groupname "$INSTALLED_LOG_DIR_PATH"
+    chmod -R 755 "$INSTALLED_LOG_DIR_PATH"
+    log_info "Log directory permissions updated: $INSTALLED_LOG_DIR_PATH"
+
+    # add current user to the gnosisvpn group to allow interactions with binaries without privilige escalation
+    CURRENT_USER=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }')
+    log_info "Current user detected: $CURRENT_USER"
+    dseditgroup -o edit -a "$CURRENT_USER" -t user gnosisvpn
+
+    # Create and set permissions for runtime directory
+    local runtime_dir="/var/run/gnosisvpn"
+    mkdir -p "$runtime_dir"
+    chown $username:$groupname "$runtime_dir"
+    chmod 755 "$runtime_dir"
+    log_info "Runtime directory created: $runtime_dir"
+
+    # Create and set permissions for state directory
+    local state_dir="$INSTALLED_LIB_DIR_PATH"
+    mkdir -p "$state_dir"
+    chown $username:$groupname "$state_dir"
+    chmod 750 "$state_dir"
+    log_info "State directory created: $state_dir"
+
+    # Create HOPR application support directory
+    local hopr_support_dir="$state_dir/Library/Application Support/org.hoprnet.gnosisvpn"
+    mkdir -p "$hopr_support_dir"
+    chown $username:$groupname "$hopr_support_dir"
+    chmod 755 "$hopr_support_dir"
+    log_info "HOPR application support directory created: $hopr_support_dir"
 
     log_success "Permissions and ownership set"
 }
@@ -1288,6 +1244,18 @@ validate_service_environment() {
     fi
 }
 
+setup_management_script() {
+    set -x
+    if [[ -f "${SCRIPT_DIR}/manage-installation.sh" ]]; then
+        cp "${SCRIPT_DIR}/manage-installation.sh" "$BIN_DIR/gnosis-vpn-manager"
+        chmod 755 "$BIN_DIR/gnosis-vpn-manager"
+        chown root:gnosisvpn "$BIN_DIR/gnosis-vpn-manager" 2>/dev/null || true
+        log_info "Management script installed with gnosisvpn group"
+        log_success "Installed management script: gnosis-vpn-manager"
+    fi
+    set +x
+}
+
 
 # Main execution
 main() {
@@ -1300,25 +1268,16 @@ main() {
     # Backup existing configuration
     backup_config "$installation_type"
 
+    # Create system user and group
+    create_system_group
+    create_system_user
+    update_user_group
+
     # Update binaries (incrementally for updates, full for fresh installs)
     update_binaries "$installation_type" "$TARGET_VOLUME"
 
     # Install management script
-    if [[ -f "${SCRIPT_DIR}/manage-installation.sh" ]]; then
-        cp "${SCRIPT_DIR}/manage-installation.sh" "$BIN_DIR/gnosis-vpn-manager"
-        chmod 755 "$BIN_DIR/gnosis-vpn-manager"
-
-        # Use system group if it exists, otherwise use wheel
-        if dscl . -read "/Groups/gnosisvpn" >/dev/null 2>&1; then
-            chown root:gnosisvpn "$BIN_DIR/gnosis-vpn-manager" 2>/dev/null || true
-            log_info "Management script installed with gnosisvpn group"
-        else
-            chown root:wheel "$BIN_DIR/gnosis-vpn-manager" 2>/dev/null || true
-            log_info "Management script installed with wheel group (will be updated later)"
-        fi
-
-        log_success "Installed management script: gnosis-vpn-manager"
-    fi
+    setup_management_script
 
     # Setup configuration files and create symlink
     setup_configuration_files
@@ -1329,12 +1288,6 @@ main() {
 
     # Save version information
     save_version_info
-
-    # Create system user and group
-    create_system_group
-    create_system_user
-    update_user_group
-    setup_user_permissions
 
     # Configure sudo privileges for service management
     configure_sudo_privileges

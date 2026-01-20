@@ -200,9 +200,6 @@ prepare_build_dir() {
     for binary in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
         if [[ -f "${BUILD_DIR}/download/${binary}" ]]; then
             cp "${BUILD_DIR}/download/${binary}" "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/${binary}"
-            # It will be modified by postinstall script, so set default permissions
-            chmod 750 "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/${binary}"
-            chown root:wheel "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/${binary}"
             log_success "Copied binary: ${binary}"
         else
             log_error "Missing binary files for '${binary}'"
@@ -399,24 +396,6 @@ build_distribution_package() {
         log_error "Failed to create distribution package"
         exit 1
     fi
-}
-
-# Verify package
-verify_package() {
-    log_info "Verifying package structure..."
-
-    # Check package structure
-    if pkgutil --check-signature "${BUILD_DIR}/packages/$PKG_NAME" &>/dev/null; then
-        log_warn "Package is signed"
-    else
-        log_warn "Package is unsigned (will require signing for distribution)"
-    fi
-
-    # List package contents
-    log_info "Package contents:"
-    pkgutil --payload-files "${BUILD_DIR}/packages/$COMPONENT_PKG" 2>/dev/null | head -n 10 || true
-
-    echo ""
 }
 
 # Sign package
@@ -645,5 +624,4 @@ build_platform_package() {
     copy_scripts
     build_component_package
     build_distribution_package
-    verify_package
 }
