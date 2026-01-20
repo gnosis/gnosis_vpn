@@ -70,11 +70,11 @@ main() {
     fi
     
     # Copy and compress man page for gnosis_vpn-app (GUI application)
-    if [[ -f "${SCRIPT_DIR}/../resources/gnosis_vpn-app.1" ]]; then
-        gzip -9n -c ${SCRIPT_DIR}/../resources/gnosis_vpn-app.1 > ${BUILD_DIR}/man/man1/gnosis_vpn-app.1.gz
+    if [[ -f "${SCRIPT_DIR}/../linux/resources/gnosis_vpn-app.1" ]]; then
+        gzip -9n -c ${SCRIPT_DIR}/../linux/resources/gnosis_vpn-app.1 > ${BUILD_DIR}/man/man1/gnosis_vpn-app.1.gz
         log_success "Generated gnosis_vpn-app.1.gz"
     else
-        log_warn "Manual page source not found: ${SCRIPT_DIR}/../resources/gnosis_vpn-app.1"
+        log_warn "Manual page source not found: ${SCRIPT_DIR}/../linux/resources/gnosis_vpn-app.1"
     fi
     
     log_success "🎉 Manual pages generated and compressed"
