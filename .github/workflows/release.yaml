@@ -129,7 +129,7 @@ jobs:
 
   mac:
     runs-on: macos-15
-    name: Build Mac installer
+    name: Build Mac
     needs: [setup]
     steps:
       - name: Checkout repository
@@ -150,7 +150,7 @@ jobs:
             export GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH=$(pwd)/gnosisvpn-developer.p12
             export GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH=$(pwd)/gnosisvpn-installer.p12
           fi
-          nix develop -c just all ${{ matrix.distribution }} ${{ matrix.architecture.nix }} ${{ inputs.sign || false }}
+          nix develop -c just all dmg aarch64-darwin ${{ inputs.sign || false }}
           mv ./build/packages/GnosisVPN-Installer-*-signed.pkg "./build/packages/GnosisVPN-Installer.pkg"
           mv ./build/packages/GnosisVPN-Installer-*-signed.pkg.sha256 "./build/packages/GnosisVPN-Installer.pkg.sha256"
         env:
