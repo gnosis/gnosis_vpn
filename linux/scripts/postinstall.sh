@@ -56,17 +56,19 @@ configure_filesystem_permissions() {
     chmod 644 /etc/gnosisvpn/*.toml 2>/dev/null || true
 
     # Ensure log directory exists with correct permissions
-    if [[ ! -d /var/log/gnosisvpn ]]; then
-        mkdir -p /var/log/gnosisvpn
-    fi
-    chown gnosisvpn:gnosisvpn /var/log/gnosisvpn
-    chmod 750 /var/log/gnosisvpn
+    mkdir -p /var/log/gnosisvpn
+    chown -R gnosisvpn:gnosisvpn /var/log/gnosisvpn
+    chmod -R 755 /var/log/gnosisvpn
+
     # Ensure state directory exists with correct permissions
-    if [[ ! -d /var/lib/gnosisvpn ]]; then
-        mkdir -p /var/lib/gnosisvpn
-    fi
-    chown gnosisvpn:gnosisvpn /var/lib/gnosisvpn
-    chmod 750 /var/lib/gnosisvpn
+    mkdir -p /var/lib/gnosisvpn
+    chown -R gnosisvpn:gnosisvpn /var/lib/gnosisvpn
+    chmod -R 775 /var/lib/gnosisvpn
+
+    # Ensure runtime directory exists with correct permissions
+    mkdir -p /run/gnosisvpn
+    chown -R gnosisvpn:gnosisvpn /run/gnosisvpn
+    chmod -R 755 /run/gnosisvpn
 
     # Fix binary ownership and permissions. Cannot be done in nfpm as the user may not exist yet.
     if [[ -f /usr/bin/gnosis_vpn-worker ]]; then

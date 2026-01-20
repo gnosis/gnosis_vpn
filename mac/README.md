@@ -23,7 +23,7 @@ installing and configuring the Gnosis VPN client on macOS systems.
 The installer includes a management utility accessible via:
 
 ```bash
-gnosis-vpn-manager [command]
+gnosis_vpn-manager [command]
 ```
 
 **Available commands:**

@@ -60,7 +60,7 @@ print_banner() {
 # Confirm uninstallation
 confirm_uninstall() {
     echo "This will remove:"
-    echo "  - Binaries: $BIN_DIR/gnosis_vpn-root, $BIN_DIR/gnosis_vpn-worker, $BIN_DIR/gnosis_vpn-ctl, $BIN_DIR/gnosis-vpn-manager"
+    echo "  - Binaries: $BIN_DIR/gnosis_vpn-root, $BIN_DIR/gnosis_vpn-worker, $BIN_DIR/gnosis_vpn-ctl, $BIN_DIR/gnosis_vpn-manager"
     echo "  - Launchd service: /Library/LaunchDaemons/org.gnosis.vpn.plist"
     echo "  - Configuration: $CONFIG_DIR/"
     echo "  - Service logs: /var/log/gnosisvpn/"
@@ -261,9 +261,9 @@ remove_binaries() {
         removed=$((removed + 1))
     fi
 
-    if [[ -f "$BIN_DIR/gnosis-vpn-manager" ]]; then
-        rm -f "$BIN_DIR/gnosis-vpn-manager"
-        log_success "Removed $BIN_DIR/gnosis-vpn-manager"
+    if [[ -f "$BIN_DIR/gnosis_vpn-manager" ]]; then
+        rm -f "$BIN_DIR/gnosis_vpn-manager"
+        log_success "Removed $BIN_DIR/gnosis_vpn-manager"
         removed=$((removed + 1))
     fi
 
@@ -381,8 +381,8 @@ verify_uninstall() {
         errors=$((errors + 1))
     fi
 
-    if [[ -f "$BIN_DIR/gnosis-vpn-manager" ]]; then
-        log_error "Management script still exists: $BIN_DIR/gnosis-vpn-manager"
+    if [[ -f "$BIN_DIR/gnosis_vpn-manager" ]]; then
+        log_error "Management script still exists: $BIN_DIR/gnosis_vpn-manager"
         errors=$((errors + 1))
     fi
 

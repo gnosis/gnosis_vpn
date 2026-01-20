@@ -472,11 +472,6 @@ install_launchd_service() {
         launchctl bootout system "$plist_path" 2>/dev/null || true
         sleep 2
 
-        # Backup existing plist if different
-        if [[ -f "$source_plist" ]] && ! cmp -s "$source_plist" "$plist_path"; then
-            log_info "Backing up existing plist configuration"
-            cp "$plist_path" "${plist_path}.backup.$(date +%Y%m%d-%H%M%S)" || true
-        fi
     fi
 
     # Install/update plist file
@@ -981,14 +976,12 @@ set_permissions() {
     local state_dir="$INSTALLED_LIB_DIR_PATH"
     mkdir -p "$state_dir"
     chown $username:$groupname "$state_dir"
-    chmod 750 "$state_dir"
+    chmod -R 775 "$state_dir"
     log_info "State directory created: $state_dir"
 
     # Create HOPR application support directory
     local hopr_support_dir="$state_dir/Library/Application Support/org.hoprnet.gnosisvpn"
     mkdir -p "$hopr_support_dir"
-    chown $username:$groupname "$hopr_support_dir"
-    chmod 755 "$hopr_support_dir"
     log_info "HOPR application support directory created: $hopr_support_dir"
 
     log_success "Permissions and ownership set"
@@ -1072,9 +1065,9 @@ print_summary() {
     log_info "  gnosis_vpn-ctl status                           # Check VPN status"
     echo ""
     log_info "Management commands:"
-    log_info "  gnosis-vpn-manager status   # Show installation status"
-    log_info "  gnosis-vpn-manager backups  # List backup files"
-    log_info "  gnosis-vpn-manager version  # Show installed version"
+    log_info "  gnosis_vpn-manager status   # Show installation status"
+    log_info "  gnosis_vpn-manager backups  # List backup files"
+    log_info "  gnosis_vpn-manager version  # Show installed version"
     echo ""
     log_info "Logs:"
     log_info "  tail -f $INSTALLED_LOG_DIR_PATH/gnosis_vpn.log      # Service logs"
@@ -1247,11 +1240,11 @@ validate_service_environment() {
 setup_management_script() {
     set -x
     if [[ -f "${SCRIPT_DIR}/manage-installation.sh" ]]; then
-        cp "${SCRIPT_DIR}/manage-installation.sh" "$BIN_DIR/gnosis-vpn-manager"
-        chmod 755 "$BIN_DIR/gnosis-vpn-manager"
-        chown root:gnosisvpn "$BIN_DIR/gnosis-vpn-manager" 2>/dev/null || true
+        cp "${SCRIPT_DIR}/manage-installation.sh" "$BIN_DIR/gnosis_vpn-manager"
+        chmod 755 "$BIN_DIR/gnosis_vpn-manager"
+        chown root:gnosisvpn "$BIN_DIR/gnosis_vpn-manager" 2>/dev/null || true
         log_info "Management script installed with gnosisvpn group"
-        log_success "Installed management script: gnosis-vpn-manager"
+        log_success "Installed management script: gnosis_vpn-manager"
     fi
     set +x
 }
