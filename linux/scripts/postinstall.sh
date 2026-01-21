@@ -84,14 +84,16 @@ enable_and_start_systemd_service() {
     echo "$LOG_PREFIX INFO: Setting up systemd service..."
     
     # Reload systemd to pick up the service file
-    deb-systemd-helper daemon-reload
+    systemctl daemon-reload || true
 
     # Enable and start service
     echo "$LOG_PREFIX INFO: Enabling gnosisvpn.service..."
-    deb-systemd-helper enable gnosisvpn.service
+    # Unmask first to ensure we can enable it
+    deb-systemd-helper unmask gnosisvpn.service >/dev/null || true
+    deb-systemd-helper enable gnosisvpn.service >/dev/null || true
 
     echo "$LOG_PREFIX INFO: Starting gnosisvpn.service..."
-    deb-systemd-invoke start gnosisvpn.service
+    deb-systemd-invoke start gnosisvpn.service || true
 
     sleep 2
 
