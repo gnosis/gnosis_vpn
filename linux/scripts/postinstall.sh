@@ -89,11 +89,10 @@ enable_and_start_systemd_service() {
     # Enable and start service
     echo "$LOG_PREFIX INFO: Enabling gnosisvpn.service..."
     # Unmask first to ensure we can enable it
-    deb-systemd-helper unmask gnosisvpn.service >/dev/null || true
-    deb-systemd-helper enable gnosisvpn.service >/dev/null || true
-
+    systemctl unmask gnosisvpn.service || true
+    systemctl enable gnosisvpn.service || true
     echo "$LOG_PREFIX INFO: Starting gnosisvpn.service..."
-    deb-systemd-invoke start gnosisvpn.service || true
+    systemctl start gnosisvpn.service || true
 
     sleep 2
 
