@@ -138,11 +138,10 @@ install_desktop_shortcut_for_user() {
         return
     fi
     
-    local desktop_file="GnosisVPN.desktop"
-    local dest_file="$desktop_dir/$desktop_file"
+    local dest_file="$desktop_dir/GnosisVPN.desktop"
     
     # Copy the desktop file to the user's Desktop
-    if ! cp "/usr/share/applications/$desktop_file" "$dest_file" 2>/dev/null; then
+    if ! cp "/usr/share/applications/Gnosis VPN.desktop" "$dest_file" 2>/dev/null; then
         echo "$LOG_PREFIX WARNING: Failed to copy desktop file"
         return
     fi

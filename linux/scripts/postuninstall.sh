@@ -95,6 +95,18 @@ if [[ "$IS_PURGE" == "true" ]]; then
     echo "$LOG_PREFIX INFO: Removing configuration directory: /etc/gnosisvpn"
     rm -rf /etc/gnosisvpn
   fi
+
+  # Remove desktop shortcuts for all users
+  echo "$LOG_PREFIX INFO: Removing desktop shortcuts for all users..."
+  for user_home in /home/*; do
+    if [[ -d "$user_home/Desktop" ]]; then
+      desktop_file="$user_home/Desktop/GnosisVPN.desktop"
+      if [[ -f "$desktop_file" ]]; then
+        echo "$LOG_PREFIX INFO: Removing desktop shortcut for user $(basename "$user_home")"
+        rm -f "$desktop_file"
+      fi
+    fi
+  done
 else
   echo "$LOG_PREFIX INFO: Package removed, user data preserved"
   echo "$LOG_PREFIX INFO: Configuration: /etc/gnosisvpn"
