@@ -6,7 +6,3 @@ build/
 
 # Logs
 *.log
-
-# Signing artifacts
-*.p12
-*.swp

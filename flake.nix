@@ -1,5 +1,5 @@
 {
-  description = "Development environment for GnosisVPN Linux package building";
+  description = "GnosisVPN Linux package building";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -23,6 +23,9 @@
             gzip
             gh
             google-cloud-sdk
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+            curl
+            openssl
           ];
           
           shellHook = ''

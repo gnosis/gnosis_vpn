@@ -32,7 +32,7 @@ create_system_user_and_group() {
         echo "$LOG_PREFIX INFO: Creating system user 'gnosisvpn'..."
         useradd --system \
             --gid gnosisvpn \
-            --home-dir /var/lib/gnosis_vpn \
+            --home-dir /var/lib/gnosisvpn \
             --shell /usr/sbin/nologin \
             --comment "Gnosis VPN Service User" \
             gnosisvpn
@@ -47,39 +47,33 @@ configure_filesystem_permissions() {
     echo "$LOG_PREFIX INFO: Setting up directory permissions..."
     
     # Fix ownership of configuration files (nfpm may have created them with numeric UID)
-    if [[ -d /etc/gnosisvpn ]]; then
-        chown gnosisvpn:gnosisvpn /etc/gnosisvpn
-        chmod 755 /etc/gnosisvpn
-        chown gnosisvpn:gnosisvpn /etc/gnosisvpn/*.toml 2>/dev/null || true
-        chmod 644 /etc/gnosisvpn/*.toml 2>/dev/null || true
+    if [[ ! -d /etc/gnosisvpn ]]; then
+        mkdir -p /etc/gnosisvpn
     fi
+    chown gnosisvpn:gnosisvpn /etc/gnosisvpn
+    chmod 755 /etc/gnosisvpn
+    chown gnosisvpn:gnosisvpn /etc/gnosisvpn/*.toml 2>/dev/null || true
+    chmod 644 /etc/gnosisvpn/*.toml 2>/dev/null || true
 
     # Ensure log directory exists with correct permissions
-    if [[ ! -d /var/log/gnosis_vpn ]]; then
-        mkdir -p /var/log/gnosis_vpn
-    fi
-    chown gnosisvpn:gnosisvpn /var/log/gnosis_vpn
-    chmod 750 /var/log/gnosis_vpn
+    mkdir -p /var/log/gnosisvpn
+    chown -R gnosisvpn:gnosisvpn /var/log/gnosisvpn
+    chmod -R 755 /var/log/gnosisvpn
 
     # Ensure state directory exists with correct permissions
-    if [[ ! -d /var/lib/gnosis_vpn ]]; then
-        mkdir -p /var/lib/gnosis_vpn
-    fi
-    chown gnosisvpn:gnosisvpn /var/lib/gnosis_vpn
-    chmod 750 /var/lib/gnosis_vpn
+    mkdir -p /var/lib/gnosisvpn
+    chown -R gnosisvpn:gnosisvpn /var/lib/gnosisvpn
+    chmod -R 775 /var/lib/gnosisvpn
 
-    # Fix binary ownership and permissions
-    if [[ -f /usr/bin/gnosis_vpn ]]; then
-        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn
-        chmod 755 /usr/bin/gnosis_vpn
+    # Fix binary ownership and permissions. Cannot be done in nfpm as the user may not exist yet.
+    if [[ -f /usr/bin/gnosis_vpn-worker ]]; then
+        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-worker
     fi
     if [[ -f /usr/bin/gnosis_vpn-ctl ]]; then
         chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-ctl
-        chmod 755 /usr/bin/gnosis_vpn-ctl
     fi
     if [[ -f /usr/bin/gnosis_vpn-app ]]; then
         chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-app
-        chmod 755 /usr/bin/gnosis_vpn-app
     fi
     
     echo "$LOG_PREFIX SUCCESS: Directory permissions configured"
@@ -90,24 +84,25 @@ enable_and_start_systemd_service() {
     echo "$LOG_PREFIX INFO: Setting up systemd service..."
     
     # Reload systemd to pick up the service file
-    deb-systemd-helper daemon-reload
+    systemctl daemon-reload || true
 
     # Enable and start service
-    echo "$LOG_PREFIX INFO: Enabling gnosis_vpn.service..."
-    deb-systemd-helper enable gnosis_vpn.service
-
-    echo "$LOG_PREFIX INFO: Starting gnosis_vpn.service..."
-    deb-systemd-invoke start gnosis_vpn.service
+    echo "$LOG_PREFIX INFO: Enabling gnosisvpn.service..."
+    # Unmask first to ensure we can enable it
+    systemctl unmask gnosisvpn.service || true
+    systemctl enable gnosisvpn.service || true
+    echo "$LOG_PREFIX INFO: Starting gnosisvpn.service..."
+    systemctl start gnosisvpn.service || true
 
     sleep 2
 
-    if systemctl is-active --quiet gnosis_vpn.service; then
+    if systemctl is-active --quiet gnosisvpn.service; then
         echo "$LOG_PREFIX SUCCESS: Service started successfully"
     else
-        echo "$LOG_PREFIX WARNING: Service failed to start. Check logs with: journalctl -u gnosis_vpn.service"
+        echo "$LOG_PREFIX WARNING: Service failed to start. Check logs with: journalctl -u gnosisvpn.service"
     fi
     
-    echo "$LOG_PREFIX INFO: Service status: $(systemctl is-enabled gnosis_vpn.service 2>/dev/null || echo 'unknown')"
+    echo "$LOG_PREFIX INFO: Service status: $(systemctl is-enabled gnosisvpn.service 2>/dev/null || echo 'unknown')"
 }
 
 # Create desktop shortcut for a user
@@ -143,28 +138,50 @@ install_desktop_shortcut_for_user() {
         return
     fi
     
-    local desktop_file="Gnosis VPN.desktop"
-    local dest_file="$desktop_dir/$desktop_file"
+    # Strip spaces from filename
+    local dest_file="$desktop_dir/GnosisVPN.desktop"
     
     # Copy the desktop file to the user's Desktop
-    if ! cp "/usr/share/applications/$desktop_file" "$dest_file" 2>/dev/null; then
+    if ! cp "/usr/share/applications/Gnosis VPN.desktop" "$dest_file" 2>/dev/null; then
         echo "$LOG_PREFIX WARNING: Failed to copy desktop file"
         return
     fi
     
     # Make it executable (required for desktop shortcuts)
-    chmod +x "$dest_file"
     chown "$target_user":"$target_user" "$dest_file"
+    chmod +x "$dest_file"
     
     # Try to mark as trusted if tools are available (optional, not in dependencies)
     local trusted_set=false
-    if command -v gio >/dev/null 2>&1; then
-        if sudo -u "$target_user" gio set "$dest_file" metadata::trusted true 2>/dev/null; then
+    
+    # Try to find user's DBUS session to make gio work
+    local user_dbus_addr=""
+    if [ -d "/run/user/$(id -u "$target_user")" ]; then
+        user_dbus_addr="unix:path=/run/user/$(id -u "$target_user")/bus"
+    fi
+
+    # Try to set metadata using gio (should be available from package dependencies)
+    # We capture output because gio might return exit code 0 even if it prints "not supported"
+    local gio_output=""
+    
+    if [ -n "$user_dbus_addr" ]; then
+        # Try with explicit DBus session address
+        # We append || true to prevent script exit on failure due to set -e
+        gio_output=$(sudo -u "$target_user" DBUS_SESSION_BUS_ADDRESS="$user_dbus_addr" gio set "$dest_file" metadata::trusted true 2>&1 || true)
+        if [[ -z "$gio_output" ]]; then
             trusted_set=true
+        else
+            echo "$LOG_PREFIX INFO: Could not set trusted metadata via gio for $target_user: $gio_output"
         fi
-    elif command -v gvfs-set-attribute >/dev/null 2>&1; then
-        if sudo -u "$target_user" gvfs-set-attribute "$dest_file" metadata::trusted true 2>/dev/null; then
+    fi
+        
+    # Fallback/Retry without explicit address if it failed above
+    if [ "$trusted_set" = false ]; then
+        gio_output=$(sudo -u "$target_user" gio set "$dest_file" metadata::trusted true 2>&1 || true)
+        if [[ -z "$gio_output" ]]; then
             trusted_set=true
+        else
+            echo "$LOG_PREFIX INFO: Could not set trusted metadata via gio for $target_user: $gio_output"
         fi
     fi
     

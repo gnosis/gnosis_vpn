@@ -60,10 +60,10 @@ print_banner() {
 # Confirm uninstallation
 confirm_uninstall() {
     echo "This will remove:"
-    echo "  - Binaries: $BIN_DIR/gnosis_vpn, $BIN_DIR/gnosis_vpn-ctl, $BIN_DIR/gnosis-vpn-manager"
+    echo "  - Binaries: $BIN_DIR/gnosis_vpn-root, $BIN_DIR/gnosis_vpn-worker, $BIN_DIR/gnosis_vpn-ctl, $BIN_DIR/gnosis_vpn-manager"
     echo "  - Launchd service: /Library/LaunchDaemons/org.gnosis.vpn.plist"
     echo "  - Configuration: $CONFIG_DIR/"
-    echo "  - Service logs: /var/log/gnosis_vpn/"
+    echo "  - Service logs: /var/log/gnosisvpn/"
     echo "  - Installation logs: $LOG_DIR/"
     echo "  - Package receipt: $PKG_ID"
     echo ""
@@ -162,9 +162,9 @@ cleanup_system_directories() {
     log_info "Cleaning up system directories..."
 
     local directories=(
-        "/var/run/gnosis_vpn"
-        # "/var/lib/gnosis_vpn" # should not remove the identity store
-        "/var/log/gnosis_vpn"
+        "/var/run/gnosisvpn"
+        "/var/lib/gnosisvpn/Library/Application Support/com.gnosisvpn.gnosisvpnclient/gnosisvpn-hopr.db"
+        "/var/log/gnosisvpn"
     )
 
     for dir in "${directories[@]}"; do
@@ -197,23 +197,23 @@ remove_sudo_privileges() {
 stop_processes() {
     log_info "Checking for running VPN processes..."
 
-    if pgrep -f gnosis_vpn >/dev/null 2>&1; then
+    if pgrep -f gnosis_vpn-root >/dev/null 2>&1; then
         log_warn "Found running gnosis_vpn process(es)"
         log_info "Stopping VPN processes..."
 
         # Try graceful shutdown first
-        pkill -TERM -f gnosis_vpn 2>/dev/null || true
+        pkill -TERM -f gnosis_vpn-root 2>/dev/null || true
         sleep 2
 
         # Force kill if still running
-        if pgrep -f gnosis_vpn >/dev/null 2>&1; then
+        if pgrep -f gnosis_vpn-root >/dev/null 2>&1; then
             log_warn "Processes still running, forcing shutdown..."
-            pkill -KILL -f gnosis_vpn 2>/dev/null || true
+            pkill -KILL -f gnosis_vpn-root 2>/dev/null || true
             sleep 1
         fi
 
         # Verify processes stopped
-        if pgrep -f gnosis_vpn >/dev/null 2>&1; then
+        if pgrep -f gnosis_vpn-root >/dev/null 2>&1; then
             log_error "Failed to stop VPN processes"
             log_info "Please stop gnosis_vpn manually before uninstalling"
             exit 1
@@ -249,23 +249,13 @@ remove_binaries() {
 
     local removed=0
 
-    if [[ -f "$BIN_DIR/gnosis_vpn" ]]; then
-        rm -f "$BIN_DIR/gnosis_vpn"
-        log_success "Removed $BIN_DIR/gnosis_vpn"
-        removed=$((removed + 1))
-    fi
-
-    if [[ -f "$BIN_DIR/gnosis_vpn-ctl" ]]; then
-        rm -f "$BIN_DIR/gnosis_vpn-ctl"
-        log_success "Removed $BIN_DIR/gnosis_vpn-ctl"
-        removed=$((removed + 1))
-    fi
-
-    if [[ -f "$BIN_DIR/gnosis-vpn-manager" ]]; then
-        rm -f "$BIN_DIR/gnosis-vpn-manager"
-        log_success "Removed $BIN_DIR/gnosis-vpn-manager"
-        removed=$((removed + 1))
-    fi
+    for binary in "gnosis_vpn-root" "gnosis_vpn-worker" "gnosis_vpn-ctl" "gnosis_vpn-manager"; do
+        if [[ -f "$BIN_DIR/$binary" ]]; then
+            rm -f "$BIN_DIR/$binary"
+            log_success "Removed $BIN_DIR/$binary"
+            removed=$((removed + 1))
+        fi
+    done
 
     if [[ $removed -eq 0 ]]; then
         log_warn "No binaries found to remove"
@@ -342,7 +332,7 @@ remove_logs() {
     fi
 
     # Also remove service logs
-    local service_log_dir="/var/log/gnosis_vpn"
+    local service_log_dir="/var/log/gnosisvpn"
     if [[ -d $service_log_dir ]]; then
         rm -rf "$service_log_dir"
         log_success "Removed service logs: $service_log_dir"
@@ -371,8 +361,13 @@ verify_uninstall() {
 
     local errors=0
 
-    if [[ -f "$BIN_DIR/gnosis_vpn" ]]; then
-        log_error "Binary still exists: $BIN_DIR/gnosis_vpn"
+    if [[ -f "$BIN_DIR/gnosis_vpn-root" ]]; then
+        log_error "Binary still exists: $BIN_DIR/gnosis_vpn-root"
+        errors=$((errors + 1))
+    fi
+
+    if [[ -f "$BIN_DIR/gnosis_vpn-worker" ]]; then
+        log_error "Binary still exists: $BIN_DIR/gnosis_vpn-worker"
         errors=$((errors + 1))
     fi
 
@@ -381,8 +376,8 @@ verify_uninstall() {
         errors=$((errors + 1))
     fi
 
-    if [[ -f "$BIN_DIR/gnosis-vpn-manager" ]]; then
-        log_error "Management script still exists: $BIN_DIR/gnosis-vpn-manager"
+    if [[ -f "$BIN_DIR/gnosis_vpn-manager" ]]; then
+        log_error "Management script still exists: $BIN_DIR/gnosis_vpn-manager"
         errors=$((errors + 1))
     fi
 
@@ -419,7 +414,7 @@ verify_uninstall() {
     fi
 
     # Check system directories removal
-    local system_dirs=("/var/run/gnosis_vpn" "/var/log/gnosis_vpn")
+    local system_dirs=("/var/run/gnosisvpn" "/var/log/gnosisvpn")
     for dir in "${system_dirs[@]}"; do
         if [[ -d $dir ]]; then
             log_error "System directory still exists: $dir"
@@ -456,7 +451,7 @@ print_summary() {
     echo "  ✓ Launchd service"
     echo "  ✓ System user and group (gnosisvpn)"
     echo "  ✓ Sudo privileges configuration"
-    echo "  ✓ System directories (/var/lib/gnosis_vpn, /var/run/gnosis_vpn)"
+    echo "  ✓ System directories (/var/lib/gnosisvpn, /var/run/gnosisvpn)"
     echo "  ✓ Configuration (backed up to ~/gnosis-vpn-config-backup-*)"
     echo "  ✓ Service logs"
     echo "  ✓ Installation logs"

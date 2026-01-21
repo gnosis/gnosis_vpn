@@ -95,12 +95,12 @@ copy_action() {
   echo "Copying artifacts on ${INSTANCE_NAME}"
   script_dir=$(cd "$(dirname "$0")" && pwd)
   gcloud compute scp --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${script_dir}/install-package.sh" "${INSTANCE_NAME}":/tmp/install-package.sh
-  gcloud compute scp --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${script_dir}/build/packages/gnosis_vpn-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" "${INSTANCE_NAME}":/tmp/gnosis_vpn."${GNOSISVPN_DISTRIBUTION}"
+  gcloud compute scp --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${script_dir}"/../build/packages/gnosisvpn*."${GNOSISVPN_DISTRIBUTION}" "${INSTANCE_NAME}":/tmp/gnosisvpn."${GNOSISVPN_DISTRIBUTION}"
   echo "Artifacts successfully copied on ${INSTANCE_NAME}"
 }
 
 install_action() {
-  echo "Installing gnosis_vpn package on ${INSTANCE_NAME}"
+  echo "Installing gnosisvpn package on ${INSTANCE_NAME}"
   gcloud compute ssh --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${INSTANCE_NAME}" --command="sudo bash /tmp/install-package.sh ${GNOSISVPN_DISTRIBUTION}"
   echo "Package installed successfully on ${GNOSISVPN_DISTRIBUTION}-${GNOSISVPN_ARCHITECTURE}."
 }

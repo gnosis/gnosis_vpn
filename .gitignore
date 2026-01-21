@@ -4,3 +4,8 @@ gnosisvpn_*.dsc
 gnosisvpn_*.tar.xz
 gnosisvpn_*_source.changes
 gnosisvpn_*_source.buildinfo
+build
+
+# Signing artifacts
+*.p12
+gnosisvpn-private-key.asc

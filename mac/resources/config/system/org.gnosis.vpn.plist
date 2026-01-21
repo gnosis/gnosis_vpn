@@ -9,13 +9,13 @@
     <!-- Program Configuration -->
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/gnosis_vpn</string>
+        <string>/usr/local/bin/gnosis_vpn-root</string>
         <string>-c</string>
         <string>/etc/gnosisvpn/config.toml</string>
-        <string>--hopr-rpc-provider</string>
-        <string>https://rpc-provider.hoprnet.org</string>
-        <string>--hopr-network</string>
-        <string>rotsee</string>
+        <string>--hopr-blokli-url</string>
+        <string>https://blokli.staging.hoprnet.link</string>
+        <string>--worker-binary</string>
+        <string>/usr/local/bin/gnosis_vpn-worker</string>
     </array>
     
     <!-- Service Behavior -->
@@ -48,13 +48,13 @@
     
     <!-- Working Directory -->
     <key>WorkingDirectory</key>
-    <string>/var/lib/gnosis_vpn</string>
+    <string>/var/lib/gnosisvpn</string>
     
     <!-- Logging Configuration -->
     <key>StandardOutPath</key>
-    <string>/var/log/gnosis_vpn/gnosis_vpn.log</string>
+    <string>/var/log/gnosisvpn/gnosisvpn.log</string>
     <key>StandardErrorPath</key>
-    <string>/var/log/gnosis_vpn/gnosis_vpn.error.log</string>
+    <string>/var/log/gnosisvpn/gnosisvpn.log</string>
     
     <!-- Environment Variables -->
     <key>EnvironmentVariables</key>
@@ -64,9 +64,11 @@
         <key>GNOSISVPN_CONFIG_PATH</key>
         <string>/etc/gnosisvpn/config.toml</string>
         <key>HOME</key>
-        <string>/var/lib/gnosis_vpn</string>
+        <string>/var/lib/gnosisvpn</string>
         <key>RUST_LOG</key>
         <string>info</string>
+        <key>TMPDIR</key>
+        <string>/var/lib/gnosisvpn</string>
         <key>HOPR_INTERNAL_MIXER_MINIMUM_DELAY_IN_MS</key>
         <string>0</string>
         <key>HOPR_INTERNAL_MIXER_DELAY_RANGE_IN_MS</key>

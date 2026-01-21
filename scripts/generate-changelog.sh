@@ -417,7 +417,6 @@ main() {
     case $format in
         debian)
             debian_format_changelog > "${BUILD_DIR}/changelog/changelog"
-
             ;;
         github)
             github_format_changelog > "${BUILD_DIR}/changelog/changelog"

@@ -62,8 +62,8 @@ UI_STAGING_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/share/gnosisvpn")"
 UI_STAGED_ARCHIVE="${UI_STAGING_DIR}/gnosis_vpn-app.tar.gz"
 UI_TARGET_APP="$(join_path "$TARGET_VOLUME" "/Applications/Gnosis VPN.app")"
 
-INSTALLED_LOG_DIR_PATH="/var/log/gnosis_vpn"
-INSTALLED_LIB_DIR_PATH="/var/lib/gnosis_vpn"
+INSTALLED_LOG_DIR_PATH="/var/log/gnosisvpn"
+INSTALLED_LIB_DIR_PATH="/var/lib/gnosisvpn"
 
 
 # Get installer version from package (if available) or use current date
@@ -171,7 +171,7 @@ check_previous_installation() {
     fi
 
     # Check for existing binaries
-    if [[ -f "$BIN_DIR/gnosis_vpn" ]] || [[ -f "$BIN_DIR/gnosis_vpn-ctl" ]]; then
+    if [[ -f "$BIN_DIR/gnosis_vpn-root" ]] || [[ -f "$BIN_DIR/gnosis_vpn-worker" ]] || [[ -f "$BIN_DIR/gnosis_vpn-ctl" ]]; then
         log_info "Found existing binaries in $BIN_DIR"
         has_previous=true
 
@@ -190,46 +190,25 @@ check_previous_installation() {
     fi
 }
 
-add_artifacts() {
-    log_info "Adding artifacts needed by the application..."
-
-    local artifacts_src_dir="$(join_path "$SCRIPT_DIR/../artifacts" "")"
-    local artifacts_dest_dir="$(join_path "$TARGET_VOLUME/usr/local/share/gnosisvpn/artifacts" "")"
-
-    if [[ -d "$artifacts_src_dir" ]]; then
-        mkdir -p "$artifacts_dest_dir"
-        cp "$artifacts_src_dir"* "$artifacts_dest_dir/" || true
-        log_success "Artifacts copied to $artifacts_dest_dir"
-    else
-        log_warn "No artifacts directory found at $artifacts_src_dir"
-    fi
-}
-
 # Compare binary checksums to determine if update is needed
 binary_needs_update() {
-    local binary_name="$1"
-    local old_path="$BIN_DIR/$binary_name"
-    local new_path="$2" # Path to new binary in temporary location
+    local current_binary_path="$1"
+    local new_binary_path="$2" # Path to new binary in temporary location
 
-    if [[ ! -f "$old_path" ]]; then
-        log_info "$binary_name: No existing binary, update needed"
+    if [[ ! -f "$current_binary_path" ]]; then
+        log_info "$current_binary_path: No existing binary, update needed"
         return 0 # Update needed
     fi
 
-    if [[ ! -f "$new_path" ]]; then
-        log_warn "$binary_name: New binary not found at $new_path"
-        return 1 # No update needed (or error)
-    fi
-
     local old_checksum new_checksum
-    old_checksum=$(shasum -a 256 "$old_path" 2>/dev/null | cut -d' ' -f1 || echo "")
-    new_checksum=$(shasum -a 256 "$new_path" 2>/dev/null | cut -d' ' -f1 || echo "")
+    old_checksum=$(shasum -a 256 "$current_binary_path" 2>/dev/null | cut -d' ' -f1 || echo "")
+    new_checksum=$(shasum -a 256 "$new_binary_path" 2>/dev/null | cut -d' ' -f1 || echo "")
 
     if [[ "$old_checksum" == "$new_checksum" ]]; then
-        log_info "$binary_name: Checksums match, no update needed"
+        log_info "$current_binary_path: Checksums match, no update needed"
         return 1 # No update needed
     else
-        log_info "$binary_name: Checksums differ, update needed"
+        log_info "$current_binary_path: Checksums differ, update needed"
         log_debug "  Old: $old_checksum"
         log_debug "  New: $new_checksum"
         return 0 # Update needed
@@ -238,34 +217,28 @@ binary_needs_update() {
 
 # Update binary if changed
 update_binary_if_needed() {
-    local binary_name="$1"
+    local target_path="$1"
     local source_path="$2" # Source binary from package payload
-    local target_path="$BIN_DIR/$binary_name"
+    local owner="$3"
+    local group="$4"
+    local mode="$5"
 
-    log_info "Checking if $binary_name needs update..."
+    log_info "Checking if $target_path needs update..."
 
-    if binary_needs_update "$binary_name" "$source_path"; then
-        log_info "Updating $binary_name..."
-
-        # Backup existing binary
-        if [[ -f "$target_path" ]]; then
-            local backup_path="${target_path}.backup-$(date +%Y%m%d-%H%M%S)"
-            cp "$target_path" "$backup_path"
-            log_info "Created backup: $backup_path"
-        fi
-
+    if binary_needs_update "$target_path" "$source_path"; then
+        log_info "Updating $target_path..."
         # Copy new binary
         if cp "$source_path" "$target_path"; then
-            chmod 755 "$target_path"
-            chown root:wheel "$target_path" 2>/dev/null || true
-            log_success "Updated $binary_name"
+            chmod "$mode" "$target_path"
+            chown "$owner:$group" "$target_path" 2>/dev/null || true
+            log_success "Updated $target_path"
             return 0
         else
-            log_error "Failed to update $binary_name"
+            log_error "Failed to update $target_path"
             return 1
         fi
     else
-        log_info "$binary_name is up to date, skipping"
+        log_info "$target_path is up to date, skipping"
         return 0
     fi
 }
@@ -441,8 +414,6 @@ update_user_group() {
 configure_plist() {
     local source_plist="$1"
     local target_plist="$2"
-    local binary_path="${BIN_DIR}/gnosis_vpn"
-    local config_path="${CONFIG_DIR}/config.toml"
 
     if [[ ! -f "$source_plist" ]]; then
         log_error "Source plist not found: $source_plist"
@@ -454,105 +425,12 @@ configure_plist() {
     # Copy and configure the plist with actual paths
     cp "$source_plist" "$target_plist"
 
-    # Update binary path in plist if it differs from default
-    if [[ "$binary_path" != "/usr/local/bin/gnosis_vpn" ]]; then
-        # Update ProgramArguments array
-        sed -i '' "s|/usr/local/bin/gnosis_vpn|${binary_path}|g" "$target_plist"
-        log_info "Updated binary path in plist to: $binary_path"
-    fi
-
-    # Update config path in plist if it differs from default
-    if [[ "$config_path" != "/etc/gnosisvpn/config.toml" ]]; then
-        sed -i '' "s|/etc/gnosisvpn/config.toml|${config_path}|g" "$target_plist"
-        log_info "Updated config path in plist to: $config_path"
-    fi
 
     # Ensure proper permissions
     chmod 644 "$target_plist"
     chown root:wheel "$target_plist" 2>/dev/null || true
 
     return 0
-}
-
-# Set up permissions for system user
-setup_user_permissions() {
-    log_info "Setting up permissions for system user..."
-
-    local username="gnosisvpn"
-    local groupname="gnosisvpn"
-
-    # Verify user exists
-    if ! dscl . -read "/Users/$username" >/dev/null 2>&1; then
-        log_warn "System user '$username' not found, skipping permission setup"
-        return 0
-    fi
-
-    log_info "Configuring file permissions for user '$username'"
-
-    # Set ownership and permissions for configuration directory
-    if [[ -d "$CONFIG_DIR" ]]; then
-        chown -R root:$groupname "$CONFIG_DIR"
-        chmod -R g+r "$CONFIG_DIR"
-        chmod g+x "$CONFIG_DIR"
-        log_info "Configuration directory permissions updated: $CONFIG_DIR"
-    fi
-
-    # Set ownership and permissions for log directory
-
-    if [[ ! -d "$INSTALLED_LOG_DIR_PATH" ]]; then
-        mkdir -p "$INSTALLED_LOG_DIR_PATH"
-    fi
-    chown -R $username:$groupname "$INSTALLED_LOG_DIR_PATH"
-    chmod -R 755 "$INSTALLED_LOG_DIR_PATH"
-    log_info "Log directory permissions updated: $INSTALLED_LOG_DIR_PATH"
-
-    # Set ownership and permissions for binaries (allow execution by group)
-    if [[ -f "${BIN_DIR}/gnosis_vpn" ]]; then
-        chown $username:wheel "${BIN_DIR}/gnosis_vpn"
-        chmod 750 "${BIN_DIR}/gnosis_vpn"
-        log_info "Binary permissions updated: ${BIN_DIR}/gnosis_vpn"
-    fi
-
-    if [[ -f "${BIN_DIR}/gnosis_vpn-ctl" ]]; then
-        chown root:$groupname "${BIN_DIR}/gnosis_vpn-ctl"
-        chmod 750 "${BIN_DIR}/gnosis_vpn-ctl"
-        log_info "CLI binary permissions updated: ${BIN_DIR}/gnosis_vpn-ctl"
-    fi
-
-    # Set permissions for management script (allow group access)
-    if [[ -f "${BIN_DIR}/gnosis-vpn-manager" ]]; then
-        chown root:$groupname "${BIN_DIR}/gnosis-vpn-manager"
-        chmod 750 "${BIN_DIR}/gnosis-vpn-manager"
-        log_info "Management script permissions updated: ${BIN_DIR}/gnosis-vpn-manager"
-    fi
-
-    # add current user to the gnosisvpn group to allow interactions with binaries without privilige escalation
-    CURRENT_USER=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }')
-    log_info "Current user detected: $CURRENT_USER"
-    dseditgroup -o edit -a "$CURRENT_USER" -t user gnosisvpn
-
-    # Create and set permissions for runtime directory
-    local runtime_dir="/var/run/gnosis_vpn"
-    mkdir -p "$runtime_dir"
-    chown $username:$groupname "$runtime_dir"
-    chmod 755 "$runtime_dir"
-    log_info "Runtime directory created: $runtime_dir"
-
-    # Create and set permissions for state directory
-    local state_dir="$INSTALLED_LIB_DIR_PATH"
-    mkdir -p "$state_dir"
-    chown $username:$groupname "$state_dir"
-    chmod 750 "$state_dir"
-    log_info "State directory created: $state_dir"
-
-    # Create HOPR application support directory
-    local hopr_support_dir="$state_dir/Library/Application Support/org.hoprnet.gnosisvpn"
-    mkdir -p "$hopr_support_dir"
-    chown $username:$groupname "$hopr_support_dir"
-    chmod 755 "$hopr_support_dir"
-    log_info "HOPR application support directory created: $hopr_support_dir"
-
-    log_success "User permissions configured successfully"
 }
 
 # Install launchd service
@@ -594,11 +472,6 @@ install_launchd_service() {
         launchctl bootout system "$plist_path" 2>/dev/null || true
         sleep 2
 
-        # Backup existing plist if different
-        if [[ -f "$source_plist" ]] && ! cmp -s "$source_plist" "$plist_path"; then
-            log_info "Backing up existing plist configuration"
-            cp "$plist_path" "${plist_path}.backup.$(date +%Y%m%d-%H%M%S)" || true
-        fi
     fi
 
     # Install/update plist file
@@ -662,9 +535,9 @@ install_launchd_service() {
                 log_success "Service is running successfully"
 
                 # Check if the binary exists and is executable
-                local binary_path="/usr/local/bin/gnosis_vpn"
+                local binary_path="/usr/local/bin/gnosis_vpn-root"
                 if [[ ! -f "$binary_path" ]]; then
-                    log_warn "Binary not found at $binary_path - service may fail to start"
+                    log_warn "Binary not found: $binary_path - service may fail to start"
                     log_info "Ensure binaries are properly installed before the service starts"
                 fi
             else
@@ -731,43 +604,6 @@ verify_plist_deployment() {
         else
             log_error "Plist syntax is invalid"
             ((errors++))
-        fi
-
-        # Verify user and group configuration
-        local plist_user plist_group
-        plist_user=$(grep -A1 "<key>UserName</key>" "$plist_path" | grep "<string>" | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
-        plist_group=$(grep -A1 "<key>GroupName</key>" "$plist_path" | grep "<string>" | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
-
-        if [[ "$plist_user" == "gnosisvpn" ]]; then
-            log_success "Plist user correctly set to: gnosisvpn"
-        else
-            if [[ "$plist_user" == "root" ]]; then
-                log_warn "Plist user is set to root (fallback mode)"
-            else
-                log_error "Plist user has unexpected value: $plist_user"
-                ((errors++))
-            fi
-        fi
-
-        if [[ "$plist_group" == "gnosisvpn" ]]; then
-            log_success "Plist group correctly set to: gnosisvpn"
-        else
-            if [[ "$plist_group" == "wheel" ]]; then
-                log_warn "Plist group is set to wheel (fallback mode)"
-            else
-                log_error "Plist group has unexpected value: $plist_group"
-                ((errors++))
-            fi
-        fi
-
-        # Verify working directory
-        local plist_workdir
-        plist_workdir=$(grep -A1 "<key>WorkingDirectory</key>" "$plist_path" | grep "<string>" | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
-
-        if [[ "$plist_workdir" == "$INSTALLED_LIB_DIR_PATH" ]]; then
-            log_success "Plist working directory correctly set to: $INSTALLED_LIB_DIR_PATH"
-        else
-            log_warn "Plist working directory set to: $plist_workdir"
         fi
     fi
 
@@ -851,15 +687,14 @@ check_service_status() {
 
         # Extract key information
         local state
-        state=$(echo "$status_output" | grep "state =" | head -1)
+        state=$(echo "$status_output" | grep "state =" | head -1 || echo "")
         local pid_info
-        pid_info=$(echo "$status_output" | grep "pid =" | head -1)
+        pid_info=$(echo "$status_output" | grep "pid =" | head -1 || echo "")
         local last_exit
-        last_exit=$(echo "$status_output" | grep "last exit code =" | head -1)
+        last_exit=$(echo "$status_output" | grep "last exit code =" | head -1 || echo "")
         local runs
-        runs=$(echo "$status_output" | grep "runs =" | head -1)
+        runs=$(echo "$status_output" | grep "runs =" | head -1 || echo "")
 
-        status=$(launchctl print system/org.gnosis.vpn | grep -E "(state|pid)" | head -2)
         log_info "Service status:"
         [[ -n "$state" ]] && log_info "  $state"
         [[ -n "$pid_info" ]] && log_info "  $pid_info"
@@ -867,9 +702,9 @@ check_service_status() {
         [[ -n "$runs" ]] && log_info "  $runs"
 
         # Check if process is actually running
-        if pgrep -f "gnosis_vpn" >/dev/null 2>&1; then
+        if pgrep -f "gnosis_vpn-root" >/dev/null 2>&1; then
             local pid
-            pid=$(pgrep -f "gnosis_vpn")
+            pid=$(pgrep -f "gnosis_vpn-root")
             log_success "VPN process is running (PID: $pid)"
 
             # Check if logs are being created
@@ -1061,90 +896,35 @@ update_binaries() {
     local installation_type="$1"
 
     log_info "Updating binaries..."
+    binaries_array=(gnosis_vpn-root:root:wheel:750 gnosis_vpn-worker:root:gnosisvpn:750 gnosis_vpn-ctl:gnosisvpn:gnosisvpn:755 wg:root:wheel:755 wireguard-go:root:wheel:755 wg-quick:root:wheel:755)
 
     # For fresh installations, just copy all binaries
     if [[ "$installation_type" == "fresh" ]]; then
         log_info "Fresh installation: Installing all binaries..."
 
-        # Install gnosis_vpn
-        if [[ -f "${2}/usr/local/bin/gnosis_vpn" ]]; then
-            cp "${2}/usr/local/bin/gnosis_vpn" "$BIN_DIR/gnosis_vpn"
-            chmod 755 "$BIN_DIR/gnosis_vpn"
-            chown root:wheel "$BIN_DIR/gnosis_vpn" 2>/dev/null || true
-            log_success "Installed gnosis_vpn"
-        fi
-
-        # Install gnosis_vpn-ctl
-        if [[ -f "${2}/usr/local/bin/gnosis_vpn-ctl" ]]; then
-            cp "${2}/usr/local/bin/gnosis_vpn-ctl" "$BIN_DIR/gnosis_vpn-ctl"
-            chmod 755 "$BIN_DIR/gnosis_vpn-ctl"
-            chown root:wheel "$BIN_DIR/gnosis_vpn-ctl" 2>/dev/null || true
-            log_success "Installed gnosis_vpn-ctl"
-        fi
-
-        # Install wg
-        if [[ -f "${2}/usr/local/bin/wg" ]]; then
-            cp "${2}/usr/local/bin/wg" "$BIN_DIR/wg"
-            chmod 755 "$BIN_DIR/wg"
-            chown root:wheel "$BIN_DIR/wg" 2>/dev/null || true
-            log_success "Installed wg"
-        fi
-
-        # Install wireguard-go
-        if [[ -f "${2}/usr/local/bin/wireguard-go" ]]; then
-            cp "${2}/usr/local/bin/wireguard-go" "$BIN_DIR/wireguard-go"
-            chmod 755 "$BIN_DIR/wireguard-go"
-            chown root:wheel "$BIN_DIR/wireguard-go" 2>/dev/null || true
-            log_success "Installed wireguard-go"
-        fi
-
-        # Install wg-quick
-        if [[ -f "${2}/usr/local/bin/wg-quick" ]]; then
-            cp "${2}/usr/local/bin/wg-quick" "$BIN_DIR/wg-quick"
-            chmod 755 "$BIN_DIR/wg-quick"
-            chown root:wheel "$BIN_DIR/wg-quick" 2>/dev/null || true
-            log_success "Installed wg-quick"
-        fi
+        for binary_info in "${binaries_array[@]}"; do
+            IFS=":" read -r binary owner group mode <<< "$binary_info"
+            if [[ -f "${2}/usr/local/bin/${binary}" ]]; then
+                cp "${2}/usr/local/bin/${binary}" "$BIN_DIR/${binary}"
+                chmod "$mode" "$BIN_DIR/${binary}"
+                chown "$owner:$group" "$BIN_DIR/${binary}" 2>/dev/null || true
+                log_success "Installed ${binary}"
+            fi
+        done
     else
         # For updates, check each binary individually
         log_info "Update installation: Checking which binaries need updates..."
 
         local updates_made=0
 
-        # Update gnosis_vpn if needed
-        if [[ -f "${2}/usr/local/bin/gnosis_vpn" ]]; then
-            if update_binary_if_needed "gnosis_vpn" "${2}/usr/local/bin/gnosis_vpn"; then
-                updates_made=$((updates_made + 1))
+        for binary_info in "${binaries_array[@]}"; do
+            IFS=":" read -r binary owner group mode <<< "$binary_info"
+            if [[ -f "${2}/usr/local/bin/${binary}" ]]; then
+                if update_binary_if_needed "$BIN_DIR/${binary}" "${2}/usr/local/bin/${binary}" "$owner" "$group" "$mode"; then
+                    updates_made=$((updates_made + 1))
+                fi
             fi
-        fi
-
-        # Update gnosis_vpn-ctl if needed
-        if [[ -f "${2}/usr/local/bin/gnosis_vpn-ctl" ]]; then
-            if update_binary_if_needed "gnosis_vpn-ctl" "${2}/usr/local/bin/gnosis_vpn-ctl"; then
-                updates_made=$((updates_made + 1))
-            fi
-        fi
-
-        # Update wg if needed
-        if [[ -f "${2}/usr/local/bin/wg" ]]; then
-            if update_binary_if_needed "wg" "${2}/usr/local/bin/wg"; then
-                updates_made=$((updates_made + 1))
-            fi
-        fi
-
-        # Update wireguard-go if needed
-        if [[ -f "${2}/usr/local/bin/wireguard-go" ]]; then
-            if update_binary_if_needed "wireguard-go" "${2}/usr/local/bin/wireguard-go"; then
-                updates_made=$((updates_made + 1))
-            fi
-        fi
-
-        # Update wg-quick if needed
-        if [[ -f "${2}/usr/local/bin/wg-quick" ]]; then
-            if update_binary_if_needed "wg-quick" "${2}/usr/local/bin/wg-quick"; then
-                updates_made=$((updates_made + 1))
-            fi
-        fi
+        done
 
         if [[ $updates_made -gt 0 ]]; then
             log_success "Updated $updates_made binary(ies)"
@@ -1162,20 +942,47 @@ update_binaries() {
 
 # Set proper file permissions
 set_permissions() {
-    log_info "Setting file permissions..."
+    log_info "Setting permissions..."
 
-    chmod 755 "$BIN_DIR/gnosis_vpn" 2>/dev/null || true
-    chmod 755 "$BIN_DIR/gnosis_vpn-ctl" 2>/dev/null || true
+    local username="gnosisvpn"
+    local groupname="gnosisvpn"
+
+    # Set ownership and permissions for configuration directory
+    mkdir -p "$CONFIG_DIR"
+    chown -R root:$groupname "$CONFIG_DIR"
+    chmod -R g+r "$CONFIG_DIR"
     chmod 644 "$CONFIG_FILE" 2>/dev/null || true
+    log_info "Configuration directory permissions updated: $CONFIG_DIR"
 
-    # Make the config directory readable by all users
-    chmod 755 "$CONFIG_DIR" 2>/dev/null || true
+    # Set ownership and permissions for log directory
+    mkdir -p "$INSTALLED_LOG_DIR_PATH"
+    chown -R $username:$groupname "$INSTALLED_LOG_DIR_PATH"
+    chmod -R 755 "$INSTALLED_LOG_DIR_PATH"
+    log_info "Log directory permissions updated: $INSTALLED_LOG_DIR_PATH"
 
-    # Set ownership to root:wheel
-    chown root:wheel "$BIN_DIR/gnosis_vpn" 2>/dev/null || true
-    chown root:wheel "$BIN_DIR/gnosis_vpn-ctl" 2>/dev/null || true
-    chown root:wheel "$CONFIG_FILE" 2>/dev/null || true
-    chown root:wheel "$CONFIG_DIR" 2>/dev/null || true
+    # add current user to the gnosisvpn group to allow interactions with binaries without privilige escalation
+    CURRENT_USER=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }')
+    log_info "Current user detected: $CURRENT_USER"
+    dseditgroup -o edit -a "$CURRENT_USER" -t user gnosisvpn
+
+    # Create and set permissions for runtime directory
+    local runtime_dir="/var/run/gnosisvpn"
+    mkdir -p "$runtime_dir"
+    chown $username:$groupname "$runtime_dir"
+    chmod 755 "$runtime_dir"
+    log_info "Runtime directory created: $runtime_dir"
+
+    # Create and set permissions for state directory
+    local state_dir="$INSTALLED_LIB_DIR_PATH"
+    mkdir -p "$state_dir"
+    chown $username:$groupname "$state_dir"
+    chmod -R 775 "$state_dir"
+    log_info "State directory created: $state_dir"
+
+    # Create HOPR application support directory
+    local hopr_support_dir="$state_dir/Library/Application Support/org.hoprnet.gnosisvpn"
+    mkdir -p "$hopr_support_dir"
+    log_info "HOPR application support directory created: $hopr_support_dir"
 
     log_success "Permissions and ownership set"
 }
@@ -1186,7 +993,7 @@ verify_path() {
 
     # Binaries are already in /usr/local/bin which is typically in PATH
     log_success "Binaries installed to $BIN_DIR (typically in PATH)"
-    log_info "You should be able to run 'gnosis_vpn' and 'gnosis_vpn-ctl' from anywhere"
+    log_info "You should be able to run 'gnosis_vpn-root', 'gnosis_vpn-worker' and 'gnosis_vpn-ctl' from anywhere"
 }
 
 # Verify installation
@@ -1195,15 +1002,12 @@ verify_installation() {
 
     local errors=0
 
-    if [[ ! -x "$BIN_DIR/gnosis_vpn" ]]; then
-        log_error "gnosis_vpn binary not found or not executable"
-        errors=$((errors + 1))
-    fi
-
-    if [[ ! -x "$BIN_DIR/gnosis_vpn-ctl" ]]; then
-        log_error "gnosis_vpn-ctl binary not found or not executable"
-        errors=$((errors + 1))
-    fi
+    for binary in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
+        if [[ ! -x "$BIN_DIR/${binary}" ]]; then
+            log_error "$BIN_DIR/${binary} binary not found or not executable"
+            errors=$((errors + 1))
+        fi
+    done
 
     if [[ ! -f "$CONFIG_FILE" ]]; then
         log_error "Configuration file not found"
@@ -1261,9 +1065,9 @@ print_summary() {
     log_info "  gnosis_vpn-ctl status                           # Check VPN status"
     echo ""
     log_info "Management commands:"
-    log_info "  gnosis-vpn-manager status   # Show installation status"
-    log_info "  gnosis-vpn-manager backups  # List backup files"
-    log_info "  gnosis-vpn-manager version  # Show installed version"
+    log_info "  gnosis_vpn-manager status   # Show installation status"
+    log_info "  gnosis_vpn-manager backups  # List backup files"
+    log_info "  gnosis_vpn-manager version  # Show installed version"
     echo ""
     log_info "Logs:"
     log_info "  tail -f $INSTALLED_LOG_DIR_PATH/gnosis_vpn.log      # Service logs"
@@ -1360,7 +1164,7 @@ validate_service_environment() {
 
     # Check required directories exist with proper ownership
     local required_dirs=(
-        "/var/run/gnosis_vpn:gnosisvpn:gnosisvpn:755"
+        "/var/run/gnosisvpn:gnosisvpn:gnosisvpn:755"
         "$INSTALLED_LIB_DIR_PATH:gnosisvpn:gnosisvpn:750"
         "$INSTALLED_LIB_DIR_PATH/Library/Application Support/org.hoprnet.gnosisvpn:gnosisvpn:gnosisvpn:755"
         "$INSTALLED_LOG_DIR_PATH:gnosisvpn:gnosisvpn:755"
@@ -1398,7 +1202,7 @@ validate_service_environment() {
     done
 
     # Check that binary exists and is executable by gnosisvpn user
-    local binary_path="/usr/local/bin/gnosis_vpn"
+    local binary_path="/usr/local/bin/gnosis_vpn-worker"
     if [[ ! -f "$binary_path" ]]; then
         log_error "Binary not found: $binary_path"
         ((errors++))
@@ -1433,6 +1237,18 @@ validate_service_environment() {
     fi
 }
 
+setup_management_script() {
+    set -x
+    if [[ -f "${SCRIPT_DIR}/manage-installation.sh" ]]; then
+        cp "${SCRIPT_DIR}/manage-installation.sh" "$BIN_DIR/gnosis_vpn-manager"
+        chmod 755 "$BIN_DIR/gnosis_vpn-manager"
+        chown root:gnosisvpn "$BIN_DIR/gnosis_vpn-manager" 2>/dev/null || true
+        log_info "Management script installed with gnosisvpn group"
+        log_success "Installed management script: gnosis_vpn-manager"
+    fi
+    set +x
+}
+
 
 # Main execution
 main() {
@@ -1445,25 +1261,16 @@ main() {
     # Backup existing configuration
     backup_config "$installation_type"
 
+    # Create system user and group
+    create_system_group
+    create_system_user
+    update_user_group
+
     # Update binaries (incrementally for updates, full for fresh installs)
     update_binaries "$installation_type" "$TARGET_VOLUME"
 
     # Install management script
-    if [[ -f "${SCRIPT_DIR}/manage-installation.sh" ]]; then
-        cp "${SCRIPT_DIR}/manage-installation.sh" "$BIN_DIR/gnosis-vpn-manager"
-        chmod 755 "$BIN_DIR/gnosis-vpn-manager"
-
-        # Use system group if it exists, otherwise use wheel
-        if dscl . -read "/Groups/gnosisvpn" >/dev/null 2>&1; then
-            chown root:gnosisvpn "$BIN_DIR/gnosis-vpn-manager" 2>/dev/null || true
-            log_info "Management script installed with gnosisvpn group"
-        else
-            chown root:wheel "$BIN_DIR/gnosis-vpn-manager" 2>/dev/null || true
-            log_info "Management script installed with wheel group (will be updated later)"
-        fi
-
-        log_success "Installed management script: gnosis-vpn-manager"
-    fi
+    setup_management_script
 
     # Setup configuration files and create symlink
     setup_configuration_files
@@ -1474,12 +1281,6 @@ main() {
 
     # Save version information
     save_version_info
-
-    # Create system user and group
-    create_system_group
-    create_system_user
-    update_user_group
-    setup_user_permissions
 
     # Configure sudo privileges for service management
     configure_sudo_privileges

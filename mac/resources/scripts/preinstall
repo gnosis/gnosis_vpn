@@ -31,14 +31,14 @@ BIN_DIR="${2}/usr/local/bin"
 if [[ -f "$VERSION_FILE" ]]; then
     previous_version=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
     log_info "Previous installation detected (version: $previous_version)"
-elif [[ -f "$BIN_DIR/gnosis_vpn" ]] || [[ -f "$BIN_DIR/gnosis_vpn-ctl" ]]; then
+elif [[ -f "$BIN_DIR/gnosis_vpn-root" ]] || [[ -f "$BIN_DIR/gnosis_vpn-worker" ]] || [[ -f "$BIN_DIR/gnosis_vpn-ctl" ]]; then
     log_info "Previous installation detected (legacy, no version file)"
 else
     log_info "No previous installation found - fresh installation"
 fi
 
 # Check if VPN service is running (to warn user)
-if pgrep -f "gnosis_vpn" >/dev/null 2>&1; then
+if pgrep -f "gnosis_vpn-root" >/dev/null 2>&1; then
     log_warn "Gnosis VPN service appears to be running"
     log_info "The service will be updated but may need to be restarted after installation"
 fi

@@ -17,33 +17,33 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # Stop service
-if systemctl is-active --quiet gnosis_vpn.service 2>/dev/null; then
-  echo "$LOG_PREFIX INFO: Stopping gnosis_vpn.service service..."
-  if deb-systemd-invoke stop gnosis_vpn.service; then
+if systemctl is-active --quiet gnosisvpn.service 2>/dev/null; then
+  echo "$LOG_PREFIX INFO: Stopping gnosisvpn.service service..."
+  if deb-systemd-invoke stop gnosisvpn.service; then
     echo "$LOG_PREFIX SUCCESS: Service stopped successfully"
   else
     echo "$LOG_PREFIX WARNING: Failed to stop service gracefully, forcing stop..."
-    deb-systemd-invoke kill gnosis_vpn.service || true
+    deb-systemd-invoke kill gnosisvpn.service || true
   fi
 fi
 
 # Disable service
-if systemctl is-enabled --quiet gnosis_vpn.service 2>/dev/null; then
-  echo "$LOG_PREFIX INFO: Disabling gnosis_vpn.service service..."
-  deb-systemd-helper disable gnosis_vpn.service || true
+if systemctl is-enabled --quiet gnosisvpn.service 2>/dev/null; then
+  echo "$LOG_PREFIX INFO: Disabling gnosisvpn.service service..."
+  deb-systemd-helper disable gnosisvpn.service || true
   echo "$LOG_PREFIX SUCCESS: Service disabled successfully"
 fi
 
-# Kill any remaining gnosis_vpn processes
-if pgrep -x gnosis_vpn >/dev/null 2>&1; then
-  echo "$LOG_PREFIX INFO: Terminating remaining gnosis_vpn processes..."
-  pkill -TERM -x gnosis_vpn || true
-  sleep 2
+# Kill any remaining gnosisvpn processes
+if pgrep -x gnosis_vpn-root >/dev/null 2>&1; then
+  echo "$LOG_PREFIX INFO: Terminating remaining gnosis_vpn-root processes..."
+  pkill -TERM -x gnosis_vpn-root || true
+  sleep 5
   
   # Force kill if still running
-  if pgrep -x gnosis_vpn >/dev/null 2>&1; then
+  if pgrep -x gnosis_vpn-root >/dev/null 2>&1; then
     echo "$LOG_PREFIX WARNING: Force killing remaining processes..."
-    pkill -KILL -x gnosis_vpn || true
+    pkill -KILL -x gnosis_vpn-root || true
   fi
 fi
 
