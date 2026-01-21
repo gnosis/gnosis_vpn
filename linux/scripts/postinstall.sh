@@ -161,17 +161,27 @@ install_desktop_shortcut_for_user() {
     fi
 
     # Try to set metadata using gio (should be available from package dependencies)
+    # We capture output because gio might return exit code 0 even if it prints "not supported"
+    local gio_output=""
+    
     if [ -n "$user_dbus_addr" ]; then
         # Try with explicit DBus session address
-        if sudo -u "$target_user" DBUS_SESSION_BUS_ADDRESS="$user_dbus_addr" gio set "$dest_file" metadata::trusted true 2>/dev/null; then
+        # We append || true to prevent script exit on failure due to set -e
+        gio_output=$(sudo -u "$target_user" DBUS_SESSION_BUS_ADDRESS="$user_dbus_addr" gio set "$dest_file" metadata::trusted true 2>&1 || true)
+        if [[ -z "$gio_output" ]]; then
             trusted_set=true
+        else
+            echo "$LOG_PREFIX INFO: Could not set trusted metadata via gio for $target_user: $gio_output"
         fi
     fi
         
     # Fallback/Retry without explicit address if it failed above
     if [ "$trusted_set" = false ]; then
-        if sudo -u "$target_user" gio set "$dest_file" metadata::trusted true 2>/dev/null; then
+        gio_output=$(sudo -u "$target_user" gio set "$dest_file" metadata::trusted true 2>&1 || true)
+        if [[ -z "$gio_output" ]]; then
             trusted_set=true
+        else
+            echo "$LOG_PREFIX INFO: Could not set trusted metadata via gio for $target_user: $gio_output"
         fi
     fi
     
