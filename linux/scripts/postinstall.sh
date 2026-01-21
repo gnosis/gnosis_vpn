@@ -138,6 +138,7 @@ install_desktop_shortcut_for_user() {
         return
     fi
     
+    # Strip spaces from filename
     local dest_file="$desktop_dir/GnosisVPN.desktop"
     
     # Copy the desktop file to the user's Desktop
