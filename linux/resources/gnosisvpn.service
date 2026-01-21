@@ -16,7 +16,7 @@ EnvironmentFile=/etc/gnosisvpn/gnosisvpn.env
 WorkingDirectory=/var/lib/gnosisvpn
 
 # Main service command
-ExecStart=/usr/bin/gnosis_vpn-root -c /etc/gnosisvpn/config.toml --hopr-blokli-url https://blokli.staging.hoprnet.link --worker-binary /usr/bin/gnosis_vpn-worker
+ExecStart=/usr/bin/gnosis_vpn-root --hopr-blokli-url https://blokli.staging.hoprnet.link
 
 # Restart configuration
 Restart=always
@@ -35,13 +35,14 @@ SyslogIdentifier=gnosisvpn
 
 # Security hardening for VPN service
 # VPN needs CAP_NET_ADMIN for tunnel management
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
-AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW
+# CAP_SETUID/CAP_SETGID needed to spawn worker as 'gnosisvpn' user
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETUID CAP_SETGID
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETUID CAP_SETGID
 
 # File system protection
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/gnosisvpn /var/log/gnosisvpn /run/gnosisvpn
+ReadWritePaths=/var/lib/gnosisvpn /var/log/gnosisvpn /var/run/gnosis_vpn
 
 # Resource limits
 LimitNOFILE=65536
