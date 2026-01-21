@@ -26,6 +26,7 @@ overrides:
       - libwebkit2gtk-4.1-0
       - libgtk-3-0
       - libayatana-appindicator3-1
+      - libglib2.0-bin
   rpm:
     depends:
       - systemd
@@ -36,11 +37,13 @@ overrides:
       - webkit2gtk4.1
       - gtk3
       - libayatana-appindicator-gtk3
+      - glib2
   archlinux:
     depends:
       - webkit2gtk-4.1
       - gtk3
       - libayatana-appindicator
+      - glib2
 contents:
   # Binaries
   - src: ./build/download/gnosis_vpn-root

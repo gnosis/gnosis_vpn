@@ -138,7 +138,7 @@ install_desktop_shortcut_for_user() {
         return
     fi
     
-    local desktop_file="Gnosis VPN.desktop"
+    local desktop_file="GnosisVPN.desktop"
     local dest_file="$desktop_dir/$desktop_file"
     
     # Copy the desktop file to the user's Desktop
@@ -148,17 +148,29 @@ install_desktop_shortcut_for_user() {
     fi
     
     # Make it executable (required for desktop shortcuts)
-    chmod +x "$dest_file"
     chown "$target_user":"$target_user" "$dest_file"
+    chmod +x "$dest_file"
     
     # Try to mark as trusted if tools are available (optional, not in dependencies)
     local trusted_set=false
-    if command -v gio >/dev/null 2>&1; then
-        if sudo -u "$target_user" gio set "$dest_file" metadata::trusted true 2>/dev/null; then
+    
+    # Try to find user's DBUS session to make gio work
+    local user_dbus_addr=""
+    if [ -d "/run/user/$(id -u "$target_user")" ]; then
+        user_dbus_addr="unix:path=/run/user/$(id -u "$target_user")/bus"
+    fi
+
+    # Try to set metadata using gio (should be available from package dependencies)
+    if [ -n "$user_dbus_addr" ]; then
+        # Try with explicit DBus session address
+        if sudo -u "$target_user" DBUS_SESSION_BUS_ADDRESS="$user_dbus_addr" gio set "$dest_file" metadata::trusted true 2>/dev/null; then
             trusted_set=true
         fi
-    elif command -v gvfs-set-attribute >/dev/null 2>&1; then
-        if sudo -u "$target_user" gvfs-set-attribute "$dest_file" metadata::trusted true 2>/dev/null; then
+    fi
+        
+    # Fallback/Retry without explicit address if it failed above
+    if [ "$trusted_set" = false ]; then
+        if sudo -u "$target_user" gio set "$dest_file" metadata::trusted true 2>/dev/null; then
             trusted_set=true
         fi
     fi
