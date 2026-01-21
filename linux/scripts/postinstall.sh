@@ -65,11 +65,6 @@ configure_filesystem_permissions() {
     chown -R gnosisvpn:gnosisvpn /var/lib/gnosisvpn
     chmod -R 775 /var/lib/gnosisvpn
 
-    # Ensure runtime directory exists with correct permissions
-    mkdir -p /var/run/gnosis_vpn
-    chown -R gnosisvpn:gnosisvpn /var/run/gnosis_vpn
-    chmod -R 755 /var/run/gnosis_vpn
-
     # Fix binary ownership and permissions. Cannot be done in nfpm as the user may not exist yet.
     if [[ -f /usr/bin/gnosis_vpn-worker ]]; then
         chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-worker
