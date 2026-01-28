@@ -10,12 +10,8 @@
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/gnosis_vpn-root</string>
-        <string>-c</string>
-        <string>/etc/gnosisvpn/config.toml</string>
         <string>--hopr-blokli-url</string>
         <string>https://blokli.staging.hoprnet.link</string>
-        <string>--worker-binary</string>
-        <string>/usr/local/bin/gnosis_vpn-worker</string>
     </array>
     
     <!-- Service Behavior -->
@@ -63,6 +59,10 @@
         <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>GNOSISVPN_CONFIG_PATH</key>
         <string>/etc/gnosisvpn/config.toml</string>
+        <key>GNOSISVPN_WORKER_BINARY</key>
+        <string>/usr/bin/gnosis_vpn-worker</string>
+        <key>GNOSISVPN_WORKER_USER</key>
+        <string>gnosisvpn</string>
         <key>HOME</key>
         <string>/var/lib/gnosisvpn</string>
         <key>RUST_LOG</key>

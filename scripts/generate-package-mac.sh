@@ -452,6 +452,8 @@ notarize_package() {
         log_error "$notary_json"
         cat "${BUILD_DIR}/notarytool-submit.log" >&2
         exit 1
+    else
+        log_success "Notarization submission completed"
     fi
     status="$(printf '%s' "$notary_json" | jq -r '.status // empty')"
     id="$(printf '%s' "$notary_json" | jq -r '.id // empty')"

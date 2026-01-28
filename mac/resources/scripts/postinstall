@@ -19,7 +19,7 @@
 #   INSTALLER_CHOICE_NETWORK: "rotsee" or "dufour"
 
 set -euo pipefail
-
+set -x
 # Source unified logging library
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/logging.sh"
@@ -268,7 +268,7 @@ create_system_user() {
     local uid
     for uid in {200..499}; do
         if ! dscl . -read "/Users/$username" UniqueID >/dev/null 2>&1 && \
-           ! dscl . -search /Users UniqueID "$uid" >/dev/null 2>&1; then
+           [[ -z "$(dscl . -search /Users UniqueID "$uid")" ]]; then
             break
         fi
     done
@@ -329,10 +329,12 @@ create_system_group() {
     local gid
     for gid in {200..499}; do
         if ! dscl . -read "/Groups/$groupname" PrimaryGroupID >/dev/null 2>&1 && \
-           ! dscl . -search /Groups PrimaryGroupID "$gid" >/dev/null 2>&1; then
+           [[ -z "$(dscl . -search /Groups PrimaryGroupID "$gid")" ]]; then
+            log_info "Selected GID $gid for group '$groupname'"
             break
         fi
     done
+    log_info "Using GID $gid for group '$groupname'"
 
     # Check if group already exists
     if dscl . -read "/Groups/$groupname" >/dev/null 2>&1; then
@@ -891,6 +893,19 @@ create_config_symlink() {
     log_info "Network: $NETWORK"
 }
 
+copy_uninstall() {
+
+    log_info "Copying uninstall script..."
+
+    local homedir="$INSTALLED_LIB_DIR_PATH"
+    mkdir -p "$homedir"
+    cp "${SCRIPT_DIR}/uninstall.sh" "$homedir/"
+    chmod 755 "$homedir/uninstall.sh"
+    chown root:wheel "$CONFIG_DIR" 2>/dev/null || true
+
+    log_success "Uninstall script copied to $homedir/uninstall.sh"
+}
+
 # Update binaries incrementally (only if changed)
 update_binaries() {
     local installation_type="$1"
@@ -932,12 +947,8 @@ update_binaries() {
             log_info "All binaries are up to date"
         fi
     fi
-
-    local homedir="$INSTALLED_LIB_DIR_PATH"
-    mkdir -p "$homedir"
-    cp "${SCRIPT_DIR}/uninstall.sh" "$homedir/"
-    chmod 755 "$homedir/uninstall.sh"
-    chown gnosisvpn:wheel "$CONFIG_DIR" 2>/dev/null || true
+    # Install management script
+    setup_management_script
 }
 
 # Set proper file permissions
@@ -1238,7 +1249,6 @@ validate_service_environment() {
 }
 
 setup_management_script() {
-    set -x
     if [[ -f "${SCRIPT_DIR}/manage-installation.sh" ]]; then
         cp "${SCRIPT_DIR}/manage-installation.sh" "$BIN_DIR/gnosis_vpn-manager"
         chmod 755 "$BIN_DIR/gnosis_vpn-manager"
@@ -1246,7 +1256,6 @@ setup_management_script() {
         log_info "Management script installed with gnosisvpn group"
         log_success "Installed management script: gnosis_vpn-manager"
     fi
-    set +x
 }
 
 
@@ -1258,8 +1267,8 @@ main() {
 
     log_section "Installation Type: $installation_type"
 
-    # Backup existing configuration
     backup_config "$installation_type"
+    copy_uninstall
 
     # Create system user and group
     create_system_group
@@ -1268,9 +1277,6 @@ main() {
 
     # Update binaries (incrementally for updates, full for fresh installs)
     update_binaries "$installation_type" "$TARGET_VOLUME"
-
-    # Install management script
-    setup_management_script
 
     # Setup configuration files and create symlink
     setup_configuration_files
