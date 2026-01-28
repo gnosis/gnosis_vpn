@@ -19,7 +19,7 @@
 #   INSTALLER_CHOICE_NETWORK: "rotsee" or "dufour"
 
 set -euo pipefail
-set -x
+
 # Source unified logging library
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/logging.sh"
