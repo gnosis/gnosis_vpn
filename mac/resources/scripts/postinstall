@@ -268,7 +268,7 @@ create_system_user() {
     local uid
     for uid in {200..499}; do
         if ! dscl . -read "/Users/$username" UniqueID >/dev/null 2>&1 && \
-           ! dscl . -search /Users UniqueID "$uid" >/dev/null 2>&1; then
+           [[ -z "$(dscl . -search /Users UniqueID "$uid")" ]]; then
             break
         fi
     done
@@ -329,7 +329,7 @@ create_system_group() {
     local gid
     for gid in {200..499}; do
         if ! dscl . -read "/Groups/$groupname" PrimaryGroupID >/dev/null 2>&1 && \
-           ! dscl . -search /Groups PrimaryGroupID "$gid" >/dev/null 2>&1; then
+           [[ -z "$(dscl . -search /Groups PrimaryGroupID "$gid")" ]]; then
             log_info "Selected GID $gid for group '$groupname'"
             break
         fi
