@@ -11,7 +11,7 @@
     <array>
         <string>/usr/local/bin/gnosis_vpn-root</string>
         <string>--hopr-blokli-url</string>
-        <string>https://blokli.staging.hoprnet.link</string>
+        <string>https://blokli.rotsee.hoprnet.link</string>
     </array>
     
     <!-- Service Behavior -->
