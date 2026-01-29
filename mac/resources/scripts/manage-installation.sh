@@ -278,7 +278,7 @@ show_status() {
 
     # Service status
     log_info "Service status:"
-    if run_launchctl print system/org.gnosis.vpn >/dev/null 2>&1; then
+    if run_launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
         log_success "Launchd service is loaded"
         if pgrep -f "gnosis_vpn" >/dev/null 2>&1; then
             local pid
@@ -341,7 +341,7 @@ show_status() {
 start_service() {
     log_info "Starting Gnosis VPN service..."
 
-    local plist_path="/Library/LaunchDaemons/org.gnosis.vpn.plist"
+    local plist_path="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
 
     if [[ ! -f $plist_path ]]; then
         log_error "Launchd service not installed"
@@ -349,9 +349,9 @@ start_service() {
         exit 1
     fi
 
-    if run_launchctl print system/org.gnosis.vpn >/dev/null 2>&1; then
+    if run_launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
         log_info "Service is already loaded, restarting..."
-        run_launchctl kickstart system/org.gnosis.vpn
+        run_launchctl kickstart system/com.gnosisvpn.gnosisvpnclient
     else
         log_info "Loading service..."
         run_launchctl bootstrap system "$plist_path"
@@ -372,9 +372,9 @@ start_service() {
 stop_service() {
     log_info "Stopping Gnosis VPN service..."
 
-    local plist_path="/Library/LaunchDaemons/org.gnosis.vpn.plist"
+    local plist_path="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
 
-    if run_launchctl print system/org.gnosis.vpn >/dev/null 2>&1; then
+    if run_launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
         run_launchctl bootout system "$plist_path"
         log_success "Service stopped"
     else

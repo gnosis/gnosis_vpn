@@ -3,15 +3,15 @@
 # without requiring a password
 
 # Allow gnosisvpn group members to control the Gnosis VPN service
-%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl bootstrap system /Library/LaunchDaemons/org.gnosis.vpn.plist
-%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl bootout system /Library/LaunchDaemons/org.gnosis.vpn.plist
-%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl kickstart system/org.gnosis.vpn
-%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl kill SIGTERM system/org.gnosis.vpn
-%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl kill SIGINT system/org.gnosis.vpn
-%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl print system/org.gnosis.vpn
+%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl bootstrap system /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist
+%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl bootout system /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist
+%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl kickstart system/com.gnosisvpn.gnosisvpnclient
+%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl kill SIGTERM system/com.gnosisvpn.gnosisvpnclient
+%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl kill SIGINT system/com.gnosisvpn.gnosisvpnclient
+%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl print system/com.gnosisvpn.gnosisvpnclient
 
 # Allow gnosisvpn group members to check service status
-%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl list org.gnosis.vpn
+%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl list com.gnosisvpn.gnosisvpnclient
 
 # Allow gnosisvpn group members to run wg-quick which needs wide ranged permissions
 # NOTE: will be removed as soon as we get rid of wg-quick helper script

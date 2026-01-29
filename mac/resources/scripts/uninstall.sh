@@ -18,7 +18,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-PKG_ID="org.gnosis.vpn.client"
+PKG_ID="com.gnosisvpn.gnosisvpnclient"
 BIN_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/gnosisvpn"
 LOG_DIR="/Library/Logs/GnosisVPNInstaller"
@@ -61,7 +61,7 @@ print_banner() {
 confirm_uninstall() {
     echo "This will remove:"
     echo "  - Binaries: $BIN_DIR/gnosis_vpn-root, $BIN_DIR/gnosis_vpn-worker, $BIN_DIR/gnosis_vpn-ctl, $BIN_DIR/gnosis_vpn-manager"
-    echo "  - Launchd service: /Library/LaunchDaemons/org.gnosis.vpn.plist"
+    echo "  - Launchd service: /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
     echo "  - Configuration: $CONFIG_DIR/"
     echo "  - Service logs: /var/log/gnosisvpn/"
     echo "  - Installation logs: $LOG_DIR/"
@@ -80,11 +80,11 @@ confirm_uninstall() {
 remove_launchd_service() {
     log_info "Removing launchd service..."
 
-    local plist_path="/Library/LaunchDaemons/org.gnosis.vpn.plist"
+    local plist_path="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
 
     if [[ -f $plist_path ]]; then
         # Stop and unload the service
-        if launchctl print system/org.gnosis.vpn >/dev/null 2>&1; then
+        if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
             log_info "Stopping launchd service..."
             launchctl bootout system "$plist_path" 2>/dev/null || true
             sleep 2
@@ -116,14 +116,6 @@ remove_system_user() {
         dscl . -delete "/Users/$username"
         log_success "Removed system user: $username"
 
-        # !! DO not remove homedir, because it stores identities!
-        # DO remove database dir to ensure a possible clean reinstall
-        local database_dir
-        database_dir="${homedir}/Library/Application Support/org.hoprnet.gnosisvpn/gnosisvpn-hopr.db"
-        if [[ -d $database_dir ]]; then
-            log_info "Removing database directory: $database_dir"
-            rm -rf "$database_dir"
-        fi
     else
         log_info "No system user '$username' found"
     fi
@@ -381,12 +373,12 @@ verify_uninstall() {
         errors=$((errors + 1))
     fi
 
-    if [[ -f "/Library/LaunchDaemons/org.gnosis.vpn.plist" ]]; then
-        log_error "Launchd service still exists: /Library/LaunchDaemons/org.gnosis.vpn.plist"
+    if [[ -f "/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist" ]]; then
+        log_error "Launchd service still exists: /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
         errors=$((errors + 1))
     fi
 
-    if launchctl print system/org.gnosis.vpn >/dev/null 2>&1; then
+    if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
         log_error "Launchd service is still loaded"
         errors=$((errors + 1))
     fi

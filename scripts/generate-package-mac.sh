@@ -361,7 +361,7 @@ build_component_package() {
     pkgbuild \
         --root "${BUILD_DIR}/app-contents/rootfs" \
         --scripts "${BUILD_DIR}/scripts" \
-        --identifier "org.gnosis.vpn.client" \
+        --identifier "com.gnosisvpn.gnosisvpnclient" \
         --version "$GNOSISVPN_PACKAGE_VERSION" \
         --install-location "/" \
         --ownership recommended \

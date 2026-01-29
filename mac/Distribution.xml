@@ -4,11 +4,11 @@
     <allowed-os-versions>
         <os-version min="14"/>
     </allowed-os-versions>
-    <organization>org.hoprnet.gnosisvpn</organization>
+    <organization>com.gnosisvpn</organization>
     <domains enable_anywhere="true"/>
 
     <!-- Package metadata -->
-    <pkg-ref id="org.hoprnet.gnosisvpn.client"/>
+    <pkg-ref id="com.gnosisvpn.gnosisvpnclient"/>
 
     <!-- Options -->
     <options customize="allow" require-scripts="false" hostArchitectures="x86_64,arm64"/>
@@ -36,7 +36,7 @@
             visible="false"
             enabled="true"
             selected="true">
-        <pkg-ref id="org.hoprnet.gnosisvpn.client"/>
+        <pkg-ref id="com.gnosisvpn.gnosisvpnclient"/>
     </choice>
 
     <!-- Network selection choice -->
@@ -63,7 +63,7 @@
     </choice>
 
     <!-- Component package reference -->
-    <pkg-ref id="org.hoprnet.gnosisvpn.client"
+    <pkg-ref id="com.gnosisvpn.gnosisvpnclient"
              version="0"
              auth="root"
              installKBytes="16384"

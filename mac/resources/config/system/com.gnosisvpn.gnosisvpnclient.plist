@@ -4,14 +4,14 @@
 <dict>
     <!-- Service Identification -->
     <key>Label</key>
-    <string>org.gnosis.vpn</string>
+    <string>com.gnosisvpn.gnosisvpnclient</string>
     
     <!-- Program Configuration -->
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/gnosis_vpn-root</string>
         <string>--hopr-blokli-url</string>
-        <string>https://blokli.staging.hoprnet.link</string>
+        <string>https://blokli.rotsee.hoprnet.link</string>
     </array>
     
     <!-- Service Behavior -->
@@ -60,7 +60,7 @@
         <key>GNOSISVPN_CONFIG_PATH</key>
         <string>/etc/gnosisvpn/config.toml</string>
         <key>GNOSISVPN_WORKER_BINARY</key>
-        <string>/usr/bin/gnosis_vpn-worker</string>
+        <string>/usr/local/bin/gnosis_vpn-worker</string>
         <key>GNOSISVPN_WORKER_USER</key>
         <string>gnosisvpn</string>
         <key>HOME</key>
