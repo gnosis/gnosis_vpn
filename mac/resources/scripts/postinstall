@@ -190,56 +190,24 @@ check_previous_installation() {
     fi
 }
 
-# Compare binary checksums to determine if update is needed
-binary_needs_update() {
-    local current_binary_path="$1"
-    local new_binary_path="$2" # Path to new binary in temporary location
-
-    if [[ ! -f "$current_binary_path" ]]; then
-        log_info "$current_binary_path: No existing binary, update needed"
-        return 0 # Update needed
-    fi
-
-    local old_checksum new_checksum
-    old_checksum=$(shasum -a 256 "$current_binary_path" 2>/dev/null | cut -d' ' -f1 || echo "")
-    new_checksum=$(shasum -a 256 "$new_binary_path" 2>/dev/null | cut -d' ' -f1 || echo "")
-
-    if [[ "$old_checksum" == "$new_checksum" ]]; then
-        log_info "$current_binary_path: Checksums match, no update needed"
-        return 1 # No update needed
-    else
-        log_info "$current_binary_path: Checksums differ, update needed"
-        log_debug "  Old: $old_checksum"
-        log_debug "  New: $new_checksum"
-        return 0 # Update needed
-    fi
-}
-
 # Update binary if changed
-update_binary_if_needed() {
-    local target_path="$1"
-    local source_path="$2" # Source binary from package payload
+update_binary() {
+    local source_path="$1" # Source binary from package payload
+    local target_path="$2"
     local owner="$3"
     local group="$4"
     local mode="$5"
 
-    log_info "Checking if $target_path needs update..."
-
-    if binary_needs_update "$target_path" "$source_path"; then
-        log_info "Updating $target_path..."
-        # Copy new binary
-        if cp "$source_path" "$target_path"; then
-            chmod "$mode" "$target_path"
-            chown "$owner:$group" "$target_path" 2>/dev/null || true
-            log_success "Updated $target_path"
-            return 0
-        else
-            log_error "Failed to update $target_path"
-            return 1
-        fi
-    else
-        log_info "$target_path is up to date, skipping"
+    log_info "Updating $target_path..."
+    # Copy new binary
+    if cp "$source_path" "$target_path"; then
+        chmod "$mode" "$target_path"
+        chown "$owner:$group" "$target_path" 2>/dev/null || true
+        log_success "Updated $target_path"
         return 0
+    else
+        log_error "Failed to update $target_path"
+        return 1
     fi
 }
 
@@ -935,7 +903,7 @@ update_binaries() {
         for binary_info in "${binaries_array[@]}"; do
             IFS=":" read -r binary owner group mode <<< "$binary_info"
             if [[ -f "${2}/usr/local/bin/${binary}" ]]; then
-                if update_binary_if_needed "$BIN_DIR/${binary}" "${2}/usr/local/bin/${binary}" "$owner" "$group" "$mode"; then
+                if update_binary "${2}/usr/local/bin/${binary}" "$BIN_DIR/${binary}" "$owner" "$group" "$mode"; then
                     updates_made=$((updates_made + 1))
                 fi
             fi
