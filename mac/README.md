@@ -53,8 +53,8 @@ After installation, files are located at:
   - `gnosis_vpn-ctl` - Control utility
 - Application: `/Applications/Gnosis VPN.app`
 - Configuration: `/etc/gnosisvpn/config.toml`
-- Logs Pre-install: `/Library/Logs/GnosisVPNInstaller/preinstall.log`
-- Logs Post-install: `/Library/Logs/GnosisVPNInstaller/postinstall.log`
+- Logs Pre-install: `/Library/Logs/GnosisVPN/installer/preinstall.log`
+- Logs Post-install: `/Library/Logs/GnosisVPN/installer/postinstall.log`
 
 ## Uninstallation
 
@@ -66,39 +66,6 @@ To completely remove Gnosis VPN from your system:
 cd mac
 sudo ./uninstall.sh
 ```
-
-The uninstall script will:
-
-- Back up your configuration to `~/gnosis-vpn-config-backup-*`
-- Remove binaries from `/usr/local/bin/`
-- Remove configuration from `/etc/gnosisvpn/`
-- Remove installation logs from `/Library/Logs/GnosisVPNInstaller/`
-- Forget the package receipt
-
-### Option 2: Manual Uninstallation
-
-If you prefer to uninstall manually:
-
-1. **Remove the binaries:**
-   ```bash
-   sudo rm -f /usr/local/bin/gnosis_vpn*
-   ```
-
-2. **Remove the configuration (backup first if needed):**
-   ```bash
-   sudo cp -R /etc/gnosisvpn ~/gnosis-vpn-config-backup
-   sudo rm -rf /etc/gnosisvpn
-   ```
-
-3. **Remove installation logs:**
-   ```bash
-   sudo rm -rf /Library/Logs/GnosisVPNInstaller
-   ```
-
-4. **Forget the package receipt:**
-   ```bash
-   sudo pkgutil --forget org.gnosis.vpn.client
-   ```
 
 ## Security
 

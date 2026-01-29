@@ -26,6 +26,7 @@ CONFIG_DIR="/etc/gnosisvpn"
 VERSION_FILE="${CONFIG_DIR}/version.txt"
 CONFIG_FILE="${CONFIG_DIR}/config.toml"
 BIN_DIR="/usr/local/bin"
+LOGS_DIR="/Library/Logs/GnosisVPN"
 
 # Colors for output
 RED='\033[0;31m'
@@ -363,7 +364,7 @@ start_service() {
         log_success "Service started successfully"
     else
         log_error "Service failed to start"
-        log_info "Check logs: tail -f /var/log/gnosisvpn/gnosisvpn.log"
+        log_info "Check logs: tail -f $LOGS_DIR/gnosisvpn.log"
         exit 1
     fi
 }
@@ -410,7 +411,7 @@ show_logs() {
     "service" | "info")
         log_info "Showing service logs (last 50 lines):"
         echo ""
-        tail -n 50 /var/log/gnosisvpn/gnosisvpn.log 2>/dev/null || {
+        tail -n 50 "$LOGS_DIR/gnosisvpn.log" 2>/dev/null || {
             log_error "Service log file not found"
             exit 1
         }
@@ -418,7 +419,7 @@ show_logs() {
     "error" | "errors")
         log_info "Showing error logs (last 50 lines):"
         echo ""
-        tail -n 50 /var/log/gnosisvpn/gnosisvpn.log 2>/dev/null || {
+        tail -n 50 "$LOGS_DIR/gnosisvpn.log" 2>/dev/null || {
             log_error "Error log file not found"
             exit 1
         }
@@ -426,7 +427,7 @@ show_logs() {
     "follow" | "tail")
         log_info "Following service logs (Ctrl+C to stop):"
         echo ""
-        tail -f /var/log/gnosisvpn/gnosisvpn.log 2>/dev/null || {
+        tail -f "$LOGS_DIR/gnosisvpn.log" 2>/dev/null || {
             log_error "Service log file not found"
             exit 1
         }

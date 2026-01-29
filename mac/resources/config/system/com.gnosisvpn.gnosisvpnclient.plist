@@ -48,9 +48,9 @@
     
     <!-- Logging Configuration -->
     <key>StandardOutPath</key>
-    <string>/var/log/gnosisvpn/gnosisvpn.log</string>
+    <string>/Library/Logs/GnosisVPN/gnosisvpn.log</string>
     <key>StandardErrorPath</key>
-    <string>/var/log/gnosisvpn/gnosisvpn.log</string>
+    <string>/Library/Logs/GnosisVPN/gnosisvpn.log</string>
     
     <!-- Environment Variables -->
     <key>EnvironmentVariables</key>

@@ -27,7 +27,7 @@ VPN service.
 - Automatic startup on system boot (`RunAtLoad=true`)
 - Automatic restart on crashes (`KeepAlive`)
 - Resource limits and security configuration
-- Logging to `/var/log/gnosisvpn/`
+- Logging to `/Library/Log/GnosisVPN/`
 - Runs as root with wheel group permissions
 
 ## Configuration Templates
