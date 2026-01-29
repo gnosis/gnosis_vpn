@@ -62,7 +62,7 @@ UI_STAGING_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/share/gnosisvpn")"
 UI_STAGED_ARCHIVE="${UI_STAGING_DIR}/gnosis_vpn-app.tar.gz"
 UI_TARGET_APP="$(join_path "$TARGET_VOLUME" "/Applications/Gnosis VPN.app")"
 
-INSTALLED_LOG_DIR_PATH="/var/log/gnosisvpn"
+INSTALLED_LOG_DIR_PATH="/Library/Logs/GnosisVPN"
 INSTALLED_LIB_DIR_PATH="/var/lib/gnosisvpn"
 
 
@@ -419,12 +419,6 @@ install_launchd_service() {
     if [[ ! -f "$source_plist" ]]; then
         source_plist="${SCRIPT_DIR}/../config/system/${plist_name}"
     fi
-    local log_dir="$INSTALLED_LOG_DIR_PATH"
-
-    # Create log directory
-    mkdir -p "$log_dir"
-    chmod 755 "$log_dir"
-    chown gnosisvpn:gnosisvpn "$log_dir" 2>/dev/null || true
 
     # Handle existing service (for updates/reinstalls)
     local service_was_running=false
@@ -513,7 +507,7 @@ install_launchd_service() {
             else
                 log_warn "Service loaded but may not be running yet"
                 log_info "This is normal if binaries haven't been downloaded yet"
-                log_info "Check logs: tail -f $log_dir/gnosisvpn.log"
+                log_info "Check logs: tail -f $INSTALLED_LOG_DIR_PATH/gnosisvpn.log"
             fi
         else
             log_error "Failed to load Gnosis VPN service after $max_attempts attempts"
@@ -678,11 +672,11 @@ check_service_status() {
             log_success "VPN process is running (PID: $pid)"
 
             # Check if logs are being created
-            if [[ -f "$INSTALLED_LOG_DIR_PATH/gnosis_vpn.log" ]]; then
+            if [[ -f "$INSTALLED_LOG_DIR_PATH/gnosisvpn.log" ]]; then
                 local log_size
-                log_size=$(wc -c < $INSTALLED_LOG_DIR_PATH/gnosis_vpn.log 2>/dev/null || echo "0")
+                log_size=$(wc -c < $INSTALLED_LOG_DIR_PATH/gnosisvpn.log 2>/dev/null || echo "0")
                 if [[ "$log_size" -gt 0 ]]; then
-                    log_success "Service is logging to $INSTALLED_LOG_DIR_PATH/gnosis_vpn.log"
+                    log_success "Service is logging to $INSTALLED_LOG_DIR_PATH/gnosisvpn.log"
                 else
                     log_info "Log file exists but is empty (service may be starting)"
                 fi

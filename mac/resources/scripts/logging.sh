@@ -15,7 +15,7 @@
 #
 
 # Default log directory and file
-INSTALLER_LOG_DIR="${INSTALLER_LOG_DIR:-/Library/Logs/GnosisVPNInstaller}"
+INSTALLER_LOG_DIR="${INSTALLER_LOG_DIR:-/Library/Logs/GnosisVPN/installer}"
 INSTALLER_LOG_FILE="${INSTALLER_LOG_FILE:-${INSTALLER_LOG_DIR}/installer.log}"
 
 # Setup logging for a script

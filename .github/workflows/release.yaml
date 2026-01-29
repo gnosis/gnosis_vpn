@@ -19,11 +19,6 @@ on:
         required: true
         type: string
         default: "latest"
-      sign:
-        description: "Sign the package"
-        required: true
-        type: boolean
-        default: true
 concurrency:
   group: release
   cancel-in-progress: false
@@ -92,14 +87,13 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - name: Setup GPG key for signing
-        if: inputs.sign
         run: |
           echo "${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}" > /tmp/gnosis_vpn_gpg_key.asc
           chmod 600 /tmp/gnosis_vpn_gpg_key.asc
       - name: Build Linux package
         shell: bash
         run: |
-          nix develop -c just all ${{ matrix.distribution }} ${{ matrix.architecture.nix }} ${{ inputs.sign || false }}
+          nix develop -c just all ${{ matrix.distribution }} ${{ matrix.architecture.nix }} true
         env:
           GH_TOKEN: ${{ github.token }}
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
@@ -116,7 +110,6 @@ jobs:
           name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}
           path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}
       - name: Upload Signature
-        if: inputs.sign
         uses: actions/upload-artifact@v5
         with:
           name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}.asc
@@ -144,13 +137,11 @@ jobs:
       - name: Create mac installer package
         shell: bash
         run: |
-          if [[ -z "${{ inputs.sign }}" ]] || [[ "${{ inputs.sign }}" = true ]]; then
-            echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER }}" | base64 --decode > gnosisvpn-developer.p12
-            echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_INSTALLER }}" | base64 --decode > gnosisvpn-installer.p12
-            export GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH=$(pwd)/gnosisvpn-developer.p12
-            export GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH=$(pwd)/gnosisvpn-installer.p12
-          fi
-          nix develop -c just all dmg aarch64-darwin ${{ inputs.sign || false }}
+          echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER }}" | base64 --decode > gnosisvpn-developer.p12
+          echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_INSTALLER }}" | base64 --decode > gnosisvpn-installer.p12
+          export GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH=$(pwd)/gnosisvpn-developer.p12
+          export GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH=$(pwd)/gnosisvpn-installer.p12
+          nix develop -c just all dmg aarch64-darwin true
           mv ./build/packages/GnosisVPN-Installer-*-signed.pkg "./build/packages/GnosisVPN-Installer.pkg"
           mv ./build/packages/GnosisVPN-Installer-*-signed.pkg.sha256 "./build/packages/GnosisVPN-Installer.pkg.sha256"
         env:

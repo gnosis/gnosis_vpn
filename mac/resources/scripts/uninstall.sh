@@ -21,7 +21,7 @@ NC='\033[0m' # No Color
 PKG_ID="com.gnosisvpn.gnosisvpnclient"
 BIN_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/gnosisvpn"
-LOG_DIR="/Library/Logs/GnosisVPNInstaller"
+LOG_DIR="/Library/Logs/GnosisVPN"
 
 # Logging functions
 log_info() {
@@ -63,8 +63,8 @@ confirm_uninstall() {
     echo "  - Binaries: $BIN_DIR/gnosis_vpn-root, $BIN_DIR/gnosis_vpn-worker, $BIN_DIR/gnosis_vpn-ctl, $BIN_DIR/gnosis_vpn-manager"
     echo "  - Launchd service: /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
     echo "  - Configuration: $CONFIG_DIR/"
-    echo "  - Service logs: /var/log/gnosisvpn/"
-    echo "  - Installation logs: $LOG_DIR/"
+    echo "  - Service logs: $LOG_DIR"
+    echo "  - Installation logs: $LOG_DIR/installer"
     echo "  - Package receipt: $PKG_ID"
     echo ""
     read -p "Are you sure you want to uninstall Gnosis VPN? [y/N] " -n 1 -r
@@ -156,7 +156,7 @@ cleanup_system_directories() {
     local directories=(
         "/var/run/gnosisvpn"
         "/var/lib/gnosisvpn/Library/Application Support/com.gnosisvpn.gnosisvpnclient/gnosisvpn-hopr.db"
-        "/var/log/gnosisvpn"
+        "$LOG_DIR"
     )
 
     for dir in "${directories[@]}"; do
@@ -314,22 +314,13 @@ remove_config() {
 
 # Remove logs
 remove_logs() {
-    log_info "Removing installation logs..."
-
+    log_info "Removing logs..."
     if [[ -d $LOG_DIR ]]; then
         rm -rf "$LOG_DIR"
         log_success "Removed $LOG_DIR"
     else
         log_warn "Log directory not found"
     fi
-
-    # Also remove service logs
-    local service_log_dir="/var/log/gnosisvpn"
-    if [[ -d $service_log_dir ]]; then
-        rm -rf "$service_log_dir"
-        log_success "Removed service logs: $service_log_dir"
-    fi
-
     echo ""
 }
 
@@ -406,7 +397,7 @@ verify_uninstall() {
     fi
 
     # Check system directories removal
-    local system_dirs=("/var/run/gnosisvpn" "/var/log/gnosisvpn")
+    local system_dirs=("/var/run/gnosisvpn" "$LOG_DIR")
     for dir in "${system_dirs[@]}"; do
         if [[ -d $dir ]]; then
             log_error "System directory still exists: $dir"
