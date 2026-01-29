@@ -127,7 +127,7 @@ test_config_templates() {
     run_test "config system directory exists" "[[ -d '$SCRIPT_DIR/resources/config/system' ]]"
     run_test "rotsee.toml.template exists" "[[ -f '$SCRIPT_DIR/resources/config/templates/rotsee.toml.template' ]]"
     run_test "dufour.toml.template exists" "[[ -f '$SCRIPT_DIR/resources/config/templates/dufour.toml.template' ]]"
-    run_test "launchd plist exists" "[[ -f '$SCRIPT_DIR/resources/config/system/org.gnosis.vpn.plist' ]]"
+    run_test "launchd plist exists" "[[ -f '$SCRIPT_DIR/resources/config/system/com.gnosisvpn.gnosisvpnclient.plist' ]]"
 
     echo ""
 }
@@ -136,7 +136,7 @@ test_config_templates() {
 test_plist_configuration() {
     log_info "Testing plist configuration..."
 
-    local plist_file="$SCRIPT_DIR/resources/config/system/org.gnosis.vpn.plist"
+    local plist_file="$SCRIPT_DIR/resources/config/system/com.gnosisvpn.gnosisvpnclient.plist"
 
     run_test "plist syntax is valid" "plutil -lint '$plist_file' >/dev/null 2>&1"
     run_test "plist has Label key" "grep -q '<key>Label</key>' '$plist_file'"

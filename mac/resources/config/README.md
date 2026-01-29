@@ -9,7 +9,7 @@ VPN installer.
 config/
 ├── README.md              # This file - documentation
 ├── system/               # System configuration files
-│   └── org.gnosis.vpn.plist  # LaunchD service configuration
+│   └── com.gnosisvpn.gnosisvpnclient.plist  # LaunchD service configuration
 └── templates/           # Configuration templates
     ├── dufour.toml.template   # Dufour network configuration template
     └── rotsee.toml.template   # Rotsee network configuration template
@@ -17,7 +17,7 @@ config/
 
 ## System Configuration Files
 
-### `system/org.gnosis.vpn.plist`
+### `system/com.gnosisvpn.gnosisvpnclient.plist`
 
 LaunchD service configuration for automatic startup and management of the Gnosis
 VPN service.
@@ -65,7 +65,7 @@ To customize the installer configuration:
 
 1. **Add new network templates**: Create new `.toml.template` files in
    `templates/`
-2. **Modify service behavior**: Edit `system/org.gnosis.vpn.plist`
+2. **Modify service behavior**: Edit `system/com.gnosisvpn.gnosisvpnclient.plist`
 3. **Update build process**: Modify references in `../build-pkg.sh` and
    `../scripts/postinstall`
 

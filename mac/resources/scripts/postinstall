@@ -443,7 +443,7 @@ install_launchd_service() {
 
     # Configuration
     local launchd_dir="/Library/LaunchDaemons"
-    local plist_name="org.gnosis.vpn.plist"
+    local plist_name="com.gnosisvpn.gnosisvpnclient.plist"
     local plist_path="${launchd_dir}/${plist_name}"
     # During installation, the plist is in the installer scripts directory
     local source_plist="${SCRIPT_DIR}/config/system/${plist_name}"
@@ -464,7 +464,7 @@ install_launchd_service() {
         log_info "Existing service found, preparing for update..."
 
         # Check if service is currently running
-        if launchctl print system/org.gnosis.vpn >/dev/null 2>&1; then
+        if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
             service_was_running=true
             log_info "Service is currently running, will restart after update"
         fi
@@ -525,7 +525,7 @@ install_launchd_service() {
 
             # Enable the service to start automatically
             log_info "Enabling service for automatic startup..."
-            if launchctl enable system/org.gnosis.vpn 2>/dev/null; then
+            if launchctl enable system/com.gnosisvpn.gnosisvpnclient 2>/dev/null; then
                 log_success "Service enabled for automatic startup"
             else
                 log_warn "Failed to enable service (it may already be enabled)"
@@ -533,7 +533,7 @@ install_launchd_service() {
 
             # Wait a moment and verify it's running
             sleep 3
-            if launchctl print system/org.gnosis.vpn >/dev/null 2>&1; then
+            if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
                 log_success "Service is running successfully"
 
                 # Check if the binary exists and is executable
@@ -545,7 +545,7 @@ install_launchd_service() {
             else
                 log_warn "Service loaded but may not be running yet"
                 log_info "This is normal if binaries haven't been downloaded yet"
-                log_info "Check logs: tail -f $log_dir/gnosis_vpn.log"
+                log_info "Check logs: tail -f $log_dir/gnosisvpn.log"
             fi
         else
             log_error "Failed to load Gnosis VPN service after $max_attempts attempts"
@@ -567,7 +567,7 @@ install_launchd_service() {
 verify_plist_deployment() {
     log_info "Verifying plist deployment..."
 
-    local plist_path="/Library/LaunchDaemons/org.gnosis.vpn.plist"
+    local plist_path="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
     local errors=0
 
     # Check if plist file exists
@@ -610,7 +610,7 @@ verify_plist_deployment() {
     fi
 
     # Check if service is loaded
-    if launchctl print system/org.gnosis.vpn >/dev/null 2>&1; then
+    if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
         log_success "Service is loaded in launchd"
     else
         log_warn "Service is not loaded (this may be normal if binaries aren't ready)"
@@ -668,7 +668,7 @@ configure_sudo_privileges() {
 uninstall_launchd_service() {
     log_info "Stopping Gnosis VPN service..."
 
-    local plist_path="/Library/LaunchDaemons/org.gnosis.vpn.plist"
+    local plist_path="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
 
     if [[ -f "$plist_path" ]]; then
         # Stop and unload the service
@@ -683,9 +683,9 @@ uninstall_launchd_service() {
 check_service_status() {
     log_info "Checking service status..."
 
-    if launchctl print system/org.gnosis.vpn >/dev/null 2>&1; then
+    if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
         local status_output
-        status_output=$(launchctl print system/org.gnosis.vpn)
+        status_output=$(launchctl print system/com.gnosisvpn.gnosisvpnclient)
 
         # Extract key information
         local state
@@ -731,7 +731,7 @@ check_service_status() {
         fi
     else
         log_warn "Service is not loaded in launchd"
-        log_info "Try loading manually: sudo launchctl bootstrap system /Library/LaunchDaemons/org.gnosis.vpn.plist"
+        log_info "Try loading manually: sudo launchctl bootstrap system /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
     fi
 }
 
@@ -1071,8 +1071,8 @@ print_summary() {
     echo ""
     log_info "Service Management:"
     log_info "  The VPN service will start automatically at boot"
-    log_info "  sudo launchctl kickstart system/org.gnosis.vpn  # Restart service"
-    log_info "  sudo launchctl bootout system/org.gnosis.vpn    # Stop service"
+    log_info "  sudo launchctl kickstart system/com.gnosisvpn.gnosisvpnclient  # Restart service"
+    log_info "  sudo launchctl bootout system/com.gnosisvpn.gnosisvpnclient    # Stop service"
     log_info "  gnosis_vpn-ctl status                           # Check VPN status"
     echo ""
     log_info "Management commands:"
@@ -1081,8 +1081,7 @@ print_summary() {
     log_info "  gnosis_vpn-manager version  # Show installed version"
     echo ""
     log_info "Logs:"
-    log_info "  tail -f $INSTALLED_LOG_DIR_PATH/gnosis_vpn.log      # Service logs"
-    log_info "  tail -f $INSTALLED_LOG_DIR_PATH/gnosis_vpn.error.log # Error logs"
+    log_info "  tail -f $INSTALLED_LOG_DIR_PATH/gnosisvpn.log      # Service logs"
     echo ""
     log_info "Log file: $INSTALLER_LOG_FILE"
 
