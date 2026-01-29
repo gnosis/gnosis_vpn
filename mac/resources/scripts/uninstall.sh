@@ -116,14 +116,6 @@ remove_system_user() {
         dscl . -delete "/Users/$username"
         log_success "Removed system user: $username"
 
-        # # !! DO not remove homedir, because it stores identities!
-        # # DO remove database dir to ensure a possible clean reinstall
-        # local database_dir
-        # database_dir="${homedir}/Library/Application Support/org.hoprnet.gnosisvpn/gnosisvpn-hopr.db"
-        # if [[ -d $database_dir ]]; then
-        #     log_info "Removing database directory: $database_dir"
-        #     rm -rf "$database_dir"
-        # fi
     else
         log_info "No system user '$username' found"
     fi
