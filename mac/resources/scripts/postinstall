@@ -1213,6 +1213,21 @@ setup_management_script() {
 }
 
 
+
+# Copy log rotation configuration for newsyslog
+copy_logs_rotation_conf() {
+    local src_conf="${SCRIPT_DIR}/../config/system/gnosisvpn.logrotate.conf"
+    local dest_conf="/etc/newsyslog.d/gnosisvpn.conf"
+    if [[ -f "$src_conf" ]]; then
+        cp "$src_conf" "$dest_conf"
+        chmod 644 "$dest_conf"
+        chown root:wheel "$dest_conf" 2>/dev/null || true
+        log_success "Installed log rotation config: $dest_conf"
+    else
+        log_warn "Log rotation config not found: $src_conf"
+    fi
+}
+
 # Main execution
 main() {
     # Determine installation type (fresh vs update)
@@ -1244,6 +1259,9 @@ main() {
 
     # Configure sudo privileges for service management
     configure_sudo_privileges
+
+    # Install log rotation config
+    copy_logs_rotation_conf
 
     # Validate service environment
     validate_service_environment
