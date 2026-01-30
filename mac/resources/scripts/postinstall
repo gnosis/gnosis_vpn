@@ -1216,7 +1216,7 @@ setup_management_script() {
 
 # Copy log rotation configuration for newsyslog
 copy_logs_rotation_conf() {
-    local src_conf="${SCRIPT_DIR}/../config/system/gnosisvpn.logrotate.conf"
+    local src_conf="${SCRIPT_DIR}/config/system/gnosisvpn.logrotate.conf"
     local dest_conf="/etc/newsyslog.d/gnosisvpn.conf"
     if [[ -f "$src_conf" ]]; then
         cp "$src_conf" "$dest_conf"
@@ -1225,6 +1225,8 @@ copy_logs_rotation_conf() {
         log_success "Installed log rotation config: $dest_conf"
     else
         log_warn "Log rotation config not found: $src_conf"
+        ls -alR "${SCRIPT_DIR}/config/system/" || true
+        ls -alR "${SCRIPT_DIR}/../config/system/" || true
     fi
 }
 
