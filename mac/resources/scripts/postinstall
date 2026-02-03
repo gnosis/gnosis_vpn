@@ -63,7 +63,7 @@ UI_STAGED_ARCHIVE="${UI_STAGING_DIR}/gnosis_vpn-app.tar.gz"
 UI_TARGET_APP="$(join_path "$TARGET_VOLUME" "/Applications/Gnosis VPN.app")"
 
 INSTALLED_LOG_DIR_PATH="/Library/Logs/GnosisVPN"
-INSTALLED_LIB_DIR_PATH="/var/lib/gnosisvpn"
+INSTALLED_LIB_DIR_PATH="/Library/Application Support/GnosisVPN"
 
 
 # Get installer version from package (if available) or use current date
@@ -273,11 +273,6 @@ create_system_user() {
     dscl . -create "/Users/$username" UniqueID "$uid"
     dscl . -create "/Users/$username" PrimaryGroupID 20  # staff group initially
     dscl . -create "/Users/$username" NFSHomeDirectory "$homedir"
-
-    # Create home directory
-    mkdir -p "$homedir"
-    chown "$username:staff" "$homedir"
-    chmod 750 "$homedir"
 
     # Hide user from login window and Users & Groups preferences
     dscl . -create "/Users/$username" IsHidden 1
@@ -856,16 +851,10 @@ create_config_symlink() {
 }
 
 copy_uninstall() {
-
     log_info "Copying uninstall script..."
-
-    local homedir="$INSTALLED_LIB_DIR_PATH"
-    mkdir -p "$homedir"
-    cp "${SCRIPT_DIR}/uninstall.sh" "$homedir/"
-    chmod 755 "$homedir/uninstall.sh"
-    chown root:wheel "$CONFIG_DIR" 2>/dev/null || true
-
-    log_success "Uninstall script copied to $homedir/uninstall.sh"
+    mkdir -p "$INSTALLED_LIB_DIR_PATH"
+    cp "${SCRIPT_DIR}/uninstall.sh" "$INSTALLED_LIB_DIR_PATH/uninstall.sh"
+    log_success "Uninstall script copied to $INSTALLED_LIB_DIR_PATH/uninstall.sh"
 }
 
 # Update binaries incrementally (only if changed)
@@ -947,9 +936,9 @@ set_permissions() {
 
     # Create and set permissions for state directory
     local state_dir="$INSTALLED_LIB_DIR_PATH"
-    mkdir -p "$state_dir"
     chown $username:$groupname "$state_dir"
-    chmod -R 775 "$state_dir"
+    chmod -R 700 "$state_dir"
+    chmod 755 "$state_dir/uninstall.sh"
     log_info "State directory created: $state_dir"
     log_success "Permissions and ownership set"
 }
@@ -1211,7 +1200,6 @@ setup_management_script() {
         log_success "Installed management script: gnosis_vpn-manager"
     fi
 }
-
 
 # Main execution
 main() {
