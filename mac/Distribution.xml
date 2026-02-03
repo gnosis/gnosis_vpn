@@ -11,7 +11,7 @@
     <pkg-ref id="com.gnosisvpn.gnosisvpnclient"/>
 
     <!-- Options -->
-    <options customize="allow" require-scripts="false" hostArchitectures="x86_64,arm64"/>
+    <options customize="never" require-scripts="false" hostArchitectures="x86_64,arm64"/>
 
     <!-- Welcome screen -->
     <welcome file="welcome.html" mime-type="text/html"/>
