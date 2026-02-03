@@ -13,6 +13,27 @@
     <!-- Options -->
     <options customize="allow" require-scripts="false" hostArchitectures="x86_64,arm64"/>
 
+    <!-- JavaScript for mutual exclusion -->
+    <script><![CDATA[
+        function choicesChanged() {
+            // Network mutual exclusion
+            if (choices.dufour.selected && choices.rotsee.selected) {
+                choices.rotsee.selected = false;
+            }
+            if (choices.rotsee.selected && choices.dufour.selected) {
+                choices.dufour.selected = false;
+            }
+
+            // Service mode mutual exclusion
+            if (choices.standard.selected && choices.debug.selected) {
+                choices.debug.selected = false;
+            }
+            if (choices.debug.selected && choices.standard.selected) {
+                choices.standard.selected = false;
+            }
+        }
+    ]]></script>
+
     <!-- Welcome screen -->
     <welcome file="welcome.html" mime-type="text/html"/>
 
@@ -60,10 +81,6 @@
             visible="true"
             enabled="true"
             selected="true">
-        <choice-reqs>
-            <requirement selected="!choices.dufour.selected"
-                        message="Please select only one network option"/>
-        </choice-reqs>
     </choice>
 
     <!-- Dufour network sub-choice -->
@@ -73,10 +90,6 @@
             visible="true"
             enabled="true"
             selected="false">
-        <choice-reqs>
-            <requirement selected="!choices.rotsee.selected"
-                        message="Please select only one network option"/>
-        </choice-reqs>
     </choice>
 
     <!-- Service mode selection choice (parent group) -->
@@ -94,10 +107,6 @@
             visible="true"
             enabled="true"
             selected="true">
-        <choice-reqs>
-            <requirement selected="!choices.standard.selected"
-                        message="Please select only one service mode"/>
-        </choice-reqs>
     </choice>
 
     <!-- Standard mode sub-choice -->
@@ -107,10 +116,6 @@
             visible="true"
             enabled="true"
             selected="false">
-        <choice-reqs>
-            <requirement selected="!choices.debug.selected"
-                        message="Please select only one service mode"/>
-        </choice-reqs>
     </choice>
 
     <!-- Component package reference -->
