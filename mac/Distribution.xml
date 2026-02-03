@@ -25,8 +25,14 @@
     <!-- Choices outline - what the user sees -->
     <choices-outline>
         <line choice="default">
-            <line choice="network"/>
-            <line choice="servicemode"/>
+            <line choice="network">
+                <line choice="rotsee"/>
+                <line choice="dufour"/>
+            </line>
+            <line choice="servicemode">
+                <line choice="debug"/>
+                <line choice="standard"/>
+            </line>
         </line>
     </choices-outline>
 
@@ -40,50 +46,58 @@
         <pkg-ref id="com.gnosisvpn.gnosisvpnclient"/>
     </choice>
 
-    <!-- Network selection choice -->
+    <!-- Network selection choice (parent group) -->
     <choice id="network"
             title="HOPR Network"
             description="Select the HOPR network configuration for your VPN destinations"
-            start_selected="rotsee"
-            start_enabled="true"
-            start_visible="true">
-        <choice-item id="rotsee"/>
-        <choice-item id="dufour"/>
+            visible="true"
+            enabled="true"
+            subitems="true">
     </choice>
 
     <!-- Rotsee network sub-choice -->
     <choice id="rotsee"
             title="Rotsee Network (Recommended)"
-            description="Connect to VPN nodes on Rotsee network - US, UK, Brazil, Australia, India, South Korea">
+            description="Connect to VPN nodes on Rotsee network - US, UK, Brazil, Australia, India, South Korea"
+            visible="true"
+            enabled="true"
+            selected="choices.dufour.selected == false">
     </choice>
 
     <!-- Dufour network sub-choice -->
     <choice id="dufour"
             title="Dufour Network"
-            description="Connect to VPN nodes on Dufour network - Germany, USA, Spain, India">
+            description="Connect to VPN nodes on Dufour network - Germany, USA, Spain, India"
+            visible="true"
+            enabled="true"
+            selected="false">
     </choice>
 
-    <!-- Service mode selection choice -->
+    <!-- Service mode selection choice (parent group) -->
     <choice id="servicemode"
             title="Service Configuration"
             description="Select the service configuration mode"
-            start_selected="debug"
-            start_enabled="true"
-            start_visible="true">
-        <choice-item id="debug"/>
-        <choice-item id="standard"/>
+            visible="true"
+            enabled="true"
+            subitems="true">
     </choice>
 
     <!-- Debug mode sub-choice -->
     <choice id="debug"
             title="Debug Mode (Recommended)"
-            description="Install with debug logging enabled - useful for troubleshooting">
+            description="Install with debug logging enabled - useful for troubleshooting"
+            visible="true"
+            enabled="true"
+            selected="choices.standard.selected == false">
     </choice>
 
     <!-- Standard mode sub-choice -->
     <choice id="standard"
             title="Standard Mode"
-            description="Install with standard logging configuration">
+            description="Install with standard logging configuration"
+            visible="true"
+            enabled="true"
+            selected="false">
     </choice>
 
     <!-- Component package reference -->
