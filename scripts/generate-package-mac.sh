@@ -17,7 +17,7 @@ set -euo pipefail
 
 RESOURCES_DIR="${SCRIPT_DIR}/../mac/resources"
 DISTRIBUTION_XML="${SCRIPT_DIR}/../mac/Distribution.xml"
-PKG_NAME="GnosisVPN-Installer-${GNOSISVPN_PACKAGE_VERSION}.pkg"
+PKG_NAME="GnosisVPN-Installer-v${GNOSISVPN_PACKAGE_VERSION}.pkg"
 SIGNED_PKG_NAME="${PKG_NAME%.pkg}-signed.pkg"
 COMPONENT_PKG="GnosisVPN.pkg"
 
