@@ -108,7 +108,6 @@
             title="Debug Mode (Recommended)"
             description="Install with debug logging enabled - useful for troubleshooting"
             visible="true"
-            enabled="true"
             start_selected="true"
             enabled="isDebugEnabled()">
     </choice>
@@ -118,8 +117,8 @@
             title="Standard Mode"
             description="Install with standard logging configuration"
             visible="true"
-            enabled="isStandardEnabled()"
-            start_selected="false">
+            start_selected="false"
+            enabled="isStandardEnabled()">
     </choice>
 
     <!-- Component package reference -->
