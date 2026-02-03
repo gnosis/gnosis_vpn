@@ -26,6 +26,7 @@
     <choices-outline>
         <line choice="default">
             <line choice="network"/>
+            <line choice="servicemode"/>
         </line>
     </choices-outline>
 
@@ -60,6 +61,29 @@
     <choice id="dufour"
             title="Dufour Network"
             description="Connect to VPN nodes on Dufour network - Germany, USA, Spain, India">
+    </choice>
+
+    <!-- Service mode selection choice -->
+    <choice id="servicemode"
+            title="Service Configuration"
+            description="Select the service configuration mode"
+            start_selected="debug"
+            start_enabled="true"
+            start_visible="true">
+        <choice-item id="debug"/>
+        <choice-item id="standard"/>
+    </choice>
+
+    <!-- Debug mode sub-choice -->
+    <choice id="debug"
+            title="Debug Mode (Recommended)"
+            description="Install with debug logging enabled - useful for troubleshooting">
+    </choice>
+
+    <!-- Standard mode sub-choice -->
+    <choice id="standard"
+            title="Standard Mode"
+            description="Install with standard logging configuration">
     </choice>
 
     <!-- Component package reference -->
