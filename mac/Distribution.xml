@@ -60,6 +60,10 @@
             visible="true"
             enabled="true"
             selected="true">
+        <choice-reqs>
+            <requirement selected="!choices.dufour.selected"
+                        message="Please select only one network option"/>
+        </choice-reqs>
     </choice>
 
     <!-- Dufour network sub-choice -->
@@ -69,6 +73,10 @@
             visible="true"
             enabled="true"
             selected="false">
+        <choice-reqs>
+            <requirement selected="!choices.rotsee.selected"
+                        message="Please select only one network option"/>
+        </choice-reqs>
     </choice>
 
     <!-- Service mode selection choice (parent group) -->
@@ -86,6 +94,10 @@
             visible="true"
             enabled="true"
             selected="true">
+        <choice-reqs>
+            <requirement selected="!choices.standard.selected"
+                        message="Please select only one service mode"/>
+        </choice-reqs>
     </choice>
 
     <!-- Standard mode sub-choice -->
@@ -95,6 +107,10 @@
             visible="true"
             enabled="true"
             selected="false">
+        <choice-reqs>
+            <requirement selected="!choices.debug.selected"
+                        message="Please select only one service mode"/>
+        </choice-reqs>
     </choice>
 
     <!-- Component package reference -->
