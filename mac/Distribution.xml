@@ -17,18 +17,18 @@
     <script><![CDATA[
         function choicesChanged() {
             // Network mutual exclusion
-            if (choices.dufour.selected && choices.rotsee.selected) {
+            if (choices.dufour.selected) {
                 choices.rotsee.selected = false;
             }
-            if (choices.rotsee.selected && choices.dufour.selected) {
+            if (choices.rotsee.selected) {
                 choices.dufour.selected = false;
             }
 
             // Service mode mutual exclusion
-            if (choices.standard.selected && choices.debug.selected) {
+            if (choices.standard.selected) {
                 choices.debug.selected = false;
             }
-            if (choices.debug.selected && choices.standard.selected) {
+            if (choices.debug.selected) {
                 choices.standard.selected = false;
             }
         }
@@ -56,11 +56,10 @@
         </line>
     </choices-outline>
 
-    <!-- Default choice (always selected, hidden) -->
+    <!-- Default choice -->
     <choice id="default"
             title="Gnosis VPN Client"
             description="Gnosis VPN client binaries and configuration"
-            visible="false"
             enabled="true"
             selected="true">
         <pkg-ref id="com.gnosisvpn.gnosisvpnclient"/>
