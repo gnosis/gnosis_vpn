@@ -13,6 +13,39 @@
     <!-- Options -->
     <options customize="allow" require-scripts="false" hostArchitectures="x86_64,arm64"/>
 
+    <!-- JavaScript functions for choice handling -->
+    <script><![CDATA[
+        function choicesPaneEntered() {
+            // Set default selections
+            if (choices.network.visible) {
+                if (!choices.rotsee.selected && !choices.dufour.selected) {
+                    choices.rotsee.selected = true;
+                }
+            }
+            if (choices.servicemode.visible) {
+                if (!choices.debug.selected && !choices.standard.selected) {
+                    choices.debug.selected = true;
+                }
+            }
+        }
+
+        function choicesChanged() {
+            // Ensure only one network is selected
+            if (choices.rotsee.selected) {
+                choices.dufour.selected = false;
+            } else if (choices.dufour.selected) {
+                choices.rotsee.selected = false;
+            }
+
+            // Ensure only one service mode is selected
+            if (choices.debug.selected) {
+                choices.standard.selected = false;
+            } else if (choices.standard.selected) {
+                choices.debug.selected = false;
+            }
+        }
+    ]]></script>
+
     <!-- Welcome screen -->
     <welcome file="welcome.html" mime-type="text/html"/>
 
@@ -24,15 +57,14 @@
 
     <!-- Choices outline - what the user sees -->
     <choices-outline>
-        <line choice="default">
-            <line choice="network">
-                <line choice="rotsee"/>
-                <line choice="dufour"/>
-            </line>
-            <line choice="servicemode">
-                <line choice="debug"/>
-                <line choice="standard"/>
-            </line>
+        <line choice="default"/>
+        <line choice="network">
+            <line choice="rotsee"/>
+            <line choice="dufour"/>
+        </line>
+        <line choice="servicemode">
+            <line choice="debug"/>
+            <line choice="standard"/>
         </line>
     </choices-outline>
 
@@ -51,8 +83,8 @@
             title="HOPR Network"
             description="Select the HOPR network configuration for your VPN destinations"
             visible="true"
-            enabled="true"
-            subitems="true">
+            enabled="false"
+            start_selected="false">
     </choice>
 
     <!-- Rotsee network sub-choice -->
@@ -61,7 +93,8 @@
             description="Connect to VPN nodes on Rotsee network - US, UK, Brazil, Australia, India, South Korea"
             visible="true"
             enabled="true"
-            selected="choices.dufour.selected == false">
+            selected="true"
+            start_selected="true">
     </choice>
 
     <!-- Dufour network sub-choice -->
@@ -78,8 +111,8 @@
             title="Service Configuration"
             description="Select the service configuration mode"
             visible="true"
-            enabled="true"
-            subitems="true">
+            enabled="false"
+            start_selected="false">
     </choice>
 
     <!-- Debug mode sub-choice -->
@@ -88,7 +121,8 @@
             description="Install with debug logging enabled - useful for troubleshooting"
             visible="true"
             enabled="true"
-            selected="choices.standard.selected == false">
+            selected="true"
+            start_selected="true">
     </choice>
 
     <!-- Standard mode sub-choice -->
@@ -108,6 +142,32 @@
              onConclusion="none">
         #GnosisVPN.pkg
     </pkg-ref>
+
+    <!-- Installation requirements - pass choices to scripts as environment variables -->
+    <installation-check script="choicesCheck()"/>
+
+    <script><![CDATA[
+        function choicesCheck() {
+            // Set environment variables based on user choices
+            if (choices.rotsee.selected) {
+                system.env.INSTALLER_CHOICE_NETWORK = "rotsee";
+            } else if (choices.dufour.selected) {
+                system.env.INSTALLER_CHOICE_NETWORK = "dufour";
+            } else {
+                system.env.INSTALLER_CHOICE_NETWORK = "rotsee"; // default
+            }
+
+            if (choices.debug.selected) {
+                system.env.INSTALLER_CHOICE_SERVICEMODE = "debug";
+            } else if (choices.standard.selected) {
+                system.env.INSTALLER_CHOICE_SERVICEMODE = "standard";
+            } else {
+                system.env.INSTALLER_CHOICE_SERVICEMODE = "debug"; // default
+            }
+
+            return true;
+        }
+    ]]></script>
 
     <!-- Localization (default English) -->
     <localization>
