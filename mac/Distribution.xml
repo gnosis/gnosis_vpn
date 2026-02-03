@@ -17,18 +17,14 @@
     <script><![CDATA[
         // LOGIC: An option is clickable (enabled) only if its counterpart is NOT selected.
 
-        // 1. Network Group Logic
         function isRotseeEnabled() {
-            // Rotsee can be clicked only if Dufour is NOT checked
             return !choices['dufour'].selected;
         }
 
         function isDufourEnabled() {
-            // Dufour can be clicked only if Rotsee is NOT checked
             return !choices['rotsee'].selected;
         }
 
-        // 2. Service Mode Group Logic
         function isDebugEnabled() {
             return !choices['standard'].selected;
         }
@@ -92,7 +88,7 @@
             description="Connect to VPN nodes on the Dufour network - Germany, USA, Spain, India"
             visible="true"
             start_selected="false"
-            enabled="isDufourEnabled()">
+            enabled="false">
     </choice>
 
     <!-- Service mode selection choice (parent group) -->
@@ -100,7 +96,8 @@
             title="Service Configuration"
             description="Select the service configuration mode"
             visible="true"
-            enabled="false">
+            enabled="false"
+            start_expanded="true">
     </choice>
 
     <!-- Debug mode sub-choice -->
