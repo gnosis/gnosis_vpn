@@ -381,9 +381,28 @@ build_component_package() {
 build_distribution_package() {
     log_info "Building distribution package with custom UI..."
 
+    # Prepare distribution resources in build directory to avoid modifying source files
+    local distribution_dir="${BUILD_DIR}/distribution"
+    mkdir -p "$distribution_dir"
+
+    if [[ -d "${RESOURCES_DIR}/distribution" ]]; then
+        cp -R "${RESOURCES_DIR}/distribution/" "$distribution_dir/"
+    else
+        log_error "Distribution resources directory not found."
+        exit 1
+    fi
+
+    # Generate welcome.html from template
+    if [[ -f "${distribution_dir}/welcome.html" ]]; then
+        sed -i "s/__GNOSISVPN_APP_VERSION__/v${GNOSISVPN_APP_VERSION}/g" "$distribution_dir/welcome.html"
+        sed -i "s/__GNOSISVPN_CLI_VERSION__/v${GNOSISVPN_CLI_VERSION}/g" "$distribution_dir/welcome.html"
+    else
+        log_warn "welcome.html not found, using default if available"
+    fi
+
     productbuild \
         --distribution "$DISTRIBUTION_XML" \
-        --resources "$RESOURCES_DIR" \
+        --resources "$distribution_dir" \
         --package-path "${BUILD_DIR}/packages" \
         --version "$GNOSISVPN_PACKAGE_VERSION" \
         "${BUILD_DIR}/packages/${PKG_NAME}"
