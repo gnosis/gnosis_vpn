@@ -35,7 +35,7 @@
     ]]></script>
 
     <!-- Include the icon in resources -->
-    <background file="icon_256x256.png" mime-type="image/png" alignment="topleft" scaling="none"/>
+    <resource mime-type="image/png" kind="file">icon_256x256.png</resource>
 
     <!-- Welcome screen -->
     <welcome file="welcome.html" mime-type="text/html"/>
