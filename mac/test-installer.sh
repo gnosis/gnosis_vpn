@@ -111,6 +111,16 @@ test_build_structure() {
     # Note: Package name might have version, so check for .pkg extension
     run_test "Component package exists" "[[ -n \$(find '${BUILD_DIR}/packages' -name 'GnosisVPN.pkg' -print -quit) ]]"
     run_test "Distribution package exists" "[[ -n \$(find '${BUILD_DIR}/packages' -name 'GnosisVPN-Installer-*.pkg' -print -quit) ]]"
+
+    # SHA256 Checksum Validation
+    local checksum_file=$(find "${BUILD_DIR}/packages" -name "GnosisVPN-Installer-*.pkg.sha256" -print -quit)
+    if [[ -n "$checksum_file" ]]; then
+        run_test "Checksum file exists" "[[ -f '$checksum_file' ]]"
+        # Check if the file contains two fields (hash and filename)
+        run_test "Checksum format includes filename" "grep -qE '^[a-f0-9]{64}  .+' '$checksum_file'"
+    else
+        log_test "Skipping checksum format check (no .sha256 file found)"
+    fi
 }
 
 # 3. Signing Validation (Optional)

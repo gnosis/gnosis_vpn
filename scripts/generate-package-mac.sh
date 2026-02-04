@@ -516,7 +516,10 @@ print_platform_summary() {
         package_path="${BUILD_DIR}/packages/${SIGNED_PKG_NAME}"
     fi
     local sha256
-    sha256=$(shasum -a 256 "$package_path" | cut -d' ' -f1 | tee "$package_path".sha256)
+    # Generate checksum with filename relative to the dir, for standard verification
+    (cd "$(dirname "$package_path")" && shasum -a 256 "$(basename "$package_path")") > "$package_path".sha256
+    # Extract just the hash for the summary display
+    sha256=$(cut -d' ' -f1 "$package_path".sha256)
     pkg_size=$(du -h "$package_path" | cut -f1)
     echo "Package:           ${package_path}"
     echo "Package size:      ${pkg_size}"
