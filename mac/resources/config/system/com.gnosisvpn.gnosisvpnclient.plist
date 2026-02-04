@@ -63,12 +63,12 @@
         <string>/usr/local/bin/gnosis_vpn-worker</string>
         <key>GNOSISVPN_WORKER_USER</key>
         <string>gnosisvpn</string>
-        <key>HOME</key>
-        <string>/var/lib/gnosisvpn</string>
+        <key>GNOSISVPN_HOME</key>
+        <string>/Library/Application Support/GnosisVPN</string>
         <key>RUST_LOG</key>
         <string>info</string>
         <key>TMPDIR</key>
-        <string>/var/lib/gnosisvpn</string>
+        <string>/Library/Application Support/GnosisVPN</string>
     </dict>
     
     <!-- Security -->
