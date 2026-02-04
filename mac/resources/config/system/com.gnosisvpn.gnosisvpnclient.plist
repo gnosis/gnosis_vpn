@@ -44,7 +44,7 @@
     
     <!-- Working Directory -->
     <key>WorkingDirectory</key>
-    <string>/var/lib/gnosisvpn</string>
+    <string>/Library/Application Support/GnosisVPN</string>
     
     <!-- Logging Configuration -->
     <key>StandardOutPath</key>
