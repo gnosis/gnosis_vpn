@@ -386,7 +386,7 @@ build_distribution_package() {
     mkdir -p "$distribution_dir"
 
     if [[ -d "${RESOURCES_DIR}/distribution" ]]; then
-        cp -R "${RESOURCES_DIR}/distribution/" "$distribution_dir/"
+        cp -R "${RESOURCES_DIR}/distribution" "$BUILD_DIR"
     else
         log_error "Distribution resources directory not found."
         exit 1
