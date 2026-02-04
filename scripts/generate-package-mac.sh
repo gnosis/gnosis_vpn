@@ -396,6 +396,7 @@ build_distribution_package() {
         log_error "Failed to create distribution package"
         exit 1
     fi
+
 }
 
 # Sign package
