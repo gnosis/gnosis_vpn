@@ -429,7 +429,7 @@ install_launchd_service() {
     # Parameterize plist based on service mode
     if [[ "$SERVICEMODE" == "debug" ]]; then
         log_info "Service mode: debug. Enabling debug logging in plist."
-        sed -i '' 's/<string>info</string>/<string>debug</string>/g' "$source_plist"
+        sed -i '' 's|<string>info</string>|<string>debug</string>|g' "$source_plist"
     fi
 
     # Handle existing service (for updates/reinstalls)
