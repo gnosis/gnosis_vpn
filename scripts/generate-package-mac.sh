@@ -18,7 +18,6 @@ set -euo pipefail
 RESOURCES_DIR="${SCRIPT_DIR}/../mac/resources"
 DISTRIBUTION_XML="${SCRIPT_DIR}/../mac/Distribution.xml"
 PKG_NAME="GnosisVPN-Installer-v${GNOSISVPN_PACKAGE_VERSION}.pkg"
-SIGNED_PKG_NAME="${PKG_NAME%.pkg}-signed.pkg"
 COMPONENT_PKG="GnosisVPN.pkg"
 
 # Keychain
@@ -432,10 +431,12 @@ sign_platform_package() {
             log_info "Found signing certificate: $signing_identity"
 
             # Sign the package
-            if productsign --sign "$signing_identity" --keychain "${KEYCHAIN_NAME}" "${BUILD_DIR}/packages/$PKG_NAME" "${BUILD_DIR}/packages/${SIGNED_PKG_NAME}"; then
-                log_success "Package signed successfully: ${SIGNED_PKG_NAME}"
+            signed_pkg_name="${PKG_NAME%.pkg}-signed.pkg"
+            if productsign --sign "$signing_identity" --keychain "${KEYCHAIN_NAME}" "${BUILD_DIR}/packages/$PKG_NAME" "${BUILD_DIR}/packages/${signed_pkg_name}"; then
+                mv "${BUILD_DIR}/packages/${signed_pkg_name}" "${BUILD_DIR}/packages/${PKG_NAME}"
+                log_success "Package signed successfully: ${PKG_NAME}"
                 log_info "Verifying package signature..."
-                if pkgutil --check-signature "${BUILD_DIR}/packages/${SIGNED_PKG_NAME}"; then
+                if pkgutil --check-signature "${BUILD_DIR}/packages/${PKG_NAME}"; then
                     log_success "Signature verification passed"
                     echo ""
                 else
@@ -459,7 +460,7 @@ sign_platform_package() {
 notarize_package() {
     log_info "Submitting package for notarization to Apple (this may take a while)..."
     notary_json="$(
-    xcrun notarytool submit "${BUILD_DIR}/packages/${SIGNED_PKG_NAME}" \
+    xcrun notarytool submit "${BUILD_DIR}/packages/${PKG_NAME}" \
         --apple-id "$GNOSISVPN_APPLE_ID" \
         --team-id "$GNOSISVPN_APPLE_TEAM_ID" \
         --password "$GNOSISVPN_APPLE_PASSWORD" \
@@ -496,7 +497,7 @@ notarize_package() {
 staple_ticket() {
     log_info "Stapling notarization ticket to package..."
 
-    if xcrun stapler staple -v "${BUILD_DIR}/packages/${SIGNED_PKG_NAME}"; then
+    if xcrun stapler staple -v "${BUILD_DIR}/packages/${PKG_NAME}"; then
         log_success "Notarization ticket stapled successfully"
         echo ""
     else
@@ -504,7 +505,7 @@ staple_ticket() {
         log_warn "Failed to staple ticket (exit code: $exit_code)"
         log_warn "Package is still valid, but requires internet for verification"
         log_info "To check stapler status manually, run:"
-        log_info "  xcrun stapler validate '${BUILD_DIR}/packages/${SIGNED_PKG_NAME}'"
+        log_info "  xcrun stapler validate '${BUILD_DIR}/packages/${PKG_NAME}'"
         echo ""
     fi
 }
@@ -512,9 +513,6 @@ staple_ticket() {
 # Print build summary
 print_platform_summary() {
     package_path="${BUILD_DIR}/packages/${PKG_NAME}"
-    if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then
-        package_path="${BUILD_DIR}/packages/${SIGNED_PKG_NAME}"
-    fi
     local sha256
     # Generate checksum with filename relative to the dir, for standard verification
     (cd "$(dirname "$package_path")" && shasum -a 256 "$(basename "$package_path")") > "$package_path".sha256
