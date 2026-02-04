@@ -34,8 +34,9 @@
         }
     ]]></script>
 
-    <!-- Include the icon in resources -->
-    <resource mime-type="image/png" kind="file">icon_256x256.png</resource>
+    <!-- Installer background -->
+    <background file="icon_bg_160x160.png" mime-type="image/png" alignment="bottomleft" scaling="none"/>
+    <background-darkAqua file="icon_bg_white_160x160.png" mime-type="image/png" alignment="bottomleft" scaling="none"/>
 
     <!-- Welcome screen -->
     <welcome file="welcome.html" mime-type="text/html"/>
