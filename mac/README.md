@@ -43,6 +43,7 @@ The installer scripts support these environment variables:
 
 - `INSTALLER_CHOICE_NETWORK`: Network selection ("rotsee" or "dufour", default:
   "rotsee")
+- `INSTALLER_CHOICE_SERVICEMODE`: Service mode ( "debug" or "standard", default: "debug")
 
 ### Installation Locations
 

@@ -419,21 +419,17 @@ install_launchd_service() {
     local plist_name="com.gnosisvpn.gnosisvpnclient.plist"
     local plist_path="${launchd_dir}/${plist_name}"
 
-    # Select source plist based on service mode
-    local source_plist_name
-    if [[ "$SERVICEMODE" == "debug" ]]; then
-        source_plist_name="com.gnosisvpn.gnosisvpnclient-debug.plist"
-    else
-        source_plist_name="com.gnosisvpn.gnosisvpnclient.plist"
-    fi
-
-    log_info "Using plist template: $source_plist_name (service mode: $SERVICEMODE)"
-
     # During installation, the plist is in the installer scripts directory
-    local source_plist="${SCRIPT_DIR}/config/system/${source_plist_name}"
+    local source_plist="${SCRIPT_DIR}/config/system/${plist_name}"
     # Fallback to development location if not found (for testing)
-    if [[ ! -f "$source_plist" ]]; then
-        source_plist="${SCRIPT_DIR}/../config/system/${source_plist_name}"
+    # if [[ ! -f "$plist_path" ]]; then
+    #     plist_path="${SCRIPT_DIR}/../config/system/${plist_name}"
+    # fi
+
+    # Parameterize plist based on service mode
+    if [[ "$SERVICEMODE" == "debug" ]]; then
+        log_info "Service mode: debug. Enabling debug logging in plist."
+        sed -i 's/<string>info</string>/<string>debug</string>/g' "$source_plist"
     fi
 
     # Handle existing service (for updates/reinstalls)
