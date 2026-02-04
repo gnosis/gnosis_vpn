@@ -128,6 +128,7 @@ test_config_templates() {
     run_test "rotsee.toml.template exists" "[[ -f '$SCRIPT_DIR/resources/config/templates/rotsee.toml.template' ]]"
     run_test "dufour.toml.template exists" "[[ -f '$SCRIPT_DIR/resources/config/templates/dufour.toml.template' ]]"
     run_test "launchd plist exists" "[[ -f '$SCRIPT_DIR/resources/config/system/com.gnosisvpn.gnosisvpnclient.plist' ]]"
+    run_test "launchd debug plist exists" "[[ -f '$SCRIPT_DIR/resources/config/system/com.gnosisvpn.gnosisvpnclient-debug.plist' ]]"
 
     echo ""
 }
@@ -149,6 +150,19 @@ test_plist_configuration() {
     run_test "plist uses system group" "grep -A1 '<key>GroupName</key>' '$plist_file' | grep -q '<string>gnosisvpn</string>'"
     run_test "plist uses correct working directory" "grep -A1 '<key>WorkingDirectory</key>' '$plist_file' | grep -q '<string>/var/lib/gnosisvpn</string>'"
 
+    # Test debug plist
+    local debug_plist_file="$SCRIPT_DIR/resources/config/system/com.gnosisvpn.gnosisvpnclient-debug.plist"
+
+    run_test "debug plist syntax is valid" "plutil -lint '$debug_plist_file' >/dev/null 2>&1"
+    run_test "debug plist has Label key" "grep -q '<key>Label</key>' '$debug_plist_file'"
+    run_test "debug plist has ProgramArguments" "grep -q '<key>ProgramArguments</key>' '$debug_plist_file'"
+    run_test "debug plist has RunAtLoad" "grep -q '<key>RunAtLoad</key>' '$debug_plist_file'"
+    run_test "debug plist has KeepAlive" "grep -q '<key>KeepAlive</key>' '$debug_plist_file'"
+    run_test "debug plist references correct binary" "grep -q '/usr/local/bin/gnosis_vpn' '$debug_plist_file'"
+
+    echo ""
+}
+
     echo ""
 }
 
@@ -164,6 +178,8 @@ test_system_user_functions() {
     run_test "postinstall has setup_user_permissions function" "grep -q 'setup_user_permissions()' '$postinstall'"
     run_test "postinstall uses dscl commands" "grep -q 'dscl .' '$postinstall'"
     run_test "postinstall uses dseditgroup" "grep -q 'dseditgroup' '$postinstall'"
+    run_test "postinstall handles SERVICEMODE" "grep -q 'SERVICEMODE' '$postinstall'"
+    run_test "postinstall selects debug plist" "grep -q 'com.gnosisvpn.gnosisvpnclient-debug.plist' '$postinstall'"
 
     local uninstall="$SCRIPT_DIR/uninstall.sh"
     run_test "uninstall has remove_system_user function" "grep -q 'remove_system_user()' '$uninstall'"
@@ -222,6 +238,10 @@ test_distribution_xml() {
     run_test "Distribution.xml has title" "grep -q '<title>' '$SCRIPT_DIR/Distribution.xml'"
     run_test "Distribution.xml has organization" "grep -q '<organization>' '$SCRIPT_DIR/Distribution.xml'"
     run_test "Distribution.xml has pkg-ref" "grep -q '<pkg-ref' '$SCRIPT_DIR/Distribution.xml'"
+    run_test "Distribution.xml has network choice" "grep -q 'choice id=\"network\"' '$SCRIPT_DIR/Distribution.xml'"
+    run_test "Distribution.xml has servicemode choice" "grep -q 'choice id=\"servicemode\"' '$SCRIPT_DIR/Distribution.xml'"
+    run_test "Distribution.xml has debug choice" "grep -q 'choice id=\"debug\"' '$SCRIPT_DIR/Distribution.xml'"
+    run_test "Distribution.xml has standard choice" "grep -q 'choice id=\"standard\"' '$SCRIPT_DIR/Distribution.xml'"
 
     echo ""
 }

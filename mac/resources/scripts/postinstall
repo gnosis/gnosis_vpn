@@ -17,6 +17,7 @@
 #
 # Environment variables from Distribution.xml choices:
 #   INSTALLER_CHOICE_NETWORK: "rotsee" or "dufour"
+#   INSTALLER_CHOICE_SERVICEMODE: "debug" or "standard"
 
 set -euo pipefail
 
@@ -58,6 +59,7 @@ TEMPLATE_DIR_BUNDLE="${SCRIPT_DIR}/../config/templates"
 TEMPLATE_DIR_INSTALLED="${CONFIG_DIR}/templates"
 BIN_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/bin")"
 NETWORK="${INSTALLER_CHOICE_NETWORK:-rotsee}"
+SERVICEMODE="${INSTALLER_CHOICE_SERVICEMODE:-debug}"
 UI_STAGING_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/share/gnosisvpn")"
 UI_STAGED_ARCHIVE="${UI_STAGING_DIR}/gnosis_vpn-app.tar.gz"
 UI_TARGET_APP="$(join_path "$TARGET_VOLUME" "/Applications/Gnosis VPN.app")"
@@ -81,12 +83,20 @@ if [[ ! "$NETWORK" =~ ^(rotsee|dufour)$ ]]; then
     exit 1
 fi
 
+# Validate service mode selection (whitelist)
+if [[ ! "$SERVICEMODE" =~ ^(debug|standard)$ ]]; then
+    log_error "Invalid service mode selection: $SERVICEMODE"
+    log_info "Valid options: debug, standard"
+    exit 1
+fi
+
 log_info "Install package: $PACKAGE_PATH"
 log_info "Target volume: $TARGET_VOLUME"
 log_info "Binary directory: $BIN_DIR"
 log_info "Configuration directory: $CONFIG_DIR"
 log_info "Configuration file: $CONFIG_FILE"
 log_info "Network: $NETWORK"
+log_info "Service mode: $SERVICEMODE"
 
 # Rollback mechanism
 ROLLBACK_STEPS=()
@@ -413,11 +423,22 @@ install_launchd_service() {
     local launchd_dir="/Library/LaunchDaemons"
     local plist_name="com.gnosisvpn.gnosisvpnclient.plist"
     local plist_path="${launchd_dir}/${plist_name}"
+
+    # Select source plist based on service mode
+    local source_plist_name
+    if [[ "$SERVICEMODE" == "debug" ]]; then
+        source_plist_name="com.gnosisvpn.gnosisvpnclient-debug.plist"
+    else
+        source_plist_name="com.gnosisvpn.gnosisvpnclient.plist"
+    fi
+
+    log_info "Using plist template: $source_plist_name (service mode: $SERVICEMODE)"
+
     # During installation, the plist is in the installer scripts directory
-    local source_plist="${SCRIPT_DIR}/config/system/${plist_name}"
+    local source_plist="${SCRIPT_DIR}/config/system/${source_plist_name}"
     # Fallback to development location if not found (for testing)
     if [[ ! -f "$source_plist" ]]; then
-        source_plist="${SCRIPT_DIR}/../config/system/${plist_name}"
+        source_plist="${SCRIPT_DIR}/../config/system/${source_plist_name}"
     fi
 
     # Handle existing service (for updates/reinstalls)
