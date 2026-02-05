@@ -59,7 +59,7 @@ TEMPLATE_DIR_BUNDLE="${SCRIPT_DIR}/../config/templates"
 TEMPLATE_DIR_INSTALLED="${CONFIG_DIR}/templates"
 BIN_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/bin")"
 NETWORK="${INSTALLER_CHOICE_NETWORK:-rotsee}"
-SERVICEMODE="${INSTALLER_CHOICE_SERVICEMODE:-debug}"
+SERVICEMODE="${INSTALLER_CHOICE_SERVICEMODE:-standard}"
 UI_STAGING_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/share/gnosisvpn")"
 UI_STAGED_ARCHIVE="${UI_STAGING_DIR}/gnosis_vpn-app.tar.gz"
 UI_TARGET_APP="$(join_path "$TARGET_VOLUME" "/Applications/Gnosis VPN.app")"
@@ -84,6 +84,11 @@ if [[ ! "$NETWORK" =~ ^(rotsee|dufour)$ ]]; then
 fi
 
 # Validate service mode selection (whitelist)
+if [[ -f "/tmp/gnosis_install_choices" ]]; then
+    log_info "Loading installer choices from temporary file..."
+    source "/tmp/gnosis_install_choices"
+fi
+
 if [[ ! "$SERVICEMODE" =~ ^(debug|standard)$ ]]; then
     log_error "Invalid service mode selection: $SERVICEMODE"
     log_info "Valid options: debug, standard"
@@ -428,9 +433,13 @@ install_launchd_service() {
 
     # Parameterize plist based on service mode
     if [[ "$SERVICEMODE" == "debug" ]]; then
-        log_info "Service mode: debug. Enabling debug logging in plist."
+        log_info "Enabling debug logging"
         sed -i '' 's|<string>info</string>|<string>debug</string>|g' "$source_plist"
+    else
+        log_info "Enabling standard logging"
+        sed -i '' 's|<string>debug</string>|<string>info</string>|g' "$source_plist"
     fi
+    sed -i '' "s|__NETWORK_NAME__|$NETWORK|g" "$source_plist"
 
     # Handle existing service (for updates/reinstalls)
     local service_was_running=false

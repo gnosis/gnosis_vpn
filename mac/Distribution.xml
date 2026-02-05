@@ -17,19 +17,33 @@
     <script><![CDATA[
         // LOGIC: An option is clickable (enabled) only if its counterpart is NOT selected.
 
+        function updateState() {
+             try {
+                 var log_level = choices['debug'].selected ? 'debug' : 'standard';
+                 var network = choices['rotsee'].selected ? 'rotsee' : 'dufour';
+                 // Persist choices to a temporary file for postinstall script to read
+                 system.run('/bin/sh', '-c', 'echo "INSTALLER_CHOICE_SERVICEMODE=' + log_level + '\nINSTALLER_CHOICE_NETWORK=' + network + '" > /tmp/gnosis_install_choices');
+             } catch(e) {}
+             return true;
+        }
+
         function isRotseeEnabled() {
+            updateState();
             return !choices['dufour'].selected;
         }
 
         function isDufourEnabled() {
+            updateState();
             return !choices['rotsee'].selected;
         }
 
         function isDebugEnabled() {
+            updateState();
             return !choices['standard'].selected;
         }
 
         function isStandardEnabled() {
+            updateState();
             return !choices['debug'].selected;
         }
     ]]></script>
@@ -64,7 +78,7 @@
     <choice id="default"
             title="Gnosis VPN Client"
             description="Gnosis VPN client binaries and configuration"
-            enabled="true"
+            enabled="updateState()"
             selected="true">
         <pkg-ref id="com.gnosisvpn.gnosisvpnclient"/>
     </choice>
