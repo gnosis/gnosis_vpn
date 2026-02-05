@@ -1,20 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Welcome to Gnosis VPN</title>
-    <style>
+    <title>Installation Information</title>
+    <style type="text/css">
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           "Helvetica Neue", Arial, sans-serif;
         line-height: 1.3;
         color: #333;
         background: #fff;
-      }
-
-      .logo {
-        text-align: center;
       }
 
       h1 {
@@ -113,37 +109,44 @@
     </style>
   </head>
   <body>
-    <div class="logo">
-      <img src="icon_256x256.png" alt="Logo" width="100" height="100" />
-    </div>
-
-    <h1>Gnosis VPN Client Installer</h1>
-
-    <p>
-      Welcome! This installer will set up the Gnosis VPN on your Mac, providing
-      you with decentralized VPN connectivity through the HOPR network.
-    </p>
+    <h1>Installation Information</h1>
 
     <div class="feature-list">
-      <h3>What will be installed</h3>
+      <h3>System Checks</h3>
+      <p>The following checks will be performed before installation:</p>
       <div class="feature-item">
-        <span class="feature-icon">✓</span>
-        <span class="feature-text">Gnosis VPN app</span>
+        <span class="feature-icon">&#10003;</span>
+        <span class="feature-text">Checking system platform and architecture</span>
       </div>
       <div class="feature-item">
-        <span class="feature-icon">✓</span>
-        <span class="feature-text">Gnosis VPN system service</span>
+        <span class="feature-icon">&#10003;</span>
+        <span class="feature-text">At least 100MB of free space required</span>
       </div>
     </div>
 
     <div class="spacer"></div>
 
     <div class="requirements">
-      <h3>System Requirements</h3>
+      <h3>Installation Details</h3>
       <ul>
-        <li>macOS 14.0 (Sonoma) or later</li>
-        <li>Approximately 100MB of available disk space</li>
+        <li>Install command-line tools to <code>/usr/local/bin/</code></li>
+        <li>Generate a default configuration file with VPN destinations</li>
+        <li>Set proper permissions for binaries and configuration files</li>
+        <li>Check for WireGuard tools (required for VPN functionality)</li>
       </ul>
     </div>
+
+    <div class="spacer"></div>
+
+    <div class="requirements">
+      <h3>Installation Locations</h3>
+      <ul>
+        <li><code>/usr/local/bin/gnosis_vpn-root</code> - Root VPN daemon</li>
+        <li><code>/usr/local/bin/gnosis_vpn-worker</code> - VPN worker binary</li>
+        <li><code>/usr/local/bin/gnosis_vpn-ctl</code> - Control utility</li>
+        <li><code>/etc/gnosisvpn/config.toml</code> - Configuration file</li>
+      </ul>
+    </div>
+
   </body>
 </html>

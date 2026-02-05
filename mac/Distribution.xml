@@ -9,9 +9,42 @@
 
     <!-- Package metadata -->
     <pkg-ref id="com.gnosisvpn.gnosisvpnclient"/>
+    <pkg-ref id="com.gnosisvpn.choice.network.rotsee"/>
+    <pkg-ref id="com.gnosisvpn.choice.network.jura"/>
+    <pkg-ref id="com.gnosisvpn.choice.network.dufour"/>
+    <pkg-ref id="com.gnosisvpn.choice.loglevel.info"/>
+    <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"/>
 
     <!-- Options -->
     <options customize="allow" require-scripts="false" hostArchitectures="x86_64,arm64"/>
+
+    <!-- JavaScript for mutual exclusion -->
+    <script><![CDATA[
+        var NETWORK_CHOICES = ["rotsee", "jura", "dufour"];
+        var LOGLEVEL_CHOICES = ["info", "debug"];
+
+        function exclusiveEnabled(selfId, groupIds) {
+            if (!choices[selfId]) {
+                return true;
+            }
+
+            if (choices[selfId].selected) {
+                return true;
+            }
+
+            for (var i = 0; i < groupIds.length; i++) {
+                var other = groupIds[i];
+                if (other !== selfId && choices[other] && choices[other].selected) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    ]]></script>
+
+    <!-- Installer background -->
+    <background file="icon_bg_160x160.png" mime-type="image/png" alignment="bottomleft" scaling="none"/>
+    <background-darkAqua file="icon_bg_white_160x160.png" mime-type="image/png" alignment="bottomleft" scaling="none"/>
 
     <!-- Welcome screen -->
     <welcome file="welcome.html" mime-type="text/html"/>
@@ -24,42 +57,91 @@
 
     <!-- Choices outline - what the user sees -->
     <choices-outline>
-        <line choice="default">
-            <line choice="network"/>
+        <line choice="network">
+            <line choice="rotsee"/>
+            <line choice="jura"/>
+            <line choice="dufour"/>
         </line>
+        <line choice="loglevel">
+            <line choice="info"/>
+            <line choice="debug"/>
+        </line>
+        <line choice="default"/>
     </choices-outline>
 
-    <!-- Default choice (always selected, hidden) -->
+    <!-- Default choice -->
     <choice id="default"
             title="Gnosis VPN Client"
             description="Gnosis VPN client binaries and configuration"
-            visible="false"
-            enabled="true"
+            enabled="false"
             selected="true">
         <pkg-ref id="com.gnosisvpn.gnosisvpnclient"/>
     </choice>
 
-    <!-- Network selection choice -->
+    <!-- Network selection choice (parent group) -->
     <choice id="network"
             title="HOPR Network"
             description="Select the HOPR network configuration for your VPN destinations"
-            start_selected="rotsee"
-            start_enabled="true"
-            start_visible="true">
-        <choice-item id="rotsee"/>
-        <choice-item id="dufour"/>
+            visible="true"
+            enabled="true">
     </choice>
 
     <!-- Rotsee network sub-choice -->
     <choice id="rotsee"
-            title="Rotsee Network (Recommended)"
-            description="Connect to VPN nodes on Rotsee network - US, UK, Brazil, Australia, India, South Korea">
+            title="Rotsee (Recommended)"
+            description="Connect to VPN nodes on the Rotsee network - US, UK, Brazil, Australia, India, South Korea"
+            visible="true"
+            enabled="exclusiveEnabled('rotsee', ['rotsee','jura','dufour'])"
+            start_selected="true">
+        <pkg-ref id="com.gnosisvpn.choice.network.rotsee"/>
+    </choice>
+
+    <!-- Jura network sub-choice -->
+    <choice id="jura"
+            title="Jura"
+            description="Connect to VPN nodes on the Jura network - US, UK, Brazil, Australia, India, South Korea"
+            visible="true"
+            start_selected="false"
+            enabled="exclusiveEnabled('jura', ['rotsee','jura','dufour'])">
+        <pkg-ref id="com.gnosisvpn.choice.network.jura"/>
     </choice>
 
     <!-- Dufour network sub-choice -->
     <choice id="dufour"
-            title="Dufour Network"
-            description="Connect to VPN nodes on Dufour network - Germany, USA, Spain, India">
+            title="Dufour"
+            description="Connect to VPN nodes on the Dufour network - Germany, USA, Spain, India"
+            visible="true"
+            start_selected="false"
+            enabled="exclusiveEnabled('dufour', ['rotsee','jura','dufour'])">
+        <pkg-ref id="com.gnosisvpn.choice.network.dufour"/>
+    </choice>
+
+    <!-- Service mode selection choice (parent group) -->
+    <choice id="loglevel"
+            title="Service Configuration"
+            description="Select the service configuration mode"
+            visible="true"
+            enabled="true">
+    </choice>
+
+    <!-- Standard mode sub-choice -->
+    <choice id="info"
+            title="Standard Mode (Recommended)"
+            description="Install with standard logging configuration"
+            visible="true"
+            enabled="exclusiveEnabled('info', ['debug','info'])"
+            start_selected="true">
+        <pkg-ref id="com.gnosisvpn.choice.loglevel.info"/>
+    </choice>
+
+    <!-- Debug mode sub-choice -->
+    <choice id="debug"
+            title="Debug Mode"
+            description="Install with debug logging enabled - useful for troubleshooting"
+            visible="true"
+            start_selected="false"
+            enabled="exclusiveEnabled('debug', ['debug','info'])">
+        <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"/>
     </choice>
 
     <!-- Component package reference -->
@@ -69,6 +151,46 @@
              installKBytes="16384"
              onConclusion="none">
         #GnosisVPN.pkg
+    </pkg-ref>
+
+    <pkg-ref id="com.gnosisvpn.choice.network.rotsee"
+             version="0"
+             auth="root"
+             installKBytes="0"
+             onConclusion="none">
+        #choice-network-rotsee.pkg
+    </pkg-ref>
+
+    <pkg-ref id="com.gnosisvpn.choice.network.jura"
+             version="0"
+             auth="root"
+             installKBytes="0"
+             onConclusion="none">
+        #choice-network-jura.pkg
+    </pkg-ref>
+
+    <pkg-ref id="com.gnosisvpn.choice.network.dufour"
+             version="0"
+             auth="root"
+             installKBytes="0"
+             onConclusion="none">
+        #choice-network-dufour.pkg
+    </pkg-ref>
+
+    <pkg-ref id="com.gnosisvpn.choice.loglevel.info"
+             version="0"
+             auth="root"
+             installKBytes="0"
+             onConclusion="none">
+        #choice-loglevel-info.pkg
+    </pkg-ref>
+
+    <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"
+             version="0"
+             auth="root"
+             installKBytes="0"
+             onConclusion="none">
+        #choice-loglevel-debug.pkg
     </pkg-ref>
 
     <!-- Localization (default English) -->

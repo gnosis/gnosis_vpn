@@ -155,7 +155,7 @@ cleanup_system_directories() {
 
     local directories=(
         "/var/run/gnosisvpn"
-        "/var/lib/gnosisvpn/Library/Application Support/com.gnosisvpn.gnosisvpnclient/gnosisvpn-hopr.db"
+        "/Library/Application Support/GnosisVPN/.config/gnosisvpn-hopr.db"
         "$LOG_DIR"
     )
 
@@ -269,33 +269,29 @@ remove_ui_app() {
     log_info "Removing UI application..."
 
     local removed=0
-    local ui_app_paths=(
-        "/Applications/Gnosis VPN.app"
-        # keep for backwards compatibility
-        "/Applications/gnosis_vpn-app.app"
-    )
+    local ui_app_path="/Applications/Gnosis VPN.app"
 
-    for app_path in "${ui_app_paths[@]}"; do
-        if [[ -d $app_path ]]; then
-            log_info "Removing UI app: $app_path"
-            rm -rf "$app_path"
-            log_success "Removed $app_path"
-            removed=$((removed + 1))
+    # Stop the UI app if it's running
+    if pgrep -f "$ui_app_path" >/dev/null 2>&1; then
+        log_info "Stopping active UI application..."
+        pkill -TERM -f "$ui_app_path" 2>/dev/null || true
+        sleep 2
+        # Force kill if still running
+        if pgrep -f "$ui_app_path" >/dev/null 2>&1; then
+             pkill -KILL -f "$ui_app_path" 2>/dev/null || true
         fi
-    done
+    fi
+
+    if [[ -d $ui_app_path ]]; then
+        log_info "Removing UI app: $ui_app_path"
+        rm -rf "$ui_app_path"
+        log_success "Removed $ui_app_path"
+        removed=$((removed + 1))
+    fi
 
     # Clean up LaunchServices registrations for the UI app
     log_info "Cleaning up LaunchServices registrations..."
     /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -kill -r -domain local -domain system -domain user 2>/dev/null || true
-
-    # Try to remove any quarantine attributes that might remain
-    if command -v xattr >/dev/null 2>&1; then
-        for app_path in "${ui_app_paths[@]}"; do
-            if [[ -d $app_path ]]; then
-                xattr -dr com.apple.quarantine "$app_path" 2>/dev/null || true
-            fi
-        done
-    fi
 
     if [[ $removed -eq 0 ]]; then
         log_info "No UI application found to remove"
@@ -442,7 +438,7 @@ print_summary() {
     echo "  ✓ Launchd service"
     echo "  ✓ System user and group (gnosisvpn)"
     echo "  ✓ Sudo privileges configuration"
-    echo "  ✓ System directories (/var/lib/gnosisvpn, /var/run/gnosisvpn)"
+    echo "  ✓ System directories (/Library/Application Support/GnosisVPN, /var/run/gnosisvpn)"
     echo "  ✓ Configuration (backed up to ~/gnosis-vpn-config-backup-*)"
     echo "  ✓ Service logs"
     echo "  ✓ Installation logs"
