@@ -155,7 +155,7 @@ cleanup_system_directories() {
 
     local directories=(
         "/var/run/gnosisvpn"
-        "/var/lib/gnosisvpn/Library/Application Support/com.gnosisvpn.gnosisvpnclient/gnosisvpn-hopr.db"
+        "/Library/Application Support/GnosisVPN/.config/gnosisvpn-hopr.db"
         "$LOG_DIR"
     )
 
@@ -430,7 +430,7 @@ print_summary() {
     echo "  ✓ Launchd service"
     echo "  ✓ System user and group (gnosisvpn)"
     echo "  ✓ Sudo privileges configuration"
-    echo "  ✓ System directories (/var/lib/gnosisvpn, /var/run/gnosisvpn)"
+    echo "  ✓ System directories (/Library/Application Support/GnosisVPN, /var/run/gnosisvpn)"
     echo "  ✓ Configuration (backed up to ~/gnosis-vpn-config-backup-*)"
     echo "  ✓ Service logs"
     echo "  ✓ Installation logs"

@@ -83,7 +83,7 @@ The installer creates dedicated system credentials for enhanced security:
 
 - **System User**: `gnosisvpn` (UID: 200-499 range)
   - Hidden from login window and Users & Groups preferences
-  - Home directory: `/var/lib/gnosisvpn`
+  - Home directory: In Linux: `/var/lib/gnosisvpn` and in Mac `/Library/Application Support/GnosisVPN`
   - Shell: `/bin/bash` (no interactive login)
   - Used to run some VPN binaries with minimal privileges. The `gnosis_vpn-root` binary will be running as `root`.
 
@@ -96,4 +96,4 @@ The installer creates dedicated system credentials for enhanced security:
   - Configuration files: `root:gnosisvpn` with group read access
   - Binaries: `root:gnosisvpn` with group execute access
   - Log directories: `gnosisvpn:gnosisvpn` for service logging
-  - Runtime directories: `/var/run/gnosisvpn`, `/var/lib/gnosisvpn`
+  - Runtime directories: Home directory and `/var/run/gnosisvpn`
