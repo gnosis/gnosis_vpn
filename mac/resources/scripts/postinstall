@@ -17,7 +17,7 @@
 #
 # Environment variables from Distribution.xml choices:
 #   INSTALLER_CHOICE_NETWORK: "rotsee" or "dufour"
-#   INSTALLER_CHOICE_SERVICEMODE: "debug" or "standard"
+#   INSTALLER_CHOICE_LOGLEVEL: "debug" or "info"
 
 set -euo pipefail
 
@@ -59,7 +59,7 @@ TEMPLATE_DIR_BUNDLE="${SCRIPT_DIR}/../config/templates"
 TEMPLATE_DIR_INSTALLED="${CONFIG_DIR}/templates"
 BIN_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/bin")"
 NETWORK="${INSTALLER_CHOICE_NETWORK:-rotsee}"
-SERVICEMODE="${INSTALLER_CHOICE_SERVICEMODE:-standard}"
+LOG_LEVEL="${INSTALLER_CHOICE_LOGLEVEL:-info}"
 UI_STAGING_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/share/gnosisvpn")"
 UI_STAGED_ARCHIVE="${UI_STAGING_DIR}/gnosis_vpn-app.tar.gz"
 UI_TARGET_APP="$(join_path "$TARGET_VOLUME" "/Applications/Gnosis VPN.app")"
@@ -84,15 +84,9 @@ if [[ ! "$NETWORK" =~ ^(rotsee|dufour)$ ]]; then
 fi
 
 # Validate service mode selection (whitelist)
-if [[ -f "/tmp/gnosis_install_choices" ]]; then
+if [[ -f "/Library/Logs/GnosisVPN/installer/gnosis_install_choices" ]]; then
     log_info "Loading installer choices from temporary file..."
-    source "/tmp/gnosis_install_choices"
-fi
-
-if [[ ! "$SERVICEMODE" =~ ^(debug|standard)$ ]]; then
-    log_error "Invalid service mode selection: $SERVICEMODE"
-    log_info "Valid options: debug, standard"
-    exit 1
+    source "/Library/Logs/GnosisVPN/installer/gnosis_install_choices"
 fi
 
 log_info "Install package: $PACKAGE_PATH"
@@ -101,7 +95,7 @@ log_info "Binary directory: $BIN_DIR"
 log_info "Configuration directory: $CONFIG_DIR"
 log_info "Configuration file: $CONFIG_FILE"
 log_info "Network: $NETWORK"
-log_info "Service mode: $SERVICEMODE"
+log_info "Log level: $LOG_LEVEL"
 
 # Rollback mechanism
 ROLLBACK_STEPS=()
@@ -432,11 +426,11 @@ install_launchd_service() {
     # fi
 
     # Parameterize plist based on service mode
-    if [[ "$SERVICEMODE" == "debug" ]]; then
+    if [[ "$LOG_LEVEL" == "debug" ]]; then
         log_info "Enabling debug logging"
         sed -i '' 's|<string>info</string>|<string>debug</string>|g' "$source_plist"
     else
-        log_info "Enabling standard logging"
+        log_info "Enabling info logging"
         sed -i '' 's|<string>debug</string>|<string>info</string>|g' "$source_plist"
     fi
     sed -i '' "s|__NETWORK_NAME__|$NETWORK|g" "$source_plist"
