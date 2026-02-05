@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euo pipefail
+
+CHOICE_DIR="/Library/Logs/GnosisVPN/installer"
+CHOICE_FILE="${CHOICE_DIR}/network_choice"
+SELECTED_NETWORK="rotsee"
+
+mkdir -p "$CHOICE_DIR"
+chmod 755 "$CHOICE_DIR"
+
+cat > "$CHOICE_FILE" <<EOF
+INSTALLER_CHOICE_NETWORK="$SELECTED_NETWORK"
+EOF
+
+chmod 600 "$CHOICE_FILE"

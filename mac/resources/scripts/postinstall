@@ -17,7 +17,7 @@
 #
 # Environment variables from Distribution.xml choices:
 #   INSTALLER_CHOICE_NETWORK: "rotsee" or "dufour"
-#   INSTALLER_CHOICE_SERVICEMODE: "debug" or "standard"
+#   INSTALLER_CHOICE_LOGLEVEL: "debug" or "info"
 
 set -euo pipefail
 
@@ -58,14 +58,12 @@ VERSION_FILE="${CONFIG_DIR}/version.txt"
 TEMPLATE_DIR_BUNDLE="${SCRIPT_DIR}/../config/templates"
 TEMPLATE_DIR_INSTALLED="${CONFIG_DIR}/templates"
 BIN_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/bin")"
-NETWORK="${INSTALLER_CHOICE_NETWORK:-rotsee}"
-SERVICEMODE="${INSTALLER_CHOICE_SERVICEMODE:-debug}"
 UI_STAGING_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/share/gnosisvpn")"
 UI_STAGED_ARCHIVE="${UI_STAGING_DIR}/gnosis_vpn-app.tar.gz"
 UI_TARGET_APP="$(join_path "$TARGET_VOLUME" "/Applications/Gnosis VPN.app")"
 
 INSTALLED_LOG_DIR_PATH="/Library/Logs/GnosisVPN"
-INSTALLED_LIB_DIR_PATH="/var/lib/gnosisvpn"
+INSTALLED_LIB_DIR_PATH="/Library/Application Support/GnosisVPN"
 
 
 # Get installer version from package (if available) or use current date
@@ -76,27 +74,41 @@ if [[ "$PACKAGE_PATH" =~ GnosisVPN-Installer-([^/]+)\.pkg ]]; then
     INSTALLER_VERSION="${BASH_REMATCH[1]}"
 fi
 
-# Validate network selection (whitelist)
-if [[ ! "$NETWORK" =~ ^(rotsee|dufour)$ ]]; then
-    log_error "Invalid network selection: $NETWORK"
-    log_info "Valid options: rotsee, dufour"
-    exit 1
-fi
+load_installer_choices() {
+    local choice_dir="/Library/Logs/GnosisVPN/installer"
+    local network_choice_file="${choice_dir}/network_choice"
+    local loglevel_choice_file="${choice_dir}/loglevel_choice"
 
-# Validate service mode selection (whitelist)
-if [[ ! "$SERVICEMODE" =~ ^(debug|standard)$ ]]; then
-    log_error "Invalid service mode selection: $SERVICEMODE"
-    log_info "Valid options: debug, standard"
-    exit 1
-fi
+    INSTALLER_CHOICE_NETWORK="rotsee"
+    INSTALLER_CHOICE_LOGLEVEL="info"
+
+    if [[ -f "$network_choice_file" ]]; then
+        log_info "Loading network choice from $network_choice_file"
+        # shellcheck disable=SC1090
+        source "$network_choice_file"
+    else
+        log_warn "Network choice file not found, defaulting to rotsee"
+    fi
+
+    if [[ -f "$loglevel_choice_file" ]]; then
+        log_info "Loading log level choice from $loglevel_choice_file"
+        # shellcheck disable=SC1090
+        source "$loglevel_choice_file"
+    else
+        log_warn "Log level choice file not found, defaulting to info"
+    fi
+}
+
+# Inject installer choices from temporary files (if they exist)
+load_installer_choices
 
 log_info "Install package: $PACKAGE_PATH"
 log_info "Target volume: $TARGET_VOLUME"
 log_info "Binary directory: $BIN_DIR"
 log_info "Configuration directory: $CONFIG_DIR"
 log_info "Configuration file: $CONFIG_FILE"
-log_info "Network: $NETWORK"
-log_info "Service mode: $SERVICEMODE"
+log_info "Network: $INSTALLER_CHOICE_NETWORK"
+log_info "Log level: $INSTALLER_CHOICE_LOGLEVEL"
 
 # Rollback mechanism
 ROLLBACK_STEPS=()
@@ -284,11 +296,6 @@ create_system_user() {
     dscl . -create "/Users/$username" PrimaryGroupID 20  # staff group initially
     dscl . -create "/Users/$username" NFSHomeDirectory "$homedir"
 
-    # Create home directory
-    mkdir -p "$homedir"
-    chown "$username:staff" "$homedir"
-    chmod 750 "$homedir"
-
     # Hide user from login window and Users & Groups preferences
     dscl . -create "/Users/$username" IsHidden 1
 
@@ -424,22 +431,22 @@ install_launchd_service() {
     local plist_name="com.gnosisvpn.gnosisvpnclient.plist"
     local plist_path="${launchd_dir}/${plist_name}"
 
-    # Select source plist based on service mode
-    local source_plist_name
-    if [[ "$SERVICEMODE" == "debug" ]]; then
-        source_plist_name="com.gnosisvpn.gnosisvpnclient-debug.plist"
-    else
-        source_plist_name="com.gnosisvpn.gnosisvpnclient.plist"
-    fi
-
-    log_info "Using plist template: $source_plist_name (service mode: $SERVICEMODE)"
-
     # During installation, the plist is in the installer scripts directory
-    local source_plist="${SCRIPT_DIR}/config/system/${source_plist_name}"
+    local source_plist="${SCRIPT_DIR}/config/system/${plist_name}"
     # Fallback to development location if not found (for testing)
-    if [[ ! -f "$source_plist" ]]; then
-        source_plist="${SCRIPT_DIR}/../config/system/${source_plist_name}"
+    # if [[ ! -f "$plist_path" ]]; then
+    #     plist_path="${SCRIPT_DIR}/../config/system/${plist_name}"
+    # fi
+
+    # Parameterize plist based on service mode
+    if [[ "$INSTALLER_CHOICE_LOGLEVEL" == "debug" ]]; then
+        log_info "Enabling debug logging"
+        sed -i '' 's|<string>info</string>|<string>debug</string>|g' "$source_plist"
+    else
+        log_info "Enabling info logging"
+        sed -i '' 's|<string>debug</string>|<string>info</string>|g' "$source_plist"
     fi
+    sed -i '' "s|__NETWORK_NAME__|${INSTALLER_CHOICE_NETWORK}|g" "$source_plist"
 
     # Handle existing service (for updates/reinstalls)
     local service_was_running=false
@@ -814,7 +821,7 @@ create_config_symlink() {
     log_info "Creating configuration symlink..."
 
     # Target configuration file
-    local target_config="${CONFIG_DIR}/${NETWORK}.toml"
+    local target_config="${CONFIG_DIR}/${INSTALLER_CHOICE_NETWORK}.toml"
 
     # Check if target configuration exists
     if [[ ! -f "$target_config" ]]; then
@@ -873,20 +880,14 @@ create_config_symlink() {
     cd - >/dev/null
 
     log_success "Configuration symlink created: config.toml -> $relative_target"
-    log_info "Network: $NETWORK"
+    log_info "Network: $INSTALLER_CHOICE_NETWORK"
 }
 
 copy_uninstall() {
-
     log_info "Copying uninstall script..."
-
-    local homedir="$INSTALLED_LIB_DIR_PATH"
-    mkdir -p "$homedir"
-    cp "${SCRIPT_DIR}/uninstall.sh" "$homedir/"
-    chmod 755 "$homedir/uninstall.sh"
-    chown root:wheel "$CONFIG_DIR" 2>/dev/null || true
-
-    log_success "Uninstall script copied to $homedir/uninstall.sh"
+    mkdir -p "$INSTALLED_LIB_DIR_PATH"
+    cp "${SCRIPT_DIR}/uninstall.sh" "$INSTALLED_LIB_DIR_PATH/uninstall.sh"
+    log_success "Uninstall script copied to $INSTALLED_LIB_DIR_PATH/uninstall.sh"
 }
 
 # Update binaries incrementally (only if changed)
@@ -968,9 +969,9 @@ set_permissions() {
 
     # Create and set permissions for state directory
     local state_dir="$INSTALLED_LIB_DIR_PATH"
-    mkdir -p "$state_dir"
     chown $username:$groupname "$state_dir"
-    chmod -R 775 "$state_dir"
+    chmod -R 700 "$state_dir"
+    chmod 755 "$state_dir/uninstall.sh"
     log_info "State directory created: $state_dir"
     log_success "Permissions and ownership set"
 }
@@ -1026,7 +1027,7 @@ print_summary() {
     log_info "Binary directory: $BIN_DIR"
     log_info "Configuration file: $CONFIG_FILE"
     log_info "Version file: $VERSION_FILE"
-    log_info "Network: $NETWORK"
+    log_info "Network: $INSTALLER_CHOICE_NETWORK"
     echo ""
     log_info "Installed binaries:"
     ls -lh "$BIN_DIR"/gnosis_vpn* 2>/dev/null || true
@@ -1232,7 +1233,6 @@ setup_management_script() {
         log_success "Installed management script: gnosis_vpn-manager"
     fi
 }
-
 
 # Main execution
 main() {

@@ -142,8 +142,8 @@ jobs:
           export GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH=$(pwd)/gnosisvpn-developer.p12
           export GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH=$(pwd)/gnosisvpn-installer.p12
           nix develop -c just all dmg aarch64-darwin true
-          mv ./build/packages/GnosisVPN-Installer-*-signed.pkg "./build/packages/GnosisVPN-Installer.pkg"
-          mv ./build/packages/GnosisVPN-Installer-*-signed.pkg.sha256 "./build/packages/GnosisVPN-Installer.pkg.sha256"
+          mv ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}-signed.pkg "./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg"
+          mv ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}-signed.pkg.sha256 "./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256"
         env:
           GH_TOKEN: ${{ github.token }}
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
@@ -158,12 +158,12 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: GnosisVPN-Installer.pkg
-          path: ./build/packages/GnosisVPN-Installer.pkg
+          path: ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg
       - name: Upload Signature
         uses: actions/upload-artifact@v5
         with:
           name: GnosisVPN-Installer.pkg.sha256
-          path: ./build/packages/GnosisVPN-Installer.pkg.sha256
+          path: ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256
 
   release:
     runs-on: ubuntu-latest
