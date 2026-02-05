@@ -50,6 +50,7 @@
             return "";
         }
 
+        // Persist selected choices to a temporary file for postinstall script to read
         function updateState() {
              try {
                  var log_level = getSelected(LOGLEVEL_CHOICES) || 'info';
@@ -58,11 +59,12 @@
                         + "INSTALLER_CHOICE_LOGLEVEL=" + log_level + "\n"
                         + "INSTALLER_CHOICE_NETWORK=" + network + "\n";
                  // Persist choices to a temporary file for postinstall script to read
-                 system.run('/bin/sh', '-c', 'echo "' + content + '" > /Library/Logs/GnosisVPN/installer/install_choices');
+                 system.run('/bin/sh', '-c', 'echo "' + content + '" > /Library/Logs/GnosisVPN/installer/gnosis_install_choices');
              } catch(e) {}
              return true;
         }
 
+        // Ensure installer log directory exists at the time of installation check
         function installationCheck() {
             system.run('/bin/mkdir', '-p', '/Library/Logs/GnosisVPN/installer');
             updateState(); // Ensure state is saved at the time of installation check
