@@ -20,9 +20,6 @@
 
     <!-- JavaScript for mutual exclusion -->
     <script><![CDATA[
-        var NETWORK_CHOICES = ["rotsee", "jura", "dufour"];
-        var LOGLEVEL_CHOICES = ["info", "debug"];
-
         function exclusiveEnabled(selfId, groupIds) {
             if (!choices[selfId]) {
                 return true;
@@ -102,7 +99,7 @@
             description="Connect to VPN nodes on the Jura network - US, UK, Brazil, Australia, India, South Korea"
             visible="true"
             start_selected="false"
-            enabled="exclusiveEnabled('jura', ['rotsee','jura','dufour'])">
+            enabled="false">
         <pkg-ref id="com.gnosisvpn.choice.network.jura"/>
     </choice>
 
@@ -112,7 +109,7 @@
             description="Connect to VPN nodes on the Dufour network - Germany, USA, Spain, India"
             visible="true"
             start_selected="false"
-            enabled="exclusiveEnabled('dufour', ['rotsee','jura','dufour'])">
+            enabled="false">
         <pkg-ref id="com.gnosisvpn.choice.network.dufour"/>
     </choice>
 
@@ -126,20 +123,20 @@
 
     <!-- Standard mode sub-choice -->
     <choice id="info"
-            title="Standard Mode (Recommended)"
+            title="Standard Mode"
             description="Install with standard logging configuration"
             visible="true"
             enabled="exclusiveEnabled('info', ['debug','info'])"
-            start_selected="true">
+            start_selected="false">
         <pkg-ref id="com.gnosisvpn.choice.loglevel.info"/>
     </choice>
 
     <!-- Debug mode sub-choice -->
     <choice id="debug"
-            title="Debug Mode"
+            title="Debug Mode (Recommended for now)"
             description="Install with debug logging enabled - useful for troubleshooting"
             visible="true"
-            start_selected="false"
+            start_selected="true"
             enabled="exclusiveEnabled('debug', ['debug','info'])">
         <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"/>
     </choice>
@@ -156,7 +153,7 @@
     <pkg-ref id="com.gnosisvpn.choice.network.rotsee"
              version="0"
              auth="root"
-             installKBytes="0"
+             installKBytes="1"
              onConclusion="none">
         #choice-network-rotsee.pkg
     </pkg-ref>
@@ -164,7 +161,7 @@
     <pkg-ref id="com.gnosisvpn.choice.network.jura"
              version="0"
              auth="root"
-             installKBytes="0"
+             installKBytes="1"
              onConclusion="none">
         #choice-network-jura.pkg
     </pkg-ref>
@@ -172,7 +169,7 @@
     <pkg-ref id="com.gnosisvpn.choice.network.dufour"
              version="0"
              auth="root"
-             installKBytes="0"
+             installKBytes="1"
              onConclusion="none">
         #choice-network-dufour.pkg
     </pkg-ref>
@@ -180,7 +177,7 @@
     <pkg-ref id="com.gnosisvpn.choice.loglevel.info"
              version="0"
              auth="root"
-             installKBytes="0"
+             installKBytes="1"
              onConclusion="none">
         #choice-loglevel-info.pkg
     </pkg-ref>
@@ -188,7 +185,7 @@
     <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"
              version="0"
              auth="root"
-             installKBytes="0"
+             installKBytes="1"
              onConclusion="none">
         #choice-loglevel-debug.pkg
     </pkg-ref>
