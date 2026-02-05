@@ -428,7 +428,7 @@ install_launchd_service() {
         log_info "Enabling info logging"
         sed -i '' 's|<string>debug</string>|<string>info</string>|g' "$source_plist"
     fi
-    sed -i '' "s|__NETWORK_NAME__|$INSTALLER_CHOICE_NETWORK|g" "$source_plist"
+    sed -i '' "s|__NETWORK_NAME__|${INSTALLER_CHOICE_NETWORK}|g" "$source_plist"
 
     # Handle existing service (for updates/reinstalls)
     local service_was_running=false
