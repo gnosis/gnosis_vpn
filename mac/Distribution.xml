@@ -153,7 +153,7 @@
     <pkg-ref id="com.gnosisvpn.choice.network.rotsee"
              version="0"
              auth="root"
-             installKBytes="1"
+             installKBytes="0"
              onConclusion="none">
         #choice-network-rotsee.pkg
     </pkg-ref>
@@ -161,7 +161,7 @@
     <pkg-ref id="com.gnosisvpn.choice.network.jura"
              version="0"
              auth="root"
-             installKBytes="1"
+             installKBytes="0"
              onConclusion="none">
         #choice-network-jura.pkg
     </pkg-ref>
@@ -169,7 +169,7 @@
     <pkg-ref id="com.gnosisvpn.choice.network.dufour"
              version="0"
              auth="root"
-             installKBytes="1"
+             installKBytes="0"
              onConclusion="none">
         #choice-network-dufour.pkg
     </pkg-ref>
@@ -177,7 +177,7 @@
     <pkg-ref id="com.gnosisvpn.choice.loglevel.info"
              version="0"
              auth="root"
-             installKBytes="1"
+             installKBytes="0"
              onConclusion="none">
         #choice-loglevel-info.pkg
     </pkg-ref>
@@ -185,7 +185,7 @@
     <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"
              version="0"
              auth="root"
-             installKBytes="1"
+             installKBytes="0"
              onConclusion="none">
         #choice-loglevel-debug.pkg
     </pkg-ref>
