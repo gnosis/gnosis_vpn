@@ -1234,8 +1234,6 @@ setup_management_script() {
     fi
 }
 
-
-
 # Copy log rotation configuration for newsyslog
 copy_logs_rotation_conf() {
     local src_conf="${SCRIPT_DIR}/config/system/gnosisvpn.logrotate.conf"
