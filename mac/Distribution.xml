@@ -9,65 +9,35 @@
 
     <!-- Package metadata -->
     <pkg-ref id="com.gnosisvpn.gnosisvpnclient"/>
+    <pkg-ref id="com.gnosisvpn.choice.network.rotsee"/>
+    <pkg-ref id="com.gnosisvpn.choice.network.jura"/>
+    <pkg-ref id="com.gnosisvpn.choice.network.dufour"/>
+    <pkg-ref id="com.gnosisvpn.choice.loglevel.info"/>
+    <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"/>
 
     <!-- Options -->
     <options customize="allow" require-scripts="false" hostArchitectures="x86_64,arm64"/>
 
-    <!-- JavaScript for mutual exclusion and state persistence -->
+    <!-- JavaScript for mutual exclusion -->
     <script><![CDATA[
         var NETWORK_CHOICES = ["rotsee", "jura", "dufour"];
         var LOGLEVEL_CHOICES = ["info", "debug"];
 
-        function selectedCount(ids) {
-            var n = 0;
-            for (var i = 0; i < ids.length; i++) {
-                var id = ids[i];
-                if (!choices[id]) {
-                    system.log("Choice id not found in choices[]: " + id);
-                    continue;
-                }
-                if (choices[id].selected) n++;
-            }
-            return n;
-        }
-
-        // Mutual exclusion: when one is selected, the others become disabled.
         function exclusiveEnabled(selfId, groupIds) {
-            if (choices[selfId].selected) return true;
+            if (!choices[selfId]) {
+                return true;
+            }
+
+            if (choices[selfId].selected) {
+                return true;
+            }
 
             for (var i = 0; i < groupIds.length; i++) {
                 var other = groupIds[i];
-                if (other !== selfId && choices[other].selected) return false;
+                if (other !== selfId && choices[other] && choices[other].selected) {
+                    return false;
+                }
             }
-            updateState(); // Update state on any change
-            return true;
-        }
-
-        function getSelected(ids) {
-            for (var i = 0; i < ids.length; i++) {
-                if (choices[ids[i]] && choices[ids[i]].selected) return ids[i];
-            }
-            return "";
-        }
-
-        // Persist selected choices to a temporary file for postinstall script to read
-        function updateState() {
-             try {
-                 var log_level = getSelected(LOGLEVEL_CHOICES) || 'info';
-                 var network = getSelected(NETWORK_CHOICES) || 'rotsee';
-                 var content = ""
-                        + "INSTALLER_CHOICE_LOGLEVEL=" + log_level + "\n"
-                        + "INSTALLER_CHOICE_NETWORK=" + network + "\n";
-                 // Persist choices to a temporary file for postinstall script to read
-                 system.run('/bin/sh', '-c', 'echo "' + content + '" > /Library/Logs/GnosisVPN/installer/gnosis_install_choices');
-             } catch(e) {}
-             return true;
-        }
-
-        // Ensure installer log directory exists at the time of installation check
-        function installationCheck() {
-            system.run('/bin/mkdir', '-p', '/Library/Logs/GnosisVPN/installer');
-            updateState(); // Ensure state is saved at the time of installation check
             return true;
         }
     ]]></script>
@@ -85,20 +55,18 @@
     <!-- Conclusion screen with next steps -->
     <conclusion file="conclusion.html" mime-type="text/html"/>
 
-    <installation-check script="installationCheck();" />
-
     <!-- Choices outline - what the user sees -->
     <choices-outline>
-        <line choice="default"/>
         <line choice="network">
             <line choice="rotsee"/>
             <line choice="jura"/>
             <line choice="dufour"/>
         </line>
         <line choice="loglevel">
-            <line choice="debug"/>
             <line choice="info"/>
+            <line choice="debug"/>
         </line>
+        <line choice="default"/>
     </choices-outline>
 
     <!-- Default choice -->
@@ -125,6 +93,7 @@
             visible="true"
             enabled="exclusiveEnabled('rotsee', ['rotsee','jura','dufour'])"
             start_selected="true">
+        <pkg-ref id="com.gnosisvpn.choice.network.rotsee"/>
     </choice>
 
     <!-- Jura network sub-choice -->
@@ -134,6 +103,7 @@
             visible="true"
             start_selected="false"
             enabled="exclusiveEnabled('jura', ['rotsee','jura','dufour'])">
+        <pkg-ref id="com.gnosisvpn.choice.network.jura"/>
     </choice>
 
     <!-- Dufour network sub-choice -->
@@ -143,6 +113,7 @@
             visible="true"
             start_selected="false"
             enabled="exclusiveEnabled('dufour', ['rotsee','jura','dufour'])">
+        <pkg-ref id="com.gnosisvpn.choice.network.dufour"/>
     </choice>
 
     <!-- Service mode selection choice (parent group) -->
@@ -153,22 +124,24 @@
             enabled="true">
     </choice>
 
-    <!-- Debug mode sub-choice -->
-    <choice id="debug"
-            title="Debug Mode (Recommended)"
-            description="Install with debug logging enabled - useful for troubleshooting"
-            visible="true"
-            start_selected="false"
-            enabled="exclusiveEnabled('debug', ['debug','info'])">
-    </choice>
-
     <!-- Standard mode sub-choice -->
     <choice id="info"
-            title="Standard Mode"
+            title="Standard Mode (Recommended)"
             description="Install with standard logging configuration"
             visible="true"
             enabled="exclusiveEnabled('info', ['debug','info'])"
             start_selected="true">
+        <pkg-ref id="com.gnosisvpn.choice.loglevel.info"/>
+    </choice>
+
+    <!-- Debug mode sub-choice -->
+    <choice id="debug"
+            title="Debug Mode"
+            description="Install with debug logging enabled - useful for troubleshooting"
+            visible="true"
+            start_selected="false"
+            enabled="exclusiveEnabled('debug', ['debug','info'])">
+        <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"/>
     </choice>
 
     <!-- Component package reference -->
@@ -178,6 +151,46 @@
              installKBytes="16384"
              onConclusion="none">
         #GnosisVPN.pkg
+    </pkg-ref>
+
+    <pkg-ref id="com.gnosisvpn.choice.network.rotsee"
+             version="0"
+             auth="root"
+             installKBytes="0"
+             onConclusion="none">
+        #choice-network-rotsee.pkg
+    </pkg-ref>
+
+    <pkg-ref id="com.gnosisvpn.choice.network.jura"
+             version="0"
+             auth="root"
+             installKBytes="0"
+             onConclusion="none">
+        #choice-network-jura.pkg
+    </pkg-ref>
+
+    <pkg-ref id="com.gnosisvpn.choice.network.dufour"
+             version="0"
+             auth="root"
+             installKBytes="0"
+             onConclusion="none">
+        #choice-network-dufour.pkg
+    </pkg-ref>
+
+    <pkg-ref id="com.gnosisvpn.choice.loglevel.info"
+             version="0"
+             auth="root"
+             installKBytes="0"
+             onConclusion="none">
+        #choice-loglevel-info.pkg
+    </pkg-ref>
+
+    <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"
+             version="0"
+             auth="root"
+             installKBytes="0"
+             onConclusion="none">
+        #choice-loglevel-debug.pkg
     </pkg-ref>
 
     <!-- Localization (default English) -->

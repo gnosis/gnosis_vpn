@@ -74,15 +74,33 @@ if [[ "$PACKAGE_PATH" =~ GnosisVPN-Installer-([^/]+)\.pkg ]]; then
     INSTALLER_VERSION="${BASH_REMATCH[1]}"
 fi
 
-# Inject installer choices from temporary file (if it exists)
-if [[ -f "/Library/Logs/GnosisVPN/installer/gnosis_install_choices" ]]; then
-    log_info "Loading installer choices from temporary file..."
-    source "/Library/Logs/GnosisVPN/installer/gnosis_install_choices"
-else
-    log_warn "Installer choices file not found, using defaults"
+load_installer_choices() {
+    local choice_dir="/Library/Logs/GnosisVPN/installer"
+    local network_choice_file="${choice_dir}/network_choice"
+    local loglevel_choice_file="${choice_dir}/loglevel_choice"
+
     INSTALLER_CHOICE_NETWORK="rotsee"
     INSTALLER_CHOICE_LOGLEVEL="info"
-fi
+
+    if [[ -f "$network_choice_file" ]]; then
+        log_info "Loading network choice from $network_choice_file"
+        # shellcheck disable=SC1090
+        source "$network_choice_file"
+    else
+        log_warn "Network choice file not found, defaulting to rotsee"
+    fi
+
+    if [[ -f "$loglevel_choice_file" ]]; then
+        log_info "Loading log level choice from $loglevel_choice_file"
+        # shellcheck disable=SC1090
+        source "$loglevel_choice_file"
+    else
+        log_warn "Log level choice file not found, defaulting to info"
+    fi
+}
+
+# Inject installer choices from temporary files (if they exist)
+load_installer_choices
 
 log_info "Install package: $PACKAGE_PATH"
 log_info "Target volume: $TARGET_VOLUME"

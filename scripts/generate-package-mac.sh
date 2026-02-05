@@ -19,6 +19,22 @@ RESOURCES_DIR="${SCRIPT_DIR}/../mac/resources"
 DISTRIBUTION_XML="${SCRIPT_DIR}/../mac/Distribution.xml"
 PKG_NAME_INSTALLER="GnosisVPN-Installer-v${GNOSISVPN_PACKAGE_VERSION}.pkg"
 COMPONENT_PKG="GnosisVPN.pkg"
+CHOICE_PACKAGES_DIR="${SCRIPT_DIR}/../mac/choice-packages"
+CHOICE_PACKAGE_PREFIX="choice"
+CHOICE_PACKAGE_NAMES=(
+    network-rotsee
+    network-jura
+    network-dufour
+    loglevel-info
+    loglevel-debug
+)
+CHOICE_PACKAGE_IDENTIFIERS=(
+    com.gnosisvpn.choice.network.rotsee
+    com.gnosisvpn.choice.network.jura
+    com.gnosisvpn.choice.network.dufour
+    com.gnosisvpn.choice.loglevel.info
+    com.gnosisvpn.choice.loglevel.debug
+)
 
 # Keychain
 KEYCHAIN_NAME="gnosisvpn.keychain"
@@ -376,6 +392,45 @@ build_component_package() {
     fi
 }
 
+build_choice_packages() {
+    log_info "Building choice marker packages..."
+
+    local total=${#CHOICE_PACKAGE_NAMES[@]}
+    if [[ $total -eq 0 ]]; then
+        log_info "No choice packages configured; skipping"
+        return 0
+    fi
+
+    mkdir -p "${BUILD_DIR}/packages"
+
+    local i
+    for ((i = 0; i < total; i++)); do
+        local package_name="${CHOICE_PACKAGE_NAMES[$i]}"
+        local identifier="${CHOICE_PACKAGE_IDENTIFIERS[$i]}"
+        local scripts_dir="${CHOICE_PACKAGES_DIR}/${package_name}/Scripts"
+        local output_pkg="${BUILD_DIR}/packages/${CHOICE_PACKAGE_PREFIX}-${package_name}.pkg"
+
+        if [[ ! -d "$scripts_dir" ]]; then
+            log_error "Choice package scripts directory not found: $scripts_dir"
+            exit 1
+        fi
+
+        pkgbuild \
+            --nopayload \
+            --scripts "$scripts_dir" \
+            --identifier "$identifier" \
+            --version "$GNOSISVPN_PACKAGE_VERSION" \
+            "$output_pkg"
+
+        if [[ -f "$output_pkg" ]]; then
+            log_success "Choice package created: $(basename "$output_pkg")"
+        else
+            log_error "Failed to create choice package: $package_name"
+            exit 1
+        fi
+    done
+}
+
 # Build distribution package
 build_distribution_package() {
     log_info "Building distribution package with custom UI..."
@@ -529,5 +584,6 @@ build_platform_package() {
     unpack
     copy_scripts
     build_component_package
+    build_choice_packages
     build_distribution_package
 }
