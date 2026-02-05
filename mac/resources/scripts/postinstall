@@ -58,8 +58,6 @@ VERSION_FILE="${CONFIG_DIR}/version.txt"
 TEMPLATE_DIR_BUNDLE="${SCRIPT_DIR}/../config/templates"
 TEMPLATE_DIR_INSTALLED="${CONFIG_DIR}/templates"
 BIN_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/bin")"
-NETWORK="${INSTALLER_CHOICE_NETWORK:-rotsee}"
-LOG_LEVEL="${INSTALLER_CHOICE_LOGLEVEL:-info}"
 UI_STAGING_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/share/gnosisvpn")"
 UI_STAGED_ARCHIVE="${UI_STAGING_DIR}/gnosis_vpn-app.tar.gz"
 UI_TARGET_APP="$(join_path "$TARGET_VOLUME" "/Applications/Gnosis VPN.app")"
@@ -76,17 +74,14 @@ if [[ "$PACKAGE_PATH" =~ GnosisVPN-Installer-([^/]+)\.pkg ]]; then
     INSTALLER_VERSION="${BASH_REMATCH[1]}"
 fi
 
-# Validate network selection (whitelist)
-if [[ ! "$NETWORK" =~ ^(rotsee|dufour)$ ]]; then
-    log_error "Invalid network selection: $NETWORK"
-    log_info "Valid options: rotsee, dufour"
-    exit 1
-fi
-
-# Validate service mode selection (whitelist)
+# Inject installer choices from temporary file (if it exists)
 if [[ -f "/Library/Logs/GnosisVPN/installer/gnosis_install_choices" ]]; then
     log_info "Loading installer choices from temporary file..."
     source "/Library/Logs/GnosisVPN/installer/gnosis_install_choices"
+else
+    log_warn "Installer choices file not found, using defaults"
+    INSTALLER_CHOICE_NETWORK="rotsee"
+    INSTALLER_CHOICE_LOGLEVEL="info"
 fi
 
 log_info "Install package: $PACKAGE_PATH"
@@ -94,8 +89,8 @@ log_info "Target volume: $TARGET_VOLUME"
 log_info "Binary directory: $BIN_DIR"
 log_info "Configuration directory: $CONFIG_DIR"
 log_info "Configuration file: $CONFIG_FILE"
-log_info "Network: $NETWORK"
-log_info "Log level: $LOG_LEVEL"
+log_info "Network: $INSTALLER_CHOICE_NETWORK"
+log_info "Log level: $INSTALLER_CHOICE_LOGLEVEL"
 
 # Rollback mechanism
 ROLLBACK_STEPS=()
@@ -426,14 +421,14 @@ install_launchd_service() {
     # fi
 
     # Parameterize plist based on service mode
-    if [[ "$LOG_LEVEL" == "debug" ]]; then
+    if [[ "$INSTALLER_CHOICE_LOGLEVEL" == "debug" ]]; then
         log_info "Enabling debug logging"
         sed -i '' 's|<string>info</string>|<string>debug</string>|g' "$source_plist"
     else
         log_info "Enabling info logging"
         sed -i '' 's|<string>debug</string>|<string>info</string>|g' "$source_plist"
     fi
-    sed -i '' "s|__NETWORK_NAME__|$NETWORK|g" "$source_plist"
+    sed -i '' "s|__NETWORK_NAME__|$INSTALLER_CHOICE_NETWORK|g" "$source_plist"
 
     # Handle existing service (for updates/reinstalls)
     local service_was_running=false
@@ -808,7 +803,7 @@ create_config_symlink() {
     log_info "Creating configuration symlink..."
 
     # Target configuration file
-    local target_config="${CONFIG_DIR}/${NETWORK}.toml"
+    local target_config="${CONFIG_DIR}/${INSTALLER_CHOICE_NETWORK}.toml"
 
     # Check if target configuration exists
     if [[ ! -f "$target_config" ]]; then
@@ -867,7 +862,7 @@ create_config_symlink() {
     cd - >/dev/null
 
     log_success "Configuration symlink created: config.toml -> $relative_target"
-    log_info "Network: $NETWORK"
+    log_info "Network: $INSTALLER_CHOICE_NETWORK"
 }
 
 copy_uninstall() {
@@ -1014,7 +1009,7 @@ print_summary() {
     log_info "Binary directory: $BIN_DIR"
     log_info "Configuration file: $CONFIG_FILE"
     log_info "Version file: $VERSION_FILE"
-    log_info "Network: $NETWORK"
+    log_info "Network: $INSTALLER_CHOICE_NETWORK"
     echo ""
     log_info "Installed binaries:"
     ls -lh "$BIN_DIR"/gnosis_vpn* 2>/dev/null || true
