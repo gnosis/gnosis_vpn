@@ -17,7 +17,7 @@ set -euo pipefail
 
 RESOURCES_DIR="${SCRIPT_DIR}/../mac/resources"
 DISTRIBUTION_XML="${SCRIPT_DIR}/../mac/Distribution.xml"
-PKG_NAME="GnosisVPN-Installer-v${GNOSISVPN_PACKAGE_VERSION}.pkg"
+PKG_NAME_INSTALLER="GnosisVPN-Installer-v${GNOSISVPN_PACKAGE_VERSION}.pkg"
 COMPONENT_PKG="GnosisVPN.pkg"
 
 # Keychain
@@ -431,12 +431,10 @@ sign_platform_package() {
             log_info "Found signing certificate: $signing_identity"
 
             # Sign the package
-            signed_pkg_name="${PKG_NAME%.pkg}-signed.pkg"
-            if productsign --sign "$signing_identity" --keychain "${KEYCHAIN_NAME}" "${BUILD_DIR}/packages/$PKG_NAME" "${BUILD_DIR}/packages/${signed_pkg_name}"; then
-                mv "${BUILD_DIR}/packages/${signed_pkg_name}" "${BUILD_DIR}/packages/${PKG_NAME}"
-                log_success "Package signed successfully: ${PKG_NAME}"
+            if productsign --sign "$signing_identity" --keychain "${KEYCHAIN_NAME}" "${BUILD_DIR}/packages/$PKG_NAME" "${BUILD_DIR}/packages/${PKG_NAME_INSTALLER}"; then
+                log_success "Package signed successfully: ${PKG_NAME_INSTALLER}"
                 log_info "Verifying package signature..."
-                if pkgutil --check-signature "${BUILD_DIR}/packages/${PKG_NAME}"; then
+                if pkgutil --check-signature "${BUILD_DIR}/packages/${PKG_NAME_INSTALLER}"; then
                     log_success "Signature verification passed"
                     echo ""
                 else
@@ -460,7 +458,7 @@ sign_platform_package() {
 notarize_package() {
     log_info "Submitting package for notarization to Apple (this may take a while)..."
     notary_json="$(
-    xcrun notarytool submit "${BUILD_DIR}/packages/${PKG_NAME}" \
+    xcrun notarytool submit "${BUILD_DIR}/packages/${PKG_NAME_INSTALLER}" \
         --apple-id "$GNOSISVPN_APPLE_ID" \
         --team-id "$GNOSISVPN_APPLE_TEAM_ID" \
         --password "$GNOSISVPN_APPLE_PASSWORD" \
@@ -497,7 +495,7 @@ notarize_package() {
 staple_ticket() {
     log_info "Stapling notarization ticket to package..."
 
-    if xcrun stapler staple -v "${BUILD_DIR}/packages/${PKG_NAME}"; then
+    if xcrun stapler staple -v "${BUILD_DIR}/packages/${PKG_NAME_INSTALLER}"; then
         log_success "Notarization ticket stapled successfully"
         echo ""
     else
@@ -505,14 +503,14 @@ staple_ticket() {
         log_warn "Failed to staple ticket (exit code: $exit_code)"
         log_warn "Package is still valid, but requires internet for verification"
         log_info "To check stapler status manually, run:"
-        log_info "  xcrun stapler validate '${BUILD_DIR}/packages/${PKG_NAME}'"
+        log_info "  xcrun stapler validate '${BUILD_DIR}/packages/${PKG_NAME_INSTALLER}'"
         echo ""
     fi
 }
 
 # Print build summary
 print_platform_summary() {
-    package_path="${BUILD_DIR}/packages/${PKG_NAME}"
+    package_path="${BUILD_DIR}/packages/${PKG_NAME_INSTALLER}"
     local sha256
     # Generate checksum with filename relative to the dir, for standard verification
     (cd "$(dirname "$package_path")" && shasum -a 256 "$(basename "$package_path")") > "$package_path".sha256
@@ -524,121 +522,6 @@ print_platform_summary() {
     echo "SHA256:            ${sha256}"
 }
 
-# Run basic functionality tests
-run_basic_tests() {
-    log_info "Running basic functionality tests..."
-
-    local test_failures=0
-
-    # Test 1: Package file exists and is readable
-    if [[ -f "${BUILD_DIR}/packages/$PKG_NAME" ]] && [[ -r "${BUILD_DIR}/packages/$PKG_NAME" ]]; then
-        log_success "✓ Package file exists and is readable"
-    else
-        log_error "✗ Package file missing or unreadable: ${BUILD_DIR}/packages/$PKG_NAME"
-        test_failures=$((test_failures + 1))
-    fi
-
-    # Test 2: Package contents validation
-    if pkgutil --expand "${BUILD_DIR}/packages/$PKG_NAME" "${BUILD_DIR}/test-expand" 2>/dev/null; then
-        log_success "✓ Package can be expanded successfully"
-
-        # Check for required files
-        local required_files=(
-            "${BUILD_DIR}/test-expand/GnosisVPN.pkg"
-            "${BUILD_DIR}/test-expand/Distribution"
-            "${BUILD_DIR}/test-expand/Resources"
-        )
-
-        local missing_files=0
-        for file in "${required_files[@]}"; do
-            if [[ ! -e $file ]]; then
-                log_error "✗ Missing required package component: $(basename "$file")"
-                missing_files=$((missing_files + 1))
-            fi
-        done
-
-        if [[ $missing_files -eq 0 ]]; then
-            log_success "✓ All required package components present"
-        else
-            test_failures=$((test_failures + 1))
-        fi
-
-        # Clean up test expansion
-        rm -rf "${BUILD_DIR}/test-expand" 2>/dev/null || true
-    else
-        log_error "✗ Package cannot be expanded"
-        test_failures=$((test_failures + 1))
-    fi
-
-    # Test 3: Script syntax validation
-    local script_syntax_errors=0
-
-    local test_scripts=(
-        "$RESOURCES_DIR/scripts/preinstall"
-        "$RESOURCES_DIR/scripts/postinstall"
-        "$SCRIPT_DIR/uninstall.sh"
-    )
-
-    for script in "${test_scripts[@]}"; do
-        if [[ -f $script ]]; then
-            if bash -n "$script" 2>/dev/null; then
-                log_success "✓ $(basename "$script") syntax valid"
-            else
-                log_error "✗ $(basename "$script") has syntax errors"
-                script_syntax_errors=$((script_syntax_errors + 1))
-            fi
-        fi
-    done
-
-    if [[ $script_syntax_errors -eq 0 ]]; then
-        log_success "✓ All scripts have valid syntax"
-    else
-        test_failures=$((test_failures + 1))
-    fi
-
-    # Test 4: Distribution XML validation
-    if [[ -f $DISTRIBUTION_XML ]]; then
-        if xmllint --noout "$DISTRIBUTION_XML" 2>/dev/null; then
-            log_success "✓ Distribution.xml is valid XML"
-        else
-            log_error "✗ Distribution.xml has XML syntax errors"
-            test_failures=$((test_failures + 1))
-        fi
-    else
-        log_warn "⚠ Distribution.xml not found, skipping XML validation"
-    fi
-
-    # Test 5: Binary architecture validation (if binaries exist)
-    local binary_files=(
-        "${BUILD_DIR}/root/usr/local/bin/gnosis_vpn"
-        "${BUILD_DIR}/root/usr/local/bin/gnosis_vpn-ctl"
-    )
-
-    local arch_errors=0
-    for binary in "${binary_files[@]}"; do
-        if [[ -f $binary ]]; then
-            if lipo -info "$binary" 2>/dev/null | grep -q "x86_64 arm64"; then
-                log_success "✓ $(basename "$binary") is universal binary (x86_64 + arm64)"
-            else
-                log_warn "⚠ $(basename "$binary") may not be universal binary"
-                arch_errors=$((arch_errors + 1))
-            fi
-        fi
-    done
-
-    if [[ $arch_errors -eq 0 ]]; then
-        log_success "✓ All binaries are universal (x86_64 + arm64)"
-    fi
-
-    echo ""
-    if [[ $test_failures -eq 0 ]]; then
-        log_success "✓ All tests passed!"
-        return 0
-    else
-        log_error "Tests failed with $test_failures failure(s)"
-        return 1
-    fi
-}
 
 # Build Mac package
 build_platform_package() {
