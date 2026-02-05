@@ -54,6 +54,7 @@
 
     <!-- Choices outline - what the user sees -->
     <choices-outline>
+        <line choice="default"/>
         <line choice="network">
             <line choice="rotsee"/>
             <line choice="jura"/>
@@ -63,7 +64,6 @@
             <line choice="info"/>
             <line choice="debug"/>
         </line>
-        <line choice="default"/>
     </choices-outline>
 
     <!-- Default choice -->
