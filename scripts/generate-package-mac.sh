@@ -19,7 +19,6 @@ RESOURCES_DIR="${SCRIPT_DIR}/../mac/resources"
 DISTRIBUTION_XML="${SCRIPT_DIR}/../mac/Distribution.xml"
 PKG_NAME_INSTALLER="GnosisVPN-Installer-v${GNOSISVPN_PACKAGE_VERSION}.pkg"
 COMPONENT_PKG="GnosisVPN.pkg"
-CHOICE_PACKAGE_PREFIX="choice"
 
 # Choice packages configuration
 # Format: "type:value" - package name and identifier are derived automatically
@@ -406,8 +405,8 @@ build_choice_packages() {
         local package_name="${choice_type}-${choice_value}"
         local identifier="com.gnosisvpn.choice.${choice_type}.${choice_value}"
 
-        local output_pkg="${BUILD_DIR}/packages/${CHOICE_PACKAGE_PREFIX}-${package_name}.pkg"
-        local temp_scripts_dir="${BUILD_DIR}/choice-scripts-${package_name}"
+        local output_pkg="${BUILD_DIR}/packages/custom-${package_name}.pkg"
+        local temp_scripts_dir="${BUILD_DIR}/choice-scripts/${package_name}"
 
         # Create temp scripts directory
         mkdir -p "$temp_scripts_dir"
