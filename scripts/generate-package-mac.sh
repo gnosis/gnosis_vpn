@@ -413,13 +413,13 @@ build_choice_packages() {
 
         # Generate postinstall script
         cat > "$temp_scripts_dir/postinstall" <<EOF
-            #!/bin/bash
-            set -euo pipefail
-            CHOICE_DIR="/Library/Logs/GnosisVPN/installer"
-            mkdir -p "\$CHOICE_DIR"
-            chmod 755 "\$CHOICE_DIR"
-            echo "INSTALLER_CHOICE_${choice_type_uppercase}=\"${choice_value}\"" > "\$CHOICE_DIR/${choice_type}_choice"
-            chmod 600 "\$CHOICE_DIR/${choice_type}_choice"
+#!/bin/bash
+set -euo pipefail
+CHOICE_DIR="/Library/Logs/GnosisVPN/installer"
+mkdir -p "\$CHOICE_DIR"
+chmod 755 "\$CHOICE_DIR"
+echo "INSTALLER_CHOICE_${choice_type_uppercase}=\"${choice_value}\"" > "\$CHOICE_DIR/${choice_type}_choice"
+chmod 600 "\$CHOICE_DIR/${choice_type}_choice"
 EOF
 
         chmod +x "$temp_scripts_dir/postinstall"
