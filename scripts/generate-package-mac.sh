@@ -406,6 +406,7 @@ build_choice_packages() {
         local identifier="com.gnosisvpn.choice.${choice_type}.${choice_value}"
         local temp_scripts_dir="${BUILD_DIR}/choice-scripts/${package_name}"
         local output_pkg="${BUILD_DIR}/packages/choice-${package_name}.pkg"
+        local choice_type_uppercase=$(echo "$choice_type" | tr '[:lower:]' '[:upper:]')
 
         # Create temp scripts directory
         mkdir -p "$temp_scripts_dir"
@@ -417,7 +418,7 @@ build_choice_packages() {
             CHOICE_DIR="/Library/Logs/GnosisVPN/installer"
             mkdir -p "\$CHOICE_DIR"
             chmod 755 "\$CHOICE_DIR"
-            echo "INSTALLER_CHOICE_${choice_type^^}=\"${choice_value}\"" > "\$CHOICE_DIR/${choice_type}_choice"
+            echo "INSTALLER_CHOICE_${choice_type_uppercase}=\"${choice_value}\"" > "\$CHOICE_DIR/${choice_type}_choice"
             chmod 600 "\$CHOICE_DIR/${choice_type}_choice"
 EOF
 
