@@ -441,10 +441,8 @@ install_launchd_service() {
     # Parameterize plist based on service mode
     if [[ "$INSTALLER_CHOICE_LOGLEVEL" == "debug" ]]; then
         log_info "Enabling debug logging"
-        sed -i '' 's|<string>info</string>|<string>debug</string>|g' "$source_plist"
-    else
-        log_info "Enabling info logging"
-        sed -i '' 's|<string>debug</string>|<string>info</string>|g' "$source_plist"
+        sed -i '' '/<key>RUST_LOG<\/key>/{n;s|<string>info</string>|<string>debug</string>|;}' "$source_plist"
+        sed -i '' '/<key>RUST_BACKTRACE<\/key>/{n;s|<string>1</string>|<string>full</string>|;}' "$source_plist"
     fi
     sed -i '' "s|__NETWORK_NAME__|${INSTALLER_CHOICE_NETWORK}|g" "$source_plist"
 
