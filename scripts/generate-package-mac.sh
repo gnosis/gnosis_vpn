@@ -387,7 +387,7 @@ build_component_package() {
 }
 
 build_choice_packages() {
-    log_info "Building choice marker packages..."
+    log_info "Building distribution packages for all choices..."
 
     local total=${#CHOICE_PACKAGES[@]}
     if [[ $total -eq 0 ]]; then
@@ -404,14 +404,13 @@ build_choice_packages() {
         # Derive package name and identifier from type:value
         local package_name="${choice_type}-${choice_value}"
         local identifier="com.gnosisvpn.choice.${choice_type}.${choice_value}"
-
-        local output_pkg="${BUILD_DIR}/packages/custom-${package_name}.pkg"
         local temp_scripts_dir="${BUILD_DIR}/choice-scripts/${package_name}"
+        local output_pkg="${BUILD_DIR}/packages/choice-${package_name}.pkg"
 
         # Create temp scripts directory
         mkdir -p "$temp_scripts_dir"
 
-        # Generate postinstall script with choice logic inlined
+        # Generate postinstall script
         cat > "$temp_scripts_dir/postinstall" <<EOF
             #!/bin/bash
             set -euo pipefail

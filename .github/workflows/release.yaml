@@ -1,5 +1,6 @@
 name: Close release
 on:
+  pull_request:
   repository_dispatch:
     types: [new_snapshot_release]
   workflow_dispatch:
