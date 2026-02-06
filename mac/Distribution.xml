@@ -8,12 +8,13 @@
     <domains enable_anywhere="true"/>
 
     <!-- Package metadata -->
-    <pkg-ref id="com.gnosisvpn.gnosisvpnclient"/>
     <pkg-ref id="com.gnosisvpn.choice.network.rotsee"/>
     <pkg-ref id="com.gnosisvpn.choice.network.jura"/>
     <pkg-ref id="com.gnosisvpn.choice.network.dufour"/>
     <pkg-ref id="com.gnosisvpn.choice.loglevel.info"/>
     <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"/>
+    <!-- The default package needs to be last to run its postinstall as last -->
+    <pkg-ref id="com.gnosisvpn.gnosisvpnclient"/>
 
     <!-- Options -->
     <options customize="allow" require-scripts="false" hostArchitectures="x86_64,arm64"/>

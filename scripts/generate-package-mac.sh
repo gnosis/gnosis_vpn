@@ -19,21 +19,16 @@ RESOURCES_DIR="${SCRIPT_DIR}/../mac/resources"
 DISTRIBUTION_XML="${SCRIPT_DIR}/../mac/Distribution.xml"
 PKG_NAME_INSTALLER="GnosisVPN-Installer-v${GNOSISVPN_PACKAGE_VERSION}.pkg"
 COMPONENT_PKG="GnosisVPN.pkg"
-CHOICE_PACKAGES_DIR="${SCRIPT_DIR}/../mac/choice-packages"
 CHOICE_PACKAGE_PREFIX="choice"
-CHOICE_PACKAGE_NAMES=(
-    network-rotsee
-    network-jura
-    network-dufour
-    loglevel-info
-    loglevel-debug
-)
-CHOICE_PACKAGE_IDENTIFIERS=(
-    com.gnosisvpn.choice.network.rotsee
-    com.gnosisvpn.choice.network.jura
-    com.gnosisvpn.choice.network.dufour
-    com.gnosisvpn.choice.loglevel.info
-    com.gnosisvpn.choice.loglevel.debug
+
+# Choice packages configuration
+# Format: "type:value" - package name and identifier are derived automatically
+CHOICE_PACKAGES=(
+    "network:rotsee"
+    "network:jura"
+    "network:dufour"
+    "loglevel:info"
+    "loglevel:debug"
 )
 
 # Keychain
@@ -395,7 +390,7 @@ build_component_package() {
 build_choice_packages() {
     log_info "Building choice marker packages..."
 
-    local total=${#CHOICE_PACKAGE_NAMES[@]}
+    local total=${#CHOICE_PACKAGES[@]}
     if [[ $total -eq 0 ]]; then
         log_info "No choice packages configured; skipping"
         return 0
@@ -403,21 +398,36 @@ build_choice_packages() {
 
     mkdir -p "${BUILD_DIR}/packages"
 
-    local i
-    for ((i = 0; i < total; i++)); do
-        local package_name="${CHOICE_PACKAGE_NAMES[$i]}"
-        local identifier="${CHOICE_PACKAGE_IDENTIFIERS[$i]}"
-        local scripts_dir="${CHOICE_PACKAGES_DIR}/${package_name}/Scripts"
-        local output_pkg="${BUILD_DIR}/packages/${CHOICE_PACKAGE_PREFIX}-${package_name}.pkg"
+    for choice_spec in "${CHOICE_PACKAGES[@]}"; do
+        # Parse choice specification: type:value
+        IFS=':' read -r choice_type choice_value <<< "$choice_spec"
 
-        if [[ ! -d "$scripts_dir" ]]; then
-            log_error "Choice package scripts directory not found: $scripts_dir"
-            exit 1
-        fi
+        # Derive package name and identifier from type:value
+        local package_name="${choice_type}-${choice_value}"
+        local identifier="com.gnosisvpn.choice.${choice_type}.${choice_value}"
+
+        local output_pkg="${BUILD_DIR}/packages/${CHOICE_PACKAGE_PREFIX}-${package_name}.pkg"
+        local temp_scripts_dir="${BUILD_DIR}/choice-scripts-${package_name}"
+
+        # Create temp scripts directory
+        mkdir -p "$temp_scripts_dir"
+
+        # Generate postinstall script with choice logic inlined
+        cat > "$temp_scripts_dir/postinstall" <<EOF
+            #!/bin/bash
+            set -euo pipefail
+            CHOICE_DIR="/Library/Logs/GnosisVPN/installer"
+            mkdir -p "\$CHOICE_DIR"
+            chmod 755 "\$CHOICE_DIR"
+            echo "INSTALLER_CHOICE_${choice_type^^}=\"${choice_value}\"" > "\$CHOICE_DIR/${choice_type}_choice"
+            chmod 600 "\$CHOICE_DIR/${choice_type}_choice"
+EOF
+
+        chmod +x "$temp_scripts_dir/postinstall"
 
         pkgbuild \
             --nopayload \
-            --scripts "$scripts_dir" \
+            --scripts "$temp_scripts_dir" \
             --identifier "$identifier" \
             --version "$GNOSISVPN_PACKAGE_VERSION" \
             "$output_pkg"
