@@ -1,5 +1,11 @@
 name: Close release
 on:
+  pull_request:
+    types:
+    - opened
+    - synchronize
+    - reopened
+    - ready_for_review
   repository_dispatch:
     types: [new_snapshot_release]
   workflow_dispatch:
