@@ -1,10 +1,12 @@
 # Security Policy
 
-## Linux Package Verification
+## Package Verification
 
-All GnosisVPN Linux packages (`.deb`) are signed with GPG to ensure authenticity and integrity. We strongly recommend verifying packages before installation.
+All GnosisVPN packages include SHA256 checksums for integrity verification. Additionally:
+- **Linux packages** (`.deb`) are signed with GPG
+- **macOS packages** (`.pkg`) use Apple's code signing mechanism and are signed with an Apple Developer certificate
 
-**Note:** macOS packages use Apple's code signing mechanism and are signed with an Apple Developer certificate. This guide covers Linux package verification only.
+We strongly recommend verifying packages before installation.
 
 ### GPG Public Key
 
@@ -99,6 +101,39 @@ gpg --verify ${PACKAGE}.asc ${PACKAGE}
 
 # If both checks pass, install
 sudo apt install ./${PACKAGE}
+```
+
+## macOS Package Verification
+
+macOS packages are signed with an Apple Developer certificate and notarized by Apple. The system verifies signatures automatically during installation.
+
+### Verify SHA256 Checksum (macOS)
+
+Each macOS release includes a SHA256 checksum file for manual verification:
+
+```bash
+# Download the package and checksum
+PACKAGE="GnosisVPN-Installer-v1.2.3.pkg"
+curl -LO https://github.com/gnosis/gnosis_vpn/releases/download/v1.2.3/${PACKAGE}
+curl -LO https://github.com/gnosis/gnosis_vpn/releases/download/v1.2.3/${PACKAGE}.sha256
+
+# Verify checksum
+shasum -a 256 -c ${PACKAGE}.sha256
+```
+
+Expected output:
+```
+GnosisVPN-Installer-v1.2.3.pkg: OK
+```
+
+### Verify Code Signature (macOS)
+
+```bash
+# Verify installer package signature
+pkgutil --check-signature GnosisVPN-Installer-v1.2.3.pkg
+
+# After installation, verify app signature
+codesign --verify --deep --strict /Applications/Gnosis\ VPN.app
 ```
 
 ## Reporting Security Vulnerabilities

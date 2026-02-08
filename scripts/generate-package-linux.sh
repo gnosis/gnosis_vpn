@@ -169,7 +169,8 @@ sign_platform_package() {
             gpg --batch --pinentry-mode loopback --passphrase-fd 0 \
             --import "$GNOSISVPN_GPG_PRIVATE_KEY_PATH"
         log_info "GPG private key imported into temporary keyring"
-        shasum -a 256 "${BUILD_DIR}/packages/${PKG_NAME}" > "${BUILD_DIR}/packages/${HASH_PKG_NAME}"
+        # Generate checksum with filename relative to the dir, for standard verification
+        (cd "${BUILD_DIR}/packages" && shasum -a 256 "${PKG_NAME}") > "${BUILD_DIR}/packages/${HASH_PKG_NAME}"
         log_success "Hash written to ${BUILD_DIR}/packages/${HASH_PKG_NAME}"
         echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" | \
             gpg --batch --pinentry-mode loopback --passphrase-fd 0 \
