@@ -34,7 +34,7 @@ sudo apt remove gnosisvpn
 ### Quick Start
 
 
-**Debian**
+**Debian (x86_64)**
 ```bash
 just download deb x86_64-linux
 just changelog
@@ -42,6 +42,16 @@ just manual
 just package deb x86_64-linux true
 # Or execute all commands together with
 just all deb x86_64-linux true
+```
+
+**Debian (ARM64)**
+```bash
+just download deb aarch64-linux
+just changelog
+just manual
+just package deb aarch64-linux true
+# Or execute all commands together with
+just all deb aarch64-linux true
 ```
 
 **Mac**
