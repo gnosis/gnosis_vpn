@@ -115,9 +115,9 @@ validate_distribution() {
 # Validate architecture
 validate_architecture() {
     local architecture="$1"
-    if [[ ! $architecture =~ ^(x86_64-linux|x86_64-darwin|aarch64-darwin)$ ]]; then
+    if [[ ! $architecture =~ ^(x86_64-linux|aarch64-linux|x86_64-darwin|aarch64-darwin)$ ]]; then
         log_error "Invalid architecture: $architecture"
-        log_error "Valid options: x86_64-linux, x86_64-darwin, aarch64-darwin"
+        log_error "Valid options: x86_64-linux, aarch64-linux, x86_64-darwin, aarch64-darwin"
         return 1
     fi
     return 0

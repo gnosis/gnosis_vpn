@@ -33,7 +33,7 @@ usage() {
     echo "  -h, --help                     Show this help message"
     echo "  --package-version <version>    Set the package version (e.g., 1.0.0)"
     echo "  --distribution <type>          Set the distribution type (deb, dmg), default: deb"
-    echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-darwin), default: x86_64-linux"
+    echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux, aarch64-darwin), default: x86_64-linux"
     echo "  --sign                         Enable code signing"
     usage_platform
 }
