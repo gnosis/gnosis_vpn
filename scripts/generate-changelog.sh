@@ -49,15 +49,15 @@ validate_iso8601_date() {
         return 1
     fi
     
-    # Check ISO8601 format: YYYY-MM-DDTHH:MM:SSZ or similar
-    if [[ ! "$date_string" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$ ]]; then
+    # Check ISO8601 format: YYYY-MM-DDTHH:MM:SSZ or similar, with optional fractional seconds
+    if [[ ! "$date_string" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$ ]]; then
         return 1
     fi
     
     # Additional validation: try to parse with date command
-    if ! date -d "$date_string" &>/dev/null 2>&1; then
+    if ! date -d "$date_string" &>/dev/null; then
         # Try macOS date format
-        if ! date -j -f "%Y-%m-%dT%H:%M:%S" "${date_string%Z}" &>/dev/null 2>&1; then
+        if ! date -j -f "%Y-%m-%dT%H:%M:%S" "${date_string%Z}" &>/dev/null; then
             return 1
         fi
     fi
