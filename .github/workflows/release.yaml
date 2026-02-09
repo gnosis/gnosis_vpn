@@ -183,8 +183,12 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           path: ./binaries
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
       - name: Generate Release Notes
-        run: ./scripts/generate-changelog.sh
+        run: nix develop -c ./scripts/generate-changelog.ts
         env:
           GH_TOKEN: ${{ github.token }}
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}

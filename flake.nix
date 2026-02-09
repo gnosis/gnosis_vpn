@@ -22,6 +22,7 @@
             help2man
             gzip
             gh
+            deno
             google-cloud-sdk
           ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
             curl

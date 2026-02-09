@@ -67,6 +67,6 @@ just all dmg aarch64-darwin true
 - `common.sh` - Shared utility functions
 - `download-binaries.sh` - Downloads pre-built binaries from GCP Artifact registry
 - `generate-manual.sh` - Creates man pages (Linux only)
-- `generate-changelog.sh` - Creates the changelog (Linux only)
+- `generate-changelog.ts` - Creates the changelog (requires Deno)
 - `generate-package.sh` - Generates packages (.deb, .dmg)
 
