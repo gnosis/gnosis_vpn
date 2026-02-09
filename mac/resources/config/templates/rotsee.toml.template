@@ -25,7 +25,7 @@ address = "0x64885d2d2bc9df7b415aac184e020c632d715dff"
 meta = { location = "Sydney" }
 path = { intermediates = [ "0xee7c14d7081cdeed6503478db0bfc26e4353feef" ] }
 
-[destinations.South Korea]
+[destinations."South Korea"]
 address = "0xd8efe2ebe14c8cc193d5a9f5afd81276549fad67"
 meta = { location = "Seoul" }
 path = { intermediates = [ "0x16a8c54a8ac982d167adae90781e0f822ed1db2d" ] }
