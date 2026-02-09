@@ -28,6 +28,7 @@ set -euo pipefail
 : "${GNOSISVPN_APP_VERSION:?Error: GNOSISVPN_APP_VERSION is required}"
 : "${GNOSISVPN_CHANGELOG_FORMAT:=github}"
 : "${GNOSISVPN_BRANCH:=main}"
+: "${GH_API_MAX_ATTEMPTS:=6}"
 
 # Initialize changelog entries array
 declare -a changelog_entries
@@ -37,6 +38,100 @@ jq_decode() {
     echo "${1}" | base64 --decode
 }
 
+# Validate ISO8601 timestamp format
+# Usage: validate_iso8601_date <date_string>
+# Returns: 0 if valid, 1 if invalid
+validate_iso8601_date() {
+    local date_string="$1"
+    
+    # Check if empty
+    if [[ -z "$date_string" ]]; then
+        return 1
+    fi
+    
+    # Check ISO8601 format: YYYY-MM-DDTHH:MM:SSZ or similar
+    if [[ ! "$date_string" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$ ]]; then
+        return 1
+    fi
+    
+    # Additional validation: try to parse with date command
+    if ! date -d "$date_string" &>/dev/null 2>&1; then
+        # Try macOS date format
+        if ! date -j -f "%Y-%m-%dT%H:%M:%S" "${date_string%Z}" &>/dev/null 2>&1; then
+            return 1
+        fi
+    fi
+    
+    return 0
+}
+
+# Strict GitHub API wrapper with exponential backoff and throttling detection
+# Usage: gh_api_call_with_retry <repo> <endpoint> <jq_query>
+# Returns: API response or exits with error after max attempts
+gh_api_call_with_retry() {
+    local repo="$1"
+    local endpoint="$2"
+    local jq_query="$3"
+    local attempt=1
+    local max_attempts="${GH_API_MAX_ATTEMPTS}"
+    local delay=2
+    
+    while (( attempt <= max_attempts )); do
+        echo "[DEBUG] GitHub API call attempt ${attempt}/${max_attempts}: /repos/${repo}${endpoint}" >&2
+        
+        # Capture both stdout and stderr, and the exit code
+        local temp_output=$(mktemp)
+        local temp_error=$(mktemp)
+        local exit_code=0
+        
+        gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${repo}${endpoint}" \
+            --jq "${jq_query}" \
+            >"$temp_output" \
+            2>"$temp_error" || exit_code=$?
+        
+        local output=$(cat "$temp_output")
+        local error=$(cat "$temp_error")
+        rm -f "$temp_output" "$temp_error"
+        
+        # Check for throttling in error message or HTTP 429
+        if [[ $exit_code -ne 0 ]] && ( \
+            echo "$error" | grep -qi "rate limit\|throttle\|429\|too many requests" || \
+            echo "$output" | grep -qi "rate limit\|throttle\|API rate limit exceeded" \
+        ); then
+            if (( attempt >= max_attempts )); then
+                echo "[ERROR] GitHub API throttled after ${max_attempts} attempts. Rate limit exceeded." >&2
+                echo "[ERROR] Endpoint: /repos/${repo}${endpoint}" >&2
+                echo "[ERROR] Last error: ${error}" >&2
+                exit 1
+            fi
+            
+            echo "[WARN] GitHub API throttled (attempt ${attempt}/${max_attempts}). Retrying in ${delay}s..." >&2
+            sleep "$delay"
+            delay=$((delay * 2))
+            attempt=$((attempt + 1))
+            continue
+        fi
+        
+        # Check for other errors
+        if [[ $exit_code -ne 0 ]]; then
+            echo "[ERROR] GitHub API request failed: ${error}" >&2
+            echo "[ERROR] Endpoint: /repos/${repo}${endpoint}" >&2
+            exit 1
+        fi
+        
+        # Success - return the output
+        echo "$output"
+        return 0
+    done
+    
+    # Should not reach here, but safety net
+    echo "[ERROR] GitHub API call failed after ${max_attempts} attempts" >&2
+    exit 1
+}
+
 # Helper function to call GitHub API
 # Usage: gh_api_call <repo> <endpoint> <jq_query>
 gh_api_call() {
@@ -44,11 +139,7 @@ gh_api_call() {
     local endpoint="$2"
     local jq_query="$3"
     
-    gh api \
-        -H "Accept: application/vnd.github+json" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        "/repos/${repo}${endpoint}" \
-        --jq "${jq_query}" 2>/dev/null || echo ""
+    gh_api_call_with_retry "${repo}" "${endpoint}" "${jq_query}"
 }
 
 # Get the creation date of a release tag
@@ -57,7 +148,17 @@ get_release_date() {
     local repo="$1"
     local tag="$2"
     
-    gh_api_call "${repo}" "/releases/tags/${tag}" '.created_at'
+    echo "[DEBUG] Fetching release date for ${repo}/${tag}" >&2
+    local date=$(gh_api_call "${repo}" "/releases/tags/${tag}" '.created_at')
+    
+    # Validate the date format
+    if ! validate_iso8601_date "$date"; then
+        echo "[ERROR] Invalid or empty release date for ${repo}/${tag}: '${date}'" >&2
+        echo "[ERROR] Expected ISO8601 timestamp format (e.g., 2024-01-15T10:30:00Z)" >&2
+        exit 1
+    fi
+    
+    echo "$date"
 }
 
 # Fetch merged PRs from a repository between two dates
@@ -77,11 +178,8 @@ fetch_merged_prs() {
     echo "[INFO] Fetching PRs for ${component} (branch: ${branch}) between ${start_date} and ${end_date}..." >&2
     
     # Fetch merged PRs on specified branch between the dates
-    local prs=$(gh api \
-        -H "Accept: application/vnd.github+json" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        "/repos/${repo_name}/pulls?state=closed&base=${branch}&sort=updated&direction=desc&per_page=100" \
-        --jq '.[] | select(.merged_at != null and .merged_at > "'"${start_date}"'" and .merged_at <= "'"${end_date}"'") | @base64' 2>/dev/null || echo "")
+    # Use the strict API wrapper instead of direct gh api call
+    local prs=$(gh_api_call_with_retry "${repo_name}" "/pulls?state=closed&base=${branch}&sort=updated&direction=desc&per_page=100" '.[] | select(.merged_at != null and .merged_at > "'"${start_date}"'" and .merged_at <= "'"${end_date}"'") | @base64')
     
     if [[ -z "$prs" ]]; then
         echo "[INFO] No PRs found for ${component}" >&2
@@ -383,7 +481,34 @@ main() {
     fi
     
     # Get the last release tag for packaging repo
-    local last_release_tag=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
+    local last_release_tag=""
+    echo "[DEBUG] Fetching last release tag for gnosis/gnosis_vpn" >&2
+    
+    # Try to get the last release tag, but don't fail if there are no releases
+    local temp_output=$(mktemp)
+    local temp_error=$(mktemp)
+    local exit_code=0
+    
+    gh release list --limit 1 --json tagName --jq '.[0].tagName' \
+        >"$temp_output" \
+        2>"$temp_error" || exit_code=$?
+    
+    last_release_tag=$(cat "$temp_output")
+    local error=$(cat "$temp_error")
+    rm -f "$temp_output" "$temp_error"
+    
+    # Check for throttling
+    if [[ $exit_code -ne 0 ]] && echo "$error" | grep -qi "rate limit\|throttle\|429\|too many requests"; then
+        echo "[ERROR] GitHub API throttled while fetching release list." >&2
+        echo "[ERROR] Error: ${error}" >&2
+        exit 1
+    fi
+    
+    # If error is "no releases found" or similar, that's OK - we just skip
+    if [[ $exit_code -ne 0 ]] && ! echo "$error" | grep -qi "no releases\|not found"; then
+        echo "[WARN] Could not fetch release list: ${error}" >&2
+    fi
+    
     if [[ -n "$last_release_tag" ]]; then
         pkg_last_release_date=$(get_release_date "gnosis/gnosis_vpn" "${last_release_tag}")
         local pkg_current_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
