@@ -44,10 +44,8 @@ just package deb x86_64-linux true
 just all deb x86_64-linux true
 ```
 
-**Debian (ARM64)** *(Infrastructure ready, awaiting app package availability)*
+**Debian (ARM64)**
 ```bash
-# ARM64 builds are currently disabled in CI/CD due to missing gnosis_vpn-app ARM64 packages
-# The infrastructure is ready - uncomment workflow matrix when app packages become available
 just download deb aarch64-linux
 just changelog
 just manual

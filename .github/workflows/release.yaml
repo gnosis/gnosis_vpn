@@ -77,9 +77,8 @@ jobs:
         architecture:
           - nix: x86_64-linux
             nfpm: amd64
-          # ARM64 Linux builds are disabled until gnosis_vpn-app supports building Linux ARM64 packages
-          # - nix: aarch64-linux
-          #   nfpm: arm64
+          - nix: aarch64-linux
+            nfpm: arm64
         distribution: [deb]
     steps:
       - name: Checkout repository
