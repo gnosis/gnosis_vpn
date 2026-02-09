@@ -77,8 +77,6 @@ jobs:
         architecture:
           - nix: x86_64-linux
             nfpm: amd64
-          - nix: aarch64-linux
-            nfpm: arm64
         distribution: [deb]
     steps:
       - name: Checkout repository
