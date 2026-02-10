@@ -23,9 +23,7 @@ Restart=always
 RestartSec=5s
 
 # Process management
-KillMode=mixed
-KillSignal=SIGTERM
-TimeoutStopSec=90
+TimeoutStopSec=30
 TimeoutStartSec=60
 
 # Logging
