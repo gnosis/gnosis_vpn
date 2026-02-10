@@ -7,7 +7,7 @@ download distribution arch:
 
 # Generate changelog
 changelog:
-    ./scripts/generate-changelog.sh
+    ./scripts/generate-changelog.ts
 
 # Generate manual pages for binaries
 manual:
