@@ -34,7 +34,7 @@ StandardError=append:/var/log/gnosisvpn/gnosisvpn.log
 SyslogIdentifier=gnosisvpn
 
 # Directory management - systemd will create these with proper permissions
-RuntimeDirectory=gnosis_vpn
+RuntimeDirectory=gnosisvpn
 RuntimeDirectoryMode=0755
 
 # Security hardening for VPN service
@@ -47,7 +47,7 @@ AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETUID CA
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=/var/lib/gnosisvpn /var/log/gnosisvpn /var/run/gnosis_vpn
+ReadWritePaths=/var/lib/gnosisvpn /var/log/gnosisvpn /var/run/gnosisvpn
 
 # Resource limits
 LimitNOFILE=65536
