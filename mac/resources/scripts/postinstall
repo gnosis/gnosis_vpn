@@ -957,7 +957,7 @@ set_permissions() {
 
     # Create and set permissions for state directory
     local state_dir="$INSTALLED_LIB_DIR_PATH"
-    chown $username:$groupname "$state_dir"
+    chown -R $username:$groupname "$state_dir"
     chmod -R 700 "$state_dir"
     chmod 755 "$state_dir/uninstall.sh"
     log_info "State directory created: $state_dir"
