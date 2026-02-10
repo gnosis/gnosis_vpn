@@ -7,7 +7,7 @@
   };
 
   outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ] (system:
+    flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" "x86_64-darwin" ] (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
       in
@@ -22,6 +22,7 @@
             help2man
             gzip
             gh
+            deno
             google-cloud-sdk
           ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
             curl

@@ -23,7 +23,7 @@ usage() {
     echo "Options:"
     echo "  --cli-version <version>        Set the CLI version (e.g., latest, v0.50.7, 0.50.7+pr.465)"
     echo "  --app-version <version>        Set the App version (e.g., latest, v0.2.2, 0.2.2+pr.10)"
-    echo "  --architecture <arch>          Set the target architecture (x86_64-linux, x86_64-darwin, aarch64-darwin), default: x86_64-linux"
+    echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux, x86_64-darwin, aarch64-darwin), default: x86_64-linux"
     echo "  --distribution <type>          Set the distribution type (deb, dmg), default: deb"
     echo "  -h, --help                     Show this help message"
     exit 1
@@ -171,7 +171,7 @@ print_summary() {
 # Main
 main() {
     prepare_build_dir
-    if [[ "${GNOSISVPN_ARCHITECTURE}" =~ ^(x86_64-linux)$ ]]; then
+    if [[ "${GNOSISVPN_ARCHITECTURE}" =~ ^(x86_64-linux|aarch64-linux)$ ]]; then
         download_linux_binaries
     else
         download_darwin_binaries

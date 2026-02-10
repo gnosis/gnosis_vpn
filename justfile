@@ -7,7 +7,7 @@ download distribution arch:
 
 # Generate changelog
 changelog:
-    ./scripts/generate-changelog.sh
+    ./scripts/generate-changelog.ts
 
 # Generate manual pages for binaries
 manual:
@@ -28,7 +28,7 @@ all distribution arch sign="false":
     #!/usr/bin/env bash
     set -o errexit -o nounset -o pipefail
     just download {{ distribution }} {{ arch }}
-    if [[ "{{ arch }}" =~ ^(x86_64-linux)$ ]]; then
+    if [[ "{{ arch }}" =~ ^(x86_64-linux|aarch64-linux)$ ]]; then
         just changelog
         just manual
     fi
