@@ -23,9 +23,7 @@ Restart=always
 RestartSec=5s
 
 # Process management
-KillMode=mixed
-KillSignal=SIGTERM
-TimeoutStopSec=90
+TimeoutStopSec=30
 TimeoutStartSec=60
 
 # Logging
@@ -40,8 +38,8 @@ RuntimeDirectoryMode=0755
 # Security hardening for VPN service
 # VPN needs CAP_NET_ADMIN for tunnel management
 # CAP_SETUID/CAP_SETGID needed to spawn worker as 'gnosisvpn' user
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETUID CAP_SETGID
-AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETUID CAP_SETGID
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETUID CAP_SETGID CAP_DAC_OVERRIDE CAP_CHOWN
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETUID CAP_SETGID CAP_DAC_OVERRIDE CAP_CHOWN
 
 # File system protection
 ProtectSystem=strict
