@@ -10,8 +10,6 @@
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/gnosis_vpn-root</string>
-        <string>--hopr-blokli-url</string>
-        <string>https://blokli.__NETWORK_NAME__.hoprnet.link</string>
     </array>
 
     <!-- Service Behavior -->
@@ -69,6 +67,8 @@
         <string>/var/run/gnosisvpn/gnosisvpn.pid</string>
         <key>GNOSISVPN_LOG_FILE</key>
         <string>/Library/Logs/GnosisVPN/gnosisvpn.log</string>
+        <key>GNOSISVPN_HOPR_BLOKLI_URL</key>
+        <string>https://blokli.__NETWORK_NAME__.hoprnet.link</string>
         <key>RUST_LOG</key>
         <string>info</string>
         <key>RUST_BACKTRACE</key>
