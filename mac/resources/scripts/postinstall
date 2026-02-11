@@ -65,6 +65,10 @@ UI_TARGET_APP="$(join_path "$TARGET_VOLUME" "/Applications/Gnosis VPN.app")"
 INSTALLED_LOG_DIR_PATH="/Library/Logs/GnosisVPN"
 INSTALLED_LIB_DIR_PATH="/Library/Application Support/GnosisVPN"
 
+# Rollback mechanism
+ROLLBACK_STEPS=()
+ROLLBACK_ENABLED=true
+PREV_CONFIG_FILE=""
 
 # Get installer version from package (if available) or use current date
 INSTALLER_VERSION="${INSTALLER_VERSION:-$(date +%Y%m%d-%H%M%S)}"
@@ -98,22 +102,6 @@ load_installer_choices() {
         log_warn "Log level choice file not found, defaulting to info"
     fi
 }
-
-# Inject installer choices from temporary files (if they exist)
-load_installer_choices
-
-log_info "Install package: $PACKAGE_PATH"
-log_info "Target volume: $TARGET_VOLUME"
-log_info "Binary directory: $BIN_DIR"
-log_info "Configuration directory: $CONFIG_DIR"
-log_info "Configuration file: $CONFIG_FILE"
-log_info "Network: $INSTALLER_CHOICE_NETWORK"
-log_info "Log level: $INSTALLER_CHOICE_LOGLEVEL"
-
-# Rollback mechanism
-ROLLBACK_STEPS=()
-ROLLBACK_ENABLED=true
-PREV_CONFIG_FILE=""
 
 # Rollback functions
 rollback_restore_config() {
@@ -972,7 +960,7 @@ set_permissions() {
 
     # Create and set permissions for state directory
     local state_dir="$INSTALLED_LIB_DIR_PATH"
-    chown $username:$groupname "$state_dir"
+    chown -R $username:$groupname "$state_dir"
     chmod -R 700 "$state_dir"
     chmod 755 "$state_dir/uninstall.sh"
     log_info "State directory created: $state_dir"
@@ -1237,8 +1225,36 @@ setup_management_script() {
     fi
 }
 
+# Copy log rotation configuration for newsyslog
+copy_logs_rotation_conf() {
+    local src_conf="${SCRIPT_DIR}/config/system/gnosisvpn.logrotate.conf"
+    local dest_conf="/etc/newsyslog.d/gnosisvpn.conf"
+    if [[ -f "$src_conf" ]]; then
+        cp "$src_conf" "$dest_conf"
+        chmod 644 "$dest_conf"
+        chown root:wheel "$dest_conf" 2>/dev/null || true
+        log_success "Installed log rotation config: $dest_conf"
+    else
+        log_warn "Log rotation config not found: $src_conf"
+        ls -alR "${SCRIPT_DIR}/config/system/" || true
+        ls -alR "${SCRIPT_DIR}/../config/system/" || true
+    fi
+}
+
 # Main execution
 main() {
+
+    # Inject installer choices from temporary files (if they exist)
+    load_installer_choices
+
+    log_info "Install package: $PACKAGE_PATH"
+    log_info "Target volume: $TARGET_VOLUME"
+    log_info "Binary directory: $BIN_DIR"
+    log_info "Configuration directory: $CONFIG_DIR"
+    log_info "Configuration file: $CONFIG_FILE"
+    log_info "Network: $INSTALLER_CHOICE_NETWORK"
+    log_info "Log level: $INSTALLER_CHOICE_LOGLEVEL"
+
     # Determine installation type (fresh vs update)
     local installation_type
     installation_type=$(check_previous_installation)
@@ -1268,6 +1284,9 @@ main() {
 
     # Configure sudo privileges for service management
     configure_sudo_privileges
+
+    # Install log rotation config
+    copy_logs_rotation_conf
 
     # Validate service environment
     validate_service_environment

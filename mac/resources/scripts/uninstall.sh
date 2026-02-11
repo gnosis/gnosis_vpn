@@ -166,6 +166,14 @@ cleanup_system_directories() {
         fi
     done
 
+    # Remove log rotation config
+    local logrotate_conf="/etc/newsyslog.d/gnosisvpn.conf"
+    if [[ -f "$logrotate_conf" ]]; then
+        log_info "Removing log rotation config: $logrotate_conf"
+        rm -f "$logrotate_conf"
+        log_success "Log rotation config removed"
+    fi
+
     log_success "System directories cleaned up"
     echo ""
 }
