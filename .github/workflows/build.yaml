@@ -94,10 +94,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@master
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v1
         with:
-          google-credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
-          install-sdk: "true"
+          google_credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
+          install_sdk: "true"
       - name: Install Nix
         uses: cachix/install-nix-action@v27
         with:
@@ -144,10 +144,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@master
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v1
         with:
-          google-credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
-          install-sdk: "true"
+          google_credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
+          install_sdk: "true"
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v21
       - name: Create mac installer package
