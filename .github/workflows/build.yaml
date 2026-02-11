@@ -34,7 +34,7 @@ on:
         description: "The version of the GnosisVPN App to be released"
         value: ${{ jobs.setup.outputs.GNOSISVPN_APP_VERSION }}
 concurrency:
-  group: release
+  group: build-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   setup:
