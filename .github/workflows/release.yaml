@@ -29,6 +29,7 @@ jobs:
       public_release: ${{ inputs.public_release }}
       client_version: ${{ inputs.client_version }}
       app_version: ${{ inputs.app_version }}
+    secrets: inherit
 
   release:
     runs-on: ubuntu-latest
