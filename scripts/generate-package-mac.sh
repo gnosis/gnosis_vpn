@@ -23,8 +23,8 @@ COMPONENT_PKG="GnosisVPN.pkg"
 # Choice packages configuration
 # Format: "type:value" - package name and identifier are derived automatically
 CHOICE_PACKAGES=(
-    "network:rotsee"
     "network:jura"
+    "network:rotsee"
     "network:dufour"
     "loglevel:info"
     "loglevel:debug"
