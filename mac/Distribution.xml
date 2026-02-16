@@ -55,7 +55,6 @@
 
     <!-- Choices outline - what the user sees -->
     <choices-outline>
-        <line choice="default"/>
         <line choice="network">
             <line choice="jura"/>
             <line choice="rotsee"/>
@@ -65,6 +64,8 @@
             <line choice="info"/>
             <line choice="debug"/>
         </line>
+        <!-- Should be the last choice line to to install previously the choices -->
+        <line choice="default"/>
     </choices-outline>
 
     <!-- Default choice -->
