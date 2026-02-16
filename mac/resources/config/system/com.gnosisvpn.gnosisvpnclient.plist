@@ -68,7 +68,7 @@
         <key>GNOSISVPN_LOG_FILE</key>
         <string>/Library/Logs/GnosisVPN/gnosisvpn.log</string>
         <key>GNOSISVPN_HOPR_BLOKLI_URL</key>
-        <string>https://blokli.__NETWORK_NAME__.gnosisvpn.io</string>
+        <string>https://blokli.__NETWORK_NAME__.hoprnet.link</string>
         <key>RUST_LOG</key>
         <string>info</string>
         <key>RUST_BACKTRACE</key>
