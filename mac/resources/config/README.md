@@ -12,7 +12,7 @@ config/
 │   └── com.gnosisvpn.gnosisvpnclient.plist  # LaunchD service configuration
 └── templates/           # Configuration templates
     ├── dufour.toml.template   # Dufour network configuration template
-    └── rotsee.toml.template   # Rotsee network configuration template
+    └── jura.toml.template   # Jura network configuration template
 ```
 
 ## System Configuration Files
@@ -38,8 +38,8 @@ TOML configuration templates for different network environments.
 
 **Available Networks:**
 
-- **rotsee**: Default production network
-- **dufour**: Development/testing network
+- **jura**: Development/testing network
+- **dufour**: Default production network
 
 **Template Structure:**
 

@@ -55,16 +55,17 @@
 
     <!-- Choices outline - what the user sees -->
     <choices-outline>
-        <line choice="default"/>
         <line choice="network">
-            <line choice="rotsee"/>
             <line choice="jura"/>
+            <line choice="rotsee"/>
             <line choice="dufour"/>
         </line>
         <line choice="loglevel">
             <line choice="info"/>
             <line choice="debug"/>
         </line>
+        <!-- Should be the last choice line to to install previously the choices -->
+        <line choice="default"/>
     </choices-outline>
 
     <!-- Default choice -->
@@ -86,21 +87,21 @@
 
     <!-- Rotsee network sub-choice -->
     <choice id="rotsee"
-            title="Rotsee (Recommended)"
+            title="Rotsee"
             description="Connect to VPN nodes on the Rotsee network - US, UK, Brazil, Australia, India, South Korea"
             visible="true"
-            enabled="exclusiveEnabled('rotsee', ['rotsee','jura','dufour'])"
-            start_selected="true">
+            start_selected="false"
+            enabled="false">
         <pkg-ref id="com.gnosisvpn.choice.network.rotsee"/>
     </choice>
 
     <!-- Jura network sub-choice -->
     <choice id="jura"
-            title="Jura"
+            title="Jura (Recommended)"
             description="Connect to VPN nodes on the Jura network - US, UK, Brazil, Australia, India, South Korea"
             visible="true"
-            start_selected="false"
-            enabled="false">
+            enabled="exclusiveEnabled('jura', ['rotsee','jura','dufour'])"
+            start_selected="true">
         <pkg-ref id="com.gnosisvpn.choice.network.jura"/>
     </choice>
 

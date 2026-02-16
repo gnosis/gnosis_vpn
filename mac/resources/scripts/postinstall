@@ -16,7 +16,7 @@
 #   $4: Root directory "/" for the current system
 #
 # Environment variables from Distribution.xml choices:
-#   INSTALLER_CHOICE_NETWORK: "rotsee" or "dufour"
+#   INSTALLER_CHOICE_NETWORK: "jura" or "dufour"
 #   INSTALLER_CHOICE_LOGLEVEL: "debug" or "info"
 
 set -euo pipefail
@@ -83,7 +83,7 @@ load_installer_choices() {
     local network_choice_file="${choice_dir}/network_choice"
     local loglevel_choice_file="${choice_dir}/loglevel_choice"
 
-    INSTALLER_CHOICE_NETWORK="rotsee"
+    INSTALLER_CHOICE_NETWORK="jura"
     INSTALLER_CHOICE_LOGLEVEL="info"
 
     if [[ -f "$network_choice_file" ]]; then
@@ -91,7 +91,7 @@ load_installer_choices() {
         # shellcheck disable=SC1090
         source "$network_choice_file"
     else
-        log_warn "Network choice file not found, defaulting to rotsee"
+        log_warn "Network choice file not found, defaulting to jura"
     fi
 
     if [[ -f "$loglevel_choice_file" ]]; then
@@ -817,8 +817,8 @@ create_config_symlink() {
     # Check if target configuration exists
     if [[ ! -f "$target_config" ]]; then
         log_warn "Configuration file not found: $target_config"
-        log_info "Falling back to rotsee.toml"
-        target_config="${CONFIG_DIR}/rotsee.toml"
+        log_info "Falling back to jura.toml"
+        target_config="${CONFIG_DIR}/jura.toml"
 
         if [[ ! -f "$target_config" ]]; then
             log_error "Default configuration file not found: $target_config"
@@ -832,14 +832,19 @@ create_config_symlink() {
         current_target=$(readlink "$CONFIG_FILE" 2>/dev/null || echo "")
         local current_target_file="${CONFIG_DIR}/${current_target}"
 
-        # Check if the symlink target actually exists
-        if [[ -f "$current_target_file" ]]; then
-            log_info "Configuration symlink already exists and is valid: config.toml -> $current_target"
+        # Check if the symlink target actually exists and points to the correct network choice
+        if [[ -f "$current_target_file" && "$current_target" == "${INSTALLER_CHOICE_NETWORK}.toml" ]]; then
+            log_info "Configuration symlink already exists and is correct: config.toml -> $current_target"
             log_success "Preserving existing configuration symlink"
             return 0
         else
-            log_warn "Existing symlink points to missing file: $current_target"
-            log_info "Will recreate symlink to valid configuration"
+            if [[ -f "$current_target_file" ]]; then
+                log_info "Configuration symlink points to different network: $current_target (expected: ${INSTALLER_CHOICE_NETWORK}.toml)"
+                log_info "Will update symlink to match selection"
+            else
+                log_warn "Existing symlink points to missing file: $current_target"
+                log_info "Will recreate symlink to valid configuration"
+            fi
         fi
     elif [[ -f "$CONFIG_FILE" ]]; then
         # It's a regular file, not a symlink - preserve it completely
