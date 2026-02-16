@@ -832,14 +832,19 @@ create_config_symlink() {
         current_target=$(readlink "$CONFIG_FILE" 2>/dev/null || echo "")
         local current_target_file="${CONFIG_DIR}/${current_target}"
 
-        # Check if the symlink target actually exists
-        if [[ -f "$current_target_file" ]]; then
-            log_info "Configuration symlink already exists and is valid: config.toml -> $current_target"
+        # Check if the symlink target actually exists and points to the correct network choice
+        if [[ -f "$current_target_file" && "$current_target" == "${INSTALLER_CHOICE_NETWORK}.toml" ]]; then
+            log_info "Configuration symlink already exists and is correct: config.toml -> $current_target"
             log_success "Preserving existing configuration symlink"
             return 0
         else
-            log_warn "Existing symlink points to missing file: $current_target"
-            log_info "Will recreate symlink to valid configuration"
+            if [[ -f "$current_target_file" ]]; then
+                log_info "Configuration symlink points to different network: $current_target (expected: ${INSTALLER_CHOICE_NETWORK}.toml)"
+                log_info "Will update symlink to match selection"
+            else
+                log_warn "Existing symlink points to missing file: $current_target"
+                log_info "Will recreate symlink to valid configuration"
+            fi
         fi
     elif [[ -f "$CONFIG_FILE" ]]; then
         # It's a regular file, not a symlink - preserve it completely
