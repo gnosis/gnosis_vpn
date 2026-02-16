@@ -90,7 +90,7 @@
             description="Connect to VPN nodes on the Rotsee network - US, UK, Brazil, Australia, India, South Korea"
             visible="true"
             start_selected="false"
-            enabled="false"
+            enabled="false">
         <pkg-ref id="com.gnosisvpn.choice.network.rotsee"/>
     </choice>
 
