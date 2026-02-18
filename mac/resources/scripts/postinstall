@@ -1248,8 +1248,40 @@ copy_logs_rotation_conf() {
 
 launch_app() {
     if [[ -d "$UI_TARGET_APP" ]]; then
-        log_info "Launching Gnosis VPN UI application..."
-        open "$UI_TARGET_APP"
+        log_info "Scheduling Gnosis VPN UI launch after installer wizard closes..."
+        local app_path="$UI_TARGET_APP"
+
+        # Detect the current logged-in user so we open the app in their session
+        local current_user
+        current_user=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }')
+
+        # Attempt to detect the Installer process PID to wait for it to exit before launching the app
+        local installer_pid=""
+        local all_installer_pids
+        all_installer_pids=$(pgrep -x "Installer" 2>/dev/null)
+        local installer_count
+        installer_count=$(echo "$all_installer_pids" | grep -c .)
+        if [[ "$installer_count" -eq 1 ]]; then
+            installer_pid="$all_installer_pids"
+        elif [[ "$installer_count" -gt 1 ]]; then
+            log_warn "Multiple Installer processes running; cannot determine which owns this package — launching immediately"
+        fi
+
+        # Only run the background process if we successfully detected the installer PID
+        if [[ -n "$installer_pid" ]]; then
+            log_info "Detected installer PID: $installer_pid"
+            # Fork a background process: wait for the installer to exit, then open the app.
+            nohup bash -c "
+                while kill -0 $installer_pid 2>/dev/null; do sleep 1; done
+                sleep 1
+                su -l '$current_user' -c \"open '$app_path'\"
+            " >/dev/null 2>&1 &
+            disown
+            log_info "App will open once the installer wizard is closed"
+        else
+            log_warn "Could not determine installer PID; launching immediately"
+            su -l "$current_user" -c "open '$app_path'"
+        fi
     else
         log_warn "UI application not found at $UI_TARGET_APP, cannot launch"
     fi
