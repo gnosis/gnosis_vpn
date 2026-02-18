@@ -1246,6 +1246,15 @@ copy_logs_rotation_conf() {
     fi
 }
 
+launch_app() {
+    if [[ -d "$UI_TARGET_APP" ]]; then
+        log_info "Launching Gnosis VPN UI application..."
+        open "$UI_TARGET_APP"
+    else
+        log_warn "UI application not found at $UI_TARGET_APP, cannot launch"
+    fi
+}
+
 # Main execution
 main() {
 
@@ -1323,6 +1332,9 @@ main() {
 
     # Log script completion
     log_script_end "success"
+
+    # Launch UI application
+    launch_app
 }
 
 # Execute main function
