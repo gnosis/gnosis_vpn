@@ -188,7 +188,11 @@ install_desktop_shortcut_for_user() {
 }
 
 launch_app() {
-    sudo -u "$SUDO_USER" nohup /usr/bin/gnosis_vpn-app >/dev/null 2>&1 &
+    # setsid creates a new session so the app is fully detached from the installer's
+    # process group and won't receive SIGHUP when the installer exits.
+    # disown removes it from the shell's job table for the same reason.
+    sudo -u "$SUDO_USER" setsid /usr/bin/gnosis_vpn-app >/dev/null 2>&1 &
+    disown
     echo "$LOG_PREFIX INFO: Launched GnosisVPN app for $SUDO_USER."
 }
 
