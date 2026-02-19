@@ -10,12 +10,6 @@ set -euo pipefail
 
 LOG_PREFIX="[GnosisVPN postinstall]"
 
-# Check if running as root
-if [[ $EUID -ne 0 ]]; then
-  echo "$LOG_PREFIX ERROR: This script must be run as root" >&2
-  exit 1
-fi
-
 # Create system user and group for service
 create_system_user_and_group() {
     # Create group if it doesn't exist
@@ -193,13 +187,23 @@ install_desktop_shortcut_for_user() {
     fi
 }
 
+launch_app() {
+    # setsid creates a new session so the app is fully detached from the installer's
+    # process group and won't receive SIGHUP when the installer exits.
+    # disown removes it from the shell's job table for the same reason.
+    sudo -u "$SUDO_USER" setsid /usr/bin/gnosis_vpn-app >/dev/null 2>&1 &
+    disown
+    echo "$LOG_PREFIX INFO: Launched GnosisVPN app for $SUDO_USER."
+}
+
 # Main execution
 main() {
     create_system_user_and_group
     configure_filesystem_permissions
     enable_and_start_systemd_service
     install_desktop_shortcut_for_user
-    
+    launch_app
+
     echo "$LOG_PREFIX SUCCESS: Post-installation completed successfully"
 }
 

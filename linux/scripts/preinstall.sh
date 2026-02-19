@@ -11,9 +11,16 @@ set -euo pipefail
 
 LOG_PREFIX="[GnosisVPN preinstall]"
 
-# Check if running as root
+# Check if running with proper privileges
 if [[ $EUID -ne 0 ]]; then
-  echo "$LOG_PREFIX ERROR: This script must be run as root" >&2
+  echo "$LOG_PREFIX ERROR: This script must be run with sudo (e.g., 'sudo apt install -y gnosis-vpn.deb')" >&2
+  exit 1
+fi
+
+# Ensure installation is done via sudo, not directly as root
+if [[ -z "${SUDO_USER:-}" ]]; then
+  echo "$LOG_PREFIX ERROR: Installation must be done via sudo, not directly as root user" >&2
+  echo "$LOG_PREFIX ERROR: Please run: 'sudo apt install -y gnosis-vpn'" >&2
   exit 1
 fi
 
