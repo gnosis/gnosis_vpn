@@ -32,7 +32,7 @@
 
     <!-- Process Management -->
     <key>ProcessType</key>
-    <string>Background</string>
+    <string>Interactive</string>
 
     <!-- User and Group -->
     <key>UserName</key>
