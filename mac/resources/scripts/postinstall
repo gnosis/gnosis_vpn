@@ -951,13 +951,6 @@ set_permissions() {
     log_info "Current user detected: $CURRENT_USER"
     dseditgroup -o edit -a "$CURRENT_USER" -t user gnosisvpn
 
-    # Create and set permissions for runtime directory
-    local runtime_dir="/var/run/gnosisvpn"
-    mkdir -p "$runtime_dir"
-    chown $username:$groupname "$runtime_dir"
-    chmod 755 "$runtime_dir"
-    log_info "Runtime directory created: $runtime_dir"
-
     # Create and set permissions for state directory
     local state_dir="$INSTALLED_LIB_DIR_PATH"
     chown -R $username:$groupname "$state_dir"
