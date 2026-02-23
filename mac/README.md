@@ -96,4 +96,4 @@ The installer creates dedicated system credentials for enhanced security:
   - Configuration files: `root:gnosisvpn` with group read access
   - Binaries: `root:gnosisvpn` with group execute access
   - Log directories: `gnosisvpn:gnosisvpn` for service logging
-  - Runtime directories: Home directory and `/var/run/gnosisvpn`
+  - Runtime directories: Home directory
