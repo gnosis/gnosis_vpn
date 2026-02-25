@@ -16,7 +16,6 @@ on:
 jobs:
   delete-old-releases:
     runs-on: ubuntu-latest
-    # Required permission to delete releases and tags
     permissions:
       contents: write
     steps:
@@ -28,9 +27,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ACTUALLY_DELETE: ${{ inputs.actually_delete }}
           KEEP_RELEASES: ${{ inputs.keep_releases }}
+        # Setting the shell explicitly to bash is good practice when relying on bash-specific features like [[ ]]
+        shell: bash
         run: |
           echo "--- Starting Release Cleanup ---"
-          if [ "$ACTUALLY_DELETE" == "false" ]; then
+          if [[ "$ACTUALLY_DELETE" == "false" ]]; then
             echo "MODE: DRY RUN (Nothing will be deleted)"
           else
             echo "MODE: DELETION (Releases will be permanently removed)"
@@ -39,7 +40,7 @@ jobs:
 
           # 1. Get the latest release tag
           LATEST_RELEASE=$(gh release list --json tagName,isLatest --jq '.[] | select(.isLatest == true) | .tagName')
-          if [ -z "$LATEST_RELEASE" ]; then
+          if [[ -z "$LATEST_RELEASE" ]]; then
             echo "No latest release found. Exiting."
             exit 0
           fi
@@ -55,7 +56,7 @@ jobs:
           for TAG in $ALL_RELEASES; do
 
             # Skip the latest release automatically
-            if [ "$TAG" == "$LATEST_RELEASE" ]; then
+            if [[ "$TAG" == "$LATEST_RELEASE" ]]; then
               echo "⏭️ Skipping latest release: $TAG"
               continue
             fi
@@ -65,23 +66,22 @@ jobs:
             for KEEP_TAG in "${KEEP_ARRAY[@]}"; do
               # Trim any accidental whitespace from the input
               KEEP_TAG=$(echo "$KEEP_TAG" | xargs)
-              if [ "$TAG" == "$KEEP_TAG" ]; then
+              if [[ "$TAG" == "$KEEP_TAG" ]]; then
                 SKIP=true
                 break
               fi
             done
 
-            if [ "$SKIP" == true ]; then
+            if [[ "$SKIP" == true ]]; then
               echo "⏭️ Skipping protected release: $TAG"
               continue
             fi
 
             # 5. Delete or perform dry run
-            if [ "$ACTUALLY_DELETE" == "false" ]; then
+            if [[ "$ACTUALLY_DELETE" == "false" ]]; then
               echo "🔍 [DRY RUN] Would delete release: $TAG"
             else
               echo "🗑️ Deleting release: $TAG"
-              # --cleanup-tag ensures the underlying Git tag is deleted alongside the GitHub release
               gh release delete "$TAG" --cleanup-tag -y
             fi
           done
