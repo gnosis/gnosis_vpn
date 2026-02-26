@@ -70,8 +70,13 @@ contents:
     type: config
     file_info:
       mode: 0644
-  - src: ./linux/resources/jura-config.toml
-    dst: /etc/gnosisvpn/config.toml
+  - src: ./linux/resources/config-jura.toml
+    dst: /etc/gnosisvpn/config-jura.toml
+    type: config
+    file_info:
+      mode: 0644
+  - src: ./linux/resources/config-rotsee.toml
+    dst: /etc/gnosisvpn/config-rotsee.toml
     type: config
     file_info:
       mode: 0644

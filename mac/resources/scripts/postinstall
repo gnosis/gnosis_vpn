@@ -55,7 +55,6 @@ fi
 CONFIG_DIR="$(join_path "$TARGET_VOLUME" "/etc/gnosisvpn")"
 CONFIG_FILE="${CONFIG_DIR}/config.toml"
 VERSION_FILE="${CONFIG_DIR}/version.txt"
-TEMPLATE_DIR_BUNDLE="${SCRIPT_DIR}/../config/templates"
 TEMPLATE_DIR_INSTALLED="${CONFIG_DIR}/templates"
 BIN_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/bin")"
 UI_STAGING_DIR="$(join_path "$TARGET_VOLUME" "/usr/local/share/gnosisvpn")"

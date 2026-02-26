@@ -1,0 +1,11 @@
+version = 5
+
+[destinations.USA]
+address = "0xe686ade652a815e0e26803c1a795f9d65c82e06e"
+meta = { location = "Omaha" }
+path = { intermediates = [ "0x29b12026ac8c1eda9643cc69b84ea2a8dc86e421" ] } # Columbus
+
+[destinations.UK]
+address = "0x7b2b69c52ec97907d7a3b2d2724ba92781b7def7"
+meta = { location = "London" }
+path = { intermediates = [ "0x8c29d1584f795d07ac5f04a79e64611867f1e704" ] } # Stockholm

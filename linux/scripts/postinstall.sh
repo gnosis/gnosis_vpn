@@ -38,6 +38,8 @@ create_system_user_and_group() {
 
 # Configure ownership and permissions for directories and binaries
 configure_filesystem_permissions() {
+    local network_name
+    network_name="${GNOSISVPN_NETWORK:-jura}"
     echo "$LOG_PREFIX INFO: Setting up directory permissions..."
     
     # Fix ownership of configuration files (nfpm may have created them with numeric UID)
@@ -58,6 +60,9 @@ configure_filesystem_permissions() {
     mkdir -p /var/lib/gnosisvpn
     chown -R gnosisvpn:gnosisvpn /var/lib/gnosisvpn
     chmod -R 775 /var/lib/gnosisvpn
+
+    # Create symblink for current network config
+    ln -sf /etc/gnosisvpn/config-"$network_name".toml /etc/gnosisvpn/config.toml
 
     # Fix binary ownership and permissions. Cannot be done in nfpm as the user may not exist yet.
     if [[ -f /usr/bin/gnosis_vpn-worker ]]; then
