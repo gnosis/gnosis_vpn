@@ -88,7 +88,7 @@
     <!-- Rotsee network sub-choice -->
     <choice id="rotsee"
             title="Rotsee"
-            description="Connect to VPN nodes on the Rotsee network - US, UK, Brazil, Australia, India, South Korea"
+            description="Connect to VPN nodes on the Rotsee network - US, UK"
             visible="true"
             start_selected="false"
             enabled="true">
