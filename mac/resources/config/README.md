@@ -12,7 +12,8 @@ config/
 │   └── com.gnosisvpn.gnosisvpnclient.plist  # LaunchD service configuration
 └── templates/           # Configuration templates
     ├── dufour.toml.template   # Dufour network configuration template
-    └── jura.toml.template   # Jura network configuration template
+    └── jura.toml.template     # Jura network configuration template
+    └── rotsee.toml.template   # Rotsee network configuration template
 ```
 
 ## System Configuration Files
