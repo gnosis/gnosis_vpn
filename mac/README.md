@@ -43,7 +43,6 @@ The installer scripts support these environment variables:
 
 - `INSTALLER_CHOICE_NETWORK`: Network selection ("jura" or "dufour", default:
   "jura")
-- `INSTALLER_CHOICE_LOGLEVEL`: Log level service mode ( "debug" or "info", default: "info")
 
 ### Installation Locations
 

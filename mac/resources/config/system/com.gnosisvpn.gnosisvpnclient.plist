@@ -70,7 +70,7 @@
         <key>GNOSISVPN_HOPR_BLOKLI_URL</key>
         <string>https://blokli.__NETWORK_NAME__.hoprnet.link</string>
         <key>RUST_LOG</key>
-        <string>info</string>
+        <string>info,hopr_transport_session=debug,hopr_protocol_session=debug,hopr_protocol_start=debug,hopr_network_types=debug,gnosis_vpn_root=debug,gnosis_vpn_lib=debug</string>
         <key>RUST_BACKTRACE</key>
         <string>1</string>
         <key>TMPDIR</key>
