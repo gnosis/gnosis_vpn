@@ -26,9 +26,9 @@ jobs:
   build:
     uses: ./.github/workflows/build.yaml
     with:
-      public_release: ${{ inputs.public_release }}
-      client_version: ${{ inputs.client_version }}
-      app_version: ${{ inputs.app_version }}
+      public_release: ${{ inputs.public_release || false }}
+      client_version: ${{ inputs.client_version || 'latest' }}
+      app_version: ${{ inputs.app_version || 'latest' }}
     secrets: inherit
 
   release:
