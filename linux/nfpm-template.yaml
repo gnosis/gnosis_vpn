@@ -27,6 +27,7 @@ overrides:
       - libgtk-3-0
       - libayatana-appindicator3-1
       - libglib2.0-bin
+      - resolvconf
   rpm:
     depends:
       - systemd
