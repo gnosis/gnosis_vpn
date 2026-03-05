@@ -386,8 +386,8 @@ del_dns() {
         while read -r response; do
             [[ $response == *Error* ]] && echo "$response" >&2
         done < <(
-            cmd networksetup -setdnsservers "$service" "$orig_dns" || true
-            cmd networksetup -setsearchdomains "$service" "$orig_search" || true
+            cmd networksetup -setdnsservers "$service" $orig_dns || true
+            cmd networksetup -setsearchdomains "$service" $orig_search || true
         )
     done
 }
