@@ -247,23 +247,18 @@ collect_endpoints() {
     done < <(wg show "$REAL_INTERFACE" endpoints)
 }
 
+# to support spaces in network names, an extra array is needed just to store indices for known network services
 KNOWN_SERVICES=()
 SERVICE_DNS=()
 SERVICE_DNS_SEARCH=()
 collect_new_service_dns() {
     local service get_response i found index
     local current_services=()
-    # Read services line by line, using IFS= to strictly preserve all spaces
     {
         read -r _ # Skip the instructional header line
         while IFS= read -r service; do
-            # Strip leading asterisk if the service is disabled
             [[ $service == "*"* ]] && service="${service:1}"
-
-            # Keep a record of services found during this run
             current_services+=("$service")
-
-            # Check if we already know this service by searching parallel array
             index=-1
             for (( i=0; i<${#KNOWN_SERVICES[@]}; i++ )); do
                 if [[ "${KNOWN_SERVICES[i]}" == "$service" ]]; then
@@ -271,22 +266,13 @@ collect_new_service_dns() {
                     break
                 fi
             done
-
-            # If we already have it, skip the heavy networksetup calls
             [[ $index -ge 0 ]] && continue
-
-            # Fetch DNS Servers
             get_response="$(cmd networksetup -getdnsservers "$service")"
-            # networksetup outputs a sentence with spaces if no DNS is set
             [[ "$get_response" == *" "* ]] && get_response="Empty"
             local new_dns="${get_response:-Empty}"
-
-            # Fetch Search Domains
             get_response="$(cmd networksetup -getsearchdomains "$service")"
             [[ "$get_response" == *" "* ]] && get_response="Empty"
             local new_search="${get_response:-Empty}"
-
-            # Append new findings to the parallel arrays
             KNOWN_SERVICES+=("$service")
             SERVICE_DNS+=("$new_dns")
             SERVICE_DNS_SEARCH+=("$new_search")
@@ -294,32 +280,24 @@ collect_new_service_dns() {
         done
     } < <(networksetup -listallnetworkservices)
 
-    # Cleanup: Rebuild the arrays, excluding services that disappeared
     local temp_services=()
     local temp_dns=()
     local temp_search=()
-
     for (( i=0; i<${#KNOWN_SERVICES[@]}; i++ )); do
         service="${KNOWN_SERVICES[i]}"
         found=0
-
-        # Check if our known service is in the fresh list
         for current in "${current_services[@]}"; do
             if [[ "$current" == "$service" ]]; then
                 found=1
                 break
             fi
         done
-
-        # If it still exists, keep it in the temporary arrays
         if [[ $found -eq 1 ]]; then
             temp_services+=("${KNOWN_SERVICES[i]}")
             temp_dns+=("${SERVICE_DNS[i]}")
             temp_search+=("${SERVICE_DNS_SEARCH[i]}")
         fi
     done
-
-    # Overwrite the global arrays with our cleaned-up versions
     KNOWN_SERVICES=("${temp_services[@]}")
     SERVICE_DNS=("${temp_dns[@]}")
     SERVICE_DNS_SEARCH=("${temp_search[@]}")
@@ -408,10 +386,6 @@ del_dns() {
         while read -r response; do
             [[ $response == *Error* ]] && echo "$response" >&2
         done < <(
-            # Notice that orig_dns and orig_search are deliberately NOT quoted below.
-            # If you had multiple original DNS servers (e.g., "8.8.8.8 8.8.4.4"),
-            # leaving them unquoted allows bash to split them into separate arguments,
-            # which is exactly what networksetup requires.
             cmd networksetup -setdnsservers "$service" "$orig_dns" || true
             cmd networksetup -setsearchdomains "$service" "$orig_search" || true
         )
