@@ -247,29 +247,61 @@ collect_endpoints() {
     done < <(wg show "$REAL_INTERFACE" endpoints)
 }
 
+# to support spaces in network names, an extra array is needed just to store indices for known network services
+KNOWN_SERVICES=()
 SERVICE_DNS=()
 SERVICE_DNS_SEARCH=()
 collect_new_service_dns() {
-    local service get_response
-    local found_services=()
-    { read -r _ && while read -r service; do
-        [[ $service == "*"* ]] && service="${service:1}"
-        found_services["$service"]=1
-        [[ -n ${SERVICE_DNS["$service"]} ]] && continue
-        get_response="$(cmd networksetup -getdnsservers "$service")"
-        [[ $get_response == *" "* ]] && get_response="Empty"
-        [[ -n $get_response ]] && SERVICE_DNS["$service"]="$get_response"
-        get_response="$(cmd networksetup -getsearchdomains "$service")"
-        [[ $get_response == *" "* ]] && get_response="Empty"
-        [[ -n $get_response ]] && SERVICE_DNS_SEARCH["$service"]="$get_response"
-    done; } < <(networksetup -listallnetworkservices)
+    local service get_response i found index
+    local current_services=()
+    {
+        read -r _ # Skip the instructional header line
+        while IFS= read -r service; do
+            [[ $service == "*"* ]] && service="${service:1}"
+            current_services+=("$service")
+            index=-1
+            for (( i=0; i<${#KNOWN_SERVICES[@]}; i++ )); do
+                if [[ "${KNOWN_SERVICES[i]}" == "$service" ]]; then
+                    index=$i
+                    break
+                fi
+            done
+            [[ $index -ge 0 ]] && continue
+            get_response="$(cmd networksetup -getdnsservers "$service")"
+            [[ "$get_response" == *" "* ]] && get_response="Empty"
+            local new_dns="${get_response:-Empty}"
+            get_response="$(cmd networksetup -getsearchdomains "$service")"
+            [[ "$get_response" == *" "* ]] && get_response="Empty"
+            local new_search="${get_response:-Empty}"
+            KNOWN_SERVICES+=("$service")
+            SERVICE_DNS+=("$new_dns")
+            SERVICE_DNS_SEARCH+=("$new_search")
 
-    for service in "${SERVICE_DNS[@]}"; do
-        if ! [[ " ${found_services[*]} " == *" $service "* ]]; then
-            SERVICE_DNS=("${SERVICE_DNS[@]/$service/}")
-            SERVICE_DNS_SEARCH=("${SERVICE_DNS_SEARCH[@]/$service/}")
+        done
+    } < <(networksetup -listallnetworkservices)
+
+    local temp_services=()
+    local temp_dns=()
+    local temp_search=()
+    local current
+    for (( i=0; i<${#KNOWN_SERVICES[@]}; i++ )); do
+        service="${KNOWN_SERVICES[i]}"
+        found=0
+        for current in "${current_services[@]}"; do
+            if [[ "$current" == "$service" ]]; then
+                found=1
+                break
+            fi
+        done
+        if [[ $found -eq 1 ]]; then
+            temp_services+=("${KNOWN_SERVICES[i]}")
+            temp_dns+=("${SERVICE_DNS[i]}")
+            temp_search+=("${SERVICE_DNS_SEARCH[i]}")
         fi
     done
+    KNOWN_SERVICES=("${temp_services[@]}")
+    SERVICE_DNS=("${temp_dns[@]}")
+    SERVICE_DNS_SEARCH=("${temp_search[@]}")
 }
 
 set_endpoint_direct_route() {
@@ -325,13 +357,16 @@ set_endpoint_direct_route() {
 
 set_dns() {
     collect_new_service_dns
-    local service response
-    for service in "${SERVICE_DNS[@]}"; do
-        service="${service%%:*}"
+    local i service response
+
+    for (( i=0; i<${#KNOWN_SERVICES[@]}; i++ )); do
+        service="${KNOWN_SERVICES[i]}"
+
         while read -r response; do
             [[ $response == *Error* ]] && echo "$response" >&2
         done < <(
             cmd networksetup -setdnsservers "$service" "${DNS[@]}"
+
             if [[ ${#DNS_SEARCH[@]} -eq 0 ]]; then
                 cmd networksetup -setsearchdomains "$service" Empty
             else
@@ -342,14 +377,18 @@ set_dns() {
 }
 
 del_dns() {
-    local service response
-    for service in "${SERVICE_DNS[@]}"; do
-        service="${service%%:*}"
+    local i service orig_dns orig_search response
+
+    for (( i=0; i<${#KNOWN_SERVICES[@]}; i++ )); do
+        service="${KNOWN_SERVICES[i]}"
+        orig_dns="${SERVICE_DNS[i]}"
+        orig_search="${SERVICE_DNS_SEARCH[i]}"
+
         while read -r response; do
             [[ $response == *Error* ]] && echo "$response" >&2
         done < <(
-            cmd networksetup -setdnsservers "$service" "${service#*:}" || true
-            cmd networksetup -setsearchdomains "$service" "${service#*:}" || true
+            cmd networksetup -setdnsservers "$service" $orig_dns || true
+            cmd networksetup -setsearchdomains "$service" $orig_search || true
         )
     done
 }
