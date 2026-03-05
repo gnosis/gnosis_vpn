@@ -283,6 +283,7 @@ collect_new_service_dns() {
     local temp_services=()
     local temp_dns=()
     local temp_search=()
+    local current
     for (( i=0; i<${#KNOWN_SERVICES[@]}; i++ )); do
         service="${KNOWN_SERVICES[i]}"
         found=0
