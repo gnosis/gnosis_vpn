@@ -38,7 +38,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   setup:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-22.04-4
     name: Setup versions
     outputs:
       GNOSISVPN_PACKAGE_VERSION: ${{ steps.versions.outputs.GNOSISVPN_PACKAGE_VERSION }}
@@ -85,10 +85,10 @@ jobs:
         architecture:
           - nix: x86_64-linux
             nfpm: amd64
-            runner: ubuntu-latest
+            runner: depot-ubuntu-22.04-4
           - nix: aarch64-linux
             nfpm: arm64
-            runner: ubuntu-24.04-arm
+            runner: depot-ubuntu-22.04-arm-4
         distribution: [deb]
     steps:
       - name: Checkout repository
@@ -178,4 +178,3 @@ jobs:
         with:
           name: GnosisVPN-Installer.pkg.sha256
           path: ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256
-
