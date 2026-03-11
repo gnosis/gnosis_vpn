@@ -32,9 +32,11 @@ jobs:
     secrets: inherit
 
   release:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-4
     name: Release
     needs: build
+    permissions:
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
