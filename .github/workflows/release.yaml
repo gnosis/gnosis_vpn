@@ -131,7 +131,6 @@ jobs:
           } >> $GITHUB_ENV
 
       - name: Notify release
-        if: inputs.draft_release || github.event_name == 'repository_dispatch'
         uses: zulip/github-actions-zulip/send-message@e4c8f27c732ba9bd98ac6be0583096dea82feea5 # v1.0.2
         with:
           api-key: ${{ secrets.ZULIP_API_KEY }}
