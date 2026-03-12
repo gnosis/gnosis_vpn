@@ -4,6 +4,11 @@ on:
     types: [new_snapshot_release]
   workflow_dispatch:
     inputs:
+      draft_release:
+        description: "Create draft releasea? Leave empty for snapshot release"
+        required: true
+        type: boolean
+        default: false
       client_version:
         description: "Client Version"
         required: true
