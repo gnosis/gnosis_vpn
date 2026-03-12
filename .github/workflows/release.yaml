@@ -30,7 +30,6 @@ jobs:
       client_version: ${{ inputs.client_version || 'latest' }}
       app_version: ${{ inputs.app_version || 'latest' }}
     secrets: inherit
-
   release:
     runs-on: ubuntu-latest
     name: Release
@@ -61,7 +60,6 @@ jobs:
           GNOSISVPN_PREVIOUS_CLI_VERSION: ${{ vars.GNOSISVPN_PREVIOUS_CLI_VERSION }}
           GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_PREVIOUS_APP_VERSION }}
           GNOSISVPN_CHANGELOG_FORMAT: github
-
       - name: Create release
         if: inputs.draft_release
         run: |
@@ -88,7 +86,6 @@ jobs:
           echo "Draft release v${next_release_version} created and binaries uploaded"
         env:
           GH_TOKEN: ${{ secrets.GNOSIS_GITHUB_WORKFLOW_TOKEN }}
-
       - name: Bump Version
         id: bump
         if: inputs.draft_release
@@ -105,7 +102,6 @@ jobs:
           gh variable set GNOSISVPN_PREVIOUS_APP_VERSION --body "${{ needs.build.outputs.GNOSISVPN_APP_VERSION }}"
         env:
           GH_TOKEN: ${{ secrets.GNOSIS_GITHUB_WORKFLOW_TOKEN }}
-
       - name: Prepare notification message
         run: |
           # Build the notification message with release notes content
@@ -129,7 +125,6 @@ jobs:
             cat notification_message.txt
             echo "EOF"
           } >> $GITHUB_ENV
-
       - name: Notify release
         uses: zulip/github-actions-zulip/send-message@e4c8f27c732ba9bd98ac6be0583096dea82feea5 # v1.0.2
         with:

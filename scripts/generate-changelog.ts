@@ -88,7 +88,10 @@ async function ghApiCall(
   let delay = 2000;
 
   while (attempt <= config.ghApiMaxAttempts) {
-    log("DEBUG", `GitHub API call attempt ${attempt}/${config.ghApiMaxAttempts}: /repos/${repo}${endpoint}`);
+    log(
+      "DEBUG",
+      `GitHub API call attempt ${attempt}/${config.ghApiMaxAttempts}: /repos/${repo}${endpoint}`,
+    );
 
     try {
       const response = await fetch(
@@ -109,12 +112,20 @@ async function ghApiCall(
           /rate limit|throttle|too many requests/i.test(body)
         ) {
           if (attempt >= config.ghApiMaxAttempts) {
-            log("ERROR", `GitHub API throttled after ${config.ghApiMaxAttempts} attempts. Rate limit exceeded.`);
+            log(
+              "ERROR",
+              `GitHub API throttled after ${config.ghApiMaxAttempts} attempts. Rate limit exceeded.`,
+            );
             log("ERROR", `Endpoint: /repos/${repo}${endpoint}`);
             log("ERROR", `Last error: ${body}`);
             Deno.exit(1);
           }
-          log("WARN", `GitHub API throttled (attempt ${attempt}/${config.ghApiMaxAttempts}). Retrying in ${delay / 1000}s...`);
+          log(
+            "WARN",
+            `GitHub API throttled (attempt ${attempt}/${config.ghApiMaxAttempts}). Retrying in ${
+              delay / 1000
+            }s...`,
+          );
           await new Promise((resolve) => setTimeout(resolve, delay));
           delay *= 2;
           attempt++;
@@ -137,7 +148,10 @@ async function ghApiCall(
     }
   }
 
-  log("ERROR", `GitHub API call failed after ${config.ghApiMaxAttempts} attempts`);
+  log(
+    "ERROR",
+    `GitHub API call failed after ${config.ghApiMaxAttempts} attempts`,
+  );
   Deno.exit(1);
 }
 
@@ -149,12 +163,16 @@ async function getReleaseDate(
   tag: string,
 ): Promise<string> {
   log("DEBUG", `Fetching release date for ${repo}/${tag}`);
-  const release = (await ghApiCall(config, repo, `/releases/tags/${tag}`)) as GitHubRelease;
+  const release =
+    (await ghApiCall(config, repo, `/releases/tags/${tag}`)) as GitHubRelease;
   const date = release.created_at;
 
   if (!validateIso8601Date(date)) {
     log("ERROR", `Invalid or empty release date for ${repo}/${tag}: '${date}'`);
-    log("ERROR", "Expected ISO8601 timestamp format (e.g., 2024-01-15T10:30:00Z)");
+    log(
+      "ERROR",
+      "Expected ISO8601 timestamp format (e.g., 2024-01-15T10:30:00Z)",
+    );
     Deno.exit(1);
   }
 
@@ -193,7 +211,10 @@ async function fetchMergedPRs(
     return [];
   }
 
-  log("INFO", `Fetching PRs for ${component} (branch: ${branch}) between ${startDate} and ${endDate}...`);
+  log(
+    "INFO",
+    `Fetching PRs for ${component} (branch: ${branch}) between ${startDate} and ${endDate}...`,
+  );
 
   const prs = (await ghApiCall(
     config,
@@ -209,10 +230,14 @@ async function fetchMergedPRs(
 
     const labels = pr.labels.map((l) => l.name).join(", ");
     const state = pr.state.toLowerCase();
-    const mergedDate = pr.merged_at.split("T")[0] || new Date().toISOString().split("T")[0];
+    const mergedDate = pr.merged_at.split("T")[0] ||
+      new Date().toISOString().split("T")[0];
     const changelogType = extractChangelogType(pr.title);
 
-    log("DEBUG", `Processing PR: id=${pr.number}, title=${pr.title}, author=${pr.user.login}, labels=${labels}, merged_at=${mergedDate}, type=${changelogType}, component=${component}`);
+    log(
+      "DEBUG",
+      `Processing PR: id=${pr.number}, title=${pr.title}, author=${pr.user.login}, labels=${labels}, merged_at=${mergedDate}, type=${changelogType}, component=${component}`,
+    );
 
     entries.push({
       id: String(pr.number),
@@ -256,7 +281,8 @@ function githubFormat(
   };
 
   for (const entry of entries) {
-    const line = `- [${entry.component}] ${entry.title} by @${entry.author} in #${entry.id}`;
+    const line =
+      `- [${entry.component}] ${entry.title} by @${entry.author} in #${entry.id}`;
     switch (entry.changelog_type) {
       case "feat":
       case "feature":
@@ -286,13 +312,18 @@ function githubFormat(
 
   let content = "## What's Changed\n";
 
-  if (previousCliVersion !== currentCliVersion || previousAppVersion !== currentAppVersion) {
+  if (
+    previousCliVersion !== currentCliVersion ||
+    previousAppVersion !== currentAppVersion
+  ) {
     content += "\nThis release contains the following component updates:\n\n";
     if (previousCliVersion !== currentCliVersion) {
-      content += `- **[GnosisVPN Client](https://github.com/gnosis/gnosis_vpn-client)**: Updated from [v${previousCliVersion}](https://github.com/gnosis/gnosis_vpn-client/releases/tag/v${previousCliVersion}) to [v${currentCliVersion}](https://github.com/gnosis/gnosis_vpn-client/releases/tag/v${currentCliVersion})\n`;
+      content +=
+        `- **[GnosisVPN Client](https://github.com/gnosis/gnosis_vpn-client)**: Updated from [v${previousCliVersion}](https://github.com/gnosis/gnosis_vpn-client/releases/tag/v${previousCliVersion}) to [v${currentCliVersion}](https://github.com/gnosis/gnosis_vpn-client/releases/tag/v${currentCliVersion})\n`;
     }
     if (previousAppVersion !== currentAppVersion) {
-      content += `- **[GnosisVPN App](https://github.com/gnosis/gnosis_vpn-app)**: Updated from [v${previousAppVersion}](https://github.com/gnosis/gnosis_vpn-app/releases/tag/v${previousAppVersion}) to [v${currentAppVersion}](https://github.com/gnosis/gnosis_vpn-app/releases/tag/v${currentAppVersion})\n`;
+      content +=
+        `- **[GnosisVPN App](https://github.com/gnosis/gnosis_vpn-app)**: Updated from [v${previousAppVersion}](https://github.com/gnosis/gnosis_vpn-app/releases/tag/v${previousAppVersion}) to [v${currentAppVersion}](https://github.com/gnosis/gnosis_vpn-app/releases/tag/v${currentAppVersion})\n`;
     }
     content += "\n";
   }
@@ -351,10 +382,12 @@ function debianFormat(
   const maintainer = "GnosisVPN (Gnosis VPN) <tech@hoprnet.org>";
   const date = rfc2822Date(new Date());
 
-  let changelog = `gnosisvpn (${version}) ${distribution}; urgency=${urgency}\n`;
+  let changelog =
+    `gnosisvpn (${version}) ${distribution}; urgency=${urgency}\n`;
 
   for (const entry of entries) {
-    const entryLine = `  * ${entry.title} by @${entry.author} in #${entry.id}\n`;
+    const entryLine =
+      `  * ${entry.title} by @${entry.author} in #${entry.id}\n`;
 
     if (entryLine.length <= 80) {
       changelog += entryLine;
@@ -365,7 +398,8 @@ function debianFormat(
       let maxTitleLength = 80 - (entryLine.length - entry.title.length) - 3;
       if (maxTitleLength < 1) maxTitleLength = 1;
       const truncatedTitle = entry.title.substring(0, maxTitleLength);
-      changelog += `  * ${truncatedTitle}... by @${entry.author} in #${entry.id}\n`;
+      changelog +=
+        `  * ${truncatedTitle}... by @${entry.author} in #${entry.id}\n`;
     }
   }
 
@@ -401,7 +435,8 @@ function rpmFormat(
 
     // Remove the type(component): prefix from title if present
     const cleanTitle = entry.title.replace(/^.*\): /, "");
-    changelog += `- [${entry.changelog_type}][${entry.component}] ${cleanTitle} in #${entry.id}\n`;
+    changelog +=
+      `- [${entry.changelog_type}][${entry.component}] ${cleanTitle} in #${entry.id}\n`;
   }
 
   return changelog;
@@ -468,7 +503,11 @@ function readConfig(): Config {
 
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
-  const defaultVersion = `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}+build.${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const defaultVersion = `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${
+    pad(now.getDate())
+  }+build.${pad(now.getHours())}${pad(now.getMinutes())}${
+    pad(now.getSeconds())
+  }`;
 
   return {
     packageVersion: Deno.env.get("GNOSISVPN_PACKAGE_VERSION") || defaultVersion,
@@ -490,8 +529,12 @@ async function main(): Promise<void> {
 
   console.error("Generating release notes...");
   console.error(`  Package version: v${config.packageVersion}`);
-  console.error(`  Client: v${config.previousCliVersion} -> v${config.currentCliVersion}`);
-  console.error(`  App: v${config.previousAppVersion} -> v${config.currentAppVersion}`);
+  console.error(
+    `  Client: v${config.previousCliVersion} -> v${config.currentCliVersion}`,
+  );
+  console.error(
+    `  App: v${config.previousAppVersion} -> v${config.currentAppVersion}`,
+  );
   console.error(`  Format: ${config.format}`);
   console.error(`  Branch: ${config.branch}`);
   console.error("");
@@ -503,15 +546,31 @@ async function main(): Promise<void> {
 
   // Fetch CLI dates if versions differ
   if (config.previousCliVersion !== config.currentCliVersion) {
-    cliPreviousDate = await getReleaseDate(config, "gnosis/gnosis_vpn-client", `v${config.previousCliVersion}`);
-    cliCurrentDate = await getReleaseDate(config, "gnosis/gnosis_vpn-client", `v${config.currentCliVersion}`);
+    cliPreviousDate = await getReleaseDate(
+      config,
+      "gnosis/gnosis_vpn-client",
+      `v${config.previousCliVersion}`,
+    );
+    cliCurrentDate = await getReleaseDate(
+      config,
+      "gnosis/gnosis_vpn-client",
+      `v${config.currentCliVersion}`,
+    );
     log("INFO", `CLI date range: ${cliPreviousDate} to ${cliCurrentDate}`);
   }
 
   // Fetch App dates if versions differ
   if (config.previousAppVersion !== config.currentAppVersion) {
-    appPreviousDate = await getReleaseDate(config, "gnosis/gnosis_vpn-app", `v${config.previousAppVersion}`);
-    appCurrentDate = await getReleaseDate(config, "gnosis/gnosis_vpn-app", `v${config.currentAppVersion}`);
+    appPreviousDate = await getReleaseDate(
+      config,
+      "gnosis/gnosis_vpn-app",
+      `v${config.previousAppVersion}`,
+    );
+    appCurrentDate = await getReleaseDate(
+      config,
+      "gnosis/gnosis_vpn-app",
+      `v${config.currentAppVersion}`,
+    );
     log("INFO", `App date range: ${appPreviousDate} to ${appCurrentDate}`);
   }
 
@@ -520,9 +579,16 @@ async function main(): Promise<void> {
   let pkgLastReleaseDate = "";
 
   if (lastReleaseTag) {
-    pkgLastReleaseDate = await getReleaseDate(config, "gnosis/gnosis_vpn", lastReleaseTag);
+    pkgLastReleaseDate = await getReleaseDate(
+      config,
+      "gnosis/gnosis_vpn",
+      lastReleaseTag,
+    );
     const pkgCurrentDate = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
-    log("INFO", `Installer date range: ${pkgLastReleaseDate} to ${pkgCurrentDate}`);
+    log(
+      "INFO",
+      `Installer date range: ${pkgLastReleaseDate} to ${pkgCurrentDate}`,
+    );
   }
 
   console.error("");
@@ -531,18 +597,39 @@ async function main(): Promise<void> {
   const allEntries: ChangelogEntry[] = [];
 
   if (cliPreviousDate && cliCurrentDate) {
-    const entries = await fetchMergedPRs(config, "gnosis/gnosis_vpn-client", cliPreviousDate, cliCurrentDate, "Client", config.branch);
+    const entries = await fetchMergedPRs(
+      config,
+      "gnosis/gnosis_vpn-client",
+      cliPreviousDate,
+      cliCurrentDate,
+      "Client",
+      config.branch,
+    );
     allEntries.push(...entries);
   }
 
   if (appPreviousDate && appCurrentDate) {
-    const entries = await fetchMergedPRs(config, "gnosis/gnosis_vpn-app", appPreviousDate, appCurrentDate, "App", config.branch);
+    const entries = await fetchMergedPRs(
+      config,
+      "gnosis/gnosis_vpn-app",
+      appPreviousDate,
+      appCurrentDate,
+      "App",
+      config.branch,
+    );
     allEntries.push(...entries);
   }
 
   if (pkgLastReleaseDate) {
     const pkgCurrentDate = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
-    const entries = await fetchMergedPRs(config, "gnosis/gnosis_vpn", pkgLastReleaseDate, pkgCurrentDate, "Installer", config.branch);
+    const entries = await fetchMergedPRs(
+      config,
+      "gnosis/gnosis_vpn",
+      pkgLastReleaseDate,
+      pkgCurrentDate,
+      "Installer",
+      config.branch,
+    );
     allEntries.push(...entries);
   }
 
@@ -701,12 +788,48 @@ Deno.test("getUrgencyLevel - medium for stable patches", () => {
 
 Deno.test("githubFormat - produces expected markdown sections", () => {
   const entries: ChangelogEntry[] = [
-    makeEntry({ changelog_type: "feat", title: "add login", component: "Client", id: "1", author: "alice" }),
-    makeEntry({ changelog_type: "fix", title: "fix crash", component: "App", id: "2", author: "bob" }),
-    makeEntry({ changelog_type: "refactor", title: "clean up utils", component: "Installer", id: "3", author: "charlie" }),
-    makeEntry({ changelog_type: "ci", title: "update CI", component: "Client", id: "4", author: "dave" }),
-    makeEntry({ changelog_type: "docs", title: "update docs", component: "Client", id: "5", author: "eve" }),
-    makeEntry({ changelog_type: "other", title: "misc change", component: "App", id: "6", author: "frank" }),
+    makeEntry({
+      changelog_type: "feat",
+      title: "add login",
+      component: "Client",
+      id: "1",
+      author: "alice",
+    }),
+    makeEntry({
+      changelog_type: "fix",
+      title: "fix crash",
+      component: "App",
+      id: "2",
+      author: "bob",
+    }),
+    makeEntry({
+      changelog_type: "refactor",
+      title: "clean up utils",
+      component: "Installer",
+      id: "3",
+      author: "charlie",
+    }),
+    makeEntry({
+      changelog_type: "ci",
+      title: "update CI",
+      component: "Client",
+      id: "4",
+      author: "dave",
+    }),
+    makeEntry({
+      changelog_type: "docs",
+      title: "update docs",
+      component: "Client",
+      id: "5",
+      author: "eve",
+    }),
+    makeEntry({
+      changelog_type: "other",
+      title: "misc change",
+      component: "App",
+      id: "6",
+      author: "frank",
+    }),
   ];
 
   const result = githubFormat(entries, "0.54.4", "0.56.1", "0.5.0", "0.6.1");
@@ -743,7 +866,11 @@ Deno.test("debianFormat - line truncation at 80 chars", () => {
   const lines = result.split("\n");
   for (const line of lines) {
     if (line.startsWith("  * ")) {
-      assertEquals(line.length <= 80, true, `Line exceeds 80 chars: "${line}" (${line.length})`);
+      assertEquals(
+        line.length <= 80,
+        true,
+        `Line exceeds 80 chars: "${line}" (${line.length})`,
+      );
     }
   }
 });
@@ -766,9 +893,30 @@ Deno.test("debianFormat - contains version and distribution", () => {
 
 Deno.test("rpmFormat - grouping by date and author", () => {
   const entries: ChangelogEntry[] = [
-    makeEntry({ date: "2024-01-15", author: "alice", title: "feat(ui): first change", changelog_type: "feat", component: "Client", id: "1" }),
-    makeEntry({ date: "2024-01-15", author: "alice", title: "fix(core): second change", changelog_type: "fix", component: "Client", id: "2" }),
-    makeEntry({ date: "2024-01-14", author: "bob", title: "refactor(api): third change", changelog_type: "refactor", component: "App", id: "3" }),
+    makeEntry({
+      date: "2024-01-15",
+      author: "alice",
+      title: "feat(ui): first change",
+      changelog_type: "feat",
+      component: "Client",
+      id: "1",
+    }),
+    makeEntry({
+      date: "2024-01-15",
+      author: "alice",
+      title: "fix(core): second change",
+      changelog_type: "fix",
+      component: "Client",
+      id: "2",
+    }),
+    makeEntry({
+      date: "2024-01-14",
+      author: "bob",
+      title: "refactor(api): third change",
+      changelog_type: "refactor",
+      component: "App",
+      id: "3",
+    }),
   ];
 
   const result = rpmFormat(entries, "1.2.3");
@@ -782,7 +930,12 @@ Deno.test("rpmFormat - grouping by date and author", () => {
 
 Deno.test("rpmFormat - title prefix stripping", () => {
   const entries: ChangelogEntry[] = [
-    makeEntry({ title: "feat(ui): add button", changelog_type: "feat", component: "Client", id: "10" }),
+    makeEntry({
+      title: "feat(ui): add button",
+      changelog_type: "feat",
+      component: "Client",
+      id: "10",
+    }),
   ];
   const result = rpmFormat(entries, "1.0.0");
   assertEquals(result.includes("add button in #10"), true);

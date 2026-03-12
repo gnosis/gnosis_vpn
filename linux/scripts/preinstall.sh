@@ -18,7 +18,7 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # Ensure installation is done via sudo, not directly as root
-if [[ -z "${SUDO_USER:-}" ]]; then
+if [[ -z ${SUDO_USER:-} ]]; then
   echo "$LOG_PREFIX ERROR: Installation must be done via sudo, not directly as root user" >&2
   echo "$LOG_PREFIX ERROR: Please run: 'sudo apt install -y gnosis-vpn'" >&2
   exit 1

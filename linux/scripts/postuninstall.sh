@@ -34,22 +34,22 @@ deb-systemd-helper daemon-reload || true
 # Check if this is a complete purge
 IS_PURGE=false
 case "$PKG_MANAGER" in
-  deb)
-    # Debian/Ubuntu: Check DPKG variables or explicit "purge" argument
-    if [[ "${1:-}" == "purge" ]] || [[ "${DPKG_MAINTSCRIPT_PACKAGE_REFCOUNT:-1}" == "0" ]]; then
-      IS_PURGE=true
-    fi
-    ;;
-  rpm)
-    # RPM (RHEL/Fedora): $1 is 0 on full removal, 1+ on upgrade
-    if [[ "${1:-1}" == "0" ]]; then
-      IS_PURGE=true
-    fi
-    ;;
-  arch)
-    # Arch Linux: Always purge on removal
+deb)
+  # Debian/Ubuntu: Check DPKG variables or explicit "purge" argument
+  if [[ ${1:-} == "purge" ]] || [[ ${DPKG_MAINTSCRIPT_PACKAGE_REFCOUNT:-1} == "0" ]]; then
     IS_PURGE=true
-    ;;
+  fi
+  ;;
+rpm)
+  # RPM (RHEL/Fedora): $1 is 0 on full removal, 1+ on upgrade
+  if [[ ${1:-1} == "0" ]]; then
+    IS_PURGE=true
+  fi
+  ;;
+arch)
+  # Arch Linux: Always purge on removal
+  IS_PURGE=true
+  ;;
 esac
 
 # Remove log directory
@@ -81,9 +81,9 @@ if getent group gnosisvpn >/dev/null 2>&1; then
   groupdel gnosisvpn 2>/dev/null || true
 fi
 
-if [[ "$IS_PURGE" == "true" ]]; then
+if [[ $IS_PURGE == "true" ]]; then
   echo "$LOG_PREFIX INFO: Performing complete removal (purge)..."
-  
+
   # Remove state directory
   if [[ -d /var/lib/gnosisvpn ]]; then
     echo "$LOG_PREFIX INFO: Removing state directory: /var/lib/gnosisvpn"
@@ -101,7 +101,7 @@ if [[ "$IS_PURGE" == "true" ]]; then
   for user_home in /home/*; do
     if [[ -d "$user_home/Desktop" ]]; then
       desktop_file="$user_home/Desktop/GnosisVPN.desktop"
-      if [[ -f "$desktop_file" ]]; then
+      if [[ -f $desktop_file ]]; then
         echo "$LOG_PREFIX INFO: Removing desktop shortcut for user $(basename "$user_home")"
         rm -f "$desktop_file"
       fi

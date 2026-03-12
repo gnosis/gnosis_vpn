@@ -107,21 +107,21 @@ install_action() {
 
 install_desktop_action() {
   echo "Setting up desktop environment on ${INSTANCE_NAME}"
-  
+
   # Generate password from username (part before the dot)
   GCP_USERNAME=$(gcloud config get-value account | cut -d'@' -f1)
   RDP_PASSWORD=$(echo "${GCP_USERNAME}" | cut -d'.' -f1)
-  
+
   # Copy setup script to VM
   script_dir=$(cd "$(dirname "$0")" && pwd)
   gcloud compute scp --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${script_dir}/setup-desktop.sh" "${INSTANCE_NAME}":/tmp/setup-desktop.sh
-  
+
   # Execute setup script on VM with password as argument
   gcloud compute ssh --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${INSTANCE_NAME}" --command="bash /tmp/setup-desktop.sh ${GNOSISVPN_DISTRIBUTION} ${RDP_PASSWORD}"
-  
+
   # Get the actual VM username
   VM_USERNAME=$(gcloud compute ssh --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${INSTANCE_NAME}" --command="whoami" 2>/dev/null | tr -d '\r')
-  
+
   echo ""
   echo "========================================"
   echo "Desktop setup completed on ${INSTANCE_NAME}"
@@ -144,12 +144,12 @@ rdp_action() {
   echo "Starting IAP tunnel for RDP (port 3389)..."
   echo "Keep this terminal open while using RDP connection"
   echo ""
-  
+
   # Get the actual VM username and password
   VM_USERNAME=$(gcloud compute ssh --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${INSTANCE_NAME}" --command="whoami" 2>/dev/null | tr -d '\r')
   GCP_USERNAME=$(gcloud config get-value account | cut -d'@' -f1)
   RDP_PASSWORD=$(echo "${GCP_USERNAME}" | cut -d'.' -f1)
-  
+
   echo ""
   echo "========================================"
   echo "Connection Details:"
@@ -233,7 +233,7 @@ main() {
   esac
 }
 
-ACTION="$1"       # e.g., "create", "copy", "install", "delete"
+ACTION="$1"                 # e.g., "create", "copy", "install", "delete"
 GNOSISVPN_DISTRIBUTION="$2" # e.g., "deb", "rpm", "archlinux"
 GNOSISVPN_ARCHITECTURE="$3" # e.g., "x86_64-linux", "aarch64-linux"
 INSTANCE_NAME="gnosisvpn-client-${GNOSISVPN_DISTRIBUTION}-${GNOSISVPN_ARCHITECTURE/_/-}"

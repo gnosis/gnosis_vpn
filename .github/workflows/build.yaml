@@ -2,10 +2,10 @@ name: Build
 on:
   pull_request:
     types:
-    - opened
-    - synchronize
-    - reopened
-    - ready_for_review
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
   workflow_call:
     inputs:
       draft_release:
@@ -75,7 +75,6 @@ jobs:
           echo "GNOSISVPN_APP_VERSION=${GNOSISVPN_APP_VERSION}" | tee -a $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ github.token }}
-
   linux:
     runs-on: ${{ matrix.architecture.runner }}
     name: Build Linux (${{ matrix.architecture.nfpm }})
@@ -135,7 +134,6 @@ jobs:
         with:
           name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}.sha256
           path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}.sha256
-
   mac:
     runs-on: macos-15
     name: Build Mac

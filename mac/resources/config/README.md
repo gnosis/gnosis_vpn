@@ -66,7 +66,8 @@ To customize the installer configuration:
 
 1. **Add new network templates**: Create new `.toml.template` files in
    `templates/`
-2. **Modify service behavior**: Edit `system/com.gnosisvpn.gnosisvpnclient.plist`
+2. **Modify service behavior**: Edit
+   `system/com.gnosisvpn.gnosisvpnclient.plist`
 3. **Update build process**: Modify references in `../build-pkg.sh` and
    `../scripts/postinstall`
 

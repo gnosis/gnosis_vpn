@@ -39,7 +39,7 @@ if pgrep -x gnosis_vpn-root >/dev/null 2>&1; then
   echo "$LOG_PREFIX INFO: Terminating remaining gnosis_vpn-root processes..."
   pkill -TERM -x gnosis_vpn-root || true
   sleep 5
-  
+
   # Force kill if still running
   if pgrep -x gnosis_vpn-root >/dev/null 2>&1; then
     echo "$LOG_PREFIX WARNING: Force killing remaining processes..."
