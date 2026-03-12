@@ -8,8 +8,8 @@ on:
     - ready_for_review
   workflow_call:
     inputs:
-      public_release:
-        description: "Is this a public release?"
+      draft_release:
+        description: "Is this a draft release?"
         required: true
         type: boolean
         default: false
@@ -27,7 +27,7 @@ on:
       GNOSISVPN_PACKAGE_VERSION:
         description: "The version of the GnosisVPN package to be released"
         value: ${{ jobs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
-      GNOSISVPN_CLI_VERSION: 
+      GNOSISVPN_CLI_VERSION:
         description: "The version of the GnosisVPN CLI to be released"
         value: ${{ jobs.setup.outputs.GNOSISVPN_CLI_VERSION }}
       GNOSISVPN_APP_VERSION:
@@ -51,7 +51,7 @@ jobs:
         id: versions
         shell: bash
         run: |
-          if [[ "${{ inputs.public_release }}" == true ]]; then
+          if [[ "${{ inputs.draft_release }}" == true ]]; then
             export GNOSISVPN_PACKAGE_VERSION=${{ vars.GNOSISVPN_NEXT_RELEASE_VERSION }}
           else
             export GNOSISVPN_PACKAGE_VERSION=$(date +%Y.%m.%d+build.%H%M%S)
@@ -178,4 +178,3 @@ jobs:
         with:
           name: GnosisVPN-Installer.pkg.sha256
           path: ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256
-
