@@ -40,6 +40,7 @@ create_system_user_and_group() {
 configure_filesystem_permissions() {
     local network_name
     network_name="${GNOSISVPN_NETWORK:-jura}"
+    blokli_url="${GNOSISVPN_BLOKLI_URL:-https://blokli.jura.hoprnet.link}"
     echo "$LOG_PREFIX INFO: Setting up directory permissions..."
     
     # Fix ownership of configuration files (nfpm may have created them with numeric UID)
@@ -63,6 +64,8 @@ configure_filesystem_permissions() {
 
     # Create symblink for current network config
     ln -sf /etc/gnosisvpn/config-"$network_name".toml /etc/gnosisvpn/config.toml
+
+    sed -i "s|^GNOSISVPN_HOPR_BLOKLI_URL=.*|GNOSISVPN_HOPR_BLOKLI_URL=$blokli_url|g" /etc/gnosisvpn/gnosisvpn.env
 
     # Fix binary ownership and permissions. Cannot be done in nfpm as the user may not exist yet.
     if [[ -f /usr/bin/gnosis_vpn-worker ]]; then
