@@ -26,9 +26,6 @@ RestartSec=5s
 TimeoutStopSec=30
 TimeoutStartSec=60
 
-# Logging
-StandardOutput=append:/var/log/gnosisvpn/gnosisvpn.log
-StandardError=append:/var/log/gnosisvpn/gnosisvpn.log
 SyslogIdentifier=gnosisvpn
 
 # Directory management - systemd will create these with proper permissions
