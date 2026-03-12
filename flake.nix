@@ -22,6 +22,8 @@
           programs.nixpkgs-fmt.enable = true;
           programs.shfmt.enable = true;
           programs.deno.enable = true;
+          programs.yamlfmt.enable = true;
+          settings.formatter.deno.excludes = [ "*.yaml" "*.yml" ];
         };
       in
       {
