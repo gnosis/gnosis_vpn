@@ -23,7 +23,9 @@
           programs.shfmt.enable = true;
           programs.deno.enable = true;
           programs.yamlfmt.enable = true;
+
           settings.formatter.deno.excludes = [ "*.yaml" "*.yml" ];
+
           settings.formatter.yamlfmt.settings = {
             formatter.type = "basic";
             formatter.max_line_length = 120;
