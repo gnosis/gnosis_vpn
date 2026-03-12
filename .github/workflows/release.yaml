@@ -4,11 +4,6 @@ on:
     types: [new_snapshot_release]
   workflow_dispatch:
     inputs:
-      public_release:
-        description: "Is this a public release?"
-        required: true
-        type: boolean
-        default: false
       client_version:
         description: "Client Version"
         required: true
@@ -26,7 +21,7 @@ jobs:
   build:
     uses: ./.github/workflows/build.yaml
     with:
-      public_release: ${{ inputs.public_release || false }}
+      draft_release: true
       client_version: ${{ inputs.client_version || 'latest' }}
       app_version: ${{ inputs.app_version || 'latest' }}
     secrets: inherit
@@ -63,7 +58,6 @@ jobs:
           GNOSISVPN_CHANGELOG_FORMAT: github
 
       - name: Create release
-        if: inputs.public_release
         run: |
           if [ ! -d ./binaries ]; then
             echo "No binaries found to upload. Exiting."
@@ -74,21 +68,23 @@ jobs:
           # Delete existing release if it exists
           gh release delete v${next_release_version} --yes 2>/dev/null || true
 
+          # Create a draft release
           gh release create v${next_release_version} \
             --title "GnosisVPN v${next_release_version}" \
-            --notes-file ./build/changelog/changelog
+            --notes-file ./build/changelog/changelog \
+            --draft
 
           echo "Preparing binaries for upload"
 
           # Upload all files from all artifact directories
           find ./binaries -type f -exec gh release upload v${next_release_version} {} --clobber \;
 
-          echo "Release v${next_release_version} created and binaries uploaded"
+          echo "Draft release v${next_release_version} created and binaries uploaded"
         env:
           GH_TOKEN: ${{ secrets.GNOSIS_GITHUB_WORKFLOW_TOKEN }}
+
       - name: Bump Version
         id: bump
-        if: inputs.public_release
         shell: bash
         run: |
           next_release_version=${{ vars.GNOSISVPN_NEXT_RELEASE_VERSION }}
@@ -102,16 +98,12 @@ jobs:
           gh variable set GNOSISVPN_PREVIOUS_APP_VERSION --body "${{ needs.build.outputs.GNOSISVPN_APP_VERSION }}"
         env:
           GH_TOKEN: ${{ secrets.GNOSIS_GITHUB_WORKFLOW_TOKEN }}
+
       - name: Prepare notification message
         run: |
-          if [[ "${{ inputs.public_release }}" == "true" ]]; then
-            RELEASE_TYPE="official"
-          else
-            RELEASE_TYPE="snapshot"
-          fi
           # Build the notification message with release notes content
           {
-            echo "I'm thrilled to inform a new \`gnosis_vpn\` ${RELEASE_TYPE} version \`${{ needs.build.outputs.GNOSISVPN_PACKAGE_VERSION }}\` has been released."
+            echo "I'm thrilled to inform you a new \`gnosis_vpn\` draft version \`${{ needs.build.outputs.GNOSISVPN_PACKAGE_VERSION }}\` has been created and is ready for review."
             echo ""
             cat build/changelog/changelog
           } > notification_message.txt
@@ -122,8 +114,8 @@ jobs:
             cat notification_message.txt
             echo "EOF"
           } >> $GITHUB_ENV
+
       - name: Notify release
-        if: inputs.public_release || github.event_name == 'repository_dispatch'
         uses: zulip/github-actions-zulip/send-message@e4c8f27c732ba9bd98ac6be0583096dea82feea5 # v1.0.2
         with:
           api-key: ${{ secrets.ZULIP_API_KEY }}
