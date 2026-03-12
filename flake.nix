@@ -19,12 +19,16 @@
         treefmtEval = treefmt-nix.lib.evalModule pkgs {
           projectRootFile = "flake.nix";
 
-          programs.nixpkgs-fmt.enable = true;
-          programs.shfmt.enable = true;
           programs.deno.enable = true;
+          programs.nixpkgs-fmt.enable = true;
+          # will mess up too many of the generated scripts
+          # programs.shellcheck.enable = true;
+          programs.shfmt.enable = true;
           programs.yamlfmt.enable = true;
 
           settings.formatter.deno.excludes = [ "*.yaml" "*.yml" ];
+
+          settings.formatter.yamlfmt.excludes = [ "linux/nfpm-template.yaml" ];
 
           settings.formatter.yamlfmt.settings = {
             formatter.type = "basic";
