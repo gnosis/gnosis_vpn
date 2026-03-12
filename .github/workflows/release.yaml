@@ -21,7 +21,7 @@ jobs:
   build:
     uses: ./.github/workflows/build.yaml
     with:
-      draft_release: true
+      draft_release: false
       client_version: ${{ inputs.client_version || 'latest' }}
       app_version: ${{ inputs.app_version || 'latest' }}
     secrets: inherit
@@ -58,6 +58,7 @@ jobs:
           GNOSISVPN_CHANGELOG_FORMAT: github
 
       - name: Create release
+        if: inputs.draft_release
         run: |
           if [ ! -d ./binaries ]; then
             echo "No binaries found to upload. Exiting."
@@ -85,6 +86,7 @@ jobs:
 
       - name: Bump Version
         id: bump
+        if: inputs.draft_release
         shell: bash
         run: |
           next_release_version=${{ vars.GNOSISVPN_NEXT_RELEASE_VERSION }}
@@ -101,9 +103,14 @@ jobs:
 
       - name: Prepare notification message
         run: |
+          if [[ "${{ inputs.draft_release }}" == "true" ]]; then
+            RELEASE_TYPE="draft"
+          else
+            RELEASE_TYPE="snapshot"
+          fi
           # Build the notification message with release notes content
           {
-            echo "I'm thrilled to inform you a new \`gnosis_vpn\` draft version \`${{ needs.build.outputs.GNOSISVPN_PACKAGE_VERSION }}\` has been created and is ready for review."
+            echo "I'm thrilled to inform you a new \`gnosis_vpn\` ${RELEASE_TYPE} version \`${{ needs.build.outputs.GNOSISVPN_PACKAGE_VERSION }}\` has been created and is ready for review."
             echo ""
             cat build/changelog/changelog
           } > notification_message.txt
@@ -116,6 +123,7 @@ jobs:
           } >> $GITHUB_ENV
 
       - name: Notify release
+        if: inputs.draft_release || github.event_name == 'repository_dispatch'
         uses: zulip/github-actions-zulip/send-message@e4c8f27c732ba9bd98ac6be0583096dea82feea5 # v1.0.2
         with:
           api-key: ${{ secrets.ZULIP_API_KEY }}
