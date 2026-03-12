@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       draft_release:
-        description: "Create draft releasea? Leave empty for snapshot release"
+        description: "Create a draft release? Leave unchecked for snapshot release"
         required: true
         type: boolean
         default: false
@@ -26,7 +26,7 @@ jobs:
   build:
     uses: ./.github/workflows/build.yaml
     with:
-      draft_release: false
+      draft_release: ${{ github.event_name == 'workflow_dispatch' && inputs.draft_release || false }}
       client_version: ${{ inputs.client_version || 'latest' }}
       app_version: ${{ inputs.app_version || 'latest' }}
     secrets: inherit
@@ -108,17 +108,20 @@ jobs:
 
       - name: Prepare notification message
         run: |
-          if [[ "${{ inputs.draft_release }}" == "true" ]]; then
-            RELEASE_TYPE="draft"
-          else
-            RELEASE_TYPE="snapshot"
-          fi
           # Build the notification message with release notes content
-          {
-            echo "I'm thrilled to inform you a new \`gnosis_vpn\` ${RELEASE_TYPE} version \`${{ needs.build.outputs.GNOSISVPN_PACKAGE_VERSION }}\` has been created and is ready for review."
-            echo ""
-            cat build/changelog/changelog
-          } > notification_message.txt
+          if [[ "${{ inputs.draft_release }}" == "true" ]]; then
+            {
+              echo "I'm thrilled to inform you that a new \`gnosis_vpn\` draft version \`${{ needs.build.outputs.GNOSISVPN_PACKAGE_VERSION }}\` has been created and is ready for review."
+              echo ""
+              cat build/changelog/changelog
+            } > notification_message.txt
+          else
+            {
+              echo "I'm less thrilled to inform you that a new \`gnosis_vpn\` snapshot version \`${{ needs.build.outputs.GNOSISVPN_PACKAGE_VERSION }}\` has been created and is ready for testing."
+              echo ""
+              cat build/changelog/changelog
+            } > notification_message.txt
+          fi
 
           # Store content in environment variable for the Zulip action
           {
