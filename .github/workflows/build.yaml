@@ -75,7 +75,6 @@ jobs:
           echo "GNOSISVPN_APP_VERSION=${GNOSISVPN_APP_VERSION}" | tee -a $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ github.token }}
-
   checks:
     name: Lint and format
     runs-on: ubuntu-22.04
@@ -86,11 +85,10 @@ jobs:
         uses: cachix/install-nix-action@v31
       - name: Run flake checks
         run: nix flake check -L --show-trace
-
   linux:
     runs-on: ${{ matrix.architecture.runner }}
     name: Build Linux (${{ matrix.architecture.nfpm }})
-    needs: [setup,checks]
+    needs: [setup, checks]
     strategy:
       matrix:
         architecture:
@@ -149,7 +147,7 @@ jobs:
   mac:
     runs-on: macos-15
     name: Build Mac
-    needs: [setup,checks]
+    needs: [setup, checks]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
