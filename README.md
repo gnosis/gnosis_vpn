@@ -1,14 +1,12 @@
 # Gnosis VPN
 
-This repository collects the binary artifacts that compose the Gnosis VPN
-project.
+This repository collects the binary artifacts that compose the Gnosis VPN project.
 
 ## Installation
 
 ### Debian / Ubuntu
 
-Download packages from
-[releases](https://github.com/gnosis/gnosis_vpn/releases):
+Download packages from [releases](https://github.com/gnosis/gnosis_vpn/releases):
 
 - Main package (`.deb`)
 - SHA256 checksum (`.sha256`)
@@ -33,8 +31,7 @@ sudo apt remove gnosisvpn
 
 - [Nix](https://nixos.org) (recommended) - Provides all build dependencies
 - macOS 11.0 or later for mac packages
-- Xcode Command Line Tools installed: `$ xcode-select --install` for mac
-  packages
+- Xcode Command Line Tools installed: `$ xcode-select --install` for mac packages
 
 ### Quick Start
 
@@ -72,8 +69,7 @@ just all dmg aarch64-darwin true
 ### Scripts
 
 - `common.sh` - Shared utility functions
-- `download-binaries.sh` - Downloads pre-built binaries from GCP Artifact
-  registry
+- `download-binaries.sh` - Downloads pre-built binaries from GCP Artifact registry
 - `generate-manual.sh` - Creates man pages (Linux only)
 - `generate-changelog.ts` - Creates the changelog (requires Deno)
 - `generate-package.sh` - Generates packages (.deb, .dmg)

@@ -67,8 +67,7 @@ function log(level: string, message: string): void {
 function validateIso8601Date(dateString: string): boolean {
   if (!dateString) return false;
 
-  const iso8601Regex =
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+  const iso8601Regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
   if (!iso8601Regex.test(dateString)) return false;
 
   const parsed = Date.parse(dateString);
@@ -122,9 +121,7 @@ async function ghApiCall(
           }
           log(
             "WARN",
-            `GitHub API throttled (attempt ${attempt}/${config.ghApiMaxAttempts}). Retrying in ${
-              delay / 1000
-            }s...`,
+            `GitHub API throttled (attempt ${attempt}/${config.ghApiMaxAttempts}). Retrying in ${delay / 1000}s...`,
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
           delay *= 2;
@@ -163,8 +160,7 @@ async function getReleaseDate(
   tag: string,
 ): Promise<string> {
   log("DEBUG", `Fetching release date for ${repo}/${tag}`);
-  const release =
-    (await ghApiCall(config, repo, `/releases/tags/${tag}`)) as GitHubRelease;
+  const release = (await ghApiCall(config, repo, `/releases/tags/${tag}`)) as GitHubRelease;
   const date = release.created_at;
 
   if (!validateIso8601Date(date)) {
@@ -281,8 +277,7 @@ function githubFormat(
   };
 
   for (const entry of entries) {
-    const line =
-      `- [${entry.component}] ${entry.title} by @${entry.author} in #${entry.id}`;
+    const line = `- [${entry.component}] ${entry.title} by @${entry.author} in #${entry.id}`;
     switch (entry.changelog_type) {
       case "feat":
       case "feature":
@@ -382,12 +377,10 @@ function debianFormat(
   const maintainer = "GnosisVPN (Gnosis VPN) <tech@hoprnet.org>";
   const date = rfc2822Date(new Date());
 
-  let changelog =
-    `gnosisvpn (${version}) ${distribution}; urgency=${urgency}\n`;
+  let changelog = `gnosisvpn (${version}) ${distribution}; urgency=${urgency}\n`;
 
   for (const entry of entries) {
-    const entryLine =
-      `  * ${entry.title} by @${entry.author} in #${entry.id}\n`;
+    const entryLine = `  * ${entry.title} by @${entry.author} in #${entry.id}\n`;
 
     if (entryLine.length <= 80) {
       changelog += entryLine;
@@ -398,8 +391,7 @@ function debianFormat(
       let maxTitleLength = 80 - (entryLine.length - entry.title.length) - 3;
       if (maxTitleLength < 1) maxTitleLength = 1;
       const truncatedTitle = entry.title.substring(0, maxTitleLength);
-      changelog +=
-        `  * ${truncatedTitle}... by @${entry.author} in #${entry.id}\n`;
+      changelog += `  * ${truncatedTitle}... by @${entry.author} in #${entry.id}\n`;
     }
   }
 
@@ -435,8 +427,7 @@ function rpmFormat(
 
     // Remove the type(component): prefix from title if present
     const cleanTitle = entry.title.replace(/^.*\): /, "");
-    changelog +=
-      `- [${entry.changelog_type}][${entry.component}] ${cleanTitle} in #${entry.id}\n`;
+    changelog += `- [${entry.changelog_type}][${entry.component}] ${cleanTitle} in #${entry.id}\n`;
   }
 
   return changelog;
@@ -503,11 +494,9 @@ function readConfig(): Config {
 
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
-  const defaultVersion = `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${
-    pad(now.getDate())
-  }+build.${pad(now.getHours())}${pad(now.getMinutes())}${
-    pad(now.getSeconds())
-  }`;
+  const defaultVersion = `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}+build.${
+    pad(now.getHours())
+  }${pad(now.getMinutes())}${pad(now.getSeconds())}`;
 
   return {
     packageVersion: Deno.env.get("GNOSISVPN_PACKAGE_VERSION") || defaultVersion,

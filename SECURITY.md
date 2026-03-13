@@ -2,12 +2,10 @@
 
 ## Package Verification
 
-All GnosisVPN packages include SHA256 checksums for integrity verification.
-Additionally:
+All GnosisVPN packages include SHA256 checksums for integrity verification. Additionally:
 
 - **Linux packages** (`.deb`) are signed with GPG
-- **macOS packages** (`.pkg`) use Apple's code signing mechanism and are signed
-  with an Apple Developer certificate
+- **macOS packages** (`.pkg`) use Apple's code signing mechanism and are signed with an Apple Developer certificate
 
 We strongly recommend verifying packages before installation.
 
@@ -110,8 +108,8 @@ sudo apt install ./${PACKAGE}
 
 ## macOS Package Verification
 
-macOS packages are signed with an Apple Developer certificate and notarized by
-Apple. The system verifies signatures automatically during installation.
+macOS packages are signed with an Apple Developer certificate and notarized by Apple. The system verifies signatures
+automatically during installation.
 
 ### Verify SHA256 Checksum (macOS)
 
@@ -145,8 +143,7 @@ codesign --verify --deep --strict /Applications/Gnosis\ VPN.app
 
 ## Reporting Security Vulnerabilities
 
-If you discover a security vulnerability in GnosisVPN, please report it
-privately to:
+If you discover a security vulnerability in GnosisVPN, please report it privately to:
 
 **Email:** tech@hoprnet.org
 
