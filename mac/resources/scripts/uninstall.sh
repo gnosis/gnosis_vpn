@@ -108,10 +108,6 @@ remove_system_user() {
     if dscl . -read "/Users/$username" >/dev/null 2>&1; then
         log_info "Found system user: $username"
 
-        # Get home directory before deletion
-        local homedir
-        homedir=$(dscl . -read "/Users/$username" NFSHomeDirectory 2>/dev/null | cut -d' ' -f2- || echo "")
-
         # Delete the user
         dscl . -delete "/Users/$username"
         log_success "Removed system user: $username"

@@ -105,7 +105,7 @@ prepare_build_dir() {
         rm -rf "${BUILD_DIR}"
     fi
 
-    mkdir -p ${BINARY_DIR}
+    mkdir -p "${BINARY_DIR}"
     chmod 700 "${BINARY_DIR}"
 
     log_success "Build directory prepared"
@@ -123,7 +123,7 @@ download_linux_binaries() {
     done
 
     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
-        "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" --local-filename=gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}
+        "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" --local-filename="gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}"
 
     log_success "All binaries downloaded"
 }
@@ -163,7 +163,7 @@ print_summary() {
     echo "=========================================="
     echo ""
     echo "Binaries downloaded:"
-    ls -lh ${BINARY_DIR}/
+    ls -lh "${BINARY_DIR}/"
     echo ""
 }
 

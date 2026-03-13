@@ -15,8 +15,8 @@ deb)
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y task-xfce-desktop xrdp dbus-x11
 
     echo 'Configuring xrdp for XFCE...'
-    echo 'xfce4-session' | sudo tee /home/$(whoami)/.xsession
-    sudo chmod +x /home/$(whoami)/.xsession
+    echo 'xfce4-session' | sudo tee "/home/$(whoami)/.xsession"
+    sudo chmod +x "/home/$(whoami)/.xsession"
 
     echo 'Configuring PolicyKit to avoid authentication dialogs...'
     sudo mkdir -p /etc/polkit-1/localauthority/50-local.d
@@ -34,7 +34,7 @@ EOF
     sudo systemctl start xrdp
 
     echo 'Adding default user to ssl-cert group...'
-    sudo usermod -a -G ssl-cert $(whoami)
+    sudo usermod -a -G ssl-cert "$(whoami)"
 
     echo 'Setting up password for RDP access...'
     echo "$(whoami):${RDP_PASSWORD}" | sudo chpasswd
@@ -48,8 +48,8 @@ rpm)
     sudo dnf install -y xrdp tigervnc-server dbus-x11
 
     echo 'Configuring xrdp for XFCE...'
-    echo 'xfce4-session' | sudo tee /home/$(whoami)/.Xclients
-    sudo chmod +x /home/$(whoami)/.Xclients
+    echo 'xfce4-session' | sudo tee "/home/$(whoami)/.Xclients"
+    sudo chmod +x "/home/$(whoami)/.Xclients"
 
     echo 'Configuring PolicyKit to avoid authentication dialogs...'
     sudo mkdir -p /etc/polkit-1/localauthority/50-local.d
@@ -78,8 +78,8 @@ archlinux)
     sudo pacman -S --noconfirm xfce4 xfce4-goodies xrdp tigervnc dbus
 
     echo 'Configuring xrdp for XFCE...'
-    echo 'xfce4-session' | sudo tee /home/$(whoami)/.xinitrc
-    sudo chmod +x /home/$(whoami)/.xinitrc
+    echo 'xfce4-session' | sudo tee "/home/$(whoami)/.xinitrc"
+    sudo chmod +x "/home/$(whoami)/.xinitrc"
 
     echo 'Configuring PolicyKit to avoid authentication dialogs...'
     sudo mkdir -p /etc/polkit-1/rules.d

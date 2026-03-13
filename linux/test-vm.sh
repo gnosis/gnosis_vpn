@@ -42,7 +42,7 @@ get_vm_image() {
 
 create_action() {
     # Check if VM already exists
-    if gcloud compute instances describe "${INSTANCE_NAME}" --project=${PROJECT_ID} --zone=${ZONE} --quiet >/dev/null 2>&1; then
+    if gcloud compute instances describe "${INSTANCE_NAME}" --project="${PROJECT_ID}" --zone=${ZONE} --quiet >/dev/null 2>&1; then
         echo "VM ${INSTANCE_NAME} already exists. Skipping creation."
         echo "You can SSH into the VM using the following command:"
         echo "gcloud compute ssh --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} ${INSTANCE_NAME}"
@@ -60,7 +60,7 @@ create_action() {
     fi
     image_project=$(echo "$image" | cut -d'/' -f2)
     gcloud compute instances create "${INSTANCE_NAME}" \
-        --project=${PROJECT_ID} \
+        --project="${PROJECT_ID}" \
         --zone=${ZONE} \
         --machine-type=${machine_type} \
         --network=${NETWORK} \
@@ -75,7 +75,7 @@ create_action() {
     sleep 15
     waiting_iterations=0
 
-    while ! gcloud compute ssh --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${INSTANCE_NAME}" --command="echo SSH is accessible" --quiet 2>/dev/null; do
+    while ! gcloud compute ssh --tunnel-through-iap --project="${PROJECT_ID}" --zone=${ZONE} "${INSTANCE_NAME}" --command="echo SSH is accessible" --quiet 2>/dev/null; do
         echo "Waiting for SSH to become accessible..."
         waiting_iterations=$((waiting_iterations + 1))
         if [ $waiting_iterations -ge 33 ]; then
@@ -94,14 +94,14 @@ create_action() {
 copy_action() {
     echo "Copying artifacts on ${INSTANCE_NAME}"
     script_dir=$(cd "$(dirname "$0")" && pwd)
-    gcloud compute scp --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${script_dir}/install-package.sh" "${INSTANCE_NAME}":/tmp/install-package.sh
-    gcloud compute scp --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${script_dir}"/../build/packages/gnosisvpn*."${GNOSISVPN_DISTRIBUTION}" "${INSTANCE_NAME}":/tmp/gnosisvpn."${GNOSISVPN_DISTRIBUTION}"
+    gcloud compute scp --tunnel-through-iap --project="${PROJECT_ID}" --zone=${ZONE} "${script_dir}/install-package.sh" "${INSTANCE_NAME}":/tmp/install-package.sh
+    gcloud compute scp --tunnel-through-iap --project="${PROJECT_ID}" --zone=${ZONE} "${script_dir}"/../build/packages/gnosisvpn*."${GNOSISVPN_DISTRIBUTION}" "${INSTANCE_NAME}":/tmp/gnosisvpn."${GNOSISVPN_DISTRIBUTION}"
     echo "Artifacts successfully copied on ${INSTANCE_NAME}"
 }
 
 install_action() {
     echo "Installing gnosisvpn package on ${INSTANCE_NAME}"
-    gcloud compute ssh --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${INSTANCE_NAME}" --command="sudo bash /tmp/install-package.sh ${GNOSISVPN_DISTRIBUTION}"
+    gcloud compute ssh --tunnel-through-iap --project="${PROJECT_ID}" --zone=${ZONE} "${INSTANCE_NAME}" --command="sudo bash /tmp/install-package.sh ${GNOSISVPN_DISTRIBUTION}"
     echo "Package installed successfully on ${GNOSISVPN_DISTRIBUTION}-${GNOSISVPN_ARCHITECTURE}."
 }
 
@@ -114,13 +114,13 @@ install_desktop_action() {
 
     # Copy setup script to VM
     script_dir=$(cd "$(dirname "$0")" && pwd)
-    gcloud compute scp --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${script_dir}/setup-desktop.sh" "${INSTANCE_NAME}":/tmp/setup-desktop.sh
+    gcloud compute scp --tunnel-through-iap --project="${PROJECT_ID}" --zone=${ZONE} "${script_dir}/setup-desktop.sh" "${INSTANCE_NAME}":/tmp/setup-desktop.sh
 
     # Execute setup script on VM with password as argument
-    gcloud compute ssh --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${INSTANCE_NAME}" --command="bash /tmp/setup-desktop.sh ${GNOSISVPN_DISTRIBUTION} ${RDP_PASSWORD}"
+    gcloud compute ssh --tunnel-through-iap --project="${PROJECT_ID}" --zone=${ZONE} "${INSTANCE_NAME}" --command="bash /tmp/setup-desktop.sh ${GNOSISVPN_DISTRIBUTION} ${RDP_PASSWORD}"
 
     # Get the actual VM username
-    VM_USERNAME=$(gcloud compute ssh --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${INSTANCE_NAME}" --command="whoami" 2>/dev/null | tr -d '\r')
+    VM_USERNAME=$(gcloud compute ssh --tunnel-through-iap --project="${PROJECT_ID}" --zone=${ZONE} "${INSTANCE_NAME}" --command="whoami" 2>/dev/null | tr -d '\r')
 
     echo ""
     echo "========================================"
@@ -146,7 +146,7 @@ rdp_action() {
     echo ""
 
     # Get the actual VM username and password
-    VM_USERNAME=$(gcloud compute ssh --tunnel-through-iap --project=${PROJECT_ID} --zone=${ZONE} "${INSTANCE_NAME}" --command="whoami" 2>/dev/null | tr -d '\r')
+    VM_USERNAME=$(gcloud compute ssh --tunnel-through-iap --project="${PROJECT_ID}" --zone=${ZONE} "${INSTANCE_NAME}" --command="whoami" 2>/dev/null | tr -d '\r')
     GCP_USERNAME=$(gcloud config get-value account | cut -d'@' -f1)
     RDP_PASSWORD=$(echo "${GCP_USERNAME}" | cut -d'.' -f1)
 
@@ -166,13 +166,13 @@ rdp_action() {
 
     gcloud compute start-iap-tunnel "${INSTANCE_NAME}" 3389 \
         --local-host-port=localhost:3389 \
-        --project=${PROJECT_ID} \
+        --project="${PROJECT_ID}" \
         --zone=${ZONE}
 }
 
 delete_action() {
     echo "Deleting VM for GNOSISVPN_DISTRIBUTION: $GNOSISVPN_DISTRIBUTION, GNOSISVPN_ARCHITECTURE: $GNOSISVPN_ARCHITECTURE"
-    if ! gcloud compute instances delete "${INSTANCE_NAME}" --project=${PROJECT_ID} --zone=${ZONE} --quiet; then
+    if ! gcloud compute instances delete "${INSTANCE_NAME}" --project="${PROJECT_ID}" --zone=${ZONE} --quiet; then
         echo "Failed to delete VM ${INSTANCE_NAME}. It may not exist or there was an error."
         exit 1
     fi

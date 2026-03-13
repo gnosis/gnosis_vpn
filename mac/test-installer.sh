@@ -113,7 +113,8 @@ test_build_structure() {
     run_test "Distribution package exists" "[[ -n \$(find '${BUILD_DIR}/packages' -name 'GnosisVPN-Installer-*.pkg' -print -quit) ]]"
 
     # SHA256 Checksum Validation
-    local checksum_file=$(find "${BUILD_DIR}/packages" -name "GnosisVPN-Installer-*.pkg.sha256" -print -quit)
+    local checksum_file
+    checksum_file=$(find "${BUILD_DIR}/packages" -name "GnosisVPN-Installer-*.pkg.sha256" -print -quit)
     if [[ -n $checksum_file ]]; then
         run_test "Checksum file exists" "[[ -f '$checksum_file' ]]"
         # Check if the file contains two fields (hash and filename)

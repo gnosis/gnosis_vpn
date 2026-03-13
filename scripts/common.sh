@@ -3,8 +3,8 @@
 # Common functions for GnosisVPN packaging scripts
 #
 
-BUILD_DIR="${SCRIPT_DIR}/../build"
-BINARY_DIR="${BUILD_DIR}/download"
+export BUILD_DIR="${SCRIPT_DIR}/../build"
+export BINARY_DIR="${BUILD_DIR}/download"
 
 # Colors for output
 RED='\033[0;31m'
