@@ -44,7 +44,7 @@ jobs:
           echo "- Client version: v${{ needs.build.outputs.GNOSISVPN_CLI_VERSION }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- App version: v${{ needs.build.outputs.GNOSISVPN_APP_VERSION }}" >> "$GITHUB_STEP_SUMMARY"
       - name: Download all artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           path: ./binaries
       - name: Install Nix
