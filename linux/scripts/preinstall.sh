@@ -13,38 +13,38 @@ LOG_PREFIX="[GnosisVPN preinstall]"
 
 # Check if running with proper privileges
 if [[ $EUID -ne 0 ]]; then
-  echo "$LOG_PREFIX ERROR: This script must be run with sudo (e.g., 'sudo apt install -y gnosis-vpn.deb')" >&2
-  exit 1
+    echo "$LOG_PREFIX ERROR: This script must be run with sudo (e.g., 'sudo apt install -y gnosis-vpn.deb')" >&2
+    exit 1
 fi
 
 # Ensure installation is done via sudo, not directly as root
 if [[ -z ${SUDO_USER:-} ]]; then
-  echo "$LOG_PREFIX ERROR: Installation must be done via sudo, not directly as root user" >&2
-  echo "$LOG_PREFIX ERROR: Please run: 'sudo apt install -y gnosis-vpn'" >&2
-  exit 1
+    echo "$LOG_PREFIX ERROR: Installation must be done via sudo, not directly as root user" >&2
+    echo "$LOG_PREFIX ERROR: Please run: 'sudo apt install -y gnosis-vpn'" >&2
+    exit 1
 fi
 
 # Stop running service to prevent file conflicts during upgrade
 if command -v systemctl >/dev/null 2>&1; then
-  if systemctl is-active --quiet gnosisvpn 2>/dev/null; then
-    echo "$LOG_PREFIX INFO: Stopping existing gnosisvpn service..."
-    deb-systemd-invoke stop gnosisvpn || true
-  fi
+    if systemctl is-active --quiet gnosisvpn 2>/dev/null; then
+        echo "$LOG_PREFIX INFO: Stopping existing gnosisvpn service..."
+        deb-systemd-invoke stop gnosisvpn || true
+    fi
 fi
 
 # Backup existing configuration if modified
 if [[ -f /etc/gnosisvpn/config.toml ]]; then
-  backup_path="/etc/gnosisvpn/config.toml.backup.$(date +%Y%m%d_%H%M%S)"
-  echo "$LOG_PREFIX INFO: Backing up existing configuration to $backup_path"
-  cp -a /etc/gnosisvpn/config.toml "$backup_path" || true
+    backup_path="/etc/gnosisvpn/config.toml.backup.$(date +%Y%m%d_%H%M%S)"
+    echo "$LOG_PREFIX INFO: Backing up existing configuration to $backup_path"
+    cp -a /etc/gnosisvpn/config.toml "$backup_path" || true
 fi
 
 # Verify kernel module support for WireGuard (dependency installs package, not kernel module)
 if ! modinfo wireguard >/dev/null 2>&1; then
-  echo "$LOG_PREFIX WARNING: WireGuard kernel module not found"
-  echo "$LOG_PREFIX WARNING: You may need to install linux-headers and reboot"
-  echo "$LOG_PREFIX WARNING: Or ensure wireguard-dkms is installed"
-  # This is a warning, not a fatal error - user might fix it later
+    echo "$LOG_PREFIX WARNING: WireGuard kernel module not found"
+    echo "$LOG_PREFIX WARNING: You may need to install linux-headers and reboot"
+    echo "$LOG_PREFIX WARNING: Or ensure wireguard-dkms is installed"
+    # This is a warning, not a fatal error - user might fix it later
 fi
 
 echo "$LOG_PREFIX INFO: Pre-installation checks completed successfully"

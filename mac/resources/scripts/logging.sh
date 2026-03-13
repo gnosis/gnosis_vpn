@@ -20,79 +20,79 @@ INSTALLER_LOG_FILE="${INSTALLER_LOG_FILE:-${INSTALLER_LOG_DIR}/installer.log}"
 
 # Setup logging for a script
 setup_logging() {
-  local script_name="${1:-unknown}"
+    local script_name="${1:-unknown}"
 
-  # Create log directory if it doesn't exist
-  mkdir -p "$INSTALLER_LOG_DIR"
+    # Create log directory if it doesn't exist
+    mkdir -p "$INSTALLER_LOG_DIR"
 
-  # Set script-specific log file if not already set
-  if [[ -z ${SCRIPT_LOG_FILE:-} ]]; then
-    SCRIPT_LOG_FILE="${INSTALLER_LOG_DIR}/${script_name}.log"
-  fi
+    # Set script-specific log file if not already set
+    if [[ -z ${SCRIPT_LOG_FILE:-} ]]; then
+        SCRIPT_LOG_FILE="${INSTALLER_LOG_DIR}/${script_name}.log"
+    fi
 
-  # Redirect output to both console and log files
-  exec > >(tee -a "$INSTALLER_LOG_FILE" "$SCRIPT_LOG_FILE") 2>&1
+    # Redirect output to both console and log files
+    exec > >(tee -a "$INSTALLER_LOG_FILE" "$SCRIPT_LOG_FILE") 2>&1
 
-  # Log script start
-  echo ""
-  echo "=========================================="
-  echo "Script: $script_name"
-  echo "Started: $(date '+%Y-%m-%d %H:%M:%S')"
-  echo "=========================================="
-  echo ""
+    # Log script start
+    echo ""
+    echo "=========================================="
+    echo "Script: $script_name"
+    echo "Started: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "=========================================="
+    echo ""
 }
 
 # Get timestamp for log messages
 log_timestamp() {
-  date '+%Y-%m-%d %H:%M:%S'
+    date '+%Y-%m-%d %H:%M:%S'
 }
 
 # Log info message
 log_info() {
-  echo "[$(log_timestamp)] [INFO] $*"
+    echo "[$(log_timestamp)] [INFO] $*"
 }
 
 # Log success message
 log_success() {
-  echo "[$(log_timestamp)] [SUCCESS] $*"
+    echo "[$(log_timestamp)] [SUCCESS] $*"
 }
 
 # Log warning message
 log_warn() {
-  echo "[$(log_timestamp)] [WARN] $*"
+    echo "[$(log_timestamp)] [WARN] $*"
 }
 
 # Log error message
 log_error() {
-  echo "[$(log_timestamp)] [ERROR] $*"
+    echo "[$(log_timestamp)] [ERROR] $*"
 }
 
 # Log debug message (only if DEBUG=true)
 log_debug() {
-  if [[ ${DEBUG:-false} == "true" ]]; then
-    echo "[$(log_timestamp)] [DEBUG] $*"
-  fi
+    if [[ ${DEBUG:-false} == "true" ]]; then
+        echo "[$(log_timestamp)] [DEBUG] $*"
+    fi
 }
 
 # Log section separator
 log_section() {
-  local title="$1"
-  echo ""
-  echo "=========================================="
-  echo "$title"
-  echo "=========================================="
-  echo ""
+    local title="$1"
+    echo ""
+    echo "=========================================="
+    echo "$title"
+    echo "=========================================="
+    echo ""
 }
 
 # Log script completion
 log_script_end() {
-  local status="${1:-success}"
-  echo ""
-  echo "=========================================="
-  echo "Script completed: $status"
-  echo "Ended: $(date '+%Y-%m-%d %H:%M:%S')"
-  echo "=========================================="
-  echo ""
+    local status="${1:-success}"
+    echo ""
+    echo "=========================================="
+    echo "Script completed: $status"
+    echo "Ended: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "=========================================="
+    echo ""
 }
 
 # Export functions for use in subshells
