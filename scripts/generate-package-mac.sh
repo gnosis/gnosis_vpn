@@ -523,16 +523,15 @@ sign_platform_package() {
 # Submit for notarization
 notarize_package() {
     log_info "Submitting package for notarization to Apple (this may take a while)..."
-    notary_json="$(
+    if ! notary_json="$(
         xcrun notarytool submit "${BUILD_DIR}/packages/${PKG_NAME_INSTALLER}" \
             --apple-id "$GNOSISVPN_APPLE_ID" \
             --team-id "$GNOSISVPN_APPLE_TEAM_ID" \
             --password "$GNOSISVPN_APPLE_PASSWORD" \
             --wait \
             --output-format json 2>${BUILD_DIR}/notarytool-submit.log
-    )"
-    submit_rc=$?
-    if [[ $submit_rc -ne 0 ]]; then
+    )"; then
+        local submit_rc=$?
         log_error "Notarytool command failed (exit code $submit_rc)"
         log_error "$notary_json"
         cat "${BUILD_DIR}/notarytool-submit.log" >&2
