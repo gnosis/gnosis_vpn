@@ -2,7 +2,6 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    ":pinGitHubActionDigests",
     "helpers:pinGitHubActionDigestsToSemver"
   ],
   "prCreation": "not-pending",
@@ -18,7 +17,7 @@
   "packageRules": [
     {
       "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "matchUpdateTypes": ["minor", "patch"],
       "groupName": "github-actions (non-major)",
       "automerge": false
     },
