@@ -108,10 +108,6 @@ remove_system_user() {
     if dscl . -read "/Users/$username" >/dev/null 2>&1; then
         log_info "Found system user: $username"
 
-        # Get home directory before deletion
-        local homedir
-        homedir=$(dscl . -read "/Users/$username" NFSHomeDirectory 2>/dev/null | cut -d' ' -f2- || echo "")
-
         # Delete the user
         dscl . -delete "/Users/$username"
         log_success "Removed system user: $username"
@@ -167,7 +163,7 @@ cleanup_system_directories() {
 
     # Remove log rotation config
     local logrotate_conf="/etc/newsyslog.d/gnosisvpn.conf"
-    if [[ -f "$logrotate_conf" ]]; then
+    if [[ -f $logrotate_conf ]]; then
         log_info "Removing log rotation config: $logrotate_conf"
         rm -f "$logrotate_conf"
         log_success "Log rotation config removed"
@@ -277,7 +273,7 @@ remove_ui_app() {
         sleep 2
         # Force kill if still running
         if pgrep -f "$ui_app_path" >/dev/null 2>&1; then
-             pkill -KILL -f "$ui_app_path" 2>/dev/null || true
+            pkill -KILL -f "$ui_app_path" 2>/dev/null || true
         fi
     fi
 

@@ -15,7 +15,6 @@ source "${SCRIPT_DIR}/common.sh"
 : "${GNOSISVPN_ARCHITECTURE:=x86_64-linux}"
 : "${GNOSISVPN_DISTRIBUTION:=deb}"
 
-
 # Usage help message
 usage() {
     echo "Usage: $0 --cli-version <version> --app-version <version> [options]"
@@ -106,7 +105,7 @@ prepare_build_dir() {
         rm -rf "${BUILD_DIR}"
     fi
 
-    mkdir -p ${BINARY_DIR}
+    mkdir -p "${BINARY_DIR}"
     chmod 700 "${BINARY_DIR}"
 
     log_success "Build directory prepared"
@@ -124,13 +123,13 @@ download_linux_binaries() {
     done
 
     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
-        "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" --local-filename=gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}
+        "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" --local-filename="gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}"
 
     log_success "All binaries downloaded"
 }
 
 download_darwin_binaries() {
-log_info "Downloading binaries from GCP Artifact Registry..."
+    log_info "Downloading binaries from GCP Artifact Registry..."
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
         for arch in aarch64-darwin x86_64-darwin; do
@@ -164,14 +163,14 @@ print_summary() {
     echo "=========================================="
     echo ""
     echo "Binaries downloaded:"
-        ls -lh ${BINARY_DIR}/
+    ls -lh "${BINARY_DIR}/"
     echo ""
 }
 
 # Main
 main() {
     prepare_build_dir
-    if [[ "${GNOSISVPN_ARCHITECTURE}" =~ ^(x86_64-linux|aarch64-linux)$ ]]; then
+    if [[ ${GNOSISVPN_ARCHITECTURE} =~ ^(x86_64-linux|aarch64-linux)$ ]]; then
         download_linux_binaries
     else
         download_darwin_binaries

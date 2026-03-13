@@ -7,6 +7,7 @@ This repository collects the binary artifacts that compose the Gnosis VPN projec
 ### Debian / Ubuntu
 
 Download packages from [releases](https://github.com/gnosis/gnosis_vpn/releases):
+
 - Main package (`.deb`)
 - SHA256 checksum (`.sha256`)
 - GPG signature (`.asc`)
@@ -19,6 +20,7 @@ sudo apt install ./gnosisvpn_*.deb
 ```
 
 Uninstall:
+
 ```bash
 sudo apt remove gnosisvpn
 ```
@@ -33,8 +35,8 @@ sudo apt remove gnosisvpn
 
 ### Quick Start
 
-
 **Debian (x86_64)**
+
 ```bash
 just download deb x86_64-linux
 just changelog
@@ -45,6 +47,7 @@ just all deb x86_64-linux true
 ```
 
 **Debian (ARM64)**
+
 ```bash
 just download deb aarch64-linux
 just changelog
@@ -55,6 +58,7 @@ just all deb aarch64-linux true
 ```
 
 **Mac**
+
 ```bash
 just download dmg aarch64-darwin
 just package dmg aarch64-darwin true
@@ -69,4 +73,3 @@ just all dmg aarch64-darwin true
 - `generate-manual.sh` - Creates man pages (Linux only)
 - `generate-changelog.ts` - Creates the changelog (requires Deno)
 - `generate-package.sh` - Generates packages (.deb, .dmg)
-

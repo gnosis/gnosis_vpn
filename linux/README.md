@@ -27,8 +27,10 @@ just rdp-connect deb x86_64-linux
 ```
 
 **⚠️ Desktop VMs are not auto-deleted:**
+
 ```bash
 just delete-test-vm deb x86_64-linux
+```
 
 ```bash
 # Build Debian package
@@ -36,5 +38,3 @@ just package deb x86_64-linux
 ```
 
 **Build with signing:**
-
-```

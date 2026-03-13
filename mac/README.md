@@ -1,8 +1,7 @@
 # Gnosis VPN macOS PKG Installer
 
-This directory contains the macOS PKG installer implementation for Gnosis VPN
-Client. The installer provides a user-friendly graphical interface for
-installing and configuring the Gnosis VPN client on macOS systems.
+This directory contains the macOS PKG installer implementation for Gnosis VPN Client. The installer provides a
+user-friendly graphical interface for installing and configuring the Gnosis VPN client on macOS systems.
 
 ## Features
 
@@ -34,15 +33,13 @@ gnosis_vpn-manager [command]
 - `restore` - Restore configuration from backup (requires sudo)
 - `cleanup` - Clean up old backup files (requires sudo)
 
-
 ## Configuration
 
 ### Environment Variables
 
 The installer scripts support these environment variables:
 
-- `INSTALLER_CHOICE_NETWORK`: Network selection ("jura" or "dufour", default:
-  "jura")
+- `INSTALLER_CHOICE_NETWORK`: Network selection ("jura" or "dufour", default: "jura")
 - `INSTALLER_CHOICE_LOGLEVEL`: Log level service mode ( "debug" or "info", default: "info")
 
 ### Installation Locations
@@ -72,8 +69,7 @@ sudo ./uninstall.sh
 
 - Scripts run with root privileges during installation
 - Binaries are downloaded over HTTPS from GitHub at build time
-- SHA-256 checksums are verified for all downloaded binaries (build fails if
-  verification fails)
+- SHA-256 checksums are verified for all downloaded binaries (build fails if verification fails)
 - Universal binaries are packaged directly into the PKG
 - No personal information is collected or transmitted
 
