@@ -50,7 +50,7 @@ create_action() {
     fi
 
     local image
-    image=$(get_vm_image "${GNOSISVPN_DISTRIBUTION}")
+    image=$(get_vm_image)
 
     echo "Creating VM for GNOSISVPN_DISTRIBUTION: $GNOSISVPN_DISTRIBUTION, GNOSISVPN_ARCHITECTURE: $GNOSISVPN_ARCHITECTURE"
     if [ "${GNOSISVPN_ARCHITECTURE}" == "aarch64-linux" ]; then

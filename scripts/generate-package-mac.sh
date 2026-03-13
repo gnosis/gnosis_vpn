@@ -404,7 +404,8 @@ build_choice_packages() {
         local identifier="com.gnosisvpn.choice.${choice_type}.${choice_value}"
         local temp_scripts_dir="${BUILD_DIR}/choice-scripts/${package_name}"
         local output_pkg="${BUILD_DIR}/packages/choice-${package_name}.pkg"
-        local choice_type_uppercase=$(echo "$choice_type" | tr '[:lower:]' '[:upper:]')
+        local choice_type_uppercase
+        choice_type_uppercase=$(echo "$choice_type" | tr '[:lower:]' '[:upper:]')
 
         # Create temp scripts directory
         mkdir -p "$temp_scripts_dir"
@@ -529,10 +530,9 @@ notarize_package() {
             --team-id "$GNOSISVPN_APPLE_TEAM_ID" \
             --password "$GNOSISVPN_APPLE_PASSWORD" \
             --wait \
-            --output-format json 2>${BUILD_DIR}/notarytool-submit.log
+            --output-format json 2>"${BUILD_DIR}/notarytool-submit.log"
     )"; then
-        local submit_rc=$?
-        log_error "Notarytool command failed (exit code $submit_rc)"
+        log_error "Notarytool command failed"
         log_error "$notary_json"
         cat "${BUILD_DIR}/notarytool-submit.log" >&2
         exit 1
