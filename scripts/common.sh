@@ -57,6 +57,7 @@ get_latest_release() {
 
 # Generate package name based on distribution conventions
 generate_package_name() {
+    local arch_name
     # Convert architecture name based on distribution
     case "${GNOSISVPN_DISTRIBUTION}" in
     dmg)
