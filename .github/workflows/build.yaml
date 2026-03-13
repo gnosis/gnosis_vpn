@@ -46,7 +46,7 @@ jobs:
       GNOSISVPN_APP_VERSION: ${{ steps.versions.outputs.GNOSISVPN_APP_VERSION }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Determine versions
         id: versions
         shell: bash
@@ -101,7 +101,7 @@ jobs:
         distribution: [deb]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Setup GCP
         uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v1
         with:
@@ -150,7 +150,7 @@ jobs:
     needs: [setup, checks]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Setup GCP
         uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v1
         with:
