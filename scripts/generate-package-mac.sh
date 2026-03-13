@@ -511,8 +511,12 @@ sign_platform_package() {
       notarize_package
       staple_ticket
     else
-      log_info "Package signing is disabled; skipping signing step"
+      log_error "Developer ID Installer signing identity not found in keychain '${KEYCHAIN_NAME}'"
+      log_error "Cannot sign or notarize package without a valid 'Developer ID Installer' certificate"
+      exit 1
     fi
+  else
+    log_info "Package signing is disabled; skipping signing and notarization steps"
   fi
 }
 
