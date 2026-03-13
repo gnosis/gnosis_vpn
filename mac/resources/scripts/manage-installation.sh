@@ -61,7 +61,6 @@ check_permissions() {
 
   # Check if user is in gnosisvpn group
   local current_user
-  local current_user
   current_user=$(id -un)
 
   if groups "$current_user" | grep -q '\bgnosisvpn\b'; then
@@ -95,7 +94,6 @@ show_version() {
   echo ""
 
   if [[ -f $VERSION_FILE ]]; then
-    local version
     local version
     version=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
     log_success "Installed version: $version"
