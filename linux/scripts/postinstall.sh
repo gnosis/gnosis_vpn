@@ -65,7 +65,7 @@ configure_filesystem_permissions() {
     # Create symblink for current network config
     ln -sf /etc/gnosisvpn/config-"$network_name".toml /etc/gnosisvpn/config.toml
 
-    sed -i "s|^GNOSISVPN_HOPR_BLOKLI_URL=|GNOSISVPN_HOPR_BLOKLI_URL=$blokli_url|g" /etc/gnosisvpn/gnosisvpn.env
+    sed -i "s|^GNOSISVPN_HOPR_BLOKLI_URL=$|GNOSISVPN_HOPR_BLOKLI_URL=$blokli_url|g" /etc/gnosisvpn/gnosisvpn.env
 
     # Fix binary ownership and permissions. Cannot be done in nfpm as the user may not exist yet.
     if [[ -f /usr/bin/gnosis_vpn-worker ]]; then
