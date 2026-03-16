@@ -68,7 +68,7 @@ start_suite() {
     echo "Checking build directory: $BUILD_DIR"
     echo ""
 
-    if [[ ! -d "$BUILD_DIR" ]]; then
+    if [[ ! -d $BUILD_DIR ]]; then
         log_error "Build directory not found at $BUILD_DIR"
         echo "Please run the build command (e.g., 'just all dmg aarch64-darwin true') before running this test."
         exit 1
@@ -113,8 +113,9 @@ test_build_structure() {
     run_test "Distribution package exists" "[[ -n \$(find '${BUILD_DIR}/packages' -name 'GnosisVPN-Installer-*.pkg' -print -quit) ]]"
 
     # SHA256 Checksum Validation
-    local checksum_file=$(find "${BUILD_DIR}/packages" -name "GnosisVPN-Installer-*.pkg.sha256" -print -quit)
-    if [[ -n "$checksum_file" ]]; then
+    local checksum_file
+    checksum_file=$(find "${BUILD_DIR}/packages" -name "GnosisVPN-Installer-*.pkg.sha256" -print -quit)
+    if [[ -n $checksum_file ]]; then
         run_test "Checksum file exists" "[[ -f '$checksum_file' ]]"
         # Check if the file contains two fields (hash and filename)
         run_test "Checksum format includes filename" "grep -qE '^[a-f0-9]{64}  .+' '$checksum_file'"
@@ -128,29 +129,29 @@ test_signing() {
     local signed_pkg
     signed_pkg=$(find "${BUILD_DIR}/packages" -name "GnosisVPN-Installer-*-signed.pkg" -print -quit)
 
-    if [[ -n "$signed_pkg" ]]; then
+    if [[ -n $signed_pkg ]]; then
         log_info "Signed package found: $(basename "$signed_pkg")"
-        
+
         # Check package signature
         if command -v pkgutil >/dev/null; then
-             run_test "Package signature verification" "pkgutil --check-signature '$signed_pkg' >/dev/null"
+            run_test "Package signature verification" "pkgutil --check-signature '$signed_pkg' >/dev/null"
         else
             log_test "Skipping package signature check (pkgutil not found)"
         fi
-        
+
         # Check binary signatures (if we can on this platform)
         if command -v codesign >/dev/null; then
-             local rootfs="${BUILD_DIR}/app-contents/rootfs"
-             local bins_to_check=("wg" "wireguard-go")
-             
-             for bin in "${bins_to_check[@]}"; do
-                 local bin_path="$rootfs/usr/local/bin/$bin"
-                 if [[ -f "$bin_path" ]]; then
-                     run_test "Binary signature '$bin'" "codesign --verify --deep --strict '$bin_path' >/dev/null"
-                 fi
-             done
+            local rootfs="${BUILD_DIR}/app-contents/rootfs"
+            local bins_to_check=("wg" "wireguard-go")
+
+            for bin in "${bins_to_check[@]}"; do
+                local bin_path="$rootfs/usr/local/bin/$bin"
+                if [[ -f $bin_path ]]; then
+                    run_test "Binary signature '$bin'" "codesign --verify --deep --strict '$bin_path' >/dev/null"
+                fi
+            done
         else
-             log_test "Skipping binary signature check (codesign not found)"
+            log_test "Skipping binary signature check (codesign not found)"
         fi
     else
         log_info "No signed package found. Skipping signing tests."
@@ -164,7 +165,7 @@ test_file_syntax() {
     # Plist Validation (removed greps)
     local plist_src="$SCRIPT_DIR/resources/config/system/com.gnosisvpn.gnosisvpnclient.plist"
     run_test "Launchd Plist exists" "[[ -f '$plist_src' ]]"
-    
+
     if command -v plutil >/dev/null; then
         run_test "Launchd Plist syntax valid" "plutil -lint '$plist_src' >/dev/null"
     else
@@ -174,7 +175,7 @@ test_file_syntax() {
     # Distribution XML Validation (removed greps)
     local dist_xml="$SCRIPT_DIR/Distribution.xml"
     run_test "Distribution XML exists" "[[ -f '$dist_xml' ]]"
-    
+
     if command -v xmllint >/dev/null; then
         run_test "Distribution XML syntax valid" "xmllint --noout '$dist_xml'"
     else
@@ -185,24 +186,24 @@ test_file_syntax() {
     # Providing a tool to check syntax as requested
     local html_files=("welcome.html" "readme.html" "conclusion.html")
     local resource_dir="$SCRIPT_DIR/resources/distribution" # welcome.html might be here in source or just generated in build
-    
+
     # Check source files if they exist (welcome.html might be a template in source)
     for html in "${html_files[@]}"; do
         local file_path="$resource_dir/$html"
         # Check if it's a template instead if the html file doesn't exist
-        if [[ ! -f "$file_path" && -f "$SCRIPT_DIR/resources/${html}.template" ]]; then
-             file_path="$SCRIPT_DIR/resources/${html}.template"
-        fi
-        
-        # Also check just mac/resources/ if not in distribution/
-        if [[ ! -f "$file_path" && -f "$SCRIPT_DIR/resources/$html" ]]; then
-             file_path="$SCRIPT_DIR/resources/$html"
+        if [[ ! -f $file_path && -f "$SCRIPT_DIR/resources/${html}.template" ]]; then
+            file_path="$SCRIPT_DIR/resources/${html}.template"
         fi
 
-        if [[ -f "$file_path" ]]; then
+        # Also check just mac/resources/ if not in distribution/
+        if [[ ! -f $file_path && -f "$SCRIPT_DIR/resources/$html" ]]; then
+            file_path="$SCRIPT_DIR/resources/$html"
+        fi
+
+        if [[ -f $file_path ]]; then
             if command -v tidy >/dev/null; then
-                 # tidy -e : show errors only, -q : quiet
-                run_test "HTML syntax '$html' (tidy)" "tidy -e -q '$file_path' 2>/dev/null" 
+                # tidy -e : show errors only, -q : quiet
+                run_test "HTML syntax '$html' (tidy)" "tidy -e -q '$file_path' 2>/dev/null"
             elif command -v xmllint >/dev/null; then
                 run_test "HTML syntax '$html' (xmllint)" "xmllint --html --noout '$file_path' 2>/dev/null"
             else

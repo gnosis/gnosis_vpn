@@ -42,7 +42,7 @@ configure_filesystem_permissions() {
     network_name="${GNOSISVPN_NETWORK:-jura}"
     blokli_url="${GNOSISVPN_BLOKLI_URL:-https://blokli.jura.hoprnet.link}"
     echo "$LOG_PREFIX INFO: Setting up directory permissions..."
-    
+
     # Fix ownership of configuration files (nfpm may have created them with numeric UID)
     if [[ ! -d /etc/gnosisvpn ]]; then
         mkdir -p /etc/gnosisvpn
@@ -77,14 +77,14 @@ configure_filesystem_permissions() {
     if [[ -f /usr/bin/gnosis_vpn-app ]]; then
         chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-app
     fi
-    
+
     echo "$LOG_PREFIX SUCCESS: Directory permissions configured"
 }
 
 # Enable and start the systemd service
 enable_and_start_systemd_service() {
     echo "$LOG_PREFIX INFO: Setting up systemd service..."
-    
+
     # Reload systemd to pick up the service file
     systemctl daemon-reload || true
 
@@ -103,7 +103,7 @@ enable_and_start_systemd_service() {
     else
         echo "$LOG_PREFIX WARNING: Service failed to start. Check logs with: journalctl -u gnosisvpn.service"
     fi
-    
+
     echo "$LOG_PREFIX INFO: Service status: $(systemctl is-enabled gnosisvpn.service 2>/dev/null || echo 'unknown')"
 }
 
@@ -111,51 +111,51 @@ enable_and_start_systemd_service() {
 install_desktop_shortcut_for_user() {
     # Get the user who ran sudo (or current user if run directly)
     local target_user="$SUDO_USER"
-    
+
     # If no SUDO_USER, try current USER
     if [ -z "$target_user" ] || [ "$target_user" = "root" ]; then
         target_user="$USER"
     fi
-    
+
     # Skip if still no user identified or if root
     if [ -z "$target_user" ] || [ "$target_user" = "root" ]; then
         echo "$LOG_PREFIX INFO: No desktop user identified, skipping desktop shortcut"
         return
     fi
-    
+
     # Get the user's home directory
     local user_home
     user_home=$(getent passwd "$target_user" | cut -d: -f6)
-    
+
     if [ -z "$user_home" ]; then
         echo "$LOG_PREFIX WARNING: Could not find home directory for user $target_user"
         return
     fi
-    
+
     local desktop_dir="$user_home/Desktop"
-    
+
     # Check if Desktop directory exists
     if [ ! -d "$desktop_dir" ]; then
         echo "$LOG_PREFIX INFO: Desktop directory not found for $target_user, skipping shortcut"
         return
     fi
-    
+
     # Strip spaces from filename
     local dest_file="$desktop_dir/GnosisVPN.desktop"
-    
+
     # Copy the desktop file to the user's Desktop
     if ! cp "/usr/share/applications/Gnosis VPN.desktop" "$dest_file" 2>/dev/null; then
         echo "$LOG_PREFIX WARNING: Failed to copy desktop file"
         return
     fi
-    
+
     # Make it executable (required for desktop shortcuts)
     chown "$target_user":"$target_user" "$dest_file"
     chmod +x "$dest_file"
-    
+
     # Try to mark as trusted if tools are available (optional, not in dependencies)
     local trusted_set=false
-    
+
     # Try to find user's DBUS session to make gio work
     local user_dbus_addr=""
     if [ -d "/run/user/$(id -u "$target_user")" ]; then
@@ -165,30 +165,30 @@ install_desktop_shortcut_for_user() {
     # Try to set metadata using gio (should be available from package dependencies)
     # We capture output because gio might return exit code 0 even if it prints "not supported"
     local gio_output=""
-    
+
     if [ -n "$user_dbus_addr" ]; then
         # Try with explicit DBus session address
         # We append || true to prevent script exit on failure due to set -e
         gio_output=$(sudo -u "$target_user" DBUS_SESSION_BUS_ADDRESS="$user_dbus_addr" gio set "$dest_file" metadata::trusted true 2>&1 || true)
-        if [[ -z "$gio_output" ]]; then
+        if [[ -z $gio_output ]]; then
             trusted_set=true
         else
             echo "$LOG_PREFIX INFO: Could not set trusted metadata via gio for $target_user: $gio_output"
         fi
     fi
-        
+
     # Fallback/Retry without explicit address if it failed above
     if [ "$trusted_set" = false ]; then
         gio_output=$(sudo -u "$target_user" gio set "$dest_file" metadata::trusted true 2>&1 || true)
-        if [[ -z "$gio_output" ]]; then
+        if [[ -z $gio_output ]]; then
             trusted_set=true
         else
             echo "$LOG_PREFIX INFO: Could not set trusted metadata via gio for $target_user: $gio_output"
         fi
     fi
-    
+
     echo "$LOG_PREFIX INFO: Desktop shortcut created for $target_user"
-    
+
     # Inform user they may need to trust manually
     if [ "$trusted_set" = false ]; then
         echo "$LOG_PREFIX INFO: Right-click the desktop icon and select 'Allow Launching' if prompted."

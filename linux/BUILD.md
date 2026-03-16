@@ -2,12 +2,12 @@
 
 This directory contains scripts for building GnosisVPN packages for Linux distributions.
 
-
 ## Quick Start with justfile
 
 The easiest way to build packages is using the justfile recipes:
 
 ### For GitHub Releases (nfpm packages)
+
 ```bash
 # Build .deb package for x86_64
 just package-nfpm deb x86_64-linux
@@ -17,6 +17,7 @@ just sign deb x86_64-linux
 ```
 
 ### For Official Distribution Repositories
+
 ```bash
 # Build Debian source package
 just package deb x86_64-linux
@@ -25,6 +26,7 @@ just package deb x86_64-linux
 ## Workflow
 
 ### GitHub Releases (nfpm)
+
 1. **Download binaries**: `download-binaries.sh` fetches pre-built binaries from GCP
 2. **Generate changelog**: `just changelog` creates release notes
 3. **Generate manuals**: `just manual` creates man pages (Linux only)
@@ -32,6 +34,7 @@ just package deb x86_64-linux
 5. **Sign package**: `just sign` creates `.asc` and `.sha256` files
 
 ### Official Repositories (source packages)
+
 1. **Download binaries**: `download-binaries.sh` fetches pre-built binaries from GCP
 2. **Generate changelog**: `just changelog` creates release notes
 3. **Generate manuals**: `just manual` creates man pages (Linux only)
@@ -61,12 +64,14 @@ linux/
 ## Distribution Channels
 
 ### GitHub Releases (Current)
+
 - Uses nfpm for multi-distribution packages
 - Detached GPG signatures (`.asc` files)
 - SHA256 checksums
 - Fast iteration and direct user downloads
 
 ### Official Repositories (Future)
+
 - Debian: Uses `debian/` directory structure
 - Build source packages with `just package deb x86_64-linux`
 - Requires Linux environment or Docker

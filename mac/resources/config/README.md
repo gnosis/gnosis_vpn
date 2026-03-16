@@ -1,7 +1,6 @@
 # Configuration Files Directory
 
-This directory contains all configuration files and templates used by the Gnosis
-VPN installer.
+This directory contains all configuration files and templates used by the Gnosis VPN installer.
 
 ## Directory Structure
 
@@ -20,8 +19,7 @@ config/
 
 ### `system/com.gnosisvpn.gnosisvpnclient.plist`
 
-LaunchD service configuration for automatic startup and management of the Gnosis
-VPN service.
+LaunchD service configuration for automatic startup and management of the Gnosis VPN service.
 
 **Features:**
 
@@ -54,21 +52,17 @@ path = { intermediates = ["0xIntermediateAddress"] }
 
 These configuration files are automatically processed during installation:
 
-1. **Templates** are copied to `/etc/gnosisvpn/templates/` during package
-   installation
+1. **Templates** are copied to `/etc/gnosisvpn/templates/` during package installation
 2. **System configs** are processed by postinstall scripts to set up services
-3. The installer selects appropriate templates based on the
-   `INSTALLER_CHOICE_NETWORK` environment variable
+3. The installer selects appropriate templates based on the `INSTALLER_CHOICE_NETWORK` environment variable
 
 ## Customization
 
 To customize the installer configuration:
 
-1. **Add new network templates**: Create new `.toml.template` files in
-   `templates/`
+1. **Add new network templates**: Create new `.toml.template` files in `templates/`
 2. **Modify service behavior**: Edit `system/com.gnosisvpn.gnosisvpnclient.plist`
-3. **Update build process**: Modify references in `../build-pkg.sh` and
-   `../scripts/postinstall`
+3. **Update build process**: Modify references in `../build-pkg.sh` and `../scripts/postinstall`
 
 ## File Ownership
 

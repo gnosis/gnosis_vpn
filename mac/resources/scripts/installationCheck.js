@@ -15,8 +15,7 @@ if (system.version && system.version.ProductVersion) {
 
   if (majorVersion < 11) {
     my.result.title = "Unsupported macOS Version";
-    my.result.message =
-      "macOS 11.0 (Big Sur) or later is required. You are running macOS " +
+    my.result.message = "macOS 11.0 (Big Sur) or later is required. You are running macOS " +
       osVersion + ".";
     my.result.type = "Fatal";
     false;
@@ -48,7 +47,6 @@ if (system.sysctl) {
 
 // All checks passed
 my.result.title = "System Compatible";
-my.result.message =
-  "Your system meets all requirements for Gnosis VPN installation.";
+my.result.message = "Your system meets all requirements for Gnosis VPN installation.";
 my.result.type = "Info";
 true;

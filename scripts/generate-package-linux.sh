@@ -60,7 +60,7 @@ print_platform_banner() {
 check_platform_prerequisites() {
     log_info "Checking prerequisites..."
     local missing=0
-    if [[ ! -d "${BINARY_DIR}" ]] || [[ ! -f "${BINARY_DIR}/gnosis_vpn-root" ]]; then
+    if [[ ! -d ${BINARY_DIR} ]] || [[ ! -f "${BINARY_DIR}/gnosis_vpn-root" ]]; then
         log_error "Binaries not found in ${BINARY_DIR}/"
         log_error "Run 'just download ${GNOSISVPN_DISTRIBUTION} ${GNOSISVPN_ARCHITECTURE}' first"
         missing=$((missing + 1))
@@ -128,12 +128,12 @@ generate_nfpm_config() {
     find "$rootfs" -type f -print0 | sort -z | while IFS= read -r -d '' src; do
         local rel="${src#"$rootfs"/}"
         printf '  - src: "%s"\n    dst: "/%s"\n' "$src" "$rel"
-    done > "$nfpm_app_contents"
+    done >"$nfpm_app_contents"
     sed -e "/__GNOSIS_VPN_APP_CONTENTS__/{
     r $nfpm_app_contents
     d
-    }" "${SCRIPT_DIR}/../linux/nfpm-template.yaml" > "${SCRIPT_DIR}/../linux/nfpm.yaml"
-    if [[ "${GNOSISVPN_DISTRIBUTION}" == "deb" ]]; then
+    }" "${SCRIPT_DIR}/../linux/nfpm-template.yaml" >"${SCRIPT_DIR}/../linux/nfpm.yaml"
+    if [[ ${GNOSISVPN_DISTRIBUTION} == "deb" ]]; then
         sed -i.backup '/^license:.*/d' "${SCRIPT_DIR}/../linux/nfpm.yaml"
         rm -f "${SCRIPT_DIR}/../linux/nfpm.yaml.backup"
     fi
@@ -165,17 +165,17 @@ sign_platform_package() {
         local gnupghome
         gnupghome="$(mktemp -d)"
         export GNUPGHOME="$gnupghome"
-        echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" | \
+        echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" |
             gpg --batch --pinentry-mode loopback --passphrase-fd 0 \
-            --import "$GNOSISVPN_GPG_PRIVATE_KEY_PATH"
+                --import "$GNOSISVPN_GPG_PRIVATE_KEY_PATH"
         log_info "GPG private key imported into temporary keyring"
         # Generate checksum with filename relative to the dir, for standard verification
-        (cd "${BUILD_DIR}/packages" && shasum -a 256 "${PKG_NAME}") > "${BUILD_DIR}/packages/${HASH_PKG_NAME}"
+        (cd "${BUILD_DIR}/packages" && shasum -a 256 "${PKG_NAME}") >"${BUILD_DIR}/packages/${HASH_PKG_NAME}"
         log_success "Hash written to ${BUILD_DIR}/packages/${HASH_PKG_NAME}"
-        echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" | \
+        echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" |
             gpg --batch --pinentry-mode loopback --passphrase-fd 0 \
-            --armor --output "${BUILD_DIR}/packages/${SIGNED_PKG_NAME}" \
-            --detach-sign "${BUILD_DIR}/packages/${PKG_NAME}"
+                --armor --output "${BUILD_DIR}/packages/${SIGNED_PKG_NAME}" \
+                --detach-sign "${BUILD_DIR}/packages/${PKG_NAME}"
         log_success "Detached signature written to ${BUILD_DIR}/packages/${SIGNED_PKG_NAME}"
         rm -rf "$gnupghome"
     fi
