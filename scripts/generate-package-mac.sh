@@ -34,7 +34,7 @@ CHOICE_PACKAGES=(
 KEYCHAIN_NAME="gnosisvpn.keychain"
 KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
 
-usage_platform(){
+usage_platform() {
     echo "  --binary-certificate-path <path>  Set the path to the certificate for signing binaries (if signing is enabled)"
     echo "  --installer-certificate-path <path>  Set the path to the certificate for signing the installer (if signing is enabled)"
     echo "  --apple-id <apple_id>     Set the Apple ID for notarization (if signing is enabled)"
@@ -109,7 +109,7 @@ parse_platform_args() {
             log_error "Apple Developer certificate password not set in GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD environment variable"
             exit 1
         else
-            if ! command -v openssl pkcs12 -info -in "$GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH" -passin pass:"$GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD" -nokeys -nomacver -nodes 2>/dev/null >/dev/null; then
+            if ! openssl pkcs12 -info -in "$GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH" -passin pass:"$GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD" -nokeys -nomacver -nodes 2>/dev/null >/dev/null; then
                 log_error "Password for $GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH certificate is incorrect or certificate file is invalid"
                 exit 1
             fi
@@ -124,7 +124,7 @@ parse_platform_args() {
             log_error "Apple Installer certificate password not set in GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD environment variable"
             exit 1
         else
-            if ! command -v openssl pkcs12 -info -in "$GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH" -passin pass:"$GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD" -nokeys -nomacver -nodes 2>/dev/null >/dev/null; then
+            if ! openssl pkcs12 -info -in "$GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH" -passin pass:"$GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD" -nokeys -nomacver -nodes 2>/dev/null >/dev/null; then
                 log_error "Password for $GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH certificate is incorrect or certificate file is invalid"
                 exit 1
             fi
@@ -148,7 +148,6 @@ parse_platform_args() {
 
     log_success "Command-line arguments parsed successfully"
 }
-
 
 # Print banner
 print_platform_banner() {
@@ -332,7 +331,6 @@ unpack() {
     return $result
 }
 
-
 # Copy installation scripts
 copy_scripts() {
     log_info "Copying installation scripts..."
@@ -399,20 +397,21 @@ build_choice_packages() {
 
     for choice_spec in "${CHOICE_PACKAGES[@]}"; do
         # Parse choice specification: type:value
-        IFS=':' read -r choice_type choice_value <<< "$choice_spec"
+        IFS=':' read -r choice_type choice_value <<<"$choice_spec"
 
         # Derive package name and identifier from type:value
         local package_name="${choice_type}-${choice_value}"
         local identifier="com.gnosisvpn.choice.${choice_type}.${choice_value}"
         local temp_scripts_dir="${BUILD_DIR}/choice-scripts/${package_name}"
         local output_pkg="${BUILD_DIR}/packages/choice-${package_name}.pkg"
-        local choice_type_uppercase=$(echo "$choice_type" | tr '[:lower:]' '[:upper:]')
+        local choice_type_uppercase
+        choice_type_uppercase=$(echo "$choice_type" | tr '[:lower:]' '[:upper:]')
 
         # Create temp scripts directory
         mkdir -p "$temp_scripts_dir"
 
         # Generate postinstall script
-        cat > "$temp_scripts_dir/postinstall" <<EOF
+        cat >"$temp_scripts_dir/postinstall" <<EOF
 #!/bin/bash
 set -euo pipefail
 CHOICE_DIR="/Library/Logs/GnosisVPN/installer"
@@ -431,7 +430,7 @@ EOF
             --version "$GNOSISVPN_PACKAGE_VERSION" \
             "$output_pkg"
 
-        if [[ -f "$output_pkg" ]]; then
+        if [[ -f $output_pkg ]]; then
             log_success "Choice package created: $(basename "$output_pkg")"
         else
             log_error "Failed to create choice package: $package_name"
@@ -513,25 +512,27 @@ sign_platform_package() {
             notarize_package
             staple_ticket
         else
-            log_info "Package signing is disabled; skipping signing step"
+            log_error "Developer ID Installer signing identity not found in keychain '${KEYCHAIN_NAME}'"
+            log_error "Cannot sign or notarize package without a valid 'Developer ID Installer' certificate"
+            exit 1
         fi
+    else
+        log_info "Package signing is disabled; skipping signing and notarization steps"
     fi
 }
 
 # Submit for notarization
 notarize_package() {
     log_info "Submitting package for notarization to Apple (this may take a while)..."
-    notary_json="$(
-    xcrun notarytool submit "${BUILD_DIR}/packages/${PKG_NAME_INSTALLER}" \
-        --apple-id "$GNOSISVPN_APPLE_ID" \
-        --team-id "$GNOSISVPN_APPLE_TEAM_ID" \
-        --password "$GNOSISVPN_APPLE_PASSWORD" \
-        --wait \
-        --output-format json 2>${BUILD_DIR}/notarytool-submit.log
-    )"
-    submit_rc=$?
-    if [[ $submit_rc -ne 0 ]]; then
-        log_error "Notarytool command failed (exit code $submit_rc)"
+    if ! notary_json="$(
+        xcrun notarytool submit "${BUILD_DIR}/packages/${PKG_NAME_INSTALLER}" \
+            --apple-id "$GNOSISVPN_APPLE_ID" \
+            --team-id "$GNOSISVPN_APPLE_TEAM_ID" \
+            --password "$GNOSISVPN_APPLE_PASSWORD" \
+            --wait \
+            --output-format json 2>"${BUILD_DIR}/notarytool-submit.log"
+    )"; then
+        log_error "Notarytool command failed"
         log_error "$notary_json"
         cat "${BUILD_DIR}/notarytool-submit.log" >&2
         exit 1
@@ -541,7 +542,7 @@ notarize_package() {
     status="$(printf '%s' "$notary_json" | jq -r '.status // empty')"
     id="$(printf '%s' "$notary_json" | jq -r '.id // empty')"
 
-    if [[ "$status" != "Accepted" ]]; then
+    if [[ $status != "Accepted" ]]; then
         log_error "Notarization finished but status is '$status' (id: $id)"
         #Optional: fetch the detailed log from Apple for debugging:
         xcrun notarytool log "$id" \
@@ -577,7 +578,7 @@ print_platform_summary() {
     package_path="${BUILD_DIR}/packages/${PKG_NAME_INSTALLER}"
     local sha256
     # Generate checksum with filename relative to the dir, for standard verification
-    (cd "$(dirname "$package_path")" && shasum -a 256 "$(basename "$package_path")") > "$package_path".sha256
+    (cd "$(dirname "$package_path")" && shasum -a 256 "$(basename "$package_path")") >"$package_path".sha256
     # Extract just the hash for the summary display
     sha256=$(cut -d' ' -f1 "$package_path".sha256)
     pkg_size=$(du -h "$package_path" | cut -f1)
@@ -585,7 +586,6 @@ print_platform_summary() {
     echo "Package size:      ${pkg_size}"
     echo "SHA256:            ${sha256}"
 }
-
 
 # Build Mac package
 build_platform_package() {

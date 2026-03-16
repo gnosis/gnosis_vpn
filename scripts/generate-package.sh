@@ -17,10 +17,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
-
 # shellcheck disable=SC2317
 cleanup() {
-    if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]] && [[ -n "${KEYCHAIN_NAME:-}" ]]; then
+    if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]] && [[ -n ${KEYCHAIN_NAME:-} ]]; then
         security delete-keychain "${KEYCHAIN_NAME}" >/dev/null 2>&1 || true
     fi
 }
@@ -86,10 +85,10 @@ parse_args() {
         esac
     done
 
-    if [[ -z "${GNOSISVPN_DISTRIBUTION:-}" ]]; then
+    if [[ -z ${GNOSISVPN_DISTRIBUTION:-} ]]; then
         GNOSISVPN_DISTRIBUTION="deb"
     fi
-    if [[ "${GNOSISVPN_DISTRIBUTION}" == "dmg"  ]] && [[ "$(uname)" == "Darwin" ]]; then
+    if [[ ${GNOSISVPN_DISTRIBUTION} == "dmg" ]] && [[ "$(uname)" == "Darwin" ]]; then
         source "${SCRIPT_DIR}/generate-package-mac.sh"
     else
         source "${SCRIPT_DIR}/generate-package-linux.sh"
@@ -130,10 +129,10 @@ print_summary() {
     echo "Version:           ${GNOSISVPN_PACKAGE_VERSION}"
     echo "Distribution:      ${GNOSISVPN_DISTRIBUTION}"
     echo "Architecture:      ${GNOSISVPN_ARCHITECTURE}"
-    if [[ "${GNOSISVPN_CLI_VERSION:-}" != "" ]]; then
+    if [[ ${GNOSISVPN_CLI_VERSION:-} != "" ]]; then
         echo "CLI Version:       ${GNOSISVPN_CLI_VERSION}"
     fi
-    if [[ "${GNOSISVPN_APP_VERSION:-}" != "" ]]; then
+    if [[ ${GNOSISVPN_APP_VERSION:-} != "" ]]; then
         echo "App Version:       ${GNOSISVPN_APP_VERSION}"
     fi
     echo "Build Date:        $(date -u +"%Y-%m-%d %H:%M:%S UTC")"

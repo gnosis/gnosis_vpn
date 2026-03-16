@@ -3,8 +3,8 @@
 # Common functions for GnosisVPN packaging scripts
 #
 
-BUILD_DIR="${SCRIPT_DIR}/../build"
-BINARY_DIR="${BUILD_DIR}/download"
+export BUILD_DIR="${SCRIPT_DIR}/../build"
+export BINARY_DIR="${BUILD_DIR}/download"
 
 # Colors for output
 RED='\033[0;31m'
@@ -57,47 +57,48 @@ get_latest_release() {
 
 # Generate package name based on distribution conventions
 generate_package_name() {
+    local arch_name
     # Convert architecture name based on distribution
     case "${GNOSISVPN_DISTRIBUTION}" in
-        dmg)
-            echo "GnosisVPN-${GNOSISVPN_PACKAGE_VERSION}-${GNOSISVPN_ARCHITECTURE}.dmg"
-            ;;
-        deb)
-            # Convert architecture for debian packages
-            if [[ "$GNOSISVPN_ARCHITECTURE" == "x86_64-linux" ]]; then
-                arch_name="amd64"
-            elif [[ "$GNOSISVPN_ARCHITECTURE" == "aarch64-linux" ]]; then
-                arch_name="arm64"
-            else
-                arch_name="$GNOSISVPN_ARCHITECTURE"
-            fi
-            echo "gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_${arch_name}.deb"
-            ;;
-        rpm)
-            # Convert architecture for rpm packages
-            if [[ "$GNOSISVPN_ARCHITECTURE" == "x86_64-linux" ]]; then
-                arch_name="x86_64"
-            elif [[ "$GNOSISVPN_ARCHITECTURE" == "aarch64-linux" ]]; then
-                arch_name="aarch64"
-            else
-                arch_name="$GNOSISVPN_ARCHITECTURE"
-            fi
-            echo "gnosisvpn-${GNOSISVPN_PACKAGE_VERSION}.${arch_name}.rpm"
-            ;;
-        archlinux)
-            # Convert architecture for archlinux packages
-            if [[ "$GNOSISVPN_ARCHITECTURE" == "x86_64-linux" ]]; then
-                arch_name="x86_64"
-            elif [[ "$GNOSISVPN_ARCHITECTURE" == "aarch64-linux" ]]; then
-                arch_name="aarch64"
-            else
-                arch_name="$GNOSISVPN_ARCHITECTURE"
-            fi
-            echo "gnosisvpn-${GNOSISVPN_PACKAGE_VERSION}-${arch_name}.pkg.tar.zst"
-            ;;
-        *)
-            echo "gnosisvpn-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}"
-            ;;
+    dmg)
+        echo "GnosisVPN-${GNOSISVPN_PACKAGE_VERSION}-${GNOSISVPN_ARCHITECTURE}.dmg"
+        ;;
+    deb)
+        # Convert architecture for debian packages
+        if [[ $GNOSISVPN_ARCHITECTURE == "x86_64-linux" ]]; then
+            arch_name="amd64"
+        elif [[ $GNOSISVPN_ARCHITECTURE == "aarch64-linux" ]]; then
+            arch_name="arm64"
+        else
+            arch_name="$GNOSISVPN_ARCHITECTURE"
+        fi
+        echo "gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_${arch_name}.deb"
+        ;;
+    rpm)
+        # Convert architecture for rpm packages
+        if [[ $GNOSISVPN_ARCHITECTURE == "x86_64-linux" ]]; then
+            arch_name="x86_64"
+        elif [[ $GNOSISVPN_ARCHITECTURE == "aarch64-linux" ]]; then
+            arch_name="aarch64"
+        else
+            arch_name="$GNOSISVPN_ARCHITECTURE"
+        fi
+        echo "gnosisvpn-${GNOSISVPN_PACKAGE_VERSION}.${arch_name}.rpm"
+        ;;
+    archlinux)
+        # Convert architecture for archlinux packages
+        if [[ $GNOSISVPN_ARCHITECTURE == "x86_64-linux" ]]; then
+            arch_name="x86_64"
+        elif [[ $GNOSISVPN_ARCHITECTURE == "aarch64-linux" ]]; then
+            arch_name="aarch64"
+        else
+            arch_name="$GNOSISVPN_ARCHITECTURE"
+        fi
+        echo "gnosisvpn-${GNOSISVPN_PACKAGE_VERSION}-${arch_name}.pkg.tar.zst"
+        ;;
+    *)
+        echo "gnosisvpn-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}"
+        ;;
     esac
 }
 

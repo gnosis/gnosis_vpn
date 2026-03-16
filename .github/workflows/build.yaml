@@ -2,10 +2,10 @@ name: Build
 on:
   pull_request:
     types:
-    - opened
-    - synchronize
-    - reopened
-    - ready_for_review
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
   workflow_call:
     inputs:
       draft_release:
@@ -46,7 +46,7 @@ jobs:
       GNOSISVPN_APP_VERSION: ${{ steps.versions.outputs.GNOSISVPN_APP_VERSION }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Determine versions
         id: versions
         shell: bash
@@ -75,11 +75,20 @@ jobs:
           echo "GNOSISVPN_APP_VERSION=${GNOSISVPN_APP_VERSION}" | tee -a $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ github.token }}
-
+  checks:
+    name: Lint and format
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+      - name: Run flake checks
+        run: nix flake check -L --show-trace
   linux:
     runs-on: ${{ matrix.architecture.runner }}
     name: Build Linux (${{ matrix.architecture.nfpm }})
-    needs: [setup]
+    needs: [setup, checks]
     strategy:
       matrix:
         architecture:
@@ -92,7 +101,7 @@ jobs:
         distribution: [deb]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Setup GCP
         uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v1
         with:
@@ -135,14 +144,13 @@ jobs:
         with:
           name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}.sha256
           path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.architecture.nfpm }}.${{ matrix.distribution }}.sha256
-
   mac:
     runs-on: macos-15
     name: Build Mac
-    needs: [setup]
+    needs: [setup, checks]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Setup GCP
         uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v1
         with:
