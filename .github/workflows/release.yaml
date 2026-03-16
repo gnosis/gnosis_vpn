@@ -31,7 +31,7 @@ jobs:
       app_version: ${{ inputs.app_version || 'latest' }}
     secrets: inherit
   release:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-22.04-4
     name: Release
     needs: build
     steps:
