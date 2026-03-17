@@ -101,9 +101,5 @@
     <!-- Network Condition (optional - only start if network is available) -->
     <key>LaunchOnlyOnce</key>
     <false/>
-
-    <!-- Nice level (lower priority) -->
-    <key>Nice</key>
-    <integer>5</integer>
 </dict>
 </plist>
