@@ -98,7 +98,7 @@
     <key>ExitTimeOut</key>
     <integer>30</integer>
 
-    <!-- Network Condition (optional - only start if network is available) -->
+    <!-- Allow re-launching the service after it has been unloaded and reloaded -->
     <key>LaunchOnlyOnce</key>
     <false/>
 </dict>
