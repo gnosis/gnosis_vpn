@@ -16,12 +16,13 @@ Download packages from [releases](https://github.com/gnosis/gnosis_vpn/releases)
 
 ### Linux Installation Environment Variables
 
-**GNOSISVPN_NETWORK**
-Specifies the network configuration to use for GnosisVPN. Possible values include `jura`, `rotsee`, `dufour`, etc. The default is `jura` if not set. This variable determines which configuration file is symlinked to `/etc/gnosisvpn/config.toml` during installation.
+**GNOSISVPN_NETWORK** Specifies the network configuration to use for GnosisVPN. Possible values include `jura`,
+`rotsee`, `dufour`, etc. The default is `jura` if not set. This variable determines which configuration file is
+symlinked to `/etc/gnosisvpn/config.toml` during installation.
 
-**GNOSISVPN_HOPR_BLOKLI_URL**
-Defines the URL for the HOPR Blokli service used by GnosisVPN. If not set, defaults to `https://blokli.jura.hoprnet.link`. This URL is written to `/etc/gnosisvpn/gnosisvpn.env` and used by the application for network operations.
-
+**GNOSISVPN_HOPR_BLOKLI_URL** Defines the URL for the HOPR Blokli service used by GnosisVPN. If not set, defaults to
+`https://blokli.jura.hoprnet.link`. This URL is written to `/etc/gnosisvpn/gnosisvpn.env` and used by the application
+for network operations.
 
 ```bash
 sudo apt-get update
