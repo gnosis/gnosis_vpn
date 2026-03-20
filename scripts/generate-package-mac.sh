@@ -219,14 +219,12 @@ prepare_build_dir() {
     if [[ -d "$RESOURCES_DIR/artifacts/" ]]; then
         mkdir -p "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/"
 
-        log_info "Creating universal binary for the 'wg'..."
-        lipo -create -output "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wg" \
-            "$RESOURCES_DIR/artifacts/wg-x86_64-darwin" "$RESOURCES_DIR/artifacts/wg-aarch64-darwin"
+        log_info "Copying binary for 'wg'..."
+        cp "$RESOURCES_DIR/artifacts/wg-aarch64-darwin" "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wg"
         chmod 755 "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wg"
 
-        log_info "Creating universal binary for the 'wireguard-go'..."
-        lipo -create -output "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wireguard-go" \
-            "$RESOURCES_DIR/artifacts/wireguard-go-x86_64-darwin" "$RESOURCES_DIR/artifacts/wireguard-go-aarch64-darwin"
+        log_info "Copying binary for 'wireguard-go'..."
+        cp "$RESOURCES_DIR/artifacts/wireguard-go-aarch64-darwin" "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wireguard-go"
         chmod 755 "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wireguard-go"
 
         # Signing of the binaries by the `Developer ID Application` certificate
@@ -260,7 +258,7 @@ prepare_build_dir() {
 
 # Package UI application asset into a tar.gz archive for staging
 unpack() {
-    local dmg_filepath="${BUILD_DIR}/download/gnosis_vpn-app-universal-darwin.dmg"
+    local dmg_filepath="${BUILD_DIR}/download/gnosis_vpn-app-aarch64-darwin.dmg"
     local output_archive="${BUILD_DIR}/app-contents/rootfs/usr/local/share/gnosisvpn/gnosis_vpn-app.tar.gz"
 
     if [[ ! -f $dmg_filepath ]]; then
