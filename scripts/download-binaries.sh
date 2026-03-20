@@ -22,7 +22,7 @@ usage() {
     echo "Options:"
     echo "  --cli-version <version>        Set the CLI version (e.g., latest, v0.50.7, 0.50.7+pr.465)"
     echo "  --app-version <version>        Set the App version (e.g., latest, v0.2.2, 0.2.2+pr.10)"
-    echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux, x86_64-darwin, aarch64-darwin), default: x86_64-linux"
+    echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux, aarch64-darwin), default: x86_64-linux"
     echo "  --distribution <type>          Set the distribution type (deb, dmg), default: deb"
     echo "  -h, --help                     Show this help message"
     exit 1
@@ -113,7 +113,7 @@ prepare_build_dir() {
 
 # Download binaries from GCP
 download_linux_binaries() {
-    log_info "Downloading binaries from GCP Artifact Registry..."
+    log_info "Downloading Linux binaries from GCP Artifact Registry..."
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
         gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
@@ -129,21 +129,17 @@ download_linux_binaries() {
 }
 
 download_darwin_binaries() {
-    log_info "Downloading binaries from GCP Artifact Registry..."
+    log_info "Downloading Darwin binaries from GCP Artifact Registry..."
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
-        for arch in aarch64-darwin x86_64-darwin; do
-            gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
-                "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-${arch}" --local-filename=${artifact}-${arch}
-        done
-        lipo -create -output "${BINARY_DIR}/${artifact}" "${BINARY_DIR}/${artifact}-aarch64-darwin" "${BINARY_DIR}/${artifact}-x86_64-darwin"
+        gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
+            "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-aarch64-darwin" --local-filename=${artifact}
         chmod 755 "${BINARY_DIR}/${artifact}"
-        lipo -info "${BINARY_DIR}/${artifact}" || true
-        echo "Created universal binary for ${artifact}"
+        echo "Downloaded aarch64-darwin binary for ${artifact}"
     done
 
     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
-        "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-universal-darwin.dmg" --local-filename=gnosis_vpn-app-universal-darwin.dmg
+        "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-aarch64-darwin.dmg" --local-filename=gnosis_vpn-app-aarch64-darwin.dmg
 
     log_success "All downloads completed"
 
