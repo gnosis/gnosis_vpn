@@ -132,8 +132,8 @@ download_darwin_binaries() {
     log_info "Downloading binaries from GCP Artifact Registry..."
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
-            gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
-                "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-aarch64-darwin" --local-filename=${artifact}-aarch64-darwin
+        gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
+            "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-aarch64-darwin" --local-filename=${artifact}-aarch64-darwin
         chmod 755 "${BINARY_DIR}/${artifact}"
         echo "Created aarch64-darwin binary for ${artifact}"
     done
