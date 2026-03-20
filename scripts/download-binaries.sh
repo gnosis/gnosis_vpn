@@ -113,7 +113,7 @@ prepare_build_dir() {
 
 # Download binaries from GCP
 download_linux_binaries() {
-    log_info "Downloading binaries from GCP Artifact Registry..."
+    log_info "Downloading Linux binaries from GCP Artifact Registry..."
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
         gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
@@ -129,13 +129,13 @@ download_linux_binaries() {
 }
 
 download_darwin_binaries() {
-    log_info "Downloading binaries from GCP Artifact Registry..."
+    log_info "Downloading Darwin binaries from GCP Artifact Registry..."
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
         gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
-            "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-aarch64-darwin" --local-filename=${artifact}-aarch64-darwin
+            "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-aarch64-darwin" --local-filename=${artifact}
         chmod 755 "${BINARY_DIR}/${artifact}"
-        echo "Created aarch64-darwin binary for ${artifact}"
+        echo "Downloaded aarch64-darwin binary for ${artifact}"
     done
 
     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
