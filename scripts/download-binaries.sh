@@ -139,7 +139,7 @@ download_darwin_binaries() {
     done
 
     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
-        "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-aarch64-darwin-darwin.dmg" --local-filename=gnosis_vpn-app-aarch64-darwin-darwin.dmg
+        "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-aarch64-darwin.dmg" --local-filename=gnosis_vpn-app-aarch64-darwin.dmg
 
     log_success "All downloads completed"
 
