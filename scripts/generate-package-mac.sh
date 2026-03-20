@@ -322,7 +322,7 @@ unpack() {
     fi
 
     if [[ -f "${BUILD_DIR}/app-contents/rootfs/Applications/GnosisVPN" ]]; then
-        lipo -info "${BUILD_DIR}/app-contents/rootfs/Applications/GnosisVPN" || true
+        file "${BUILD_DIR}/app-contents/rootfs/Applications/GnosisVPN"
     fi
 
     rm -rf "$work_dir" 2>/dev/null || true
