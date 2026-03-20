@@ -40,7 +40,7 @@ create_system_user_and_group() {
 configure_filesystem_permissions() {
     local network_name blokli_url
     network_name="${GNOSISVPN_NETWORK:-jura}"
-    blokli_url="${GNOSISVPN_BLOKLI_URL:-https://blokli.jura.hoprnet.link}"
+    blokli_url="${GNOSISVPN_HOPR_BLOKLI_URL:-https://blokli.jura.hoprnet.link}"
     echo "$LOG_PREFIX INFO: Setting up directory permissions..."
 
     # Fix ownership of configuration files (nfpm may have created them with numeric UID)
