@@ -38,8 +38,9 @@ create_system_user_and_group() {
 
 # Configure ownership and permissions for directories and binaries
 configure_filesystem_permissions() {
-    local network_name
+    local network_name blokli_url
     network_name="${GNOSISVPN_NETWORK:-jura}"
+    blokli_url="${GNOSISVPN_HOPR_BLOKLI_URL:-https://blokli.jura.hoprnet.link}"
     echo "$LOG_PREFIX INFO: Setting up directory permissions..."
 
     # Fix ownership of configuration files (nfpm may have created them with numeric UID)
@@ -63,6 +64,8 @@ configure_filesystem_permissions() {
 
     # Create symblink for current network config
     ln -sf /etc/gnosisvpn/config-"$network_name".toml /etc/gnosisvpn/config.toml
+
+    sed -i "s|^GNOSISVPN_HOPR_BLOKLI_URL=$|GNOSISVPN_HOPR_BLOKLI_URL=$blokli_url|g" /etc/gnosisvpn/gnosisvpn.env
 
     # Fix binary ownership and permissions. Cannot be done in nfpm as the user may not exist yet.
     if [[ -f /usr/bin/gnosis_vpn-worker ]]; then
@@ -192,22 +195,12 @@ install_desktop_shortcut_for_user() {
     fi
 }
 
-launch_app() {
-    # setsid creates a new session so the app is fully detached from the installer's
-    # process group and won't receive SIGHUP when the installer exits.
-    # disown removes it from the shell's job table for the same reason.
-    sudo -u "$SUDO_USER" setsid /usr/bin/gnosis_vpn-app >/dev/null 2>&1 &
-    disown
-    echo "$LOG_PREFIX INFO: Launched GnosisVPN app for $SUDO_USER."
-}
-
 # Main execution
 main() {
     create_system_user_and_group
     configure_filesystem_permissions
     enable_and_start_systemd_service
     install_desktop_shortcut_for_user
-    launch_app
 
     echo "$LOG_PREFIX SUCCESS: Post-installation completed successfully"
 }

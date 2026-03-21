@@ -113,7 +113,7 @@ prepare_build_dir() {
 
 # Download binaries from GCP
 download_linux_binaries() {
-    log_info "Downloading binaries from GCP Artifact Registry..."
+    log_info "Downloading Linux binaries from GCP Artifact Registry..."
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
         echo "Downloading gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-${GNOSISVPN_ARCHITECTURE}"
@@ -130,7 +130,7 @@ download_linux_binaries() {
 }
 
 download_darwin_binaries() {
-    log_info "Downloading binaries from GCP Artifact Registry..."
+    log_info "Downloading Darwin binaries from GCP Artifact Registry..."
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
         echo "Downloading gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-aarch64-darwin"
