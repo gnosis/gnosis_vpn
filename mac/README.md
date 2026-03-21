@@ -70,7 +70,7 @@ sudo ./uninstall.sh
 - Scripts run with root privileges during installation
 - Binaries are downloaded over HTTPS from GitHub at build time
 - SHA-256 checksums are verified for all downloaded binaries (build fails if verification fails)
-- Universal binaries are packaged directly into the PKG
+- App binary is packaged directly into the PKG
 - No personal information is collected or transmitted
 
 ### System User and Group Management

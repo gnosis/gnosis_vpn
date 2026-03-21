@@ -219,15 +219,13 @@ prepare_build_dir() {
     if [[ -d "$RESOURCES_DIR/artifacts/" ]]; then
         mkdir -p "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/"
 
-        log_info "Creating universal binary for the 'wg'..."
-        lipo -create -output "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wg" \
-            "$RESOURCES_DIR/artifacts/wg-x86_64-darwin" "$RESOURCES_DIR/artifacts/wg-aarch64-darwin"
-        chmod 755 "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wg"
-
-        log_info "Creating universal binary for the 'wireguard-go'..."
-        lipo -create -output "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wireguard-go" \
-            "$RESOURCES_DIR/artifacts/wireguard-go-x86_64-darwin" "$RESOURCES_DIR/artifacts/wireguard-go-aarch64-darwin"
-        chmod 755 "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wireguard-go"
+        for wg_binary in wg wireguard-go wg-quick; do
+            if [[ -f "$RESOURCES_DIR/artifacts/${wg_binary}" ]]; then
+                cp "$RESOURCES_DIR/artifacts/${wg_binary}" "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/${wg_binary}"
+                chmod 755 "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/${wg_binary}"
+                log_success "Copied artifact binary: ${wg_binary}"
+            fi
+        done
 
         # Signing of the binaries by the `Developer ID Application` certificate
         if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then
@@ -250,8 +248,6 @@ prepare_build_dir() {
             codesign --verify --deep --strict --verbose=4 "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wireguard-go"
             log_success "'wireguard-go' binary signed successfully"
         fi
-
-        cp "$RESOURCES_DIR/artifacts/wg-quick" "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/" || true
         log_success "Artifacts copied"
     fi
 
@@ -260,7 +256,7 @@ prepare_build_dir() {
 
 # Package UI application asset into a tar.gz archive for staging
 unpack() {
-    local dmg_filepath="${BUILD_DIR}/download/gnosis_vpn-app-universal-darwin.dmg"
+    local dmg_filepath="${BUILD_DIR}/download/gnosis_vpn-app.dmg"
     local output_archive="${BUILD_DIR}/app-contents/rootfs/usr/local/share/gnosisvpn/gnosis_vpn-app.tar.gz"
 
     if [[ ! -f $dmg_filepath ]]; then
