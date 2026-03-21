@@ -224,6 +224,9 @@ prepare_build_dir() {
                 cp "$RESOURCES_DIR/artifacts/${wg_binary}" "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/${wg_binary}"
                 chmod 755 "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/${wg_binary}"
                 log_success "Copied artifact binary: ${wg_binary}"
+            else
+                log_error "Missing artifact binary: ${wg_binary}"
+                exit 1
             fi
         done
 
