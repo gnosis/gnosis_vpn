@@ -134,6 +134,7 @@ download_darwin_binaries() {
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
         for arch in aarch64-darwin x86_64-darwin; do
+            echo "Downloading gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-${arch}"
             gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
                 "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-${arch}" --local-filename=${artifact}-${arch}
         done
@@ -142,7 +143,7 @@ download_darwin_binaries() {
         lipo -info "${BINARY_DIR}/${artifact}" || true
         echo "Created universal binary for ${artifact}"
     done
-
+    echo "Downloading gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-universal-darwin.dmg"
     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
         "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-universal-darwin.dmg" --local-filename=gnosis_vpn-app-universal-darwin.dmg
 
