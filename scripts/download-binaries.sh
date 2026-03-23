@@ -116,12 +116,13 @@ download_linux_binaries() {
     log_info "Downloading Linux binaries from GCP Artifact Registry..."
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
+        echo "Downloading gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-${GNOSISVPN_ARCHITECTURE}"
         gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
             "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-${GNOSISVPN_ARCHITECTURE}" --local-filename=${artifact}
         # Set execute permissions on downloaded binaries
         chmod +x "${BINARY_DIR}/${artifact}"
     done
-
+    echo "Downloading gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}"
     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
         "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" --local-filename="gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}"
 
@@ -132,15 +133,15 @@ download_darwin_binaries() {
     log_info "Downloading Darwin binaries from GCP Artifact Registry..."
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
+        echo "Downloading gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-aarch64-darwin"
         gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
             "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-aarch64-darwin" --local-filename=${artifact}
         chmod 755 "${BINARY_DIR}/${artifact}"
-        echo "Downloaded aarch64-darwin binary for ${artifact}"
+        echo "Downloaded binary: ${BINARY_DIR}/${artifact}"
     done
-
+    echo "Downloading gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-aarch64-darwin.dmg"
     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
-        "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-aarch64-darwin.dmg" --local-filename=gnosis_vpn-app-aarch64-darwin.dmg
-
+        "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-aarch64-darwin.dmg" --local-filename=gnosis_vpn-app.dmg
     log_success "All downloads completed"
 
 }
