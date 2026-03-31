@@ -135,3 +135,12 @@ jobs:
           to: "GnosisVPN"
           topic: "Releases"
           content: ${{ env.NOTIFICATION_CONTENT }}
+      - name: Publish current release version in the webapi
+        shell: bash
+        run: |
+          webapi_url="${{ secrets.WEBAPI_URL }}"
+          webapi_url="${webapi_url%/}"
+          curl -s -X POST "${webapi_url}/api/gnosisvpn/saveCurrentVersion" \
+            -H "Content-Type: application/json" \
+            -d '{"password": "${{ secrets.WEBAPI_CURRENT_GNOSISVPN_INSTALLER_VERSION_SAVER_PWD }}", "version": "${{ needs.build.outputs.GNOSISVPN_PACKAGE_VERSION }}"}'
+
