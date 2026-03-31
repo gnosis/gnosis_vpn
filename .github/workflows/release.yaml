@@ -143,4 +143,3 @@ jobs:
           curl -s -X POST "${webapi_url}/api/gnosisvpn/saveCurrentVersion" \
             -H "Content-Type: application/json" \
             -d '{"password": "${{ secrets.WEBAPI_CURRENT_GNOSISVPN_INSTALLER_VERSION_SAVER_PWD }}", "version": "${{ needs.build.outputs.GNOSISVPN_PACKAGE_VERSION }}"}'
-
