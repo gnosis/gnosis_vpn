@@ -272,10 +272,24 @@ remove_ui_app() {
     local bundle_contents="$ui_app_path/Contents/MacOS"
     if pgrep -f "$bundle_contents" >/dev/null 2>&1; then
         log_info "Stopping active UI application..."
-        # Graceful quit of the main app first
-        osascript -e 'tell application "Gnosis VPN" to quit' 2>/dev/null || true
-        sleep 2
-        # Force kill any remaining bundle processes (helpers, renderers, etc.)
+
+        # osascript under sudo (root) can't reach the user's window server, so send
+        # the quit Apple Event in the console user's own GUI session via launchctl asuser.
+        local console_user console_uid
+        console_user=$(stat -f '%Su' /dev/console 2>/dev/null || true)
+        console_uid=$(id -u "$console_user" 2>/dev/null || true)
+        if [[ -n $console_uid ]]; then
+            launchctl asuser "$console_uid" osascript -e 'tell application "Gnosis VPN" to quit' 2>/dev/null || true
+            sleep 2
+        fi
+
+        # TERM gives remaining bundle processes (helpers, renderers) a chance to clean up
+        if pgrep -f "$bundle_contents" >/dev/null 2>&1; then
+            pkill -TERM -f "$bundle_contents" 2>/dev/null || true
+            sleep 2
+        fi
+
+        # Last resort: force-kill anything still holding bundle files open
         if pgrep -f "$bundle_contents" >/dev/null 2>&1; then
             pkill -KILL -f "$bundle_contents" 2>/dev/null || true
         fi
