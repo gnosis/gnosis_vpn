@@ -267,16 +267,17 @@ remove_ui_app() {
     local ui_app_path="/Applications/Gnosis VPN.app"
 
     # Stop the UI app if it's running.
-    # The running process name is the executable inside the bundle, not the .app path,
-    # so we use the app name for detection and osascript for a graceful quit.
-    local app_name="Gnosis VPN"
-    if pgrep -x "$app_name" >/dev/null 2>&1; then
+    # Match against the bundle path to catch the main process and any helpers/renderers
+    # spawned from within the bundle that may still hold files open.
+    local bundle_contents="$ui_app_path/Contents/MacOS"
+    if pgrep -f "$bundle_contents" >/dev/null 2>&1; then
         log_info "Stopping active UI application..."
-        osascript -e "tell application \"$app_name\" to quit" 2>/dev/null || true
+        # Graceful quit of the main app first
+        osascript -e "tell application \"Gnosis VPN\" to quit" 2>/dev/null || true
         sleep 2
-        # Force kill if still running
-        if pgrep -x "$app_name" >/dev/null 2>&1; then
-            pkill -KILL -x "$app_name" 2>/dev/null || true
+        # Force kill any remaining bundle processes (helpers, renderers, etc.)
+        if pgrep -f "$bundle_contents" >/dev/null 2>&1; then
+            pkill -KILL -f "$bundle_contents" 2>/dev/null || true
         fi
     fi
 
