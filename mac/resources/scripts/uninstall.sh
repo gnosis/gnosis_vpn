@@ -267,10 +267,10 @@ remove_ui_app() {
     local ui_app_path="/Applications/Gnosis VPN.app"
 
     # Stop the UI app if it's running.
-    # Match against the bundle path to catch the main process and any helpers/renderers
-    # spawned from within the bundle that may still hold files open.
-    local bundle_contents="$ui_app_path/Contents/MacOS"
-    if pgrep -f "$bundle_contents" >/dev/null 2>&1; then
+    # Match by process name prefix to catch the main process and any helpers/renderers
+    # (e.g. "Gnosis VPN Helper (Renderer)") without resorting to path-based regex.
+    local app_name_pattern="^Gnosis VPN"
+    if pgrep "$app_name_pattern" >/dev/null 2>&1; then
         log_info "Stopping active UI application..."
 
         # osascript under sudo (root) can't reach the user's window server, so send
@@ -284,14 +284,14 @@ remove_ui_app() {
         fi
 
         # TERM gives remaining bundle processes (helpers, renderers) a chance to clean up
-        if pgrep -f "$bundle_contents" >/dev/null 2>&1; then
-            pkill -TERM -f "$bundle_contents" 2>/dev/null || true
+        if pgrep "$app_name_pattern" >/dev/null 2>&1; then
+            pkill -TERM "$app_name_pattern" 2>/dev/null || true
             sleep 2
         fi
 
         # Last resort: force-kill anything still holding bundle files open
-        if pgrep -f "$bundle_contents" >/dev/null 2>&1; then
-            pkill -KILL -f "$bundle_contents" 2>/dev/null || true
+        if pgrep "$app_name_pattern" >/dev/null 2>&1; then
+            pkill -KILL "$app_name_pattern" 2>/dev/null || true
         fi
     fi
 
