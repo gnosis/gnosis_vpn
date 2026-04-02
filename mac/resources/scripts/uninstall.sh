@@ -266,14 +266,32 @@ remove_ui_app() {
     local removed=0
     local ui_app_path="/Applications/Gnosis VPN.app"
 
-    # Stop the UI app if it's running
-    if pgrep -f "$ui_app_path" >/dev/null 2>&1; then
+    # Stop the UI app if it's running.
+    # Match by process name prefix to catch the main process and any helpers/renderers
+    # (e.g. "Gnosis VPN Helper (Renderer)") without resorting to path-based regex.
+    local app_name_pattern="^Gnosis VPN"
+    if pgrep "$app_name_pattern" >/dev/null 2>&1; then
         log_info "Stopping active UI application..."
-        pkill -TERM -f "$ui_app_path" 2>/dev/null || true
-        sleep 2
-        # Force kill if still running
-        if pgrep -f "$ui_app_path" >/dev/null 2>&1; then
-            pkill -KILL -f "$ui_app_path" 2>/dev/null || true
+
+        # osascript under sudo (root) can't reach the user's window server, so send
+        # the quit Apple Event in the console user's own GUI session via launchctl asuser.
+        local console_user console_uid
+        console_user=$(stat -f '%Su' /dev/console 2>/dev/null || true)
+        console_uid=$(id -u "$console_user" 2>/dev/null || true)
+        if [[ -n $console_uid ]]; then
+            launchctl asuser "$console_uid" osascript -e 'tell application "Gnosis VPN" to quit' 2>/dev/null || true
+            sleep 2
+        fi
+
+        # TERM gives remaining bundle processes (helpers, renderers) a chance to clean up
+        if pgrep "$app_name_pattern" >/dev/null 2>&1; then
+            pkill -TERM "$app_name_pattern" 2>/dev/null || true
+            sleep 2
+        fi
+
+        # Last resort: force-kill anything still holding bundle files open
+        if pgrep "$app_name_pattern" >/dev/null 2>&1; then
+            pkill -KILL "$app_name_pattern" 2>/dev/null || true
         fi
     fi
 
