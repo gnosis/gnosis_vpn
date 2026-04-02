@@ -269,14 +269,12 @@ remove_binaries() {
 remove_ui_app() {
     log_info "Removing UI application..."
 
-    local removed=0
     local ui_app_path="/Applications/Gnosis VPN.app"
 
     if [[ -d $ui_app_path ]]; then
         log_info "Removing UI app: $ui_app_path"
         rm -rf "$ui_app_path"
         log_success "Removed $ui_app_path"
-        removed=$((removed + 1))
     fi
 
     # Clean up LaunchServices registrations for the UI app
