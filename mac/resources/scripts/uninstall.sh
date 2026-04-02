@@ -266,14 +266,17 @@ remove_ui_app() {
     local removed=0
     local ui_app_path="/Applications/Gnosis VPN.app"
 
-    # Stop the UI app if it's running
-    if pgrep -f "$ui_app_path" >/dev/null 2>&1; then
+    # Stop the UI app if it's running.
+    # The running process name is the executable inside the bundle, not the .app path,
+    # so we use the app name for detection and osascript for a graceful quit.
+    local app_name="Gnosis VPN"
+    if pgrep -x "$app_name" >/dev/null 2>&1; then
         log_info "Stopping active UI application..."
-        pkill -TERM -f "$ui_app_path" 2>/dev/null || true
+        osascript -e "tell application \"$app_name\" to quit" 2>/dev/null || true
         sleep 2
         # Force kill if still running
-        if pgrep -f "$ui_app_path" >/dev/null 2>&1; then
-            pkill -KILL -f "$ui_app_path" 2>/dev/null || true
+        if pgrep -x "$app_name" >/dev/null 2>&1; then
+            pkill -KILL -x "$app_name" 2>/dev/null || true
         fi
     fi
 
