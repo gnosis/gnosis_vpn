@@ -190,34 +190,40 @@ remove_sudo_privileges() {
 
 # Stop running processes
 stop_processes() {
-    log_info "Checking for running VPN processes..."
+    log_info "Checking for running Gnosis VPN processes..."
 
     if pgrep -f gnosis_vpn-root >/dev/null 2>&1; then
-        log_warn "Found running gnosis_vpn process(es)"
-        log_info "Stopping VPN processes..."
+        log_warn "Found running Gnosis VPN service"
+        log_info "Stopping Gnosis VPN service..."
 
         # Try graceful shutdown first
         pkill -TERM -f gnosis_vpn-root 2>/dev/null || true
         sleep 2
 
         # Force kill if still running
-        if pgrep -f gnosis_vpn-root >/dev/null 2>&1; then
-            log_warn "Processes still running, forcing shutdown..."
-            pkill -KILL -f gnosis_vpn-root 2>/dev/null || true
-            sleep 1
-        fi
+        pkill -KILL -f gnosis_vpn-root 2>/dev/null || true
 
-        # Verify processes stopped
-        if pgrep -f gnosis_vpn-root >/dev/null 2>&1; then
-            log_error "Failed to stop VPN processes"
-            log_info "Please stop gnosis_vpn manually before uninstalling"
-            exit 1
-        fi
-
-        log_success "VPN processes stopped"
+        log_success "Gnosis VPN service stopped"
     else
-        log_info "No running VPN processes found"
+        log_info "No running Gnosis VPN service found"
     fi
+
+    if pgrep -f "Gnosis VPN" >/dev/null 2>&1; then
+        log_warn "Found running Gnosis VPN UI app"
+        log_info "Stopping Gnosis VPN UI app..."
+
+        # Try graceful shutdown first
+        pkill -TERM -f "Gnosis VPN" 2>/dev/null || true
+        sleep 2
+
+        # Force kill if still running
+        pkill -KILL -f "Gnosis VPN" 2>/dev/null || true
+
+        log_success "Gnosis VPN UI app stopped"
+    else
+        log_info "No running Gnosis VPN UI app found"
+    fi
+
     echo ""
 }
 
@@ -266,35 +272,6 @@ remove_ui_app() {
     local removed=0
     local ui_app_path="/Applications/Gnosis VPN.app"
 
-    # Stop the UI app if it's running.
-    # Match by process name prefix to catch the main process and any helpers/renderers
-    # (e.g. "Gnosis VPN Helper (Renderer)") without resorting to path-based regex.
-    local app_name_pattern="^Gnosis VPN"
-    if pgrep "$app_name_pattern" >/dev/null 2>&1; then
-        log_info "Stopping active UI application..."
-
-        # osascript under sudo (root) can't reach the user's window server, so send
-        # the quit Apple Event in the console user's own GUI session via launchctl asuser.
-        local console_user console_uid
-        console_user=$(stat -f '%Su' /dev/console 2>/dev/null || true)
-        console_uid=$(id -u "$console_user" 2>/dev/null || true)
-        if [[ -n $console_uid ]]; then
-            launchctl asuser "$console_uid" osascript -e 'tell application "Gnosis VPN" to quit' 2>/dev/null || true
-            sleep 2
-        fi
-
-        # TERM gives remaining bundle processes (helpers, renderers) a chance to clean up
-        if pgrep "$app_name_pattern" >/dev/null 2>&1; then
-            pkill -TERM "$app_name_pattern" 2>/dev/null || true
-            sleep 2
-        fi
-
-        # Last resort: force-kill anything still holding bundle files open
-        if pgrep "$app_name_pattern" >/dev/null 2>&1; then
-            pkill -KILL "$app_name_pattern" 2>/dev/null || true
-        fi
-    fi
-
     if [[ -d $ui_app_path ]]; then
         log_info "Removing UI app: $ui_app_path"
         rm -rf "$ui_app_path"
@@ -305,12 +282,6 @@ remove_ui_app() {
     # Clean up LaunchServices registrations for the UI app
     log_info "Cleaning up LaunchServices registrations..."
     /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -kill -r -domain local -domain system -domain user 2>/dev/null || true
-
-    if [[ $removed -eq 0 ]]; then
-        log_info "No UI application found to remove"
-    else
-        log_success "Removed $removed UI application(s)"
-    fi
 
     echo ""
 }
