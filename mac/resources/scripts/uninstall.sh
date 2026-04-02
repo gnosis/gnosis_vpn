@@ -273,7 +273,7 @@ remove_ui_app() {
     if pgrep -f "$bundle_contents" >/dev/null 2>&1; then
         log_info "Stopping active UI application..."
         # Graceful quit of the main app first
-        osascript -e "tell application \"Gnosis VPN\" to quit" 2>/dev/null || true
+        osascript -e 'tell application "Gnosis VPN" to quit' 2>/dev/null || true
         sleep 2
         # Force kill any remaining bundle processes (helpers, renderers, etc.)
         if pgrep -f "$bundle_contents" >/dev/null 2>&1; then
