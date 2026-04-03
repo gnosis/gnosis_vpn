@@ -116,6 +116,8 @@ jobs:
               echo "I'm less thrilled to inform you that a new \`gnosis_vpn\` snapshot version \`${{ needs.build.outputs.GNOSISVPN_PACKAGE_VERSION }}\` has been created and is ready for testing."
               echo ""
               cat build/changelog/changelog
+              echo ""
+              echo "Artifacts: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             } > notification_message.txt
           fi
 
