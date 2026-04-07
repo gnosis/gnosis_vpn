@@ -76,25 +76,15 @@ confirm_uninstall() {
     echo ""
 }
 
-# Remove launchd service
+# Remove launchd service plist (service is already stopped by stop_processes)
 remove_launchd_service() {
-    log_info "Removing launchd service..."
+    log_info "Removing launchd service plist..."
 
-    local plist_path="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
-
-    if [[ -f $plist_path ]]; then
-        # Stop and unload the service
-        if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
-            log_info "Stopping launchd service..."
-            launchctl bootout system "$plist_path" 2>/dev/null || true
-            sleep 2
-        fi
-
-        # Remove the plist file
-        rm -f "$plist_path"
-        log_success "Removed launchd service: $plist_path"
+    if [[ -f $PLIST_PATH ]]; then
+        rm -f "$PLIST_PATH"
+        log_success "Removed launchd service plist: $PLIST_PATH"
     else
-        log_info "No launchd service found"
+        log_info "No launchd service plist found"
     fi
     echo ""
 }
@@ -188,42 +178,15 @@ remove_sudo_privileges() {
     fi
 }
 
+# Source shared process-control helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/process-control.sh"
+
 # Stop running processes
 stop_processes() {
     log_info "Checking for running Gnosis VPN processes..."
-
-    if pgrep -f gnosis_vpn-root >/dev/null 2>&1; then
-        log_warn "Found running Gnosis VPN service"
-        log_info "Stopping Gnosis VPN service..."
-
-        # Try graceful shutdown first
-        pkill -TERM -f gnosis_vpn-root 2>/dev/null || true
-        sleep 2
-
-        # Force kill if still running
-        pkill -KILL -f gnosis_vpn-root 2>/dev/null || true
-
-        log_success "Gnosis VPN service stopped"
-    else
-        log_info "No running Gnosis VPN service found"
-    fi
-
-    if pgrep -f "Gnosis VPN" >/dev/null 2>&1; then
-        log_warn "Found running Gnosis VPN UI app"
-        log_info "Stopping Gnosis VPN UI app..."
-
-        # Try graceful shutdown first
-        pkill -TERM -f "Gnosis VPN" 2>/dev/null || true
-        sleep 2
-
-        # Force kill if still running
-        pkill -KILL -f "Gnosis VPN" 2>/dev/null || true
-
-        log_success "Gnosis VPN UI app stopped"
-    else
-        log_info "No running Gnosis VPN UI app found"
-    fi
-
+    stop_vpn_service
+    stop_ui_app
     echo ""
 }
 
@@ -436,8 +399,8 @@ main() {
     print_banner
     check_root
     confirm_uninstall
-    remove_launchd_service
     stop_processes
+    remove_launchd_service
     backup_config
     remove_binaries
     remove_ui_app
