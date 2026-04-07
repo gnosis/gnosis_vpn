@@ -82,7 +82,7 @@ remove_launchd_service() {
 
     if [[ -f $PLIST_PATH ]]; then
         rm -f "$PLIST_PATH"
-        log_success "Removed launchd service: $PLIST_PATH"
+        log_success "Removed launchd service plist: $PLIST_PATH"
     else
         log_info "No launchd service plist found"
     fi
