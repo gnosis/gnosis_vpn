@@ -37,11 +37,10 @@ else
     log_info "No previous installation found - fresh installation"
 fi
 
-# Check if VPN service is running (to warn user)
-if pgrep -f "gnosis_vpn-root" >/dev/null 2>&1; then
-    log_warn "Gnosis VPN service appears to be running"
-    log_info "The service will be updated but may need to be restarted after installation"
-fi
+# Stop running app and service so the installer can safely replace files
+source "${SCRIPT_DIR}/process-control.sh"
+stop_ui_app
+stop_vpn_service
 
 log_success "Pre-installation checks completed"
 log_info "Log file: $INSTALLER_LOG_FILE"
