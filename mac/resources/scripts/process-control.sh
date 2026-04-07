@@ -35,9 +35,15 @@ stop_ui_app() {
 
 # Stop the launchd service and kill any remaining gnosis_vpn-root processes.
 stop_vpn_service() {
-    if [[ -f $PLIST_PATH ]] && launchctl print "$SERVICE_LABEL" >/dev/null 2>&1; then
+    if launchctl print "$SERVICE_LABEL" >/dev/null 2>&1; then
         log_info "Stopping Gnosis VPN launchd service..."
-        launchctl bootout system "$PLIST_PATH" 2>/dev/null || true
+        # Prefer the plist-path form (more reliable); fall back to label-only
+        # when the plist is missing (e.g. partial uninstall).
+        if [[ -f $PLIST_PATH ]]; then
+            launchctl bootout system "$PLIST_PATH" 2>/dev/null || true
+        else
+            launchctl bootout "$SERVICE_LABEL" 2>/dev/null || true
+        fi
         sleep 2
     fi
 
