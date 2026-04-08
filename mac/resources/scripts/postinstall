@@ -882,6 +882,7 @@ copy_uninstall() {
     log_info "Copying uninstall script..."
     mkdir -p "$INSTALLED_LIB_DIR_PATH"
     cp "${SCRIPT_DIR}/uninstall.sh" "$INSTALLED_LIB_DIR_PATH/uninstall.sh"
+    cp "${SCRIPT_DIR}/process-control.sh" "$INSTALLED_LIB_DIR_PATH/process-control.sh"
     log_success "Uninstall script copied to $INSTALLED_LIB_DIR_PATH/uninstall.sh"
 }
 
