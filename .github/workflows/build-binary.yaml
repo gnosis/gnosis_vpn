@@ -43,7 +43,7 @@ jobs:
           PREVIOUS_GNOSISVPN_CLI_PR_VERSION: ${{ vars.GNOSISVPN_CLI_PR_VERSION }}
           PREVIOUS_GNOSISVPN_APP_PR_VERSION: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
         run: |
-          sudo apt update && apt install -y jq gh
+          sudo apt update && sudo apt install -y jq gh
           get_latest_pr_version() {
             local repo=$1
             local file_path=$2
