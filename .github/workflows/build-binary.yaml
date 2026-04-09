@@ -33,7 +33,7 @@ jobs:
       GNOSISVPN_APP_VERSION: ${{ steps.setup.outputs.GNOSISVPN_APP_VERSION }}
       SKIP_BUILDING: ${{ steps.setup.outputs.SKIP_BUILDING }}
     steps:
-      - name: Check for new merged PRs
+      - name: Setup environment variables
         id: setup
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

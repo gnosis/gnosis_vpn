@@ -1,8 +1,5 @@
 name: Nightly Build
 on:
-  pull_request:
-    types:
-      - synchronize
   repository_dispatch:
     types: [snapshot_build]
   schedule:
@@ -17,8 +14,8 @@ jobs:
     with:
       version_type: snapshot
     secrets: inherit
-  post_build:
-    name: Post build
+  update_snapshot:
+    name: Update snapshot
     runs-on: depot-ubuntu-22.04-4
     if: needs.build_binary.outputs.SNAPSHOT_TRIGGERED == 'true'
     needs:
@@ -38,11 +35,6 @@ jobs:
         with:
           cachix_cache_name: gnosis-vpn
           cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
-      - name: Display versions
-        run: |
-          echo "- Package version: $GNOSISVPN_PACKAGE_VERSION" | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "- Client version: v$GNOSISVPN_CLI_VERSION" | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "- App version: v$GNOSISVPN_APP_VERSION" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Generate Changelog
         run: nix develop -c ./scripts/generate-changelog.ts
         env:
