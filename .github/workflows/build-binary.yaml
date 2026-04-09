@@ -33,8 +33,6 @@ jobs:
       GNOSISVPN_APP_VERSION: ${{ steps.setup.outputs.GNOSISVPN_APP_VERSION }}
       SKIP_BUILDING: ${{ steps.setup.outputs.SKIP_BUILDING }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Check for new merged PRs
         id: setup
         env:
@@ -47,8 +45,7 @@ jobs:
           get_latest_pr_version() {
             local repo=$1
             local file_path=$2
-            local default_branch
-            default_branch=$(gh api "repos/gnosis/$repo" --jq '.default_branch')
+            local default_branch=${3:-main}
             pr_number=$(gh api "repos/gnosis/$repo/pulls?state=closed&base=$default_branch&sort=updated&direction=desc&per_page=10" \
               --jq '[.[] | select(.merged_at != null)] | first | .number | tostring')
             file_content=$(gh api "repos/gnosis/$repo/contents/$file_path?ref=$default_branch" --jq '.content' | base64 --decode)
@@ -60,7 +57,7 @@ jobs:
             echo "$version+pr.$pr_number"
           }
 
-          LATEST_GNOSISVPN_PACKAGE_PR_VERSION=$(get_latest_pr_version "gnosis_vpn" "package.json")
+          LATEST_GNOSISVPN_PACKAGE_PR_VERSION=$(get_latest_pr_version "gnosis_vpn" "package.json" "ausias/nightly-builds")
           LATEST_GNOSISVPN_CLI_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-client" "Cargo.toml")
           LATEST_GNOSISVPN_APP_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-app" "src-tauri/Cargo.toml")
           LATEST_GNOSISVPN_PACKAGE_VERSION_NUMBER=$(echo "$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | cut -d '+' -f 1)
