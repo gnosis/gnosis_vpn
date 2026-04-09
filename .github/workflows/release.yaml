@@ -21,6 +21,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build_binary:
+    name: Build
     uses: ./.github/workflows/build-binary.yaml
     with:
       version_type: release
@@ -67,7 +68,7 @@ jobs:
           draft: ${{ inputs.draft_release }}
       - name: Bump Version
         id: bump
-        if: ! inputs.draft_release
+        if: ${{ ! inputs.draft_release }}
         shell: bash
         run: |
           gh variable set GNOSISVPN_PACKAGE_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}"

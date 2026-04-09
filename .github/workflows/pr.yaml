@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build-binary:
+    name: Build
     uses: ./.github/workflows/build-binary.yaml
     with:
       version_type: commit

@@ -9,6 +9,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build_binary:
+    name: Build
     uses: ./.github/workflows/build-binary.yaml
     with:
       version_type: snapshot
