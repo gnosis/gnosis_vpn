@@ -85,11 +85,17 @@ parse_args() {
     if [[ -z $GNOSISVPN_CLI_VERSION ]]; then
         GNOSISVPN_CLI_VERSION=$(get_latest_release "gnosis/gnosis_vpn-client")
         log_info "Parameter '--cli-version' not specified, defaulting to latest release"
+    elif [[ $GNOSISVPN_CLI_VERSION == "latest" ]]; then
+        GNOSISVPN_CLI_VERSION=$(get_latest_release "gnosis/gnosis_vpn-client")
+        log_info "Parameter '--cli-version' set to 'latest', using version ${GNOSISVPN_CLI_VERSION}"
     fi
 
     if [[ -z $GNOSISVPN_APP_VERSION ]]; then
         GNOSISVPN_APP_VERSION=$(get_latest_release "gnosis/gnosis_vpn-app")
         log_info "Parameter '--app-version' not specified, defaulting to latest release"
+    elif [[ $GNOSISVPN_APP_VERSION == "latest" ]]; then
+        GNOSISVPN_APP_VERSION=$(get_latest_release "gnosis/gnosis_vpn-app")
+        log_info "Parameter '--app-version' set to 'latest', using version ${GNOSISVPN_APP_VERSION}"
     fi
 
     log_success "Command-line arguments parsed successfully"

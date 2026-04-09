@@ -4,7 +4,7 @@ on:
     inputs:
       version_type:
         description: 'Possible values are snapshot, commit, pr, release'
-        required: false
+        required: true
         type: string
     outputs:
       GNOSISVPN_PACKAGE_VERSION:
@@ -47,7 +47,7 @@ jobs:
             local file_path=$2
             local default_branch=${3:-main}
             pr_number=$(gh api "repos/gnosis/$repo/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=10" \
-              --jq '[.[] | select(.merged_at != null)] | first | .number | tostring')
+              --jq '[.[] | select(.merged_at != null)] | sort_by(.merged_at) | last | .number | tostring')
             file_content=$(gh api "repos/gnosis/$repo/contents/$file_path?ref=$default_branch" --jq '.content' | base64 --decode)
             if [[ "$file_path" == "package.json" ]]; then
               version=$(echo "$file_content" | jq -r '.version')
@@ -146,9 +146,9 @@ jobs:
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
           GNOSISVPN_CLI_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLI_VERSION }}
           GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}
-          GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ vars.GNOSISVPN_PACKAGE_PR_VERSION }}
-          GNOSISVPN_PREVIOUS_CLI_VERSION: ${{ vars.GNOSISVPN_CLI_PR_VERSION }}
-          GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
+          GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_PACKAGE_RELEASE_VERSION || vars.GNOSISVPN_PACKAGE_PR_VERSION }}
+          GNOSISVPN_PREVIOUS_CLI_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_CLI_RELEASE_VERSION || vars.GNOSISVPN_CLI_PR_VERSION }}
+          GNOSISVPN_PREVIOUS_APP_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_APP_RELEASE_VERSION || vars.GNOSISVPN_APP_PR_VERSION }}
           GNOSISVPN_GPG_PRIVATE_KEY_PATH: /tmp/gnosis_vpn_gpg_key.asc
           GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
           GNOSISVPN_CHANGELOG_FORMAT: debian
@@ -188,9 +188,9 @@ jobs:
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       # - name: Publish into bucket
       #   if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
-      #   uses: google-github-actions/upload-cloud-storage@v1
+      #   uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
       #   with:
-      #     path: ./build/bucket/
+      #     path: ./build/bucket
       #     destination: ${{ steps.prepare_files.outputs.destination }}
           ## TODO Publish into IPFS as well
   mac:
@@ -259,7 +259,7 @@ jobs:
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       # - name: Publish into bucket
       #   if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
-      #   uses: google-github-actions/upload-cloud-storage@v1
+      #   uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
       #   with:
       #     path: ./build/bucket
       #     destination: ${{ steps.prepare_files.outputs.destination }}

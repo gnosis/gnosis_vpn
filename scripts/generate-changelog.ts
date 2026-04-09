@@ -652,6 +652,7 @@ import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 function makeEntry(overrides: Partial<ChangelogEntry> = {}): ChangelogEntry {
   return {
+    repository: overrides.repository ?? "gnosis/gnosis_vpn",
     id: overrides.id ?? "1",
     title: overrides.title ?? "test title",
     author: overrides.author ?? "testuser",
