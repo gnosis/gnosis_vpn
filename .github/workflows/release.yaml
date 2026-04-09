@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Display versions
         run: |
-          echo "- Package version: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "- Package version: v${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
           echo "- Client version: v${{ needs.build_binary.outputs.GNOSISVPN_CLI_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
           echo "- App version: v${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Generate Release Notes
