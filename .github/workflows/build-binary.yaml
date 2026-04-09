@@ -123,7 +123,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v2
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v3
         with:
           google_credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
           install_sdk: "true"
@@ -166,30 +166,31 @@ jobs:
         with:
           name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
           path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
-      - name: Publish into Google Artifact registry
-        if: inputs.version_type != 'snapshot'
-        uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@upload-artifact-registry-v2
-        with:
-          source: ./build/packages
-          package: gnosis_vpn
-          version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
-      - name: Prepare files for upload to bucket
+      - name: Prepare files for upload
         id: prepare_files
         if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         run: |
-          mv ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }} ./build/packages/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}
-          mv ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc ./build/packages/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc
-          mv ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256 ./build/packages/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
+          mkdir -p ./build/bucket
+          cp ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }} ./build/bucket/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}
+          cp ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc ./build/bucket/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc
+          cp ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256 ./build/bucket/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
           if [[ "${{ inputs.version_type }}" == "snapshot" ]]; then
             echo "destination=download.gnosisvpn.io/latest" | tee -a "$GITHUB_OUTPUT"
           else
             echo "destination=download.gnosisvpn.io/stable" | tee -a "$GITHUB_OUTPUT"
           fi
+      - name: Publish into Google Artifact registry
+        if: inputs.version_type != 'snapshot'
+        uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@upload-artifact-registry-v2
+        with:
+          source: ./build/bucket
+          package: gnosis_vpn
+          version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Publish into bucket
         if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         uses: google-github-actions/upload-cloud-storage@v1
         with:
-          path: ./build/packages/
+          path: ./build/bucket/
           destination: ${{ steps.prepare_files.outputs.destination }}
           ## TODO Publish into IPFS as well
   mac:
@@ -201,7 +202,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v1
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v3
         with:
           google_credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
           install_sdk: "true"
@@ -238,21 +239,29 @@ jobs:
         with:
           name: GnosisVPN-Installer.pkg.sha256
           path: ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256
-      - name: Prepare files for upload to bucket
+      - name: Prepare files for upload
         id: prepare_files
         if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         run: |
-          mv ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg ./build/packages/gnosisvpn_arm64.pkg
-          mv ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256 ./build/packages/gnosisvpn_arm64.pkg.sha256
+          mkdir -p ./build/bucket
+          cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg ./build/bucket/gnosisvpn_arm64.pkg
+          cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256 ./build/bucket/gnosisvpn_arm64.pkg.sha256
           if [[ "${{ inputs.version_type }}" == "snapshot" ]]; then
             echo "destination=download.gnosisvpn.io/latest" | tee -a "$GITHUB_OUTPUT"
           else
             echo "destination=download.gnosisvpn.io/stable" | tee -a "$GITHUB_OUTPUT"
           fi
+      - name: Publish into Google Artifact registry
+        if: inputs.version_type != 'snapshot'
+        uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@upload-artifact-registry-v2
+        with:
+          source: ./build/bucket
+          package: gnosis_vpn
+          version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Publish into bucket
         if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         uses: google-github-actions/upload-cloud-storage@v1
         with:
-          path: ./build/packages
+          path: ./build/bucket
           destination: ${{ steps.prepare_files.outputs.destination }}
     ## TODO Publish into IPFS as well

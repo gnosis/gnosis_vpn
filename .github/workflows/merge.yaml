@@ -3,6 +3,7 @@ on:
   pull_request:
     types:
       - closed
+      - synchronize
     branches:
       - main
 permissions:
