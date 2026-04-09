@@ -8,30 +8,35 @@
 // - gnosis_vpn Installer repository (merged PRs since last release)
 //
 // Example:
+//   GNOSISVPN_PREVIOUS_PACKAGE_VERSION=0.56.4 \
 //   GNOSISVPN_PACKAGE_VERSION=0.56.5 \
 //   GNOSISVPN_PREVIOUS_CLI_VERSION=0.54.4 \
 //   GNOSISVPN_CLI_VERSION=0.56.1 \
 //   GNOSISVPN_PREVIOUS_APP_VERSION=0.5.0 \
 //   GNOSISVPN_APP_VERSION=0.6.1 \
-//   GNOSISVPN_CHANGELOG_FORMAT=github \
+//   GNOSISVPN_CHANGELOG_FORMAT=zulip \
 //   GH_TOKEN=... \
 //   ./scripts/generate-changelog.ts
 
 // --- Types ---
 
+interface RepoConfig {
+  repo: string;
+  label: string;
+  previousVersion: string;
+  currentVersion: string;
+}
+
 interface Config {
-  packageVersion: string;
-  previousCliVersion: string;
-  currentCliVersion: string;
-  previousAppVersion: string;
-  currentAppVersion: string;
-  format: "github" | "debian" | "json" | "rpm";
+  repositories: RepoConfig[];
+  format: "zulip" | "github" | "debian" | "json" | "rpm";
   branch: string;
   ghApiMaxAttempts: number;
   ghToken: string;
 }
 
 interface ChangelogEntry {
+  repository: string;
   id: string;
   title: string;
   author: string;
@@ -152,19 +157,36 @@ async function ghApiCall(
   Deno.exit(1);
 }
 
-// --- Release Date Fetcher ---
+// --- Version Date Fetcher ---
 
-async function getReleaseDate(
+async function getVersionDate(
   config: Config,
   repo: string,
-  tag: string,
+  version: string,
 ): Promise<string> {
-  log("DEBUG", `Fetching release date for ${repo}/${tag}`);
-  const release = (await ghApiCall(config, repo, `/releases/tags/${tag}`)) as GitHubRelease;
-  const date = release.created_at;
+  log("DEBUG", `Fetching version date for ${repo} ${version}`);
+  let date = "";
+  if (`${version}`.includes("+pr.")) {
+    log("DEBUG", `Getting version date from PR number in version string`);
+    const prNumber = version.split("+pr.")[1];
+    const pr = (await ghApiCall(config, repo, `/pulls/${prNumber}`)) as GitHubPR;
+    if (pr.merged_at) {
+      date = pr.merged_at;
+    } else {
+      log(
+        "ERROR",
+        `PR #${prNumber} for ${repo} is not merged. Cannot determine version date.`,
+      );
+      Deno.exit(1);
+    }
+  } else {
+    log("DEBUG", `Getting version date from release tag`);
+    const release = (await ghApiCall(config, repo, `/releases/tags/${version}`)) as GitHubRelease;
+    date = release.created_at;
+  }
 
   if (!validateIso8601Date(date)) {
-    log("ERROR", `Invalid or empty release date for ${repo}/${tag}: '${date}'`);
+    log("ERROR", `Invalid or empty version date for ${repo}/${version}: '${date}'`);
     log(
       "ERROR",
       "Expected ISO8601 timestamp format (e.g., 2024-01-15T10:30:00Z)",
@@ -173,24 +195,6 @@ async function getReleaseDate(
   }
 
   return date;
-}
-
-// --- Last Release Tag ---
-
-async function getLastReleaseTag(config: Config): Promise<string | null> {
-  log("DEBUG", "Fetching last release tag for gnosis/gnosis_vpn");
-  try {
-    const releases = (await ghApiCall(
-      config,
-      "gnosis/gnosis_vpn",
-      "/releases?per_page=1",
-    )) as GitHubRelease[];
-    if (releases.length === 0) return null;
-    return releases[0].tag_name;
-  } catch {
-    log("WARN", "Could not fetch release list");
-    return null;
-  }
 }
 
 // --- PR Fetcher ---
@@ -236,6 +240,7 @@ async function fetchMergedPRs(
     );
 
     entries.push({
+      repository: repoName,
       id: String(pr.number),
       title: pr.title,
       author: pr.user.login,
@@ -259,6 +264,24 @@ function extractChangelogType(title: string): string {
 }
 
 // --- Format Functions ---
+
+function zulipFormat(
+  entries: ChangelogEntry[],
+): string {
+  let content = "A new snapshot build is available with the following updates:\n\n";
+
+  for (const entry of entries) {
+    content +=
+      `- [#${entry.id}](https://github.com/${entry.repository}/pull/${entry.id}) [${entry.component}] ${entry.title} by ${entry.author}\n`;
+  }
+  content += "\nDownload latest snapshot from here:\n";
+  content += "- [GnosisVPN Mac](https://download.gnosisvpn.io/latest/gnosisvpn_arm64.pkg)\n";
+  content += "- [GnosisVPN Debian x86_64](https://download.gnosisvpn.io/latest/gnosisvpn_amd64.deb)\n";
+  content += "- [GnosisVPN Debian aarch64](https://download.gnosisvpn.io/latest/gnosisvpn_arm64.deb)\n";
+  content += "\nPlease note that this is a snapshot release intended for testing and may contain unstable features.\n";
+  content += "Enjoy testing the latest features and improvements!\n";
+  return content;
+}
 
 function githubFormat(
   entries: ChangelogEntry[],
@@ -461,6 +484,18 @@ function readConfig(): Config {
     Deno.exit(1);
   }
 
+  const previousPackageVersion = Deno.env.get("GNOSISVPN_PREVIOUS_PACKAGE_VERSION");
+  if (!previousPackageVersion) {
+    console.error("Error: GNOSISVPN_PREVIOUS_PACKAGE_VERSION is required");
+    Deno.exit(1);
+  }
+
+  const currentPackageVersion = Deno.env.get("GNOSISVPN_PACKAGE_VERSION");
+  if (!currentPackageVersion) {
+    console.error("Error: GNOSISVPN_PACKAGE_VERSION is required");
+    Deno.exit(1);
+  }
+
   const previousCliVersion = Deno.env.get("GNOSISVPN_PREVIOUS_CLI_VERSION");
   if (!previousCliVersion) {
     console.error("Error: GNOSISVPN_PREVIOUS_CLI_VERSION is required");
@@ -486,24 +521,33 @@ function readConfig(): Config {
   }
 
   const format = Deno.env.get("GNOSISVPN_CHANGELOG_FORMAT") || "github";
-  if (!["github", "debian", "json", "rpm"].includes(format)) {
+  if (!["zulip", "github", "debian", "json", "rpm"].includes(format)) {
     console.error(`Error: Unsupported format: ${format}`);
-    console.error("Supported formats: github, debian, json, rpm");
+    console.error("Supported formats: zulip, github, debian, json, rpm");
     Deno.exit(1);
   }
 
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const defaultVersion = `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}+build.${
-    pad(now.getHours())
-  }${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-
   return {
-    packageVersion: Deno.env.get("GNOSISVPN_PACKAGE_VERSION") || defaultVersion,
-    previousCliVersion,
-    currentCliVersion,
-    previousAppVersion,
-    currentAppVersion,
+    repositories: [
+      {
+        repo: "gnosis/gnosis_vpn",
+        label: "Installer",
+        previousVersion: previousPackageVersion,
+        currentVersion: currentPackageVersion,
+      },
+      {
+        repo: "gnosis/gnosis_vpn-client",
+        label: "Client",
+        previousVersion: previousCliVersion,
+        currentVersion: currentCliVersion,
+      },
+      {
+        repo: "gnosis/gnosis_vpn-app",
+        label: "App",
+        previousVersion: previousAppVersion,
+        currentVersion: currentAppVersion,
+      },
+    ],
     format: format as Config["format"],
     branch: Deno.env.get("GNOSISVPN_BRANCH") || "main",
     ghApiMaxAttempts: parseInt(Deno.env.get("GH_API_MAX_ATTEMPTS") || "6", 10),
@@ -517,108 +561,24 @@ async function main(): Promise<void> {
   const config = readConfig();
 
   console.error("Generating release notes...");
-  console.error(`  Package version: v${config.packageVersion}`);
-  console.error(
-    `  Client: v${config.previousCliVersion} -> v${config.currentCliVersion}`,
-  );
-  console.error(
-    `  App: v${config.previousAppVersion} -> v${config.currentAppVersion}`,
-  );
+  for (const { label, previousVersion, currentVersion } of config.repositories) {
+    console.error(`  ${label}: v${previousVersion} -> v${currentVersion}`);
+  }
   console.error(`  Format: ${config.format}`);
   console.error(`  Branch: ${config.branch}`);
-  console.error("");
-
-  let cliPreviousDate = "";
-  let cliCurrentDate = "";
-  let appPreviousDate = "";
-  let appCurrentDate = "";
-
-  // Fetch CLI dates if versions differ
-  if (config.previousCliVersion !== config.currentCliVersion) {
-    cliPreviousDate = await getReleaseDate(
-      config,
-      "gnosis/gnosis_vpn-client",
-      `v${config.previousCliVersion}`,
-    );
-    cliCurrentDate = await getReleaseDate(
-      config,
-      "gnosis/gnosis_vpn-client",
-      `v${config.currentCliVersion}`,
-    );
-    log("INFO", `CLI date range: ${cliPreviousDate} to ${cliCurrentDate}`);
-  }
-
-  // Fetch App dates if versions differ
-  if (config.previousAppVersion !== config.currentAppVersion) {
-    appPreviousDate = await getReleaseDate(
-      config,
-      "gnosis/gnosis_vpn-app",
-      `v${config.previousAppVersion}`,
-    );
-    appCurrentDate = await getReleaseDate(
-      config,
-      "gnosis/gnosis_vpn-app",
-      `v${config.currentAppVersion}`,
-    );
-    log("INFO", `App date range: ${appPreviousDate} to ${appCurrentDate}`);
-  }
-
-  // Get the last release tag for packaging repo
-  const lastReleaseTag = await getLastReleaseTag(config);
-  let pkgLastReleaseDate = "";
-
-  if (lastReleaseTag) {
-    pkgLastReleaseDate = await getReleaseDate(
-      config,
-      "gnosis/gnosis_vpn",
-      lastReleaseTag,
-    );
-    const pkgCurrentDate = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
-    log(
-      "INFO",
-      `Installer date range: ${pkgLastReleaseDate} to ${pkgCurrentDate}`,
-    );
-  }
-
   console.error("");
 
   // Fetch PRs from all repositories
   const allEntries: ChangelogEntry[] = [];
 
-  if (cliPreviousDate && cliCurrentDate) {
-    const entries = await fetchMergedPRs(
-      config,
-      "gnosis/gnosis_vpn-client",
-      cliPreviousDate,
-      cliCurrentDate,
-      "Client",
-      config.branch,
-    );
-    allEntries.push(...entries);
-  }
+  for (const { repo, label, previousVersion, currentVersion } of config.repositories) {
+    if (previousVersion === currentVersion) continue;
 
-  if (appPreviousDate && appCurrentDate) {
-    const entries = await fetchMergedPRs(
-      config,
-      "gnosis/gnosis_vpn-app",
-      appPreviousDate,
-      appCurrentDate,
-      "App",
-      config.branch,
-    );
-    allEntries.push(...entries);
-  }
+    const previousDate = await getVersionDate(config, repo, `v${previousVersion}`);
+    const currentDate = await getVersionDate(config, repo, `v${currentVersion}`);
+    log("INFO", `${label} date range: ${previousDate} to ${currentDate}`);
 
-  if (pkgLastReleaseDate) {
-    const pkgCurrentDate = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
-    const entries = await fetchMergedPRs(
-      config,
-      "gnosis/gnosis_vpn",
-      pkgLastReleaseDate,
-      pkgCurrentDate,
-      "Installer",
-      config.branch,
-    );
+    const entries = await fetchMergedPRs(config, repo, previousDate, currentDate, label, config.branch);
     allEntries.push(...entries);
   }
 
@@ -628,24 +588,30 @@ async function main(): Promise<void> {
 
   // Generate changelog content
   let content: string;
+  const cliRepo = config.repositories.find((r) => r.label === "Client")!;
+  const appRepo = config.repositories.find((r) => r.label === "App")!;
+  const packageRepo = config.repositories.find((r) => r.label === "Installer")!;
   switch (config.format) {
+    case "zulip":
+      content = zulipFormat(allEntries);
+      break;
     case "github":
       content = githubFormat(
         allEntries,
-        config.previousCliVersion,
-        config.currentCliVersion,
-        config.previousAppVersion,
-        config.currentAppVersion,
+        cliRepo.previousVersion,
+        cliRepo.currentVersion,
+        appRepo.previousVersion,
+        appRepo.currentVersion,
       );
       break;
     case "debian":
-      content = debianFormat(allEntries, config.packageVersion);
+      content = debianFormat(allEntries, packageRepo.currentVersion);
       break;
     case "json":
       content = jsonFormat(allEntries);
       break;
     case "rpm":
-      content = rpmFormat(allEntries, config.packageVersion);
+      content = rpmFormat(allEntries, packageRepo.currentVersion);
       break;
   }
 
