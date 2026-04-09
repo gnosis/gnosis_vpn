@@ -23,12 +23,14 @@ jobs:
     if: needs.build_binary.outputs.SNAPSHOT_TRIGGERED == 'true'
     needs:
       - build_binary
+    permissions:
+      contents: read
+      actions: write
     env:
-      GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
-      LATEST_GNOSISVPN_PACKAGE_PR_VERSION: ${{ needs.build_binary.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
+      GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
       GNOSISVPN_CLI_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_CLI_VERSION }}
       GNOSISVPN_APP_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}
-      PREVIOUS_GNOSISVPN_PACKAGE_PR_VERSION: ${{ vars.GNOSISVPN_PACKAGE_PR_VERSION }}
+      GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ vars.GNOSISVPN_PACKAGE_PR_VERSION }}
       GNOSISVPN_PREVIOUS_CLI_VERSION: ${{ vars.GNOSISVPN_CLI_PR_VERSION }}
       GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
     steps:
@@ -48,8 +50,6 @@ jobs:
         run: nix develop -c ./scripts/generate-changelog.ts
         env:
           GH_TOKEN: ${{ github.token }}
-          GNOSISVPN_PACKAGE_VERSION: ${{ env.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
-          GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ env.PREVIOUS_GNOSISVPN_PACKAGE_PR_VERSION }}
           GNOSISVPN_CHANGELOG_FORMAT: zulip
       - name: Prepare notification message
         run: |
@@ -73,9 +73,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [[ "${LATEST_GNOSISVPN_PACKAGE_PR_VERSION}" != "${PREVIOUS_GNOSISVPN_PACKAGE_PR_VERSION}" ]]; then
-            echo "New merged PR found for gnosis_vpn: ${LATEST_GNOSISVPN_PACKAGE_PR_VERSION}"
-            gh variable set GNOSISVPN_PACKAGE_PR_VERSION --repo ${{ github.repository }} --body "${LATEST_GNOSISVPN_PACKAGE_PR_VERSION}"
+          if [[ "${GNOSISVPN_PACKAGE_VERSION}" != "${GNOSISVPN_PREVIOUS_PACKAGE_VERSION}" ]]; then
+            echo "New merged PR found for gnosis_vpn: ${GNOSISVPN_PACKAGE_VERSION}"
+            gh variable set GNOSISVPN_PACKAGE_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_PACKAGE_VERSION}"
           fi
           if [[ "${GNOSISVPN_CLI_VERSION}" != "${GNOSISVPN_PREVIOUS_CLI_VERSION}" ]]; then
             echo "New merged PR found for gnosis_vpn-client: ${GNOSISVPN_CLI_VERSION}"
