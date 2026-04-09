@@ -16,7 +16,7 @@ on:
       GNOSISVPN_APP_VERSION:
         value: ${{ jobs.setup.outputs.GNOSISVPN_APP_VERSION }}
       SNAPSHOT_TRIGGERED:
-        value: ${{ ! jobs.setup.outputs.SKIP_BUILDING }}
+        value: ${{ jobs.setup.outputs.SKIP_BUILDING == 'false' }}
 concurrency:
   group: build-binary-${{ github.ref }}
   cancel-in-progress: false
