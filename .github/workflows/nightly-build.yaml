@@ -1,5 +1,8 @@
 name: Nightly Build
 on:
+  pull_request:
+    types:
+      - synchronize
   repository_dispatch:
     types: [snapshot_build]
   schedule:
