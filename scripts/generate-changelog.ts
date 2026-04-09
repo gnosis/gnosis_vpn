@@ -56,6 +56,14 @@ interface GitHubPR {
   labels: { name: string }[];
 }
 
+interface GitHubCommit {
+  commit: {
+    committer: {
+      date: string;
+    };
+  };
+}
+
 interface GitHubRelease {
   created_at: string;
   tag_name: string;
@@ -179,6 +187,11 @@ async function getVersionDate(
       );
       Deno.exit(1);
     }
+  } else if (`${version}`.includes("+commit.")) {
+    log("DEBUG", `Getting version date from commit hash in version string`);
+    const commitHash = version.split("+commit.")[1];
+    const commit = (await ghApiCall(config, repo, `/commits/${commitHash}`)) as GitHubCommit;
+    date = commit.commit.committer.date;
   } else {
     log("DEBUG", `Getting version date from release tag`);
     const release = (await ghApiCall(config, repo, `/releases/tags/${version}`)) as GitHubRelease;
@@ -562,7 +575,7 @@ async function main(): Promise<void> {
 
   console.error("Generating release notes...");
   for (const { label, previousVersion, currentVersion } of config.repositories) {
-    console.error(`  ${label}: v${previousVersion} -> v${currentVersion}`);
+    console.error(`  ${label}: ${previousVersion} -> ${currentVersion}`);
   }
   console.error(`  Format: ${config.format}`);
   console.error(`  Branch: ${config.branch}`);
