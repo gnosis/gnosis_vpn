@@ -3,7 +3,7 @@ on:
   pull_request:
     types:
       - opened
-      - synchronize
+      # - synchronize
       - reopened
       - ready_for_review
 concurrency:
