@@ -115,10 +115,11 @@ jobs:
           - nix: x86_64-linux
             nfpm: amd64
             runner: depot-ubuntu-22.04-4
+            distribution: deb
           - nix: aarch64-linux
             nfpm: arm64
             runner: depot-ubuntu-22.04-arm-4
-        distribution: [deb]
+            distribution: deb
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
