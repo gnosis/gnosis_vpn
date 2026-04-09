@@ -298,6 +298,45 @@ function zulipFormat(
   return content;
 }
 
+Deno.test("zulipFormat formats nightly snapshot entries and download links", () => {
+  const output = zulipFormat([
+    {
+      id: 123,
+      title: "fix(cli): improve login flow",
+      author: "octocat",
+      repository: "gnosis/gnosis_vpn-client",
+      component: "cli",
+    } as ChangelogEntry,
+  ]);
+
+  if (!output.includes("A new snapshot build is available with the following updates:\n\n")) {
+    throw new Error("zulipFormat output is missing the snapshot intro");
+  }
+
+  if (
+    !output.includes(
+      "- [#123](https://github.com/gnosis/gnosis_vpn-client/pull/123) [cli] fix(cli): improve login flow by octocat\n",
+    )
+  ) {
+    throw new Error("zulipFormat output is missing the expected PR line");
+  }
+
+  if (
+    !output.includes(
+      "- [GnosisVPN Debian x86_64](https://download.gnosisvpn.io/latest/gnosisvpn_amd64.deb)\n",
+    )
+  ) {
+    throw new Error("zulipFormat output is missing the Debian x86_64 download link");
+  }
+
+  if (
+    !output.includes(
+      "Please note that this is a snapshot release intended for testing and may contain unstable features.\n",
+    )
+  ) {
+    throw new Error("zulipFormat output is missing the snapshot warning");
+  }
+});
 function githubFormat(
   entries: ChangelogEntry[],
   previousCliVersion: string,
