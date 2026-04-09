@@ -23,9 +23,6 @@ jobs:
     if: needs.build_binary.outputs.SNAPSHOT_TRIGGERED == 'true'
     needs:
       - build_binary
-    permissions:
-      contents: read
-      actions: write
     env:
       GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
       GNOSISVPN_CLI_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_CLI_VERSION }}
@@ -71,7 +68,7 @@ jobs:
           content: ${{ env.NOTIFICATION_CONTENT }}
       - name: Update latest merged PR variables
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GNOSIS_GITHUB_WORKFLOW_TOKEN }}
         run: |
           if [[ "${GNOSISVPN_PACKAGE_VERSION}" != "${GNOSISVPN_PREVIOUS_PACKAGE_VERSION}" ]]; then
             echo "New merged PR found for gnosis_vpn: ${GNOSISVPN_PACKAGE_VERSION}"
