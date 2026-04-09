@@ -168,7 +168,6 @@ jobs:
           path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
       - name: Prepare files for upload
         id: prepare_files
-        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         run: |
           mkdir -p ./build/bucket
           cp ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }} ./build/bucket/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}
@@ -241,7 +240,6 @@ jobs:
           path: ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256
       - name: Prepare files for upload
         id: prepare_files
-        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         run: |
           mkdir -p ./build/bucket
           cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg ./build/bucket/gnosisvpn_arm64.pkg
