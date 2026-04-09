@@ -192,12 +192,12 @@ async function getVersionDate(
     const commitHash = version.split("+commit.")[1];
     const commit = (await ghApiCall(config, repo, `/commits/${commitHash}`)) as GitHubCommit;
     date = commit.commit.committer.date;
-  } else if (`${version}`.includes("+build.")) {
-    date = new Date().toISOString();
-  } else {
+  } else if (/^\d+\.\d+\.\d+$/.test(`${version}`)) {
     log("DEBUG", `Getting version date from release tag`);
     const release = (await ghApiCall(config, repo, `/releases/tags/${version}`)) as GitHubRelease;
     date = release.created_at;
+  } else {
+    date = new Date().toISOString();
   }
 
   if (!validateIso8601Date(date)) {
