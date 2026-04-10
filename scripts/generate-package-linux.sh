@@ -120,6 +120,10 @@ generate_nfpm_config() {
     local nfpm_arch="${GNOSISVPN_ARCHITECTURE/x86_64-linux/amd64}"
     nfpm_arch="${nfpm_arch/aarch64-linux/arm64}"
     export NFPM_ARCHITECTURE="${nfpm_arch}"
+    # Generate version file so the installed app can read the installer version
+    mkdir -p "${BUILD_DIR}/resources"
+    echo "${GNOSISVPN_PACKAGE_VERSION}" >"${BUILD_DIR}/resources/version.txt"
+    log_success "Generated version file: ${BUILD_DIR}/resources/version.txt"
     # Always use absolute path for rootfs
     local rootfs
     rootfs="$(cd "${BUILD_DIR}/app-contents/rootfs" && pwd)"

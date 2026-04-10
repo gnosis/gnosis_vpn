@@ -69,13 +69,8 @@ ROLLBACK_STEPS=()
 ROLLBACK_ENABLED=true
 PREV_CONFIG_FILE=""
 
-# Get installer version from package (if available) or use current date
-INSTALLER_VERSION="${INSTALLER_VERSION:-$(date +%Y%m%d-%H%M%S)}"
-
-# Extract version from package filename if available
-if [[ "$PACKAGE_PATH" =~ GnosisVPN-Installer-([^/]+)\.pkg ]]; then
-    INSTALLER_VERSION="${BASH_REMATCH[1]}"
-fi
+# Read installer version baked into the package payload
+INSTALLER_VERSION=$(cat "${CONFIG_DIR}/version.txt" 2>/dev/null || echo "unknown")
 
 load_installer_choices() {
     local choice_dir="/Library/Logs/GnosisVPN/installer"
