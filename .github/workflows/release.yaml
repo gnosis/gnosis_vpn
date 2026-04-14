@@ -6,7 +6,7 @@ on:
         description: "Create a draft release?"
         required: true
         type: boolean
-        default: false
+        default: true
       release_type:
         description: Version type after release
         required: true
