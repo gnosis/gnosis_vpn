@@ -70,7 +70,7 @@ ROLLBACK_ENABLED=true
 PREV_CONFIG_FILE=""
 
 # Read installer version baked into the package payload
-INSTALLER_VERSION=$(cat "${CONFIG_DIR}/version.txt" 2>/dev/null || echo "unknown")
+INSTALLER_VERSION=$(cat "${VERSION_FILE}" 2>/dev/null || echo "unknown")
 
 load_installer_choices() {
     local choice_dir="/Library/Logs/GnosisVPN/installer"

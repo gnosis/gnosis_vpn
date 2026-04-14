@@ -193,6 +193,7 @@ prepare_build_dir() {
 
     # Bake installer version into package payload so the app can read it after installation
     echo "${GNOSISVPN_PACKAGE_VERSION}" >"${BUILD_DIR}/app-contents/rootfs/etc/gnosisvpn/version.txt"
+    chmod 0644 "${BUILD_DIR}/app-contents/rootfs/etc/gnosisvpn/version.txt"
     log_success "Version baked into package payload: ${GNOSISVPN_PACKAGE_VERSION}"
 
     # Copy config templates to package payload
