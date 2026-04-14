@@ -42,12 +42,10 @@ jobs:
           PREVIOUS_GNOSISVPN_APP_PR_VERSION: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
         run: |
           sudo apt update && sudo apt install -y gh
-          set -x
           get_latest_pr_version() {
             local repo=$1
             local file_path=$2
-            pr_number=$(gh api "repos/gnosis/$repo/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=100" \
-            --jq '[.[] | select(.merged_at != null)] | sort_by(.merged_at) | last | .number | tostring')
+            pr_number=$(gh api "repos/gnosis/$repo/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=100" --jq '[.[] | select(.merged_at != null)] | sort_by(.merged_at) | last | .number | tostring')
             merge_sha=$(gh api "repos/gnosis/$repo/pulls/$pr_number" --jq '.merge_commit_sha')
             file_content=$(gh api "repos/gnosis/$repo/contents/$file_path?ref=$merge_sha" --jq '.content' | base64 --decode)
             if [[ "$file_path" == "package.json" ]]; then
@@ -59,7 +57,7 @@ jobs:
           }
 
           LATEST_GNOSISVPN_PACKAGE_PR_VERSION=$(get_latest_pr_version "gnosis_vpn" "package.json")
-          LATEST_GNOSISVPN_PACKAGE_PR_VERSION=0.77.1 
+          LATEST_GNOSISVPN_PACKAGE_PR_VERSION=0.77.1
           LATEST_GNOSISVPN_CLIENT_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-client" "Cargo.toml")
           LATEST_GNOSISVPN_APP_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-app" "src-tauri/Cargo.toml")
           LATEST_GNOSISVPN_PACKAGE_VERSION_NUMBER=$(echo "$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | cut -d '+' -f 1)
