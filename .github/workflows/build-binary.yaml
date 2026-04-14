@@ -11,8 +11,8 @@ on:
         value: ${{ jobs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       LATEST_GNOSISVPN_PACKAGE_PR_VERSION:
         value: ${{ jobs.setup.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
-      GNOSISVPN_CLI_VERSION:
-        value: ${{ jobs.setup.outputs.GNOSISVPN_CLI_VERSION }}
+      GNOSISVPN_CLIENT_VERSION:
+        value: ${{ jobs.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
       GNOSISVPN_APP_VERSION:
         value: ${{ jobs.setup.outputs.GNOSISVPN_APP_VERSION }}
       SNAPSHOT_TRIGGERED:
@@ -29,7 +29,7 @@ jobs:
     outputs:
       GNOSISVPN_PACKAGE_VERSION: ${{ steps.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       LATEST_GNOSISVPN_PACKAGE_PR_VERSION: ${{ steps.setup.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
-      GNOSISVPN_CLI_VERSION: ${{ steps.setup.outputs.GNOSISVPN_CLI_VERSION }}
+      GNOSISVPN_CLIENT_VERSION: ${{ steps.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
       GNOSISVPN_APP_VERSION: ${{ steps.setup.outputs.GNOSISVPN_APP_VERSION }}
       SKIP_BUILDING: ${{ steps.setup.outputs.SKIP_BUILDING }}
     steps:
@@ -38,7 +38,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PREVIOUS_GNOSISVPN_PACKAGE_PR_VERSION: ${{ vars.GNOSISVPN_PACKAGE_PR_VERSION }}
-          PREVIOUS_GNOSISVPN_CLI_PR_VERSION: ${{ vars.GNOSISVPN_CLI_PR_VERSION }}
+          PREVIOUS_GNOSISVPN_CLIENT_PR_VERSION: ${{ vars.GNOSISVPN_CLIENT_PR_VERSION }}
           PREVIOUS_GNOSISVPN_APP_PR_VERSION: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
         run: |
           sudo apt update && sudo apt install -y gh
@@ -58,7 +58,7 @@ jobs:
           }
 
           LATEST_GNOSISVPN_PACKAGE_PR_VERSION=$(get_latest_pr_version "gnosis_vpn" "package.json")
-          LATEST_GNOSISVPN_CLI_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-client" "Cargo.toml")
+          LATEST_GNOSISVPN_CLIENT_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-client" "Cargo.toml")
           LATEST_GNOSISVPN_APP_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-app" "src-tauri/Cargo.toml")
           LATEST_GNOSISVPN_PACKAGE_VERSION_NUMBER=$(echo "$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | cut -d '+' -f 1)
           LATEST_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER=$(echo "$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | cut -d '+' -f 2 | cut -d '.' -f 2)
@@ -68,23 +68,23 @@ jobs:
           case "${{ inputs.version_type }}" in
             snapshot)
               echo "GNOSISVPN_PACKAGE_VERSION=$(date +%Y.%m.%d+build.%H%M%S)" | tee -a "$GITHUB_OUTPUT"
-              echo "GNOSISVPN_CLI_VERSION=${LATEST_GNOSISVPN_CLI_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_CLIENT_VERSION=${LATEST_GNOSISVPN_CLIENT_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
               echo "GNOSISVPN_APP_VERSION=${LATEST_GNOSISVPN_APP_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
               ;;
             commit)
               sha="${{ github.event.pull_request.head.sha }}"
               echo "GNOSISVPN_PACKAGE_VERSION=${LATEST_GNOSISVPN_PACKAGE_VERSION_NUMBER}+commit.${sha:0:7}" | tee -a "$GITHUB_OUTPUT"
-              echo "GNOSISVPN_CLI_VERSION=${LATEST_GNOSISVPN_CLI_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_CLIENT_VERSION=${LATEST_GNOSISVPN_CLIENT_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
               echo "GNOSISVPN_APP_VERSION=${LATEST_GNOSISVPN_APP_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
               ;;
             pr)
               echo "GNOSISVPN_PACKAGE_VERSION=${LATEST_GNOSISVPN_PACKAGE_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
-              echo "GNOSISVPN_CLI_VERSION=${LATEST_GNOSISVPN_CLI_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_CLIENT_VERSION=${LATEST_GNOSISVPN_CLIENT_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
               echo "GNOSISVPN_APP_VERSION=${LATEST_GNOSISVPN_APP_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
               ;;
             release)
               echo "GNOSISVPN_PACKAGE_VERSION=${LATEST_GNOSISVPN_PACKAGE_VERSION_NUMBER}" | tee -a "$GITHUB_OUTPUT"
-              echo "GNOSISVPN_CLI_VERSION=latest" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_CLIENT_VERSION=latest" | tee -a "$GITHUB_OUTPUT"
               echo "GNOSISVPN_APP_VERSION=latest" | tee -a "$GITHUB_OUTPUT"
               ;;
             *)
@@ -95,7 +95,7 @@ jobs:
 
           if [[ "${{ inputs.version_type}}" == "snapshot" ]] &&
              [[ "${LATEST_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER}" == "${PREVIOUS_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER}" ]] &&
-             [[ "${LATEST_GNOSISVPN_CLI_PR_VERSION}" == "${PREVIOUS_GNOSISVPN_CLI_PR_VERSION}" ]] &&
+             [[ "${LATEST_GNOSISVPN_CLIENT_PR_VERSION}" == "${PREVIOUS_GNOSISVPN_CLIENT_PR_VERSION}" ]] &&
              [[ "${LATEST_GNOSISVPN_APP_PR_VERSION}" == "${PREVIOUS_GNOSISVPN_APP_PR_VERSION}" ]]; then
             echo "SKIP_BUILDING=true" | tee -a "$GITHUB_OUTPUT"
             echo "No new merged PRs found for gnosis_vpn, gnosis_vpn-client, or gnosis_vpn-app. Skipping snapshot build."
@@ -144,10 +144,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
-          GNOSISVPN_CLI_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLI_VERSION }}
+          GNOSISVPN_CLIENT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
           GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}
           GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_PACKAGE_RELEASE_VERSION || vars.GNOSISVPN_PACKAGE_PR_VERSION }}
-          GNOSISVPN_PREVIOUS_CLI_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_CLI_RELEASE_VERSION || vars.GNOSISVPN_CLI_PR_VERSION }}
+          GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_CLIENT_RELEASE_VERSION || vars.GNOSISVPN_CLIENT_PR_VERSION }}
           GNOSISVPN_PREVIOUS_APP_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_APP_RELEASE_VERSION || vars.GNOSISVPN_APP_PR_VERSION }}
           GNOSISVPN_GPG_PRIVATE_KEY_PATH: /tmp/gnosis_vpn_gpg_key.asc
           GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
@@ -222,7 +222,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
-          GNOSISVPN_CLI_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLI_VERSION }}
+          GNOSISVPN_CLIENT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
           GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}
           GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD }}
           GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD }}

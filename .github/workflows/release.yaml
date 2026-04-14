@@ -41,17 +41,17 @@ jobs:
       - name: Display versions
         run: |
           echo "- Package version: v${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "- Client version: v${{ needs.build_binary.outputs.GNOSISVPN_CLI_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "- Client version: v${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
           echo "- App version: v${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Generate Release Notes
         run: nix develop -c ./scripts/generate-changelog.ts
         env:
           GH_TOKEN: ${{ github.token }}
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
-          GNOSISVPN_CLI_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_CLI_VERSION }}
+          GNOSISVPN_CLIENT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}
           GNOSISVPN_APP_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}
           GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ vars.GNOSISVPN_PACKAGE_RELEASE_VERSION }}
-          GNOSISVPN_PREVIOUS_CLI_VERSION: ${{ vars.GNOSISVPN_CLI_RELEASE_VERSION }}
+          GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ vars.GNOSISVPN_CLIENT_RELEASE_VERSION }}
           GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_APP_RELEASE_VERSION }}
           GNOSISVPN_CHANGELOG_FORMAT: github
       - name: Release version
@@ -77,7 +77,7 @@ jobs:
         shell: bash
         run: |
           gh variable set GNOSISVPN_PACKAGE_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}"
-          gh variable set GNOSISVPN_CLI_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_CLI_VERSION }}"
+          gh variable set GNOSISVPN_CLIENT_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}"
           gh variable set GNOSISVPN_APP_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}"
         env:
           GH_TOKEN: ${{ secrets.GNOSIS_GITHUB_WORKFLOW_TOKEN }}

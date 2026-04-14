@@ -22,10 +22,10 @@ jobs:
       - build_binary
     env:
       GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
-      GNOSISVPN_CLI_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_CLI_VERSION }}
+      GNOSISVPN_CLIENT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}
       GNOSISVPN_APP_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}
       GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ vars.GNOSISVPN_PACKAGE_PR_VERSION }}
-      GNOSISVPN_PREVIOUS_CLI_VERSION: ${{ vars.GNOSISVPN_CLI_PR_VERSION }}
+      GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ vars.GNOSISVPN_CLIENT_PR_VERSION }}
       GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
     steps:
       - name: Checkout repository
@@ -66,9 +66,9 @@ jobs:
             echo "New merged PR found for gnosis_vpn: ${GNOSISVPN_PACKAGE_VERSION}"
             gh variable set GNOSISVPN_PACKAGE_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_PACKAGE_VERSION}"
           fi
-          if [[ "${GNOSISVPN_CLI_VERSION}" != "${GNOSISVPN_PREVIOUS_CLI_VERSION}" ]]; then
-            echo "New merged PR found for gnosis_vpn-client: ${GNOSISVPN_CLI_VERSION}"
-            gh variable set GNOSISVPN_CLI_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_CLI_VERSION}"
+          if [[ "${GNOSISVPN_CLIENT_VERSION}" != "${GNOSISVPN_PREVIOUS_CLIENT_VERSION}" ]]; then
+            echo "New merged PR found for gnosis_vpn-client: ${GNOSISVPN_CLIENT_VERSION}"
+            gh variable set GNOSISVPN_CLIENT_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_CLIENT_VERSION}"
           fi
           if [[ "${GNOSISVPN_APP_VERSION}" != "${GNOSISVPN_PREVIOUS_APP_VERSION}" ]]; then
             echo "New merged PR found for gnosis_vpn-app: ${GNOSISVPN_APP_VERSION}"

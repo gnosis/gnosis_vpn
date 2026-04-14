@@ -10,8 +10,8 @@
 // Example:
 //   GNOSISVPN_PREVIOUS_PACKAGE_VERSION=0.56.4 \
 //   GNOSISVPN_PACKAGE_VERSION=0.56.5 \
-//   GNOSISVPN_PREVIOUS_CLI_VERSION=0.54.4 \
-//   GNOSISVPN_CLI_VERSION=0.56.1 \
+//   GNOSISVPN_PREVIOUS_CLIENT_VERSION=0.54.4 \
+//   GNOSISVPN_CLIENT_VERSION=0.56.1 \
 //   GNOSISVPN_PREVIOUS_APP_VERSION=0.5.0 \
 //   GNOSISVPN_APP_VERSION=0.6.1 \
 //   GNOSISVPN_CHANGELOG_FORMAT=zulip \
@@ -551,15 +551,15 @@ function readConfig(): Config {
     Deno.exit(1);
   }
 
-  const previousCliVersion = Deno.env.get("GNOSISVPN_PREVIOUS_CLI_VERSION");
+  const previousCliVersion = Deno.env.get("GNOSISVPN_PREVIOUS_CLIENT_VERSION");
   if (!previousCliVersion) {
-    console.error("Error: GNOSISVPN_PREVIOUS_CLI_VERSION is required");
+    console.error("Error: GNOSISVPN_PREVIOUS_CLIENT_VERSION is required");
     Deno.exit(1);
   }
 
-  const currentCliVersion = Deno.env.get("GNOSISVPN_CLI_VERSION");
+  const currentCliVersion = Deno.env.get("GNOSISVPN_CLIENT_VERSION");
   if (!currentCliVersion) {
-    console.error("Error: GNOSISVPN_CLI_VERSION is required");
+    console.error("Error: GNOSISVPN_CLIENT_VERSION is required");
     Deno.exit(1);
   }
 
