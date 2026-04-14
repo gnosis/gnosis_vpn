@@ -302,7 +302,7 @@ function zulipFormat(
 Deno.test("zulipFormat formats nightly snapshot entries and download links", () => {
   const output = zulipFormat([
     {
-      id: 123,
+      id: "123",
       title: "fix(cli): improve login flow",
       author: "octocat",
       repository: "gnosis/gnosis_vpn-client",
