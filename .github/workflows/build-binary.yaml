@@ -57,7 +57,6 @@ jobs:
           }
 
           LATEST_GNOSISVPN_PACKAGE_PR_VERSION=$(get_latest_pr_version "gnosis_vpn" "package.json")
-          LATEST_GNOSISVPN_PACKAGE_PR_VERSION=0.77.1
           LATEST_GNOSISVPN_CLIENT_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-client" "Cargo.toml")
           LATEST_GNOSISVPN_APP_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-app" "src-tauri/Cargo.toml")
           LATEST_GNOSISVPN_PACKAGE_VERSION_NUMBER=$(echo "$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | cut -d '+' -f 1)
