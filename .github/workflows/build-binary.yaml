@@ -46,10 +46,9 @@ jobs:
             local repo=$1
             local file_path=$2
             local default_branch=${3:-main}
-            pr_data=$(gh api --paginate "repos/gnosis/$repo/pulls?state=closed&base=${default_branch}&sort=updated&direction=desc&per_page=100" \
-              --jq '[.[] | select(.merged_at != null)] | sort_by(.merged_at) | last | {number: (.number | tostring), sha: .merge_commit_sha}')
-            pr_number=$(echo "$pr_data" | jq -r '.number')
-            merge_sha=$(echo "$pr_data" | jq -r '.sha')
+            pr_number=$(gh api "repos/gnosis/$repo/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=100" \
+            --jq '[.[] | select(.merged_at != null)] | sort_by(.merged_at) | last | .number | tostring')
+            merge_sha=$(gh api "repos/gnosis/$repo/pulls/$pr_number" --jq '.merge_commit_sha')
             file_content=$(gh api "repos/gnosis/$repo/contents/$file_path?ref=$merge_sha" --jq '.content' | base64 --decode)
             if [[ "$file_path" == "package.json" ]]; then
               version=$(echo "$file_content" | jq -r '.version')
