@@ -42,6 +42,7 @@ jobs:
           PREVIOUS_GNOSISVPN_APP_PR_VERSION: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
         run: |
           sudo apt update && sudo apt install -y gh
+          set -x
           get_latest_pr_version() {
             local repo=$1
             local file_path=$2
