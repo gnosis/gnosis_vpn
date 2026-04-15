@@ -630,8 +630,8 @@ async function main(): Promise<void> {
   for (const { repo, label, previousVersion, currentVersion } of config.repositories) {
     if (previousVersion === currentVersion) continue;
 
-    const previousDate = await getVersionDate(config, repo, `v${previousVersion}`);
-    const currentDate = await getVersionDate(config, repo, `v${currentVersion}`);
+    const previousDate = await getVersionDate(config, repo, previousVersion);
+    const currentDate = await getVersionDate(config, repo, currentVersion);
     log("INFO", `${label} date range: ${previousDate} to ${currentDate}`);
 
     const entries = await fetchMergedPRs(config, repo, previousDate, currentDate, label, config.branch);

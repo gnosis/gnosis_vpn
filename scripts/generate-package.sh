@@ -130,10 +130,10 @@ print_summary() {
     echo "Distribution:      ${GNOSISVPN_DISTRIBUTION}"
     echo "Architecture:      ${GNOSISVPN_ARCHITECTURE}"
     if [[ ${GNOSISVPN_CLIENT_VERSION:-} != "" ]]; then
-        echo "CLIENT Version:       ${GNOSISVPN_CLIENT_VERSION}"
+        echo "Client Version:       ${GNOSISVPN_CLIENT_VERSION}"
     fi
     if [[ ${GNOSISVPN_APP_VERSION:-} != "" ]]; then
-        echo "APP Version:       ${GNOSISVPN_APP_VERSION}"
+        echo "App Version:       ${GNOSISVPN_APP_VERSION}"
     fi
     echo "Build Date:        $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
     print_platform_summary

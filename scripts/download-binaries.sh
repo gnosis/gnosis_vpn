@@ -20,8 +20,8 @@ usage() {
     echo "Usage: $0 --cli-version <version> --app-version <version> [options]"
     echo
     echo "Options:"
-    echo "  --cli-version <version>        Set the CLIENT version (e.g., latest, v0.50.7, 0.50.7+pr.465)"
-    echo "  --app-version <version>        Set the APP version (e.g., latest, v0.2.2, 0.2.2+pr.10)"
+    echo "  --cli-version <version>        Set the Client version (e.g., latest, v0.50.7, 0.50.7+pr.465)"
+    echo "  --app-version <version>        Set the App version (e.g., latest, v0.2.2, 0.2.2+pr.10)"
     echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux, aarch64-darwin), default: x86_64-linux"
     echo "  --distribution <type>          Set the distribution type (deb, dmg), default: deb"
     echo "  -h, --help                     Show this help message"
