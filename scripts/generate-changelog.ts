@@ -355,7 +355,7 @@ function githubFormat(
   };
 
   for (const entry of entries) {
-    const line = `- [${entry.component}] ${entry.title} by @${entry.author} in #${entry.id}`;
+    const line = `- [${entry.component}] ${entry.title} by @${entry.author} in [${entry.repository}#${entry.id}](https://github.com/${entry.repository}/pull/${entry.id})`;
     switch (entry.changelog_type) {
       case "feat":
       case "feature":
@@ -458,7 +458,8 @@ function debianFormat(
   let changelog = `gnosisvpn (${version}) ${distribution}; urgency=${urgency}\n`;
 
   for (const entry of entries) {
-    const entryLine = `  * ${entry.title} by @${entry.author} in #${entry.id}\n`;
+    const ref = `${entry.repository}#${entry.id}`;
+    const entryLine = `  * ${entry.title} by @${entry.author} in ${ref}\n`;
 
     if (entryLine.length <= 80) {
       changelog += entryLine;
@@ -469,7 +470,7 @@ function debianFormat(
       let maxTitleLength = 80 - (entryLine.length - entry.title.length) - 3;
       if (maxTitleLength < 1) maxTitleLength = 1;
       const truncatedTitle = entry.title.substring(0, maxTitleLength);
-      changelog += `  * ${truncatedTitle}... by @${entry.author} in #${entry.id}\n`;
+      changelog += `  * ${truncatedTitle}... by @${entry.author} in ${ref}\n`;
     }
   }
 
@@ -852,8 +853,8 @@ Deno.test("githubFormat - produces expected markdown sections", () => {
   assertEquals(result.includes("### Automation"), true);
   assertEquals(result.includes("### Documentation"), true);
   assertEquals(result.includes("### Other"), true);
-  assertEquals(result.includes("[Client] add login by @alice in #1"), true);
-  assertEquals(result.includes("[App] fix crash by @bob in #2"), true);
+  assertEquals(result.includes("[Client] add login by @alice in [gnosis/gnosis_vpn#1](https://github.com/gnosis/gnosis_vpn/pull/1)"), true);
+  assertEquals(result.includes("[App] fix crash by @bob in [gnosis/gnosis_vpn#2](https://github.com/gnosis/gnosis_vpn/pull/2)"), true);
   assertEquals(result.includes("GnosisVPN Client"), true);
   assertEquals(result.includes("GnosisVPN App"), true);
 });
