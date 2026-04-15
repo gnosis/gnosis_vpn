@@ -39,6 +39,7 @@
             formatter.trim_trailing_whitespace = true;
             formatter.include_document_start = true;
             formatter.retain_line_breaks = true;
+            formatter.retain_line_breaks_all = true;
           };
 
         };
