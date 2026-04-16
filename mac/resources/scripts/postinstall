@@ -69,11 +69,7 @@ ROLLBACK_STEPS=()
 ROLLBACK_ENABLED=true
 PREV_CONFIG_FILE=""
 
-# Read installer version baked into the package payload
-if [[ ! -f "${VERSION_FILE}" ]]; then
-    log_error "Version file not found: ${VERSION_FILE}. The installer package is malformed."
-    exit 1
-fi
+# Read installer version baked into the package payload at build time.
 INSTALLER_VERSION=$(cat "${VERSION_FILE}")
 
 load_installer_choices() {
@@ -220,6 +216,7 @@ update_binary() {
 }
 
 # Save current installation version
+
 save_version_info() {
     log_info "Saving installation version: $INSTALLER_VERSION"
 
