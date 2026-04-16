@@ -98,7 +98,7 @@
     <!-- Jura network sub-choice -->
     <choice id="jura"
             title="Jura (Recommended)"
-            description="Connect to VPN nodes on the Jura network - US, UK, Brazil, Australia, India, South Korea"
+            description="Connect to VPN nodes on the Jura network - US, UK, NL, Brazil, Australia, India, South Korea"
             visible="true"
             enabled="exclusiveEnabled('jura', ['rotsee','jura','dufour'])"
             start_selected="true">
