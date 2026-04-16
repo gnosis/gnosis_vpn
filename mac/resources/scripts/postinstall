@@ -70,7 +70,11 @@ ROLLBACK_ENABLED=true
 PREV_CONFIG_FILE=""
 
 # Read installer version baked into the package payload
-INSTALLER_VERSION=$(cat "${VERSION_FILE}" 2>/dev/null || echo "unknown")
+if [[ ! -f "${VERSION_FILE}" ]]; then
+    log_error "Version file not found: ${VERSION_FILE}. The installer package is malformed."
+    exit 1
+fi
+INSTALLER_VERSION=$(cat "${VERSION_FILE}")
 
 load_installer_choices() {
     local choice_dir="/Library/Logs/GnosisVPN/installer"
