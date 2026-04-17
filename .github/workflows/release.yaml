@@ -69,7 +69,7 @@ jobs:
           gcp_service_account: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
           gcp_artifact_package: gnosis_vpn
           release_notes_file: ./build/changelog/changelog
-          github_token: ${{ secrets.GNOSIS_GITHUB_WORKFLOW_TOKEN }}
+          github_token: ${{ secrets.BOT_TOKEN }}
           draft: ${{ inputs.draft_release }}
       - name: Bump Version
         id: bump
@@ -80,4 +80,4 @@ jobs:
           gh variable set GNOSISVPN_CLIENT_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}"
           gh variable set GNOSISVPN_APP_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}"
         env:
-          GH_TOKEN: ${{ secrets.GNOSIS_GITHUB_WORKFLOW_TOKEN }}
+          GH_TOKEN: ${{ secrets.BOT_TOKEN }}
