@@ -56,6 +56,11 @@ jobs:
             echo "$version+pr.$pr_number"
           }
 
+          get_latest_release_version() {
+            local repo=$1
+            gh api "repos/gnosis/$repo/releases/latest" --jq '.tag_name' | sed 's/^v//'
+          }
+
           LATEST_GNOSISVPN_PACKAGE_PR_VERSION=$(get_latest_pr_version "gnosis_vpn" "package.json")
           LATEST_GNOSISVPN_CLIENT_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-client" "Cargo.toml")
           LATEST_GNOSISVPN_APP_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-app" "src-tauri/Cargo.toml")
@@ -82,9 +87,11 @@ jobs:
               echo "GNOSISVPN_APP_VERSION=${LATEST_GNOSISVPN_APP_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
               ;;
             release)
+              GNOSISVPN_CLIENT_VERSION=$(get_latest_release_version "gnosis_vpn-client")
+              GNOSISVPN_APP_VERSION=$(get_latest_release_version "gnosis_vpn-app")
               echo "GNOSISVPN_PACKAGE_VERSION=${LATEST_GNOSISVPN_PACKAGE_VERSION_NUMBER}" | tee -a "$GITHUB_OUTPUT"
-              echo "GNOSISVPN_CLIENT_VERSION=latest" | tee -a "$GITHUB_OUTPUT"
-              echo "GNOSISVPN_APP_VERSION=latest" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_CLIENT_VERSION=${GNOSISVPN_CLIENT_VERSION}" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_APP_VERSION=${GNOSISVPN_APP_VERSION}" | tee -a "$GITHUB_OUTPUT"
               ;;
             *)
               echo "Invalid version_type: ${{ inputs.version_type }}. Expected snapshot, commit, pr, or release."
