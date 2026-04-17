@@ -10,6 +10,11 @@ address = "0xcD9D0E23cD999dFC0D1400D837F8e612DbbbDFAA"
 meta = { location = "London" }
 path = { intermediates = [ "0xc00B7d90463394eC29a080393fF09A2ED82a0F86" ] }
 
+[destinations.Netherlands]
+address = "0x00d7096439d1f731c73574adb7e4a9f3b7775326"
+meta = { location = "Amsterdam" }
+path = { intermediates = [ "0xf6dbcdc536936b8c332ef24108a3446a24d82113" ] }
+
 [destinations.Brazil]
 address = "0x12b78461da59e8317c61bd249ea0dea2aa9527de"
 meta = { location = "São Paulo" }
