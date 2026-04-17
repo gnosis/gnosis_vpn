@@ -1,0 +1,265 @@
+name: Build
+on:
+  workflow_call:
+    inputs:
+      version_type:
+        description: 'Possible values are snapshot, commit, pr, release'
+        required: true
+        type: string
+    outputs:
+      GNOSISVPN_PACKAGE_VERSION:
+        value: ${{ jobs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+      LATEST_GNOSISVPN_PACKAGE_PR_VERSION:
+        value: ${{ jobs.setup.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
+      GNOSISVPN_CLIENT_VERSION:
+        value: ${{ jobs.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
+      GNOSISVPN_APP_VERSION:
+        value: ${{ jobs.setup.outputs.GNOSISVPN_APP_VERSION }}
+      SNAPSHOT_TRIGGERED:
+        value: ${{ jobs.setup.outputs.SKIP_BUILDING == 'false' }}
+concurrency:
+  group: build-binary-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  setup:
+    runs-on: depot-ubuntu-22.04-4
+    name: Setup
+    permissions:
+      contents: read
+    outputs:
+      GNOSISVPN_PACKAGE_VERSION: ${{ steps.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+      LATEST_GNOSISVPN_PACKAGE_PR_VERSION: ${{ steps.setup.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
+      GNOSISVPN_CLIENT_VERSION: ${{ steps.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
+      GNOSISVPN_APP_VERSION: ${{ steps.setup.outputs.GNOSISVPN_APP_VERSION }}
+      SKIP_BUILDING: ${{ steps.setup.outputs.SKIP_BUILDING }}
+    steps:
+      - name: Setup environment variables
+        id: setup
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIOUS_GNOSISVPN_PACKAGE_PR_VERSION: ${{ vars.GNOSISVPN_PACKAGE_PR_VERSION }}
+          PREVIOUS_GNOSISVPN_CLIENT_PR_VERSION: ${{ vars.GNOSISVPN_CLIENT_PR_VERSION }}
+          PREVIOUS_GNOSISVPN_APP_PR_VERSION: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
+        run: |
+          sudo apt update && sudo apt install -y gh
+          get_latest_pr_version() {
+            local repo=$1
+            local file_path=$2
+            pr_number=$(gh api "repos/gnosis/$repo/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=100" --jq '[.[] | select(.merged_at != null)] | sort_by(.merged_at) | last | .number | tostring')
+            merge_sha=$(gh api "repos/gnosis/$repo/pulls/$pr_number" --jq '.merge_commit_sha')
+            file_content=$(gh api "repos/gnosis/$repo/contents/$file_path?ref=$merge_sha" --jq '.content' | base64 --decode)
+            if [[ "$file_path" == "package.json" ]]; then
+              version=$(echo "$file_content" | jq -r '.version')
+            else
+              version=$(echo "$file_content" | grep '^version\s*=' | head -n 1 | cut -d '"' -f 2)
+            fi
+            echo "$version+pr.$pr_number"
+          }
+
+          LATEST_GNOSISVPN_PACKAGE_PR_VERSION=$(get_latest_pr_version "gnosis_vpn" "package.json")
+          LATEST_GNOSISVPN_CLIENT_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-client" "Cargo.toml")
+          LATEST_GNOSISVPN_APP_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-app" "src-tauri/Cargo.toml")
+          LATEST_GNOSISVPN_PACKAGE_VERSION_NUMBER=$(echo "$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | cut -d '+' -f 1)
+          LATEST_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER=$(echo "$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | cut -d '+' -f 2 | cut -d '.' -f 2)
+          PREVIOUS_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER=$(echo "${PREVIOUS_GNOSISVPN_PACKAGE_PR_VERSION}" | cut -d '+' -f 2 | cut -d '.' -f 2)
+          echo "LATEST_GNOSISVPN_PACKAGE_PR_VERSION=$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | tee -a "$GITHUB_OUTPUT"
+
+          case "${{ inputs.version_type }}" in
+            snapshot)
+              echo "GNOSISVPN_PACKAGE_VERSION=$(date +%Y.%m.%d+build.%H%M%S)" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_CLIENT_VERSION=${LATEST_GNOSISVPN_CLIENT_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_APP_VERSION=${LATEST_GNOSISVPN_APP_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
+              ;;
+            commit)
+              sha="${{ github.event.pull_request.head.sha }}"
+              echo "GNOSISVPN_PACKAGE_VERSION=${LATEST_GNOSISVPN_PACKAGE_VERSION_NUMBER}+commit.${sha:0:7}" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_CLIENT_VERSION=${LATEST_GNOSISVPN_CLIENT_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_APP_VERSION=${LATEST_GNOSISVPN_APP_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
+              ;;
+            pr)
+              echo "GNOSISVPN_PACKAGE_VERSION=${LATEST_GNOSISVPN_PACKAGE_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_CLIENT_VERSION=${LATEST_GNOSISVPN_CLIENT_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_APP_VERSION=${LATEST_GNOSISVPN_APP_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
+              ;;
+            release)
+              echo "GNOSISVPN_PACKAGE_VERSION=${LATEST_GNOSISVPN_PACKAGE_VERSION_NUMBER}" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_CLIENT_VERSION=latest" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_APP_VERSION=latest" | tee -a "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Invalid version_type: ${{ inputs.version_type }}. Expected snapshot, commit, pr, or release."
+              exit 1
+              ;;
+          esac
+
+          if [[ "${{ inputs.version_type}}" == "snapshot" ]] &&
+             [[ "${LATEST_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER}" == "${PREVIOUS_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER}" ]] &&
+             [[ "${LATEST_GNOSISVPN_CLIENT_PR_VERSION}" == "${PREVIOUS_GNOSISVPN_CLIENT_PR_VERSION}" ]] &&
+             [[ "${LATEST_GNOSISVPN_APP_PR_VERSION}" == "${PREVIOUS_GNOSISVPN_APP_PR_VERSION}" ]]; then
+            echo "SKIP_BUILDING=true" | tee -a "$GITHUB_OUTPUT"
+            echo "No new merged PRs found for gnosis_vpn, gnosis_vpn-client, or gnosis_vpn-app. Skipping snapshot build."
+          else
+            echo "SKIP_BUILDING=false" | tee -a "$GITHUB_OUTPUT"
+            echo "Proceeding with the build."
+          fi
+  linux:
+    runs-on: ${{ matrix.runner }}
+    name: Build Linux ${{ matrix.nix }}
+    if: needs.setup.outputs.SKIP_BUILDING != 'true'
+    needs: setup
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nix: x86_64-linux
+            nfpm: amd64
+            runner: depot-ubuntu-22.04-4
+            distribution: deb
+          - nix: aarch64-linux
+            nfpm: arm64
+            runner: depot-ubuntu-22.04-arm-4
+            distribution: deb
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup GCP
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v3
+        with:
+          google_credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
+          install_sdk: "true"
+      - name: Setup Nix
+        uses: hoprnet/hopr-workflows/actions/setup-nix@setup-nix-v1
+        with:
+          cachix_cache_name: gnosis-vpn
+          cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: Setup GPG key for signing
+        run: |
+          echo "${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}" > /tmp/gnosis_vpn_gpg_key.asc
+          chmod 600 /tmp/gnosis_vpn_gpg_key.asc
+      - name: Build Linux package
+        shell: bash
+        run: |
+          nix develop -c just all ${{ matrix.distribution }} ${{ matrix.nix }} true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+          GNOSISVPN_CLIENT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
+          GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}
+          GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_PACKAGE_RELEASE_VERSION || vars.GNOSISVPN_PACKAGE_PR_VERSION }}
+          GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_CLIENT_RELEASE_VERSION || vars.GNOSISVPN_CLIENT_PR_VERSION }}
+          GNOSISVPN_PREVIOUS_APP_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_APP_RELEASE_VERSION || vars.GNOSISVPN_APP_PR_VERSION }}
+          GNOSISVPN_GPG_PRIVATE_KEY_PATH: /tmp/gnosis_vpn_gpg_key.asc
+          GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
+          GNOSISVPN_CHANGELOG_FORMAT: debian
+      - name: Upload Package
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}
+          path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}
+      - name: Upload Signature
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc
+          path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc
+      - name: Upload Hash
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
+          path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
+      - name: Prepare files for upload
+        id: prepare_files
+        run: |
+          mkdir -p ./build/bucket
+          cp ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }} ./build/bucket/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}
+          cp ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc ./build/bucket/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc
+          cp ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256 ./build/bucket/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
+          if [[ "${{ inputs.version_type }}" == "snapshot" ]]; then
+            echo "destination=download.gnosisvpn.io/latest" | tee -a "$GITHUB_OUTPUT"
+          else
+            echo "destination=download.gnosisvpn.io/stable" | tee -a "$GITHUB_OUTPUT"
+          fi
+      - name: Publish into Google Artifact registry
+        if: inputs.version_type != 'snapshot'
+        uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@upload-artifact-registry-v2
+        with:
+          source: ./build/bucket
+          package: gnosis_vpn
+          version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+          # - name: Publish into bucket
+          #   if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
+          #   uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
+          #   with:
+          #     path: ./build/bucket
+          #     destination: ${{ steps.prepare_files.outputs.destination }}
+          ## TODO Publish into IPFS as well
+  mac:
+    runs-on: depot-macos-15
+    name: Build Mac
+    needs: setup
+    if: needs.setup.outputs.SKIP_BUILDING != 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup GCP
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v3
+        with:
+          google_credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
+          install_sdk: "true"
+      - name: Setup Nix
+        uses: hoprnet/hopr-workflows/actions/setup-nix@setup-nix-v1
+        with:
+          cachix_cache_name: gnosis-vpn
+          cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: Create mac installer package
+        shell: bash
+        run: |
+          echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER }}" | base64 --decode > gnosisvpn-developer.p12
+          echo "${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_INSTALLER }}" | base64 --decode > gnosisvpn-installer.p12
+          export GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH=$(pwd)/gnosisvpn-developer.p12
+          export GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH=$(pwd)/gnosisvpn-installer.p12
+          nix develop -c just all dmg aarch64-darwin true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+          GNOSISVPN_CLIENT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
+          GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}
+          GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD }}
+          GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD }}
+          GNOSISVPN_APPLE_ID: ${{ secrets.GNOSISVPN_APPLE_ID }}
+          GNOSISVPN_APPLE_TEAM_ID: ${{ secrets.GNOSISVPN_APPLE_TEAM_ID }}
+          GNOSISVPN_APPLE_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_PASSWORD }}
+      - name: Upload Package
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: GnosisVPN-Installer.pkg
+          path: ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg
+      - name: Upload Signature
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: GnosisVPN-Installer.pkg.sha256
+          path: ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256
+      - name: Prepare files for upload
+        id: prepare_files
+        run: |
+          mkdir -p ./build/bucket
+          cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg ./build/bucket/gnosisvpn_arm64.pkg
+          cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256 ./build/bucket/gnosisvpn_arm64.pkg.sha256
+          if [[ "${{ inputs.version_type }}" == "snapshot" ]]; then
+            echo "destination=download.gnosisvpn.io/latest" | tee -a "$GITHUB_OUTPUT"
+          else
+            echo "destination=download.gnosisvpn.io/stable" | tee -a "$GITHUB_OUTPUT"
+          fi
+      - name: Publish into Google Artifact registry
+        if: inputs.version_type != 'snapshot'
+        uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@upload-artifact-registry-v2
+        with:
+          source: ./build/bucket
+          package: gnosis_vpn
+          version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+          # - name: Publish into bucket
+          #   if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
+          #   uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
+          #   with:
+          #     path: ./build/bucket
+          #     destination: ${{ steps.prepare_files.outputs.destination }}
+    ## TODO Publish into IPFS as well

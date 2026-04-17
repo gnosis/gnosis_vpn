@@ -59,7 +59,7 @@ main() {
     # Generate man page for gnosis_vpn-ctl
     if [[ -f "${BUILD_DIR}/download/gnosis_vpn-ctl" ]]; then
         help2man --no-info \
-            --name="GnosisVPN Control - CLI tool for managing GnosisVPN" \
+            --name="GnosisVPN Control - Client tool for managing GnosisVPN" \
             --section=1 \
             --output "${BUILD_DIR}/man/man1/gnosis_vpn-ctl.1" \
             "${BUILD_DIR}/download/gnosis_vpn-ctl"
