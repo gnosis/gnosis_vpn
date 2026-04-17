@@ -447,7 +447,7 @@ build_distribution_package() {
     # Generate welcome.html from template
     if [[ -f "${distribution_dir}/welcome.html" ]]; then
         sed -i "s/__GNOSISVPN_APP_VERSION__/v${GNOSISVPN_APP_VERSION}/g" "$distribution_dir/welcome.html"
-        sed -i "s/__GNOSISVPN_CLI_VERSION__/v${GNOSISVPN_CLI_VERSION}/g" "$distribution_dir/welcome.html"
+        sed -i "s/__GNOSISVPN_CLIENT_VERSION__/v${GNOSISVPN_CLIENT_VERSION}/g" "$distribution_dir/welcome.html"
     else
         log_warn "welcome.html not found, using default if available"
     fi

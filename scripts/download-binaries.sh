@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 # Safe default values
-: "${GNOSISVPN_CLI_VERSION:=}"
+: "${GNOSISVPN_CLIENT_VERSION:=}"
 : "${GNOSISVPN_APP_VERSION:=}"
 : "${GNOSISVPN_ARCHITECTURE:=x86_64-linux}"
 : "${GNOSISVPN_DISTRIBUTION:=deb}"
@@ -20,7 +20,7 @@ usage() {
     echo "Usage: $0 --cli-version <version> --app-version <version> [options]"
     echo
     echo "Options:"
-    echo "  --cli-version <version>        Set the CLI version (e.g., latest, v0.50.7, 0.50.7+pr.465)"
+    echo "  --cli-version <version>        Set the Client version (e.g., latest, v0.50.7, 0.50.7+pr.465)"
     echo "  --app-version <version>        Set the App version (e.g., latest, v0.2.2, 0.2.2+pr.10)"
     echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux, aarch64-darwin), default: x86_64-linux"
     echo "  --distribution <type>          Set the distribution type (deb, dmg), default: deb"
@@ -33,11 +33,11 @@ parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
         --cli-version)
-            GNOSISVPN_CLI_VERSION="${2:-}"
-            if [[ -z $GNOSISVPN_CLI_VERSION ]]; then
+            GNOSISVPN_CLIENT_VERSION="${2:-}"
+            if [[ -z $GNOSISVPN_CLIENT_VERSION ]]; then
                 log_error "'--cli-version <version>' requires a value"
                 usage
-            elif ! check_version_syntax "$GNOSISVPN_CLI_VERSION"; then
+            elif ! check_version_syntax "$GNOSISVPN_CLIENT_VERSION"; then
                 exit 1
             fi
             shift 2
@@ -82,14 +82,20 @@ parse_args() {
         esac
     done
 
-    if [[ -z $GNOSISVPN_CLI_VERSION ]]; then
-        GNOSISVPN_CLI_VERSION=$(get_latest_release "gnosis/gnosis_vpn-client")
+    if [[ -z $GNOSISVPN_CLIENT_VERSION ]]; then
+        GNOSISVPN_CLIENT_VERSION=$(get_latest_release "gnosis/gnosis_vpn-client")
         log_info "Parameter '--cli-version' not specified, defaulting to latest release"
+    elif [[ $GNOSISVPN_CLIENT_VERSION == "latest" ]]; then
+        GNOSISVPN_CLIENT_VERSION=$(get_latest_release "gnosis/gnosis_vpn-client")
+        log_info "Parameter '--cli-version' set to 'latest', using version ${GNOSISVPN_CLIENT_VERSION}"
     fi
 
     if [[ -z $GNOSISVPN_APP_VERSION ]]; then
         GNOSISVPN_APP_VERSION=$(get_latest_release "gnosis/gnosis_vpn-app")
         log_info "Parameter '--app-version' not specified, defaulting to latest release"
+    elif [[ $GNOSISVPN_APP_VERSION == "latest" ]]; then
+        GNOSISVPN_APP_VERSION=$(get_latest_release "gnosis/gnosis_vpn-app")
+        log_info "Parameter '--app-version' set to 'latest', using version ${GNOSISVPN_APP_VERSION}"
     fi
 
     log_success "Command-line arguments parsed successfully"
@@ -116,9 +122,9 @@ download_linux_binaries() {
     log_info "Downloading Linux binaries from GCP Artifact Registry..."
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
-        echo "Downloading gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-${GNOSISVPN_ARCHITECTURE}"
+        echo "Downloading gnosis_vpn-client:${GNOSISVPN_CLIENT_VERSION}:${artifact}-${GNOSISVPN_ARCHITECTURE}"
         gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
-            "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-${GNOSISVPN_ARCHITECTURE}" --local-filename=${artifact}
+            "gnosis_vpn-client:${GNOSISVPN_CLIENT_VERSION}:${artifact}-${GNOSISVPN_ARCHITECTURE}" --local-filename=${artifact}
         # Set execute permissions on downloaded binaries
         chmod +x "${BINARY_DIR}/${artifact}"
     done
@@ -133,9 +139,9 @@ download_darwin_binaries() {
     log_info "Downloading Darwin binaries from GCP Artifact Registry..."
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
-        echo "Downloading gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-aarch64-darwin"
+        echo "Downloading gnosis_vpn-client:${GNOSISVPN_CLIENT_VERSION}:${artifact}-aarch64-darwin"
         gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
-            "gnosis_vpn:${GNOSISVPN_CLI_VERSION}:${artifact}-aarch64-darwin" --local-filename=${artifact}
+            "gnosis_vpn-client:${GNOSISVPN_CLIENT_VERSION}:${artifact}-aarch64-darwin" --local-filename=${artifact}
         chmod 755 "${BINARY_DIR}/${artifact}"
         echo "Downloaded binary: ${BINARY_DIR}/${artifact}"
     done
@@ -152,7 +158,7 @@ print_summary() {
     echo "=========================================="
     echo "  Download Summary"
     echo "=========================================="
-    echo "Client Version:    ${GNOSISVPN_CLI_VERSION}"
+    echo "Client Version:    ${GNOSISVPN_CLIENT_VERSION}"
     echo "App Version:       ${GNOSISVPN_APP_VERSION}"
     echo "Distribution:      ${GNOSISVPN_DISTRIBUTION}"
     echo "Architecture:      ${GNOSISVPN_ARCHITECTURE}"

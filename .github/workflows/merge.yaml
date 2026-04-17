@@ -1,0 +1,21 @@
+name: Merge PR
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+permissions:
+  contents: read
+  pull-requests: read
+concurrency:
+  group: merge
+  cancel-in-progress: false
+jobs:
+  build-binary:
+    name: Build
+    if: github.event.pull_request.merged == true
+    uses: ./.github/workflows/build-binary.yaml
+    with:
+      version_type: pr
+    secrets: inherit

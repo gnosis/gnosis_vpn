@@ -1,0 +1,76 @@
+name: Nightly Build
+on:
+  repository_dispatch:
+    types: [snapshot_build]
+  schedule:
+    - cron: '0 2 * * *' # Runs every day at 2 AM UTC
+concurrency:
+  group: nightly-build
+  cancel-in-progress: false
+jobs:
+  build_binary:
+    name: Build
+    uses: ./.github/workflows/build-binary.yaml
+    with:
+      version_type: snapshot
+    secrets: inherit
+  update_snapshot:
+    name: Update snapshot
+    runs-on: depot-ubuntu-22.04-4
+    if: needs.build_binary.outputs.SNAPSHOT_TRIGGERED == 'true'
+    needs:
+      - build_binary
+    env:
+      GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
+      GNOSISVPN_CLIENT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}
+      GNOSISVPN_APP_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}
+      GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ vars.GNOSISVPN_PACKAGE_PR_VERSION }}
+      GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ vars.GNOSISVPN_CLIENT_PR_VERSION }}
+      GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup Nix
+        uses: hoprnet/hopr-workflows/actions/setup-nix@setup-nix-v1
+        with:
+          cachix_cache_name: gnosis-vpn
+          cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: Generate Changelog
+        run: nix develop -c ./scripts/generate-changelog.ts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GNOSISVPN_CHANGELOG_FORMAT: zulip
+      - name: Prepare notification message
+        run: |
+          # Store content in environment variable for the Zulip action
+          {
+            echo "NOTIFICATION_CONTENT<<EOF"
+            cat build/changelog/changelog
+            echo "EOF"
+          } >> $GITHUB_ENV
+      - name: Notify release
+        uses: zulip/github-actions-zulip/send-message@e4c8f27c732ba9bd98ac6be0583096dea82feea5 # v1.0.2
+        with:
+          api-key: ${{ secrets.ZULIP_API_KEY }}
+          email: ${{ secrets.ZULIP_EMAIL }}
+          organization-url: "https://hopr.zulipchat.com"
+          type: "stream"
+          to: "GnosisVPN"
+          topic: "Releases"
+          content: ${{ env.NOTIFICATION_CONTENT }}
+      - name: Update latest merged PR variables
+        env:
+          GH_TOKEN: ${{ secrets.GNOSIS_GITHUB_WORKFLOW_TOKEN }}
+        run: |
+          if [[ "${GNOSISVPN_PACKAGE_VERSION}" != "${GNOSISVPN_PREVIOUS_PACKAGE_VERSION}" ]]; then
+            echo "New merged PR found for gnosis_vpn: ${GNOSISVPN_PACKAGE_VERSION}"
+            gh variable set GNOSISVPN_PACKAGE_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_PACKAGE_VERSION}"
+          fi
+          if [[ "${GNOSISVPN_CLIENT_VERSION}" != "${GNOSISVPN_PREVIOUS_CLIENT_VERSION}" ]]; then
+            echo "New merged PR found for gnosis_vpn-client: ${GNOSISVPN_CLIENT_VERSION}"
+            gh variable set GNOSISVPN_CLIENT_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_CLIENT_VERSION}"
+          fi
+          if [[ "${GNOSISVPN_APP_VERSION}" != "${GNOSISVPN_PREVIOUS_APP_VERSION}" ]]; then
+            echo "New merged PR found for gnosis_vpn-app: ${GNOSISVPN_APP_VERSION}"
+            gh variable set GNOSISVPN_APP_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_APP_VERSION}"
+          fi

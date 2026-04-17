@@ -129,8 +129,8 @@ print_summary() {
     echo "Version:           ${GNOSISVPN_PACKAGE_VERSION}"
     echo "Distribution:      ${GNOSISVPN_DISTRIBUTION}"
     echo "Architecture:      ${GNOSISVPN_ARCHITECTURE}"
-    if [[ ${GNOSISVPN_CLI_VERSION:-} != "" ]]; then
-        echo "CLI Version:       ${GNOSISVPN_CLI_VERSION}"
+    if [[ ${GNOSISVPN_CLIENT_VERSION:-} != "" ]]; then
+        echo "Client Version:       ${GNOSISVPN_CLIENT_VERSION}"
     fi
     if [[ ${GNOSISVPN_APP_VERSION:-} != "" ]]; then
         echo "App Version:       ${GNOSISVPN_APP_VERSION}"
