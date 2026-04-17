@@ -64,6 +64,10 @@ interface GitHubCommit {
   };
 }
 
+interface GitHubRelease {
+  created_at: string;
+  tag_name: string;
+}
 
 // --- Logging ---
 
@@ -91,6 +95,7 @@ async function ghApiCall(
   config: Config,
   repo: string,
   endpoint: string,
+  allowNotFound = false,
 ): Promise<unknown> {
   let attempt = 1;
   let delay = 2000;
@@ -137,6 +142,10 @@ async function ghApiCall(
           attempt++;
           continue;
         }
+      }
+
+      if (response.status === 404 && allowNotFound) {
+        return null;
       }
 
       if (!response.ok) {
@@ -188,8 +197,13 @@ async function getVersionDate(
     const commitHash = version.split("+commit.")[1];
     const commit = (await ghApiCall(config, repo, `/commits/${commitHash}`)) as GitHubCommit;
     date = commit.commit.committer.date;
+  } else if (/^v?\d+\.\d+\.\d+$/.test(`${version}`)) {
+    log("DEBUG", `Getting version date from release tag`);
+    const tag = `${version}`.replace(/^v/, "");
+    const release = (await ghApiCall(config, repo, `/releases/tags/${tag}`, true)) as GitHubRelease | null;
+    // Release may not exist yet if this is the currentVersion being created in this workflow run.
+    date = release?.created_at ?? new Date().toISOString();
   } else {
-    // Plain semver or unknown: use now, since the GitHub release is created after this script runs.
     date = new Date().toISOString();
   }
 
