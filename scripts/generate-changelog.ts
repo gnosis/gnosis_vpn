@@ -147,10 +147,10 @@ async function ghApiCall(
 
       if (response.status === 404 && allowNotFound) {
         log(
-           "WARN",
-           `GitHub API returned 404 for optional request /repos/${repo}${endpoint}; treating as not found and continuing with fallback behavior.`,
-         );
-         return null;
+          "WARN",
+          `GitHub API returned 404 for optional request /repos/${repo}${endpoint}; treating as not found and continuing with fallback behavior.`,
+        );
+        return null;
       }
 
       if (!response.ok) {
@@ -182,7 +182,6 @@ async function getVersionDate(
   repo: string,
   version: string,
   allowMissingRelease: boolean,
-
 ): Promise<string> {
   log("DEBUG", `Fetching version date for ${repo} ${version}`);
   let date = "";
@@ -207,7 +206,9 @@ async function getVersionDate(
   } else if (/^v?\d+\.\d+\.\d+$/.test(`${version}`)) {
     log("DEBUG", `Getting version date from release tag`);
     const tag = `${version}`.replace(/^v/, "");
-    const release = (await ghApiCall(config, repo, `/releases/tags/${tag}`, allowMissingRelease)) as GitHubRelease | null;
+    const release = (await ghApiCall(config, repo, `/releases/tags/${tag}`, allowMissingRelease)) as
+      | GitHubRelease
+      | null;
     // Release may not exist yet if this is the currentVersion being created in this workflow run.
     date = release?.created_at ?? new Date().toISOString();
   } else {
