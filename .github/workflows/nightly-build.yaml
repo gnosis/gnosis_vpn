@@ -56,7 +56,7 @@ jobs:
           organization-url: "https://hopr.zulipchat.com"
           type: "stream"
           to: "GnosisVPN"
-          topic: "Releases"
+          topic: "Snapshot Builds"
           content: ${{ env.NOTIFICATION_CONTENT }}
       - name: Update latest merged PR variables
         env:
