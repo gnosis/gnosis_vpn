@@ -64,10 +64,6 @@ interface GitHubCommit {
   };
 }
 
-interface GitHubRelease {
-  created_at: string;
-  tag_name: string;
-}
 
 // --- Logging ---
 
@@ -192,12 +188,8 @@ async function getVersionDate(
     const commitHash = version.split("+commit.")[1];
     const commit = (await ghApiCall(config, repo, `/commits/${commitHash}`)) as GitHubCommit;
     date = commit.commit.committer.date;
-  } else if (/^v?\d+\.\d+\.\d+$/.test(`${version}`)) {
-    log("DEBUG", `Getting version date from release tag`);
-    const tag = `${version}`.replace(/^v/, "");
-    const release = (await ghApiCall(config, repo, `/releases/tags/${tag}`)) as GitHubRelease;
-    date = release.created_at;
   } else {
+    // Plain semver or unknown: use now, since the GitHub release is created after this script runs.
     date = new Date().toISOString();
   }
 
@@ -299,45 +291,6 @@ function zulipFormat(
   return content;
 }
 
-Deno.test("zulipFormat formats nightly snapshot entries and download links", () => {
-  const output = zulipFormat([
-    {
-      id: "123",
-      title: "fix(cli): improve login flow",
-      author: "octocat",
-      repository: "gnosis/gnosis_vpn-client",
-      component: "cli",
-    } as ChangelogEntry,
-  ]);
-
-  if (!output.includes("A new snapshot build is available with the following updates:\n\n")) {
-    throw new Error("zulipFormat output is missing the snapshot intro");
-  }
-
-  if (
-    !output.includes(
-      "- [#123](https://github.com/gnosis/gnosis_vpn-client/pull/123) [cli] fix(cli): improve login flow by octocat\n",
-    )
-  ) {
-    throw new Error("zulipFormat output is missing the expected PR line");
-  }
-
-  if (
-    !output.includes(
-      "- [GnosisVPN Debian x86_64](https://download.gnosisvpn.io/latest/gnosisvpn_amd64.deb)\n",
-    )
-  ) {
-    throw new Error("zulipFormat output is missing the Debian x86_64 download link");
-  }
-
-  if (
-    !output.includes(
-      "Please note that this is a snapshot release intended for testing and may contain unstable features.\n",
-    )
-  ) {
-    throw new Error("zulipFormat output is missing the snapshot warning");
-  }
-});
 function githubFormat(
   entries: ChangelogEntry[],
   previousCliVersion: string,
@@ -795,6 +748,48 @@ Deno.test("getUrgencyLevel - optional for x.y.0 versions", () => {
 Deno.test("getUrgencyLevel - medium for stable patches", () => {
   assertEquals(getUrgencyLevel("1.2.3"), "medium");
   assertEquals(getUrgencyLevel("0.5.1"), "medium");
+});
+
+// --- zulipFormat ---
+
+Deno.test("zulipFormat formats nightly snapshot entries and download links", () => {
+  const output = zulipFormat([
+    {
+      id: "123",
+      title: "fix(cli): improve login flow",
+      author: "octocat",
+      repository: "gnosis/gnosis_vpn-client",
+      component: "cli",
+    } as ChangelogEntry,
+  ]);
+
+  if (!output.includes("A new snapshot build is available with the following updates:\n\n")) {
+    throw new Error("zulipFormat output is missing the snapshot intro");
+  }
+
+  if (
+    !output.includes(
+      "- [#123](https://github.com/gnosis/gnosis_vpn-client/pull/123) [cli] fix(cli): improve login flow by octocat\n",
+    )
+  ) {
+    throw new Error("zulipFormat output is missing the expected PR line");
+  }
+
+  if (
+    !output.includes(
+      "- [GnosisVPN Debian x86_64](https://download.gnosisvpn.io/latest/gnosisvpn_amd64.deb)\n",
+    )
+  ) {
+    throw new Error("zulipFormat output is missing the Debian x86_64 download link");
+  }
+
+  if (
+    !output.includes(
+      "Please note that this is a snapshot release intended for testing and may contain unstable features.\n",
+    )
+  ) {
+    throw new Error("zulipFormat output is missing the snapshot warning");
+  }
 });
 
 // --- githubFormat ---
