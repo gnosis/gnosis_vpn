@@ -205,7 +205,7 @@ async function getVersionDate(
     date = commit.commit.committer.date;
   } else if (/^v?\d+\.\d+\.\d+$/.test(`${version}`)) {
     log("DEBUG", `Getting version date from release tag`);
-    const tag = `${version}`.replace(/^v/, "");
+    const tag = `${version}`.startsWith("v") ? `${version}` : `v${version}`;
     const release = (await ghApiCall(config, repo, `/releases/tags/${tag}`, allowMissingRelease)) as
       | GitHubRelease
       | null;
