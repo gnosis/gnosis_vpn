@@ -25,6 +25,7 @@ interface RepoConfig {
   label: string;
   previousVersion: string;
   currentVersion: string;
+  allowMissingRelease: boolean;
 }
 
 interface Config {
@@ -145,7 +146,11 @@ async function ghApiCall(
       }
 
       if (response.status === 404 && allowNotFound) {
-        return null;
+        log(
+           "WARN",
+           `GitHub API returned 404 for optional request /repos/${repo}${endpoint}; treating as not found and continuing with fallback behavior.`,
+         );
+         return null;
       }
 
       if (!response.ok) {
@@ -176,6 +181,8 @@ async function getVersionDate(
   config: Config,
   repo: string,
   version: string,
+  allowMissingRelease: boolean,
+
 ): Promise<string> {
   log("DEBUG", `Fetching version date for ${repo} ${version}`);
   let date = "";
@@ -200,7 +207,7 @@ async function getVersionDate(
   } else if (/^v?\d+\.\d+\.\d+$/.test(`${version}`)) {
     log("DEBUG", `Getting version date from release tag`);
     const tag = `${version}`.replace(/^v/, "");
-    const release = (await ghApiCall(config, repo, `/releases/tags/${tag}`, true)) as GitHubRelease | null;
+    const release = (await ghApiCall(config, repo, `/releases/tags/${tag}`, allowMissingRelease)) as GitHubRelease | null;
     // Release may not exist yet if this is the currentVersion being created in this workflow run.
     date = release?.created_at ?? new Date().toISOString();
   } else {
@@ -558,18 +565,21 @@ function readConfig(): Config {
         label: "Installer",
         previousVersion: previousPackageVersion,
         currentVersion: currentPackageVersion,
+        allowMissingRelease: true, // Allow missing release for installer since it may not be created yet
       },
       {
         repo: "gnosis/gnosis_vpn-client",
         label: "Client",
         previousVersion: previousCliVersion,
         currentVersion: currentCliVersion,
+        allowMissingRelease: false,
       },
       {
         repo: "gnosis/gnosis_vpn-app",
         label: "App",
         previousVersion: previousAppVersion,
         currentVersion: currentAppVersion,
+        allowMissingRelease: false,
       },
     ],
     format: format as Config["format"],
@@ -595,11 +605,11 @@ async function main(): Promise<void> {
   // Fetch PRs from all repositories
   const allEntries: ChangelogEntry[] = [];
 
-  for (const { repo, label, previousVersion, currentVersion } of config.repositories) {
+  for (const { repo, label, previousVersion, currentVersion, allowMissingRelease } of config.repositories) {
     if (previousVersion === currentVersion) continue;
 
-    const previousDate = await getVersionDate(config, repo, previousVersion);
-    const currentDate = await getVersionDate(config, repo, currentVersion);
+    const previousDate = await getVersionDate(config, repo, previousVersion, false);
+    const currentDate = await getVersionDate(config, repo, currentVersion, allowMissingRelease);
     log("INFO", `${label} date range: ${previousDate} to ${currentDate}`);
 
     const entries = await fetchMergedPRs(config, repo, previousDate, currentDate, label, config.branch);
