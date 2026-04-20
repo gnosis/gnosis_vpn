@@ -8,6 +8,8 @@
 
 set -euo pipefail
 
+source "${SCRIPT_DIR}/config.sh"
+
 # Safe default values
 : "${GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH:=}"
 : "${GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH:=}"
@@ -457,8 +459,12 @@ build_distribution_package() {
         log_warn "welcome.html not found, using default if available"
     fi
 
+    local dist_xml_resolved="${BUILD_DIR}/Distribution.xml"
+    local min_os_major="${MIN_OS_MACOS%%.*}"
+    sed "s/__MIN_OS_MACOS_MAJOR__/${min_os_major}/g" "$DISTRIBUTION_XML" >"$dist_xml_resolved"
+
     productbuild \
-        --distribution "$DISTRIBUTION_XML" \
+        --distribution "$dist_xml_resolved" \
         --resources "$distribution_dir" \
         --package-path "${BUILD_DIR}/packages" \
         --version "$GNOSISVPN_PACKAGE_VERSION" \
