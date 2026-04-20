@@ -2,11 +2,6 @@ name: Close release
 on:
   workflow_dispatch:
     inputs:
-      draft_release:
-        description: "Create a draft release?"
-        required: true
-        type: boolean
-        default: true
       release_type:
         description: Version type after release
         required: true
@@ -70,10 +65,8 @@ jobs:
           gcp_artifact_package: gnosis_vpn
           release_notes_file: ./build/changelog/changelog
           github_token: ${{ secrets.BOT_TOKEN }}
-          draft: ${{ inputs.draft_release }}
       - name: Bump Version
         id: bump
-        if: ${{ !inputs.draft_release }}
         shell: bash
         run: |
           gh variable set GNOSISVPN_PACKAGE_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}"
