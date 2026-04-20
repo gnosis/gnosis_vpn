@@ -21,8 +21,6 @@
 #   GH_TOKEN                            GitHub token with read access to releases
 #
 # Optional environment variables:
-#   CHANNELS              Space-separated channel names to include (default: "stable")
-#                         Supported: stable, nightly, snapshot
 #   OUTPUT_DIR            Where to write manifest JSON files (default: ./build/manifests)
 #   MIN_APP_VERSION       Minimum installed app version eligible for this update (default from config.sh)
 #   MIN_OS_VERSION_LINUX  Override minimum Linux version (default from config.sh)
@@ -138,7 +136,7 @@ GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD=$(require_env GNOSISVPN_GPG_PRIVATE_KEY_PASSW
 REPO=$(require_env GITHUB_REPOSITORY)
 require_env GH_TOKEN >/dev/null
 
-CHANNELS="${CHANNELS:-stable}"
+CHANNELS="stable nightly snapshot"
 OUTPUT_DIR="${OUTPUT_DIR:-./build/manifests}"
 
 GENERATED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")

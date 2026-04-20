@@ -16,6 +16,8 @@ jobs:
   update_manifests:
     runs-on: depot-ubuntu-22.04-4
     name: Update Manifests
+    permissions:
+      contents: read
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'pull_request' }}
     steps:
       - name: Checkout repository
@@ -29,6 +31,10 @@ jobs:
         run: |
           echo "${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}" > /tmp/gnosis_vpn_gpg_key.asc
           chmod 600 /tmp/gnosis_vpn_gpg_key.asc
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
       - name: Generate update manifests
         run: bash ./scripts/generate-update-manifest.sh
         env:
@@ -36,7 +42,6 @@ jobs:
           GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
-          CHANNELS: stable
           OUTPUT_DIR: ./build/manifests
       - name: Prepare manifests for upload
         run: |
