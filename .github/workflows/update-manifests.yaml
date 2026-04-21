@@ -4,7 +4,6 @@ on:
     workflows:
       - Close release
       - Nightly Build
-      - Build
     types:
       - completed
     branches:
@@ -18,7 +17,7 @@ jobs:
     name: Update Manifests
     permissions:
       contents: read
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'pull_request' }}
+      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -42,10 +41,6 @@ jobs:
           GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
           GH_TOKEN: ${{ github.token }}
           OUTPUT_DIR: ./build/manifests
-      - name: Prepare manifests for upload
-        run: |
-          mkdir -p ./build/bucket
-          cp ./build/manifests/*.json ./build/bucket/
       - name: Publish manifests to bucket
         uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:

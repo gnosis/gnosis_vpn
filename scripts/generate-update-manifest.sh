@@ -28,7 +28,8 @@
 # Channel → data source mapping:
 #   stable    = latest non-prerelease GitHub release
 #   nightly   = latest successful nightly-build workflow run (GitHub Actions artifact)
-#   snapshot  = same as nightly (same workflow, same artifact)
+# TODO ########
+#   snapshot  = TODO when a snapshot workflow is ready
 
 set -euo pipefail
 
@@ -53,7 +54,7 @@ require_env() {
 validate_version() {
     local version="$1"
     # Mirrors check_version_syntax in scripts/common.sh — covers stable (x.y.z),
-    # date-based snapshots (YYYY.MM.DD+build.HHMMSS), and PR/commit builds.
+    # date-based nightly builds (YYYY.MM.DD+build.HHMMSS), and PR/commit builds.
     local semver_regex='^[0-9]+\.[0-9]+\.[0-9]+(\+(pr|commit|build)(\.[0-9A-Za-z-]+)*)?$'
     [[ $version =~ $semver_regex ]] ||
         die "Version '$version' does not match expected format: x.y.z or x.y.z+(pr|commit|build).<meta>"
@@ -96,14 +97,14 @@ get_stable_release_info() {
 }
 
 # Returns "run_id version published_at" for the latest successful nightly build run.
-# Nightly and snapshot builds are GitHub Actions artifacts, not releases.
 # Version is extracted from the Linux amd64 artifact name, which embeds the build timestamp.
-get_snapshot_run_info() {
+get_nightly_run_info() {
     local run_id published_at version
 
     run_id=$(gh run list \
         --repo "$REPO" \
         --workflow "nightly-build.yaml" \
+        --branch main \
         --status success \
         --limit 1 \
         --json databaseId \
@@ -150,7 +151,7 @@ GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD=$(require_env GNOSISVPN_GPG_PRIVATE_KEY_PASSW
 REPO="gnosis/gnosis_vpn"
 require_env GH_TOKEN >/dev/null
 
-CHANNELS="stable nightly snapshot"
+CHANNELS="stable nightly"
 OUTPUT_DIR="${OUTPUT_DIR:-./build/manifests}"
 
 GENERATED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -179,11 +180,9 @@ read -r tag version published_at <<<"$(get_stable_release_info)"
 CHANNEL_DATA["stable"]="release $tag $version $published_at"
 echo "  -> release $tag ($version) published $published_at"
 
-echo "Resolving nightly/snapshot channels ..."
-read -r run_id version published_at <<<"$(get_snapshot_run_info)"
-snap_entry="actions $run_id $version $published_at"
-CHANNEL_DATA["nightly"]="$snap_entry"
-CHANNEL_DATA["snapshot"]="$snap_entry"
+echo "Resolving nightly channel ..."
+read -r run_id version published_at <<<"$(get_nightly_run_info)"
+CHANNEL_DATA["nightly"]="actions $run_id $version $published_at"
 echo "  -> actions run $run_id ($version) published $published_at"
 
 # ---------------------------------------------------------------------------
