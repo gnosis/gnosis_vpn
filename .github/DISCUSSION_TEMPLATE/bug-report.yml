@@ -1,0 +1,35 @@
+# Collect structured data from users to minimize follow-up questions
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search for existing Discussions and Issues before opening a new one.
+  - type: textarea
+    attributes:
+      label: Issue Description
+      description: Detailed description of the issue.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Steps to Reproduce
+      description: Clear steps to reproduce the behavior.
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Component
+      description: Which part of Gnosis VPN is affected? (App, Client, Server, or Unknown)
+  - type: textarea
+    attributes:
+      label: Environment / Versions
+      description: OS version, Gnosis VPN version, and other relevant environment details.
+    validations:
+      required: true
+  - type: checkboxes
+    attributes:
+      label: Acknowledgement
+      options:
+        - label: I have searched for existing issues and discussions.
+          required: true
