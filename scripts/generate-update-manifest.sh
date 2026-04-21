@@ -26,10 +26,10 @@
 #   MIN_OS_VERSION_LINUX  Override minimum Linux version (default from config.sh)
 #   MIN_OS_VERSION_MACOS  Override minimum macOS version (default from config.sh)
 #
-# Channel → GitHub release mapping:
-#   stable    = latest non-prerelease release
-#   nightly   = latest pre-release with tag matching *nightly*
-#   snapshot  = latest pre-release with tag matching *snapshot*
+# Channel → data source mapping:
+#   stable    = latest non-prerelease GitHub release
+#   nightly   = latest successful nightly-build workflow run (GitHub Actions artifact)
+#   snapshot  = same as nightly (same workflow, same artifact)
 
 set -euo pipefail
 
@@ -76,43 +76,59 @@ sign_json_body() {
     printf '%s' "$signature"
 }
 
-# Returns "tag published_at" for the latest release matching a channel.
-get_release_info() {
-    local channel="$1"
+# Returns "tag version published_at" for the latest stable GitHub release.
+get_stable_release_info() {
     local result
-
-    case "$channel" in
-    stable)
-        result=$(gh release list \
-            --repo "$REPO" \
-            --exclude-pre-releases \
-            --limit 1 \
-            --json tagName,publishedAt |
-            jq -r 'first | "\(.tagName) \(.publishedAt)"')
-        ;;
-    nightly)
-        result=$(gh release list \
-            --repo "$REPO" \
-            --limit 20 \
-            --json tagName,publishedAt,isPrerelease |
-            jq -r '[.[] | select(.isPrerelease and (.tagName | test("nightly")))] | first | "\(.tagName) \(.publishedAt)"')
-        ;;
-    snapshot)
-        result=$(gh release list \
-            --repo "$REPO" \
-            --limit 20 \
-            --json tagName,publishedAt,isPrerelease |
-            jq -r '[.[] | select(.isPrerelease and (.tagName | test("snapshot")))] | first | "\(.tagName) \(.publishedAt)"')
-        ;;
-    *)
-        die "Unknown channel '$channel'. Supported: stable, nightly, snapshot."
-        ;;
-    esac
+    result=$(gh release list \
+        --repo "$REPO" \
+        --exclude-pre-releases \
+        --limit 1 \
+        --json tagName,publishedAt |
+        jq -r 'first | "\(.tagName) \(.publishedAt)"')
 
     [[ -n $result && $result != "null null" ]] ||
-        die "No GitHub release found for channel '$channel'."
+        die "No stable GitHub release found."
 
-    echo "$result"
+    local tag published_at
+    read -r tag published_at <<<"$result"
+    local version="${tag#v}"
+    validate_version "$version"
+    echo "$tag $version $published_at"
+}
+
+# Returns "run_id version published_at" for the latest successful nightly build run.
+# Nightly and snapshot builds are GitHub Actions artifacts, not releases.
+# Version is extracted from the Linux amd64 artifact name, which embeds the build timestamp.
+get_snapshot_run_info() {
+    local run_id published_at version
+
+    run_id=$(gh run list \
+        --repo "$REPO" \
+        --workflow "nightly-build.yaml" \
+        --status success \
+        --limit 1 \
+        --json databaseId \
+        --jq '.[0].databaseId')
+
+    [[ -n $run_id && $run_id != "null" ]] ||
+        die "No successful nightly-build workflow run found."
+
+    published_at=$(gh run view "$run_id" \
+        --repo "$REPO" \
+        --json createdAt \
+        --jq '.createdAt')
+
+    # All platforms in the run share the same GNOSISVPN_PACKAGE_VERSION.
+    # Extract it from the Linux amd64 artifact name: gnosisvpn_VERSION_amd64.deb
+    version=$(gh api "repos/$REPO/actions/runs/$run_id/artifacts" \
+        --jq '[.artifacts[] | select(.name | test("^gnosisvpn_.*_amd64\\.deb$"))] | first | .name' |
+        sed 's/^gnosisvpn_\(.*\)_amd64\.deb$/\1/')
+
+    [[ -n $version && $version != "null" ]] ||
+        die "Could not determine version from artifacts of run $run_id."
+    validate_version "$version"
+
+    echo "$run_id $version $published_at"
 }
 
 # ---------------------------------------------------------------------------
@@ -154,18 +170,23 @@ printf '%s\n' "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" |
         --import "$GPG_KEY_PATH"
 
 # ---------------------------------------------------------------------------
-# Step 1: resolve each channel to a GitHub release.
+# Step 1: resolve each channel.
+#   CHANNEL_DATA stores "source_type ref version published_at" where source_type
+#   is "release" (ref = git tag) or "actions" (ref = workflow run ID).
 # ---------------------------------------------------------------------------
 declare -A CHANNEL_DATA
 
-for channel in $CHANNELS; do
-    echo "Resolving channel '$channel' from GitHub ..."
-    read -r tag published_at <<<"$(get_release_info "$channel")"
-    version="${tag#v}"
-    validate_version "$version"
-    echo "  -> $tag ($version) published $published_at"
-    CHANNEL_DATA["$channel"]="$tag $version $published_at"
-done
+echo "Resolving stable channel ..."
+read -r tag version published_at <<<"$(get_stable_release_info)"
+CHANNEL_DATA["stable"]="release $tag $version $published_at"
+echo "  -> release $tag ($version) published $published_at"
+
+echo "Resolving nightly/snapshot channels ..."
+read -r run_id version published_at <<<"$(get_snapshot_run_info)"
+snap_entry="actions $run_id $version $published_at"
+CHANNEL_DATA["nightly"]="$snap_entry"
+CHANNEL_DATA["snapshot"]="$snap_entry"
+echo "  -> actions run $run_id ($version) published $published_at"
 
 # ---------------------------------------------------------------------------
 # Step 2: for each platform, build a manifest with all channels.
@@ -186,62 +207,121 @@ for entry in "${PLATFORMS[@]}"; do
     CHANNELS_JSON='{}'
 
     for channel in $CHANNELS; do
-        read -r tag version published_at <<<"${CHANNEL_DATA[$channel]}"
+        read -r source_type ref version published_at <<<"${CHANNEL_DATA[$channel]}"
 
         ARTIFACT_NAME="${ARTIFACT_TEMPLATE//__VERSION__/$version}"
         DOWNLOAD_DIR=$(mktemp -d)
         DOWNLOAD_DIRS+=("$DOWNLOAD_DIR")
 
-        echo "  [$channel] Fetching metadata for $ARTIFACT_NAME from release $tag ..."
+        echo "  [$channel] Fetching metadata for $ARTIFACT_NAME (source: $source_type) ..."
 
-        # Download the pre-computed hash file (produced at build time).
-        gh release download "$tag" \
-            --repo "$REPO" \
-            --pattern "$ARTIFACT_NAME.sha256" \
-            --dir "$DOWNLOAD_DIR" ||
-            {
-                echo "ERROR: Failed to download $ARTIFACT_NAME.sha256 for channel '$channel'" >&2
-                ERRORS=$((ERRORS + 1))
-                continue
-            }
+        if [[ $source_type == "release" ]]; then
+            # ref = git tag; artifacts live in the GitHub release.
+            tag="$ref"
 
-        SHA256=$(awk '{print $1}' "$DOWNLOAD_DIR/$ARTIFACT_NAME.sha256")
-
-        # Download the GPG detached signature if this platform produces one.
-        if [[ $HAS_GPG_SIG == "true" ]]; then
             gh release download "$tag" \
                 --repo "$REPO" \
-                --pattern "$ARTIFACT_NAME.asc" \
+                --pattern "$ARTIFACT_NAME.sha256" \
                 --dir "$DOWNLOAD_DIR" ||
                 {
-                    echo "ERROR: Failed to download $ARTIFACT_NAME.asc for channel '$channel'" >&2
+                    echo "ERROR: Failed to download $ARTIFACT_NAME.sha256 for channel '$channel'" >&2
                     ERRORS=$((ERRORS + 1))
                     continue
                 }
-            ARTIFACT_SIG=$(base64 <"$DOWNLOAD_DIR/$ARTIFACT_NAME.asc" | tr -d '\n')
-        else
-            ARTIFACT_SIG=""
-        fi
+            SHA256=$(awk '{print $1}' "$DOWNLOAD_DIR/$ARTIFACT_NAME.sha256")
 
-        # Get size_bytes from the release asset metadata — no artifact download needed.
-        if ! SIZE=$(gh release view "$tag" \
-            --repo "$REPO" \
-            --json assets \
-            --jq ".assets[] | select(.name == \"$ARTIFACT_NAME\") | .size"); then
-            echo "ERROR: Failed to fetch asset metadata for '$ARTIFACT_NAME' in release $tag for channel '$channel'" >&2
-            ERRORS=$((ERRORS + 1))
-            continue
-        fi
+            if [[ $HAS_GPG_SIG == "true" ]]; then
+                gh release download "$tag" \
+                    --repo "$REPO" \
+                    --pattern "$ARTIFACT_NAME.asc" \
+                    --dir "$DOWNLOAD_DIR" ||
+                    {
+                        echo "ERROR: Failed to download $ARTIFACT_NAME.asc for channel '$channel'" >&2
+                        ERRORS=$((ERRORS + 1))
+                        continue
+                    }
+                ARTIFACT_SIG=$(base64 <"$DOWNLOAD_DIR/$ARTIFACT_NAME.asc" | tr -d '\n')
+            else
+                ARTIFACT_SIG=""
+            fi
 
-        [[ -n $SIZE && $SIZE != "null" ]] ||
-            {
-                echo "ERROR: Could not find asset '$ARTIFACT_NAME' in release $tag" >&2
+            if ! SIZE=$(gh release view "$tag" \
+                --repo "$REPO" \
+                --json assets \
+                --jq ".assets[] | select(.name == \"$ARTIFACT_NAME\") | .size"); then
+                echo "ERROR: Failed to fetch asset metadata for '$ARTIFACT_NAME' in release $tag for channel '$channel'" >&2
                 ERRORS=$((ERRORS + 1))
                 continue
-            }
+            fi
 
-        DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${tag}/${ARTIFACT_NAME}"
-        RELEASE_NOTES=$(gh release view "$tag" --repo "$REPO" --json body --jq '.body' 2>/dev/null || echo "")
+            [[ -n $SIZE && $SIZE != "null" ]] ||
+                {
+                    echo "ERROR: Could not find asset '$ARTIFACT_NAME' in release $tag" >&2
+                    ERRORS=$((ERRORS + 1))
+                    continue
+                }
+
+            DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${tag}/${ARTIFACT_NAME}"
+            RELEASE_NOTES=$(gh release view "$tag" --repo "$REPO" --json body --jq '.body' 2>/dev/null || echo "")
+
+        else
+            # ref = workflow run ID; artifacts live in GitHub Actions.
+            # macOS artifact name is fixed (no version); Linux includes the version.
+            run_id="$ref"
+            case "$OS_FAMILY" in
+            linux)
+                pkg_artifact_name="$ARTIFACT_NAME"
+                sha256_artifact_name="$ARTIFACT_NAME.sha256"
+                asc_artifact_name="$ARTIFACT_NAME.asc"
+                ;;
+            macos)
+                pkg_artifact_name="GnosisVPN-Installer.pkg"
+                sha256_artifact_name="GnosisVPN-Installer.pkg.sha256"
+                ;;
+            esac
+
+            # Fetch artifact metadata (id + size) for the package artifact.
+            ARTIFACT_META=$(gh api "repos/$REPO/actions/runs/$run_id/artifacts" \
+                --jq ".artifacts[] | select(.name == \"$pkg_artifact_name\")")
+            ARTIFACT_ID=$(echo "$ARTIFACT_META" | jq -r '.id')
+            SIZE=$(echo "$ARTIFACT_META" | jq -r '.size_in_bytes')
+
+            [[ -n $ARTIFACT_ID && $ARTIFACT_ID != "null" ]] ||
+                {
+                    echo "ERROR: Artifact '$pkg_artifact_name' not found in run $run_id for channel '$channel'" >&2
+                    ERRORS=$((ERRORS + 1))
+                    continue
+                }
+
+            gh run download "$run_id" \
+                --repo "$REPO" \
+                --name "$sha256_artifact_name" \
+                --dir "$DOWNLOAD_DIR" ||
+                {
+                    echo "ERROR: Failed to download $sha256_artifact_name for channel '$channel'" >&2
+                    ERRORS=$((ERRORS + 1))
+                    continue
+                }
+            SHA256=$(awk '{print $1}' "$DOWNLOAD_DIR/"*.sha256)
+
+            if [[ $HAS_GPG_SIG == "true" ]]; then
+                gh run download "$run_id" \
+                    --repo "$REPO" \
+                    --name "$asc_artifact_name" \
+                    --dir "$DOWNLOAD_DIR" ||
+                    {
+                        echo "ERROR: Failed to download $asc_artifact_name for channel '$channel'" >&2
+                        ERRORS=$((ERRORS + 1))
+                        continue
+                    }
+                ARTIFACT_SIG=$(base64 <"$DOWNLOAD_DIR/$ARTIFACT_NAME.asc" | tr -d '\n')
+            else
+                ARTIFACT_SIG=""
+            fi
+
+            DOWNLOAD_URL="https://api.github.com/repos/${REPO}/actions/artifacts/${ARTIFACT_ID}/zip"
+            RELEASE_NOTES=""
+        fi
 
         CHANNEL_ENTRY=$(jq -n \
             --arg version "$version" \
