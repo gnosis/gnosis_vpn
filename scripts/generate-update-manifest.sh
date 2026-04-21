@@ -17,13 +17,12 @@
 # Required environment variables:
 #   GNOSISVPN_GPG_PRIVATE_KEY_PATH      Path to the ASCII-armored GPG private key file
 #   GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD  Passphrase for the GPG private key
-#   GITHUB_REPOSITORY                   Owner/repo slug (e.g. "gnosis/gnosis_vpn")
 #   GH_TOKEN                            GitHub token with read access to releases
 #
 # Optional environment variables:
 #   OUTPUT_DIR            Where to write manifest JSON files (default: ./build/manifests)
 #   MIN_APP_VERSION       Minimum installed app version eligible for this update (default from config.sh)
-#   MIN_OS_VERSION_LINUX  Override minimum Linux version (default from config.sh)
+#   MIN_OS_VERSION_LINUX_UBUNTU  Override minimum Linux version (default from config.sh)
 #   MIN_OS_VERSION_MACOS  Override minimum macOS version (default from config.sh)
 #
 # Channel → data source mapping:
@@ -132,15 +131,14 @@ get_snapshot_run_info() {
 }
 
 # ---------------------------------------------------------------------------
-# Platform table: "manifest_name|artifact_template|os_family|default_min_os|has_gpg_sig"
+# Platform table: "manifest_name|artifact_template|os_family|default_min_os"
 # Use __VERSION__ as a placeholder for the version string.
-# has_gpg_sig: true for Linux (GPG-signed at build time); false for macOS
-#              (Apple notarization covers integrity there, no .asc produced).
+# Linux artifacts are GPG-signed; macOS relies on Apple notarization instead.
 # ---------------------------------------------------------------------------
 PLATFORMS=(
-    "linux-amd64|gnosisvpn___VERSION___amd64.deb|linux|${MIN_OS_LINUX}|true"
-    "linux-arm64|gnosisvpn___VERSION___arm64.deb|linux|${MIN_OS_LINUX}|true"
-    "macos-arm64|GnosisVPN-Installer-v__VERSION__.pkg|macos|${MIN_OS_MACOS}|false"
+    "linux-amd64|gnosisvpn___VERSION___amd64.deb|linux|${MIN_OS_LINUX_UBUNTU}"
+    "linux-arm64|gnosisvpn___VERSION___arm64.deb|linux|${MIN_OS_LINUX_UBUNTU}"
+    "macos-arm64|GnosisVPN-Installer-v__VERSION__.pkg|macos|${MIN_OS_MACOS}"
 )
 
 # ---------------------------------------------------------------------------
@@ -149,7 +147,7 @@ PLATFORMS=(
 
 GPG_KEY_PATH=$(require_env GNOSISVPN_GPG_PRIVATE_KEY_PATH)
 GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD=$(require_env GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD)
-REPO=$(require_env GITHUB_REPOSITORY)
+REPO="gnosis/gnosis_vpn"
 require_env GH_TOKEN >/dev/null
 
 CHANNELS="stable nightly snapshot"
@@ -194,10 +192,10 @@ echo "  -> actions run $run_id ($version) published $published_at"
 ERRORS=0
 
 for entry in "${PLATFORMS[@]}"; do
-    IFS='|' read -r MANIFEST_NAME ARTIFACT_TEMPLATE OS_FAMILY DEFAULT_MIN_OS HAS_GPG_SIG <<<"$entry"
+    IFS='|' read -r MANIFEST_NAME ARTIFACT_TEMPLATE OS_FAMILY DEFAULT_MIN_OS <<<"$entry"
 
     case "$OS_FAMILY" in
-    linux) MIN_OS="${MIN_OS_VERSION_LINUX:-$DEFAULT_MIN_OS}" ;;
+    linux) MIN_OS="${MIN_OS_VERSION_LINUX_UBUNTU:-$DEFAULT_MIN_OS}" ;;
     macos) MIN_OS="${MIN_OS_VERSION_MACOS:-$DEFAULT_MIN_OS}" ;;
     *) MIN_OS="$DEFAULT_MIN_OS" ;;
     esac
@@ -230,7 +228,7 @@ for entry in "${PLATFORMS[@]}"; do
                 }
             SHA256=$(awk '{print $1}' "$DOWNLOAD_DIR/$ARTIFACT_NAME.sha256")
 
-            if [[ $HAS_GPG_SIG == "true" ]]; then
+            if [[ $OS_FAMILY == "linux" ]]; then
                 gh release download "$tag" \
                     --repo "$REPO" \
                     --pattern "$ARTIFACT_NAME.asc" \
@@ -304,7 +302,7 @@ for entry in "${PLATFORMS[@]}"; do
                 }
             SHA256=$(awk '{print $1}' "$DOWNLOAD_DIR/"*.sha256)
 
-            if [[ $HAS_GPG_SIG == "true" ]]; then
+            if [[ $OS_FAMILY == "linux" ]]; then
                 gh run download "$run_id" \
                     --repo "$REPO" \
                     --name "$asc_artifact_name" \
