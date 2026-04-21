@@ -114,6 +114,9 @@ jobs:
     name: Build Linux ${{ matrix.nix }}
     if: needs.setup.outputs.SKIP_BUILDING != 'true'
     needs: setup
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -194,7 +197,6 @@ jobs:
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Setup GCP
         uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v3
-
         if: inputs.version_type == 'snapshot' || inputs.version_type == 'release' || inputs.version_type == 'commit'
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
@@ -210,6 +212,9 @@ jobs:
     runs-on: depot-macos-15
     name: Build Mac
     needs: setup
+    permissions:
+      contents: read
+      id-token: write
     if: needs.setup.outputs.SKIP_BUILDING != 'true'
     steps:
       - name: Checkout repository
@@ -272,7 +277,6 @@ jobs:
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Setup GCP
         uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v3
-
         if: inputs.version_type == 'snapshot' || inputs.version_type == 'release' || inputs.version_type == 'commit'
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
