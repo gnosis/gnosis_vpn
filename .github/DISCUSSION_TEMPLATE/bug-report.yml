@@ -9,28 +9,33 @@ body:
       value: |
         Please search for existing Discussions and Issues before opening a new one.
   - type: textarea
+    id: issue_description
     attributes:
       label: Issue Description
       description: Detailed description of the issue.
     validations:
       required: true
   - type: textarea
+    id: steps_to_reproduce
     attributes:
       label: Steps to Reproduce
       description: Clear steps to reproduce the behavior.
     validations:
       required: true
   - type: input
+    id: component
     attributes:
       label: Component
       description: Which part of Gnosis VPN is affected? (App, Client, Server, or Unknown)
   - type: textarea
+    id: environment
     attributes:
       label: Environment / Versions
       description: OS version, Gnosis VPN version, and other relevant environment details.
     validations:
       required: true
   - type: checkboxes
+    id: acknowledgement
     attributes:
       label: Acknowledgement
       options:
