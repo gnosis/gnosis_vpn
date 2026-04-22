@@ -57,7 +57,6 @@ validate_version() {
         die "Version '$version' does not match expected format: x.y.z or x.y.z+(pr|commit|build).<meta>"
 }
 
-
 # Returns "tag version published_at" for the latest stable GitHub release.
 get_stable_release_info() {
     local result
