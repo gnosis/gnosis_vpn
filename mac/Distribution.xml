@@ -2,7 +2,7 @@
 <installer-gui-script minSpecVersion="2">
     <title>Gnosis VPN</title>
     <allowed-os-versions>
-        <os-version min="14"/>
+        <os-version min="__MIN_OS_MACOS_MAJOR__"/>
     </allowed-os-versions>
     <organization>com.gnosisvpn</organization>
     <domains enable_anywhere="true"/>

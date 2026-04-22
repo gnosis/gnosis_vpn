@@ -1,0 +1,48 @@
+name: Update Manifests
+on:
+  workflow_run:
+    workflows:
+      - Close release
+      - Nightly Build
+    types:
+      - completed
+    branches:
+      - main
+concurrency:
+  group: update-manifests
+  cancel-in-progress: false
+jobs:
+  update_manifests:
+    runs-on: depot-ubuntu-22.04-4
+    name: Update Manifests
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup GCP
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v3
+        with:
+          google_credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
+          install_sdk: "true"
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+      - name: Generate update manifests
+        run: bash ./scripts/generate-update-manifest.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTPUT_DIR: ./build/manifests
+      - name: Sign manifests
+        uses: hoprnet/hopr-workflows/actions/sign-file@sign-file-v2
+        with:
+          path: ./build/manifests
+          gpg_private_key: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}
+          gpg_private_key_password: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
+      - name: Publish manifests to bucket
+        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
+        with:
+          path: ./build/manifests
+          destination: download.gnosisvpn.io/manifests
