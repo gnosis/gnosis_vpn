@@ -7,8 +7,8 @@
 #   2. Downloads the pre-computed .sha256 and (where available) .asc files.
 #   3. Reads size_bytes from the GitHub release asset metadata.
 #   4. Builds a manifest containing all channels.
-#   5. Signs the canonical manifest JSON with the GPG key (manifest_signature).
-#   6. Writes the result to OUTPUT_DIR.
+#   5. Signs the canonical manifest JSON with the GPG key; writes a detached .asc signature.
+#   6. Writes the manifest JSON and its .asc signature file to OUTPUT_DIR.
 #
 # The .sha256 and .asc files are produced at build time and are the authoritative
 # values — this script never re-downloads or re-hashes the full artifact.
@@ -61,19 +61,17 @@ validate_version() {
 }
 
 # Sign the canonical (sorted-keys, compact) JSON of a manifest body.
-sign_json_body() {
+# Writes a detached ASCII-armored GPG signature to sig_path.
+sign_json_to_file() {
     local json="$1"
-    local tmp signature
+    local sig_path="$2"
+    local tmp
     tmp=$(mktemp)
     printf '%s' "$(echo "$json" | jq -cS .)" >"$tmp"
-    signature=$(
-        printf '%s\n' "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" |
-            gpg --batch --pinentry-mode loopback --passphrase-fd 0 \
-                --detach-sign --output - "$tmp" |
-            base64 | tr -d '\n'
-    )
+    printf '%s\n' "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" |
+        gpg --batch --pinentry-mode loopback --passphrase-fd 0 \
+            --armor --detach-sign --output "$sig_path" "$tmp"
     rm -f "$tmp"
-    printf '%s' "$signature"
 }
 
 # Returns "tag version published_at" for the latest stable GitHub release.
@@ -353,15 +351,14 @@ for entry in "${PLATFORMS[@]}"; do
         --argjson channels "$CHANNELS_JSON" \
         '{schema_version: $schema_version, generated_at: $generated_at, channels: $channels}')
 
-    MANIFEST_SIG=$(sign_json_body "$BODY")
-
     OUT_PATH="$OUTPUT_DIR/$MANIFEST_NAME.json"
-    echo "$BODY" |
-        jq --arg manifest_signature "$MANIFEST_SIG" \
-            '. + {manifest_signature: $manifest_signature}' \
-            >"$OUT_PATH"
+    SIG_PATH="$OUTPUT_DIR/$MANIFEST_NAME.json.asc"
+
+    echo "$BODY" >"$OUT_PATH"
+    sign_json_to_file "$BODY" "$SIG_PATH"
 
     echo "  Written: $OUT_PATH"
+    echo "  Written: $SIG_PATH"
 done
 
 [[ $ERRORS -eq 0 ]] || die "$ERRORS error(s) during manifest generation."
