@@ -6,6 +6,9 @@ on:
       - synchronize
       - reopened
       - ready_for_review
+permissions:
+  contents: read
+  id-token: write
 concurrency:
   group: pr-${{ github.event.pull_request.head.ref || github.ref }}
   cancel-in-progress: false
