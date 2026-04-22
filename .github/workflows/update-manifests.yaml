@@ -35,22 +35,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           OUTPUT_DIR: ./build/manifests
-      - name: Sign manifest linux-amd64
+      - name: Sign manifests
         uses: hoprnet/hopr-workflows/actions/sign-file@sign-file-v2
         with:
-          path: ./build/manifests/linux-amd64.json
-          gpg_private_key: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}
-          gpg_private_key_password: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
-      - name: Sign manifest linux-arm64
-        uses: hoprnet/hopr-workflows/actions/sign-file@sign-file-v2
-        with:
-          path: ./build/manifests/linux-arm64.json
-          gpg_private_key: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}
-          gpg_private_key_password: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
-      - name: Sign manifest macos-arm64
-        uses: hoprnet/hopr-workflows/actions/sign-file@sign-file-v2
-        with:
-          path: ./build/manifests/macos-arm64.json
+          path: ./build/manifests
           gpg_private_key: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}
           gpg_private_key_password: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
       - name: Publish manifests to bucket
