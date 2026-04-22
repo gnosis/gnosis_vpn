@@ -270,7 +270,6 @@ jobs:
           echo "destination=${destination}" | tee -a "$GITHUB_OUTPUT"
           cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg ./build/${destination}/gnosisvpn_arm64.pkg
           cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256 ./build/${destination}/gnosisvpn_arm64.pkg.sha256
-
       - name: Publish into Google Artifact registry
         if: inputs.version_type != 'snapshot'
         uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@upload-artifact-registry-v2
