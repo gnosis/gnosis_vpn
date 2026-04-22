@@ -114,6 +114,9 @@ jobs:
     name: Build Linux ${{ matrix.nix }}
     if: needs.setup.outputs.SKIP_BUILDING != 'true'
     needs: setup
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -176,33 +179,43 @@ jobs:
       - name: Prepare files for upload
         id: prepare_files
         run: |
-          mkdir -p ./build/bucket
-          cp ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }} ./build/bucket/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}
-          cp ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc ./build/bucket/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc
-          cp ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256 ./build/bucket/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
-          if [[ "${{ inputs.version_type }}" == "snapshot" ]]; then
-            echo "destination=download.gnosisvpn.io/latest" | tee -a "$GITHUB_OUTPUT"
+          if [[ "${{ inputs.version_type }}" == "release" ]]; then
+            destination="stable"
           else
-            echo "destination=download.gnosisvpn.io/stable" | tee -a "$GITHUB_OUTPUT"
+            destination="latest"
           fi
+          mkdir -p ./build/${destination}
+          echo "destination=${destination}" | tee -a "$GITHUB_OUTPUT"
+          cp ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }} ./build/${destination}/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}
+          cp ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc ./build/${destination}/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc
+          cp ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256 ./build/${destination}/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
       - name: Publish into Google Artifact registry
         if: inputs.version_type != 'snapshot'
         uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@upload-artifact-registry-v2
         with:
-          source: ./build/bucket
+          source: ./build/${{ steps.prepare_files.outputs.destination }}
           package: gnosis_vpn
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
-          # - name: Publish into bucket
-          #   if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
-          #   uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
-          #   with:
-          #     path: ./build/bucket
-          #     destination: ${{ steps.prepare_files.outputs.destination }}
+      - name: Setup GCP
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v3
+        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
+        with:
+          workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
+          service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
+      - name: Publish into bucket
+        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
+        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
+        with:
+          path: ./build/${{ steps.prepare_files.outputs.destination }}
+          destination: download.gnosisvpn.io
           ## TODO Publish into IPFS as well
   mac:
     runs-on: depot-macos-15
     name: Build Mac
     needs: setup
+    permissions:
+      contents: read
+      id-token: write
     if: needs.setup.outputs.SKIP_BUILDING != 'true'
     steps:
       - name: Checkout repository
@@ -248,25 +261,32 @@ jobs:
       - name: Prepare files for upload
         id: prepare_files
         run: |
-          mkdir -p ./build/bucket
-          cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg ./build/bucket/gnosisvpn_arm64.pkg
-          cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256 ./build/bucket/gnosisvpn_arm64.pkg.sha256
-          if [[ "${{ inputs.version_type }}" == "snapshot" ]]; then
-            echo "destination=download.gnosisvpn.io/latest" | tee -a "$GITHUB_OUTPUT"
+          if [[ "${{ inputs.version_type }}" == "release" ]]; then
+            destination="stable"
           else
-            echo "destination=download.gnosisvpn.io/stable" | tee -a "$GITHUB_OUTPUT"
+            destination="latest"
           fi
+          mkdir -p ./build/${destination}
+          echo "destination=${destination}" | tee -a "$GITHUB_OUTPUT"
+          cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg ./build/${destination}/gnosisvpn_arm64.pkg
+          cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256 ./build/${destination}/gnosisvpn_arm64.pkg.sha256
       - name: Publish into Google Artifact registry
         if: inputs.version_type != 'snapshot'
         uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@upload-artifact-registry-v2
         with:
-          source: ./build/bucket
+          source: ./build/${{ steps.prepare_files.outputs.destination }}
           package: gnosis_vpn
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
-          # - name: Publish into bucket
-          #   if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
-          #   uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
-          #   with:
-          #     path: ./build/bucket
-          #     destination: ${{ steps.prepare_files.outputs.destination }}
+      - name: Setup GCP
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v3
+        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
+        with:
+          workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
+          service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
+      - name: Publish into bucket
+        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
+        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
+        with:
+          path: ./build/${{ steps.prepare_files.outputs.destination }}
+          destination: download.gnosisvpn.io
     ## TODO Publish into IPFS as well
