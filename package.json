@@ -1,6 +1,6 @@
 {
   "name": "gnosis-vpn",
-  "version": "0.78.0",
+  "version": "0.78.1",
   "description": "Binary artifacts and installer generation scripts that compose the Gnosis VPN project",
   "license": "LGPL-3.0"
 }
