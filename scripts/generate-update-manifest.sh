@@ -7,17 +7,14 @@
 #   2. Downloads the pre-computed .sha256 and (where available) .asc files.
 #   3. Reads size_bytes from the GitHub release asset metadata.
 #   4. Builds a manifest containing all channels.
-#   5. Signs the canonical manifest JSON with the GPG key; writes a detached .asc signature.
-#   6. Writes the manifest JSON and its .asc signature file to OUTPUT_DIR.
+#   5. Writes the manifest JSON to OUTPUT_DIR.
 #
 # The .sha256 and .asc files are produced at build time and are the authoritative
 # values — this script never re-downloads or re-hashes the full artifact.
 # Verification uses the public key committed to the repo: gnosisvpn-public-key.asc
 #
 # Required environment variables:
-#   GNOSISVPN_GPG_PRIVATE_KEY_PATH      Path to the ASCII-armored GPG private key file
-#   GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD  Passphrase for the GPG private key
-#   GH_TOKEN                            GitHub token with read access to releases
+#   GH_TOKEN  GitHub token with read access to releases
 #
 # Optional environment variables:
 #   OUTPUT_DIR            Where to write manifest JSON files (default: ./build/manifests)
@@ -60,19 +57,6 @@ validate_version() {
         die "Version '$version' does not match expected format: x.y.z or x.y.z+(pr|commit|build).<meta>"
 }
 
-# Sign the canonical (sorted-keys, compact) JSON of a manifest body.
-# Writes a detached ASCII-armored GPG signature to sig_path.
-sign_json_to_file() {
-    local json="$1"
-    local sig_path="$2"
-    local tmp
-    tmp=$(mktemp)
-    printf '%s' "$(echo "$json" | jq -cS .)" >"$tmp"
-    printf '%s\n' "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" |
-        gpg --batch --pinentry-mode loopback --passphrase-fd 0 \
-            --armor --detach-sign --output "$sig_path" "$tmp"
-    rm -f "$tmp"
-}
 
 # Returns "tag version published_at" for the latest stable GitHub release.
 get_stable_release_info() {
@@ -144,8 +128,6 @@ PLATFORMS=(
 # Main
 # ---------------------------------------------------------------------------
 
-GPG_KEY_PATH=$(require_env GNOSISVPN_GPG_PRIVATE_KEY_PATH)
-GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD=$(require_env GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD)
 REPO="gnosis/gnosis_vpn"
 require_env GH_TOKEN >/dev/null
 
@@ -156,15 +138,8 @@ GENERATED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 mkdir -p "$OUTPUT_DIR"
 
-# Import the GPG key into a temporary keyring; cleaned up on exit.
-GNUPGHOME=$(mktemp -d)
-export GNUPGHOME
 DOWNLOAD_DIRS=()
-trap 'rm -rf "$GNUPGHOME" "${DOWNLOAD_DIRS[@]}"' EXIT
-
-printf '%s\n' "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" |
-    gpg --batch --pinentry-mode loopback --passphrase-fd 0 \
-        --import "$GPG_KEY_PATH"
+trap 'rm -rf "${DOWNLOAD_DIRS[@]}"' EXIT
 
 # ---------------------------------------------------------------------------
 # Step 1: resolve each channel.
@@ -352,13 +327,8 @@ for entry in "${PLATFORMS[@]}"; do
         '{schema_version: $schema_version, generated_at: $generated_at, channels: $channels}')
 
     OUT_PATH="$OUTPUT_DIR/$MANIFEST_NAME.json"
-    SIG_PATH="$OUTPUT_DIR/$MANIFEST_NAME.json.asc"
-
     echo "$BODY" >"$OUT_PATH"
-    sign_json_to_file "$BODY" "$SIG_PATH"
-
     echo "  Written: $OUT_PATH"
-    echo "  Written: $SIG_PATH"
 done
 
 [[ $ERRORS -eq 0 ]] || die "$ERRORS error(s) during manifest generation."

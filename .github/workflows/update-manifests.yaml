@@ -26,10 +26,6 @@ jobs:
         with:
           google_credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
           install_sdk: "true"
-      - name: Setup GPG key for signing
-        run: |
-          echo "${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}" > /tmp/gnosis_vpn_gpg_key.asc
-          chmod 600 /tmp/gnosis_vpn_gpg_key.asc
       - name: Install GitHub CLI
         run: |
           sudo apt-get update
@@ -37,10 +33,26 @@ jobs:
       - name: Generate update manifests
         run: bash ./scripts/generate-update-manifest.sh
         env:
-          GNOSISVPN_GPG_PRIVATE_KEY_PATH: /tmp/gnosis_vpn_gpg_key.asc
-          GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
           GH_TOKEN: ${{ github.token }}
           OUTPUT_DIR: ./build/manifests
+      - name: Sign manifest linux-amd64
+        uses: hoprnet/hopr-workflows/actions/sign-file@sign-file-v2
+        with:
+          path: ./build/manifests/linux-amd64.json
+          gpg_private_key: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}
+          gpg_private_key_password: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
+      - name: Sign manifest linux-arm64
+        uses: hoprnet/hopr-workflows/actions/sign-file@sign-file-v2
+        with:
+          path: ./build/manifests/linux-arm64.json
+          gpg_private_key: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}
+          gpg_private_key_password: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
+      - name: Sign manifest macos-arm64
+        uses: hoprnet/hopr-workflows/actions/sign-file@sign-file-v2
+        with:
+          path: ./build/manifests/macos-arm64.json
+          gpg_private_key: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}
+          gpg_private_key_password: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
       - name: Publish manifests to bucket
         uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:
