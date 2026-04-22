@@ -179,10 +179,10 @@ jobs:
       - name: Prepare files for upload
         id: prepare_files
         run: |
-          if [[ "${{ inputs.version_type }}" == "snapshot" ]]; then
-            destination="latest"
-          else
+          if [[ "${{ inputs.version_type }}" == "release" ]]; then
             destination="stable"
+          else
+            destination="latest"
           fi
           mkdir -p ./build/${destination}
           echo "destination=${destination}" | tee -a "$GITHUB_OUTPUT"
@@ -198,12 +198,12 @@ jobs:
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Setup GCP
         uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v3
-        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release' || inputs.version_type == 'commit'
+        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
       - name: Publish into bucket
-        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release' || inputs.version_type == 'commit'
+        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:
           path: ./build/${{ steps.prepare_files.outputs.destination }}
@@ -261,10 +261,10 @@ jobs:
       - name: Prepare files for upload
         id: prepare_files
         run: |
-          if [[ "${{ inputs.version_type }}" == "snapshot" ]]; then
-            destination="latest"
-          else
+          if [[ "${{ inputs.version_type }}" == "release" ]]; then
             destination="stable"
+          else
+            destination="latest"
           fi
           mkdir -p ./build/${destination}
           echo "destination=${destination}" | tee -a "$GITHUB_OUTPUT"
@@ -279,12 +279,12 @@ jobs:
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Setup GCP
         uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v3
-        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release' || inputs.version_type == 'commit'
+        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
       - name: Publish into bucket
-        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release' || inputs.version_type == 'commit'
+        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:
           path: ./build/${{ steps.prepare_files.outputs.destination }}
