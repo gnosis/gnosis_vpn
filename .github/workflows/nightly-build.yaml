@@ -5,6 +5,9 @@ on:
     types: [snapshot_build]
   schedule:
     - cron: '0 2 * * *' # Runs every day at 2 AM UTC
+permissions:
+  contents: read
+  id-token: write
 concurrency:
   group: nightly-build
   cancel-in-progress: false
