@@ -6,7 +6,7 @@ This repository collects the binary artifacts that compose the Gnosis VPN projec
 
 ### Debian / Ubuntu
 
-Download packages from [releases](https://github.com/gnosis/gnosis_vpn/releases):
+Download packages from [releases](../releases):
 
 - Main package (`.deb`)
 - SHA256 checksum (`.sha256`)
@@ -42,10 +42,10 @@ requests.
 
 ### How to report an issue
 
-1. Search existing [Discussions](https://github.com/gnosis/gnosis_vpn/discussions) and
-   [Issues](https://github.com/gnosis/gnosis_vpn/issues) to see if your topic is already covered.
+1. Search existing [Discussions](../discussions) and
+   [Issues](../issues) to see if your topic is already covered.
 2. If not, start a new Discussion in the
-   [Issues & Bug Reports](https://github.com/gnosis/gnosis_vpn/discussions/new?category=issues-bug-reports) category.
+   [Issues & Bug Reports](../discussions/new?category=issues-bug-reports) category.
 3. Provide as much detail as possible using the provided template.
 
 The team will review all discussions and promote confirmed bugs or planned features to actionable issues.
