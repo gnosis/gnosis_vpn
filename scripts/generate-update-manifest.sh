@@ -176,8 +176,7 @@ for entry in "${PLATFORMS[@]}"; do
         GCS_URL="${GCS_BASE_URL}/${gcs_prefix}/${GCS_ARTIFACT}"
         echo "  [$channel] Fetching metadata from ${GCS_URL} ..."
 
-        SIZE=$(curl -skI "$GCS_URL" |
-            grep -i '^content-length:' | awk '{print $2}' | tr -d '\r' || true)
+        SIZE=$(curl -skfL -o /dev/null -w "%{size_download}" "$GCS_URL" || true)
         [[ -n $SIZE ]] ||
             {
                 echo "ERROR: Could not determine size of '${GCS_ARTIFACT}' from ${GCS_URL}" >&2
