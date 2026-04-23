@@ -1,6 +1,5 @@
-# Collect structured data from users to minimize follow-up questions
-name: Bug report
-description: Report a bug or unexpected behavior for triage.
+title: "[Bug]: "
+labels: ["needs-triage"]
 body:
   - type: markdown
     attributes:
@@ -20,11 +19,6 @@ body:
       description: Clear steps to reproduce the behavior.
     validations:
       required: true
-  - type: input
-    id: component
-    attributes:
-      label: Component
-      description: Which part of Gnosis VPN is affected? (App, Client, Server, or Unknown)
   - type: textarea
     id: environment
     attributes:
