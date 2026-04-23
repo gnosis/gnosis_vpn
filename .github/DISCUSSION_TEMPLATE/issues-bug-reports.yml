@@ -1,8 +1,6 @@
 # Collect structured data from users to minimize follow-up questions
 name: Bug report
 description: Report a bug or unexpected behavior for triage.
-title: "[Bug]: "
-labels: ["needs-triage"]
 body:
   - type: markdown
     attributes:
