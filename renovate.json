@@ -1,13 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    "helpers:pinGitHubActionDigestsToSemver"
-  ],
+  "extends": ["config:recommended", "schedule:earlyMondays"],
+  "pinDigests": true,
   "prCreation": "not-pending",
-  "vulnerabilityAlerts": {
-    "enabled": true
-  },
   "semanticCommits": "enabled",
   "rangeStrategy": "bump",
   "minimumReleaseAge": "14 days",
@@ -17,9 +12,8 @@
   "packageRules": [
     {
       "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "github-actions (non-major)",
-      "automerge": false
+      "groupName": "github-actions",
+      "commitMessageTopic": "GitHub Actions"
     },
     {
       "matchManagers": ["nix"],
