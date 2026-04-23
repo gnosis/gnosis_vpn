@@ -23,7 +23,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v3
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@621619750f6772109d7840a7013135c212925d58 # setup-gcp-v3
         with:
           google_credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
           install_sdk: "true"
@@ -37,7 +37,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           OUTPUT_DIR: ./build/manifests
       - name: Sign manifests
-        uses: hoprnet/hopr-workflows/actions/sign-file@sign-file-v2
+        uses: hoprnet/hopr-workflows/actions/sign-file@7bfd6309e663ce6f3a80b3f5a8a2eb4ae9d20108 # sign-file-v2
         with:
           path: ./build/manifests
           gpg_private_key: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}
