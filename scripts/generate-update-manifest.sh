@@ -23,6 +23,7 @@
 #   MIN_OS_VERSION_MACOS         Override minimum macOS version (default from config.sh)
 
 set -euo pipefail
+set -x
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/config.sh"
