@@ -42,10 +42,9 @@ requests.
 
 ### How to report an issue
 
-1. Search existing [Discussions](../../discussions) and
-   [Issues](../../issues) to see if your topic is already covered.
-2. If not, start a new Discussion in the
-   [Issues & Bug Reports](../../discussions/new?category=issues-bug-reports) category.
+1. Search existing [Discussions](../../discussions) and [Issues](../../issues) to see if your topic is already covered.
+2. If not, start a new Discussion in the [Issues & Bug Reports](../../discussions/new?category=issues-bug-reports)
+   category.
 3. Provide as much detail as possible using the provided template.
 
 The team will review all discussions and promote confirmed bugs or planned features to actionable issues.
