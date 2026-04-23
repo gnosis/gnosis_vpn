@@ -1,5 +1,6 @@
 name: Update Manifests
 on:
+  workflow_dispatch:
   workflow_run:
     workflows:
       - Close release
