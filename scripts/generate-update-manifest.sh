@@ -176,7 +176,7 @@ for entry in "${PLATFORMS[@]}"; do
         echo "  [$channel] Fetching metadata from ${GCS_URL} ..."
 
         SIZE=$(curl -skI "$GCS_URL" |
-            grep -i '^content-length:' | awk '{print $2}' | tr -d '\r')
+            grep -i '^content-length:' | awk '{print $2}' | tr -d '\r' || true)
         [[ -n $SIZE ]] ||
             {
                 echo "ERROR: Could not determine size of '${GCS_ARTIFACT}' from ${GCS_URL}" >&2
@@ -184,7 +184,7 @@ for entry in "${PLATFORMS[@]}"; do
                 continue
             }
 
-        SHA256=$(curl -sk "${GCS_URL}.sha256" | awk '{print $1}')
+        SHA256=$(curl -skf "${GCS_URL}.sha256" | awk '{print $1}' || true)
         [[ -n $SHA256 ]] ||
             {
                 echo "ERROR: Could not fetch sha256 for '${GCS_ARTIFACT}' from ${GCS_URL}.sha256" >&2
@@ -193,7 +193,7 @@ for entry in "${PLATFORMS[@]}"; do
             }
 
         if [[ $OS_FAMILY == "linux" ]]; then
-            ARTIFACT_SIG=$(curl -sk "${GCS_URL}.asc" | base64 | tr -d '\n')
+            ARTIFACT_SIG=$(curl -skf "${GCS_URL}.asc" | base64 | tr -d '\n' || true)
             [[ -n $ARTIFACT_SIG ]] ||
                 {
                     echo "ERROR: Could not fetch signature for '${GCS_ARTIFACT}' from ${GCS_URL}.asc" >&2
