@@ -6,7 +6,7 @@ This repository collects the binary artifacts that compose the Gnosis VPN projec
 
 ### Debian / Ubuntu
 
-Download packages from [releases](../releases):
+Download packages from [releases](../../releases):
 
 - Main package (`.deb`)
 - SHA256 checksum (`.sha256`)
