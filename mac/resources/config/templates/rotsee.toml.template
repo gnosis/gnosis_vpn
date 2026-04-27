@@ -12,5 +12,5 @@ path = { intermediates = [ "0x8c29d1584f795d07ac5f04a79e64611867f1e704" ] } # St
 
 [destinations.India]
 address = "0x7f25c474f26488b2e29343c881f0cdc0e6d02abd" # Mumbai
-meta = { location = "London" }
+meta = { location = "Mumbai" }
 path = { intermediates = [ "0x3943444600316d6383f0178d06b2803817f4a587" ] } # Delhi
