@@ -298,18 +298,16 @@ function extractChangelogType(title: string): string {
 function zulipFormat(
   entries: ChangelogEntry[],
 ): string {
-  let content = "A new snapshot build is available with the following updates:\n\n";
+  let content = "A new snapshot build is available for testing with the following new content:\n\n";
 
   for (const entry of entries) {
     content +=
       `- [#${entry.id}](https://github.com/${entry.repository}/pull/${entry.id}) [${entry.component}] ${entry.title} by ${entry.author}\n`;
   }
-  content += "\nDownload latest snapshot from here:\n";
-  content += "- [GnosisVPN Mac](https://download.gnosisvpn.io/latest/gnosisvpn_arm64.pkg)\n";
-  content += "- [GnosisVPN Debian x86_64](https://download.gnosisvpn.io/latest/gnosisvpn_amd64.deb)\n";
-  content += "- [GnosisVPN Debian aarch64](https://download.gnosisvpn.io/latest/gnosisvpn_arm64.deb)\n";
-  content += "\nPlease note that this is a snapshot release intended for testing and may contain unstable features.\n";
-  content += "Enjoy testing the latest features and improvements!\n";
+  content += "\nDownload links:";
+  content += " [Mac](https://download.gnosisvpn.io/latest/gnosisvpn_arm64.pkg) |";
+  content += " [Debian x86_64](https://download.gnosisvpn.io/latest/gnosisvpn_amd64.deb) |";
+  content += " [Debian aarch64](https://download.gnosisvpn.io/latest/gnosisvpn_arm64.deb)\n";
   return content;
 }
 
@@ -777,7 +775,7 @@ Deno.test("getUrgencyLevel - medium for stable patches", () => {
 
 // --- zulipFormat ---
 
-Deno.test("zulipFormat formats nightly snapshot entries and download links", () => {
+Deno.test("zulipFormat formats snapshot entries and download links", () => {
   const output = zulipFormat([
     {
       id: "123",
