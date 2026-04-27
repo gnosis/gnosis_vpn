@@ -81,7 +81,7 @@ get_nightly_run_info() {
 
     run_id=$(gh run list \
         --repo "$REPO" \
-        --workflow "nightly-build.yaml" \
+        --workflow "snapshot-build.yaml" \
         --branch main \
         --status success \
         --limit 1 \
