@@ -11,7 +11,7 @@
 #
 # Channel → GCS path mapping:
 #   stable   → download.gnosisvpn.io/stable/
-#   nightly  → download.gnosisvpn.io/latest/
+#   snapshot → download.gnosisvpn.io/latest/
 #
 # Required environment variables:
 #   GH_TOKEN  GitHub token with read access to releases
@@ -48,7 +48,7 @@ require_env() {
 validate_version() {
     local version="$1"
     # Mirrors check_version_syntax in scripts/common.sh — covers stable (x.y.z),
-    # date-based nightly builds (YYYY.MM.DD+build.HHMMSS), and PR/commit builds.
+    # date-based snapshot builds (YYYY.MM.DD+build.HHMMSS), and PR/commit builds.
     local semver_regex='^[0-9]+\.[0-9]+\.[0-9]+(\+(pr|commit|build)(\.[0-9A-Za-z-]+)*)?$'
     [[ $version =~ $semver_regex ]] ||
         die "Version '$version' does not match expected format: x.y.z or x.y.z+(pr|commit|build).<meta>"
@@ -74,9 +74,9 @@ get_stable_release_info() {
     echo "$tag $version $published_at"
 }
 
-# Returns "version published_at" for the latest successful nightly build.
+# Returns "version published_at" for the latest successful snapshot build.
 # Version is extracted from the Linux amd64 artifact name, which embeds the build timestamp.
-get_nightly_run_info() {
+get_snapshot_run_info() {
     local run_id published_at version
 
     run_id=$(gh run list \
@@ -89,7 +89,7 @@ get_nightly_run_info() {
         --jq '.[0].databaseId')
 
     [[ -n $run_id && $run_id != "null" ]] ||
-        die "No successful nightly-build workflow run found."
+        die "No successful snapshot-build workflow run found."
 
     published_at=$(gh run view "$run_id" \
         --repo "$REPO" \
@@ -127,7 +127,7 @@ PLATFORMS=(
 REPO="gnosis/gnosis_vpn"
 require_env GH_TOKEN >/dev/null
 
-CHANNELS="stable nightly"
+CHANNELS="stable snapshot"
 OUTPUT_DIR="${OUTPUT_DIR:-./build/manifests}"
 
 GENERATED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -138,7 +138,7 @@ mkdir -p "$OUTPUT_DIR"
 # Step 1: resolve each channel.
 #   CHANNEL_DATA stores "gcs_prefix ref version published_at" where:
 #     gcs_prefix = GCS path component ("stable" or "latest")
-#     ref        = git tag (stable, used for release notes) or "-" (nightly)
+#     ref        = git tag (stable, used for release notes) or "-" (snapshot)
 # ---------------------------------------------------------------------------
 declare -A CHANNEL_DATA
 
@@ -147,9 +147,9 @@ read -r tag version published_at <<<"$(get_stable_release_info)"
 CHANNEL_DATA["stable"]="stable $tag $version $published_at"
 echo "  -> $tag ($version) published $published_at"
 
-echo "Resolving nightly channel ..."
-read -r version published_at <<<"$(get_nightly_run_info)"
-CHANNEL_DATA["nightly"]="latest - $version $published_at"
+echo "Resolving snapshot channel ..."
+read -r version published_at <<<"$(get_snapshot_run_info)"
+CHANNEL_DATA["snapshot"]="latest - $version $published_at"
 echo "  -> ($version) published $published_at"
 
 # ---------------------------------------------------------------------------
@@ -172,6 +172,13 @@ for entry in "${PLATFORMS[@]}"; do
 
     for channel in $CHANNELS; do
         read -r gcs_prefix ref version published_at <<<"${CHANNEL_DATA[$channel]}"
+
+        [[ -n $version ]] ||
+            die "[$channel] version is empty — cannot build manifest."
+        [[ -n $published_at ]] ||
+            die "[$channel] published_at is empty — cannot build manifest."
+        [[ -n $gcs_prefix ]] ||
+            die "[$channel] GCS prefix is empty — cannot build manifest."
 
         GCS_URL="${GCS_BASE_URL}/${gcs_prefix}/${GCS_ARTIFACT}"
         echo "  [$channel] Fetching metadata from ${GCS_URL} ..."
