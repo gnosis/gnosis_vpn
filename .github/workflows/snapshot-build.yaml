@@ -4,7 +4,7 @@ on:
   repository_dispatch:
     types: [snapshot_build]
   schedule:
-    - cron: '0 5 * * *' # Runs every day at 5 AM UTC
+    - cron: '0 1 * * *' # Runs every day at 1 AM UTC. Please note that GitHub Actions delays scheduled workflows by up to 3 hour, so the actual execution time may vary.
 permissions:
   contents: read
   id-token: write
