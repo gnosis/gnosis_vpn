@@ -24,56 +24,61 @@ You can import the GnosisVPN public key using any of these methods:
 **From keyserver:**
 
 ```bash
-gpg --keyserver keyserver.ubuntu.com --recv-keys 84F73FEA46D10972
+gpg --keyserver keyserver.ubuntu.com --recv-keys 9A308031FD3BFE8EDBF5076D84F73FEA46D10972
+echo "9A308031FD3BFE8EDBF5076D84F73FEA46D10972:6:" | gpg --import-ownertrust
 ```
 
 **From this repository:**
 
 ```bash
-curl -O https://raw.githubusercontent.com/gnosis/gnosis_vpn/main/gnosis-vpn-public-key.asc
-gpg --import gnosis-vpn-public-key.asc
+curl -s -O https://raw.githubusercontent.com/gnosis/gnosis_vpn/main/gnosisvpn-public-key.asc
+gpg --import gnosisvpn-public-key.asc
 ```
 
 **From release assets:**
 
-Download `gnosis-vpn-public-key.asc` from any release and import:
+Download `gnosisvpn-public-key.asc` from any release and import:
 
 ```bash
-gpg --import gnosis-vpn-public-key.asc
+gpg --import gnosisvpn-public-key.asc
 ```
 
 ### Verifying Package Signatures
 
 Each Linux release includes three files per package:
 
-1. **Package file** (e.g., `gnosis_vpn-x86_64-linux.deb`)
-2. **SHA256 checksum** (e.g., `gnosis_vpn-x86_64-linux.deb.sha256`)
-3. **GPG signature** (e.g., `gnosis_vpn-x86_64-linux.deb.asc`)
+1. **Package file** (e.g., `gnosisvpn-amd64.deb`)
+2. **SHA256 checksum** (e.g., `gnosisvpn-amd64.deb.sha256`)
+3. **GPG signature** (e.g., `gnosisvpn-amd64.deb.asc`)
 
 #### Verify SHA256 Checksum
 
 ```bash
-sha256sum -c gnosis_vpn-x86_64-linux.deb.sha256
+sha256sum -c gnosisvpn-amd64.deb.sha256
 ```
 
 Expected output:
 
 ```
-gnosis_vpn-x86_64-linux.deb: OK
+gnosisvpn-amd64.deb: OK
 ```
 
 #### Verify GPG Signature
 
 ```bash
-gpg --verify gnosis_vpn-x86_64-linux.deb.asc gnosis_vpn-x86_64-linux.deb
+gpg --verify gnosisvpn-amd64.deb.asc gnosisvpn-amd64.deb
 ```
 
 Expected output:
 
 ```
-gpg: Signature made [date]
+gpg: Signature made Mon May  4 12:25:22 2026 CEST
 gpg:                using EDDSA key 9A308031FD3BFE8EDBF5076D84F73FEA46D10972
-gpg: Good signature from "GnosisVPN <tech@hoprnet.org>"
+gpg: checking the trustdb
+gpg: marginals needed: 3  completes needed: 1  trust model: pgp
+gpg: depth: 0  valid:   1  signed:   0  trust: 0-, 0q, 0n, 0m, 0f, 1u
+gpg: next trustdb check due at 2075-11-23
+gpg: Good signature from "GnosisVPN (Gnosis VPN) <tech@hoprnet.org>" [ultimate]
 ```
 
 #### Verify Embedded Package Signatures
@@ -81,29 +86,7 @@ gpg: Good signature from "GnosisVPN <tech@hoprnet.org>"
 **Debian/Ubuntu packages:**
 
 ```bash
-dpkg-sig --verify gnosis_vpn-x86_64-linux.deb
-```
-
-### Complete Verification Example (Linux)
-
-```bash
-# Download all files (example for Debian package)
-PACKAGE="gnosis_vpn-x86_64-linux.deb"
-wget https://github.com/gnosis/gnosis_vpn/releases/latest/download/${PACKAGE}
-wget https://github.com/gnosis/gnosis_vpn/releases/latest/download/${PACKAGE}.sha256
-wget https://github.com/gnosis/gnosis_vpn/releases/latest/download/${PACKAGE}.asc
-
-# Import public key (first time only)
-gpg --keyserver keyserver.ubuntu.com --recv-keys 84F73FEA46D10972
-
-# Verify checksum
-sha256sum -c ${PACKAGE}.sha256
-
-# Verify signature
-gpg --verify ${PACKAGE}.asc ${PACKAGE}
-
-# If both checks pass, install
-sudo apt install ./${PACKAGE}
+dpkg-sig --verify gnosisvpn-amd64.deb
 ```
 
 ## macOS Package Verification
@@ -115,27 +98,25 @@ automatically during installation.
 
 Each macOS release includes a SHA256 checksum file for manual verification:
 
-```bash
-# Download the package and checksum
-PACKAGE="GnosisVPN-Installer-v1.2.3.pkg"
-curl -LO https://github.com/gnosis/gnosis_vpn/releases/download/v1.2.3/${PACKAGE}
-curl -LO https://github.com/gnosis/gnosis_vpn/releases/download/v1.2.3/${PACKAGE}.sha256
+Download the package and checksum from the release page https://github.com/gnosis/gnosis_vpn/releases
 
+
+```bash
 # Verify checksum
-shasum -a 256 -c ${PACKAGE}.sha256
+shasum -a 256 -c gnosisvpn-arm64.pkg.sha256
 ```
 
 Expected output:
 
 ```
-GnosisVPN-Installer-v1.2.3.pkg: OK
+gnosisvpn-arm64.pkg: OK
 ```
 
 ### Verify Code Signature (macOS)
 
 ```bash
 # Verify installer package signature
-pkgutil --check-signature GnosisVPN-Installer-v1.2.3.pkg
+pkgutil --check-signature gnosisvpn-arm64.pkg
 
 # After installation, verify app signature
 codesign --verify --deep --strict /Applications/Gnosis\ VPN.app
