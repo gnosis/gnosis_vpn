@@ -47,26 +47,26 @@ gpg --import gnosisvpn-public-key.asc
 
 Each Linux release includes three files per package:
 
-1. **Package file** (e.g., `gnosisvpn-amd64.deb`)
-2. **SHA256 checksum** (e.g., `gnosisvpn-amd64.deb.sha256`)
-3. **GPG signature** (e.g., `gnosisvpn-amd64.deb.asc`)
+1. **Package file** (e.g., `gnosisvpn_amd64.deb`)
+2. **SHA256 checksum** (e.g., `gnosisvpn_amd64.deb.sha256`)
+3. **GPG signature** (e.g., `gnosisvpn_amd64.deb.asc`)
 
 #### Verify SHA256 Checksum
 
 ```bash
-sha256sum -c gnosisvpn-amd64.deb.sha256
+sha256sum -c gnosisvpn_amd64.deb.sha256
 ```
 
 Expected output:
 
 ```
-gnosisvpn-amd64.deb: OK
+gnosisvpn_amd64.deb: OK
 ```
 
 #### Verify GPG Signature
 
 ```bash
-gpg --verify gnosisvpn-amd64.deb.asc gnosisvpn-amd64.deb
+gpg --verify gnosisvpn_amd64.deb.asc gnosisvpn_amd64.deb
 ```
 
 Expected output:
@@ -86,7 +86,7 @@ gpg: Good signature from "GnosisVPN (Gnosis VPN) <tech@hoprnet.org>" [ultimate]
 **Debian/Ubuntu packages:**
 
 ```bash
-dpkg-sig --verify gnosisvpn-amd64.deb
+dpkg-sig --verify gnosisvpn_amd64.deb
 ```
 
 ## macOS Package Verification
@@ -102,20 +102,20 @@ Download the package and checksum from the release page https://github.com/gnosi
 
 ```bash
 # Verify checksum
-shasum -a 256 -c gnosisvpn-arm64.pkg.sha256
+shasum -a 256 -c gnosisvpn_arm64.pkg.sha256
 ```
 
 Expected output:
 
 ```
-gnosisvpn-arm64.pkg: OK
+gnosisvpn_arm64.pkg: OK
 ```
 
 ### Verify Code Signature (macOS)
 
 ```bash
 # Verify installer package signature
-pkgutil --check-signature gnosisvpn-arm64.pkg
+pkgutil --check-signature gnosisvpn_arm64.pkg
 
 # After installation, verify app signature
 codesign --verify --deep --strict /Applications/Gnosis\ VPN.app
