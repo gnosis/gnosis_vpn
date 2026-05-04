@@ -32,7 +32,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup Nix
-        uses: hoprnet/hopr-workflows/actions/setup-nix@setup-nix-v1
+        uses: hoprnet/hopr-workflows/actions/setup-nix@c8d45034bb33307dfda3b4dfcd1fc4000cadc05a # setup-nix-v1
         with:
           cachix_cache_name: gnosis-vpn
           cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
@@ -53,7 +53,7 @@ jobs:
           GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_APP_RELEASE_VERSION }}
           GNOSISVPN_CHANGELOG_FORMAT: github
       - name: Release version
-        uses: hoprnet/hopr-workflows/actions/release-version@release-version-v3
+        uses: hoprnet/hopr-workflows/actions/release-version@2cae201c4f92e86cf40480704bdc5c2d53bce772 # release-version-v3
         with:
           source_branch: ${{ github.ref_name }}
           file: package.json
