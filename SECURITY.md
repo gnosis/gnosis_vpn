@@ -24,14 +24,14 @@ You can import the GnosisVPN public key using any of these methods:
 **From keyserver:**
 
 ```bash
-gpg --keyserver keyserver.ubuntu.com --recv-keys 9A308031FD3BFE8EDBF5076D84F73FEA46D10972
+gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 9A308031FD3BFE8EDBF5076D84F73FEA46D10972
 echo "9A308031FD3BFE8EDBF5076D84F73FEA46D10972:6:" | gpg --import-ownertrust
 ```
 
 **From this repository:**
 
 ```bash
-curl -s -O https://raw.githubusercontent.com/gnosis/gnosis_vpn/main/gnosisvpn-public-key.asc
+curl -fsSLO https://raw.githubusercontent.com/gnosis/gnosis_vpn/main/gnosisvpn-public-key.asc
 gpg --import gnosisvpn-public-key.asc
 ```
 
@@ -99,7 +99,6 @@ automatically during installation.
 Each macOS release includes a SHA256 checksum file for manual verification:
 
 Download the package and checksum from the release page https://github.com/gnosis/gnosis_vpn/releases
-
 
 ```bash
 # Verify checksum
