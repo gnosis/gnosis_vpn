@@ -28,6 +28,7 @@ jobs:
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
+          install_sdk: true
       - name: Install GitHub CLI
         run: |
           sudo apt-get update
