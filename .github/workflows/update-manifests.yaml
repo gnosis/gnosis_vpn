@@ -51,7 +51,5 @@ jobs:
         with:
           path: ./build/manifests
           destination: download.gnosisvpn.io
-          headers: |-
-            Cache-Control:no-cache, no-store, must-revalidate
-            Pragma:no-cache
-            Expires:0
+      - name: Set cache control on manifests
+        run: gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://download.gnosisvpn.io/manifests/**"
