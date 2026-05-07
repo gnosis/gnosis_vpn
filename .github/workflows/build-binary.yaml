@@ -208,10 +208,8 @@ jobs:
         with:
           path: ./build/${{ steps.prepare_files.outputs.destination }}
           destination: download.gnosisvpn.io
-          headers: |-
-            Cache-Control:no-cache, no-store, must-revalidate
-            Pragma:no-cache
-            Expires:0
+      - name: Set cache control
+        run: gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://download.gnosisvpn.io/${{ steps.prepare_files.outputs.destination }}/**"
           ## TODO Publish into IPFS as well
   mac:
     runs-on: depot-macos-15
@@ -293,8 +291,6 @@ jobs:
         with:
           path: ./build/${{ steps.prepare_files.outputs.destination }}
           destination: download.gnosisvpn.io
-          headers: |-
-            Cache-Control:no-cache, no-store, must-revalidate
-            Pragma:no-cache
-            Expires:0
+      - name: Set cache control
+        run: gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://download.gnosisvpn.io/${{ steps.prepare_files.outputs.destination }}/**"
     ## TODO Publish into IPFS as well
