@@ -210,6 +210,7 @@ jobs:
           path: ./build/${{ steps.prepare_files.outputs.destination }}
           destination: download.gnosisvpn.io
       - name: Set cache control
+        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         run: gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://download.gnosisvpn.io/${{ steps.prepare_files.outputs.destination }}/**"
         ## TODO Publish into IPFS as well
   mac:
@@ -294,5 +295,6 @@ jobs:
           path: ./build/${{ steps.prepare_files.outputs.destination }}
           destination: download.gnosisvpn.io
       - name: Set cache control
+        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         run: gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://download.gnosisvpn.io/${{ steps.prepare_files.outputs.destination }}/**"
     ## TODO Publish into IPFS as well
