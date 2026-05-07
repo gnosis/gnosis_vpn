@@ -28,6 +28,7 @@ jobs:
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
+          install_sdk: true
       - name: Install GitHub CLI
         run: |
           sudo apt-get update
@@ -51,7 +52,5 @@ jobs:
         with:
           path: ./build/manifests
           destination: download.gnosisvpn.io
-          headers: |-
-            Cache-Control:no-cache, no-store, must-revalidate
-            Pragma:no-cache
-            Expires:0
+      - name: Set cache control
+        run: gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://download.gnosisvpn.io/manifests/**"
