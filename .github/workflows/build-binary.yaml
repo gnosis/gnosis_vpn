@@ -211,7 +211,7 @@ jobs:
           destination: download.gnosisvpn.io
       - name: Set cache control
         if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
-        run: gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://download.gnosisvpn.io/${{ steps.prepare_files.outputs.destination }}/**"
+        run: gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://download.gnosisvpn.io/${{ steps.prepare_files.outputs.destination }}/gnosisvpn_${{ matrix.nfpm }}-${{ matrix.distribution }}*"
         ## TODO Publish into IPFS as well
   mac:
     runs-on: depot-macos-15
