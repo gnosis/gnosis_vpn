@@ -10,7 +10,7 @@
 #
 # The Release file is GPG-signed (both clearsigned InRelease and detached
 # Release.gpg) using the same signing key already used for the loose .deb
-# distribution (key id 84F73FEA46D10972).
+# distribution.
 
 set -Eeuo pipefail
 set -o errtrace
@@ -22,12 +22,12 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 GNOSISVPN_APT_BUCKET="${GNOSISVPN_APT_BUCKET:-gs://download.gnosisvpn.io/apt}"
-GNOSISVPN_APT_SIGNING_KEY_ID="${GNOSISVPN_APT_SIGNING_KEY_ID:-84F73FEA46D10972}"
 GNOSISVPN_APT_PUBLIC_KEY="${GNOSISVPN_APT_PUBLIC_KEY:-${REPO_ROOT}/gnosisvpn-public-key.asc}"
 
 CHANNEL=""
 DEBS_DIR=""
 WORK_DIR=""
+WORK_DIR_AUTO=0
 
 usage() {
     cat <<EOF
@@ -36,14 +36,12 @@ Usage: $(basename "$0") --channel <stable|snapshot> --debs <dir> [options]
 Required:
   --channel <stable|snapshot>     APT suite to publish into
   --debs <dir>                    Directory containing freshly built .deb files
-                                  (amd64 and/or arm64)
+                                  (must include one amd64 and one arm64 .deb)
 
 Options:
   --work-dir <dir>                Staging directory (default: \$(mktemp -d))
   --bucket <gs://...>             Override target bucket prefix
                                   (default: ${GNOSISVPN_APT_BUCKET})
-  --signing-key-id <id>           GPG key id used for signing
-                                  (default: ${GNOSISVPN_APT_SIGNING_KEY_ID})
   --public-key <path>             Armored public key to dearmor and publish
                                   (default: ${GNOSISVPN_APT_PUBLIC_KEY})
   -h, --help                      Show this help
@@ -74,10 +72,6 @@ parse_args() {
             GNOSISVPN_APT_BUCKET="${2:-}"
             shift 2
             ;;
-        --signing-key-id)
-            GNOSISVPN_APT_SIGNING_KEY_ID="${2:-}"
-            shift 2
-            ;;
         --public-key)
             GNOSISVPN_APT_PUBLIC_KEY="${2:-}"
             shift 2
@@ -100,6 +94,18 @@ parse_args() {
         log_error "--debs must point to an existing directory (got: '${DEBS_DIR}')"
         usage
     fi
+    local has_amd64=0 has_arm64=0
+    for deb in "$DEBS_DIR"/*.deb; do
+        [[ -e $deb ]] || continue
+        case "$deb" in
+        *_amd64.deb) has_amd64=1 ;;
+        *_arm64.deb) has_arm64=1 ;;
+        esac
+    done
+    if [[ $has_amd64 -eq 0 || $has_arm64 -eq 0 ]]; then
+        log_error "--debs must contain both an amd64 and an arm64 .deb (found amd64=${has_amd64} arm64=${has_arm64})"
+        exit 1
+    fi
     if [[ -z ${GNOSISVPN_GPG_PRIVATE_KEY_PATH:-} || ! -f ${GNOSISVPN_GPG_PRIVATE_KEY_PATH} ]]; then
         log_error "GNOSISVPN_GPG_PRIVATE_KEY_PATH must point to an armored private key"
         exit 1
@@ -114,6 +120,7 @@ parse_args() {
     fi
     if [[ -z $WORK_DIR ]]; then
         WORK_DIR="$(mktemp -d -t gnosisvpn-apt-XXXXXX)"
+        WORK_DIR_AUTO=1
     fi
 }
 
@@ -219,14 +226,13 @@ generate_release() {
 }
 
 sign_release() {
-    log_info "Signing Release with key ${GNOSISVPN_APT_SIGNING_KEY_ID} ..."
+    log_info "Signing Release ..."
     local dists_dir="${WORK_DIR}/dists/${CHANNEL}"
 
     rm -f "${dists_dir}/InRelease" "${dists_dir}/Release.gpg"
 
     echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" |
         gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
-            --default-key "$GNOSISVPN_APT_SIGNING_KEY_ID" \
             --digest-algo SHA512 \
             --clearsign --output "${dists_dir}/InRelease" \
             "${dists_dir}/Release"
@@ -234,7 +240,6 @@ sign_release() {
 
     echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" |
         gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
-            --default-key "$GNOSISVPN_APT_SIGNING_KEY_ID" \
             --digest-algo SHA512 \
             --armor --detach-sign --output "${dists_dir}/Release.gpg" \
             "${dists_dir}/Release"
@@ -290,11 +295,14 @@ cleanup() {
     if [[ -n ${GNUPGHOME:-} && -d ${GNUPGHOME} && ${GNUPGHOME} == /tmp/* ]]; then
         rm -rf "$GNUPGHOME"
     fi
+    if [[ ${WORK_DIR_AUTO:-0} -eq 1 && -n ${WORK_DIR:-} && -d ${WORK_DIR} && ${WORK_DIR} == /tmp/* ]]; then
+        rm -rf "$WORK_DIR"
+    fi
 }
 
 main() {
-    parse_args "$@"
     trap cleanup EXIT
+    parse_args "$@"
     setup_gnupg
     stage_pool
     generate_indexes

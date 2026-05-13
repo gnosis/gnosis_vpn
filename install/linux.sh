@@ -128,7 +128,7 @@ ensure_prereqs() {
     done
     if [[ ${#missing[@]} -gt 0 ]]; then
         log "Installing prerequisites: ${missing[*]}"
-        apt-get update -y
+        apt-get update
         local pkgs=()
         for cmd in "${missing[@]}"; do
             case "$cmd" in
@@ -170,7 +170,7 @@ EOF
 
 apt_install() {
     log "Refreshing APT cache and installing gnosisvpn ..."
-    apt-get update -y
+    apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y gnosisvpn
 }
 

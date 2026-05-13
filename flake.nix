@@ -62,6 +62,7 @@
             gh
             deno
             google-cloud-sdk
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             dpkg
             apt
           ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
