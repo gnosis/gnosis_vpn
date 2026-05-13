@@ -19,9 +19,9 @@ SOURCES_PATH="/etc/apt/sources.list.d/gnosisvpn.sources"
 
 CHANNEL="${GNOSISVPN_CHANNEL:-stable}"
 
-log()  { printf '\033[0;34m[gnosisvpn]\033[0m %s\n' "$*"; }
+log() { printf '\033[0;34m[gnosisvpn]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
-err()  { printf '\033[0;31m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
+err() { printf '\033[0;31m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 
 usage() {
     cat <<EOF
@@ -133,7 +133,7 @@ ensure_prereqs() {
         for cmd in "${missing[@]}"; do
             case "$cmd" in
             curl) pkgs+=(curl) ;;
-            gpg)  pkgs+=(gnupg) ;;
+            gpg) pkgs+=(gnupg) ;;
             esac
         done
         pkgs+=(ca-certificates)

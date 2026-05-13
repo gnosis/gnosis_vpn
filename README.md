@@ -36,8 +36,8 @@ sudo apt-get update
 sudo apt-get install -y gnosisvpn
 ```
 
-Manual `.deb` download (one-off install, no automatic updates) is still available from
-[releases](../../releases) — see [SECURITY.md](./SECURITY.md) for verification.
+Manual `.deb` download (one-off install, no automatic updates) is still available from [releases](../../releases) — see
+[SECURITY.md](./SECURITY.md) for verification.
 
 Uninstall:
 

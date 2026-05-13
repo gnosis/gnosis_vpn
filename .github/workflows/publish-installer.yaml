@@ -1,4 +1,3 @@
----
 name: Publish Installer
 on:
   push:
