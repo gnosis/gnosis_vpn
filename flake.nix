@@ -62,6 +62,8 @@
             gh
             deno
             google-cloud-sdk
+            dpkg
+            apt
           ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
             curl
             openssl

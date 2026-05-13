@@ -18,6 +18,15 @@ jobs:
     with:
       version_type: snapshot
     secrets: inherit
+  publish_apt:
+    name: Publish APT (snapshot)
+    needs: build_binary
+    if: needs.build_binary.outputs.SNAPSHOT_TRIGGERED == 'true'
+    uses: ./.github/workflows/publish-apt.yaml
+    with:
+      channel: snapshot
+      package_version: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+    secrets: inherit
   update_snapshot:
     name: Update snapshot
     runs-on: depot-ubuntu-22.04-4

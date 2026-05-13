@@ -24,6 +24,14 @@ jobs:
     with:
       version_type: release
     secrets: inherit
+  publish_apt:
+    name: Publish APT (stable)
+    needs: build_binary
+    uses: ./.github/workflows/publish-apt.yaml
+    with:
+      channel: stable
+      package_version: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+    secrets: inherit
   release:
     runs-on: depot-ubuntu-22.04-4
     name: Release

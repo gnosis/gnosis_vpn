@@ -6,13 +6,44 @@ This repository collects the binary artifacts that compose the Gnosis VPN projec
 
 ### Debian / Ubuntu
 
-Download packages from [releases](../../releases):
+Install via the APT repository (recommended — gives you `apt upgrade` for free):
 
-- Main package (`.deb`)
-- SHA256 checksum (`.sha256`)
-- GPG signature (`.asc`)
+```bash
+curl -fsSL https://download.gnosisvpn.io/install/linux.sh | sudo bash
+```
 
-**Verify integrity before installing** - see [SECURITY.md](./SECURITY.md)
+Snapshot (nightly) channel:
+
+```bash
+curl -fsSL https://download.gnosisvpn.io/install/linux.sh | sudo bash -s -- --channel=snapshot
+```
+
+Manual repo setup (equivalent to what the installer does):
+
+```bash
+sudo install -d -m 0755 /etc/apt/keyrings
+sudo curl -fsSL https://download.gnosisvpn.io/apt/gnosisvpn-archive-keyring.gpg \
+    -o /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
+sudo tee /etc/apt/sources.list.d/gnosisvpn.sources >/dev/null <<'EOF'
+Types: deb
+URIs: https://download.gnosisvpn.io/apt
+Suites: stable
+Components: main
+Architectures: amd64 arm64
+Signed-By: /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
+EOF
+sudo apt-get update
+sudo apt-get install -y gnosisvpn
+```
+
+Manual `.deb` download (one-off install, no automatic updates) is still available from
+[releases](../../releases) — see [SECURITY.md](./SECURITY.md) for verification.
+
+Uninstall:
+
+```bash
+sudo apt remove gnosisvpn
+```
 
 ### Linux Installation Environment Variables
 
@@ -23,17 +54,6 @@ symlinked to `/etc/gnosisvpn/config.toml` during installation.
 **GNOSISVPN_HOPR_BLOKLI_URL** Defines the URL for the HOPR Blokli service used by GnosisVPN. If not set, defaults to
 `https://blokli.jura.hoprnet.link`. This URL is written to `/etc/gnosisvpn/gnosisvpn.env` and used by the application
 for network operations.
-
-```bash
-sudo apt-get update
-sudo apt install ./gnosisvpn_*.deb
-```
-
-Uninstall:
-
-```bash
-sudo apt remove gnosisvpn
-```
 
 ## Reporting Issues
 
