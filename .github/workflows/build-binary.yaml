@@ -340,8 +340,10 @@ jobs:
           for arch in amd64 arm64; do
             for suffix in deb deb.asc deb.sha256; do
               file="./build/apt-input/gnosisvpn_${PACKAGE_VERSION}_${arch}.${suffix}"
-              [[ -f "$file" ]] || { echo "Missing: $file"; exit 1; }
+              [[ -s "$file" ]] || { echo "Missing or empty: $file"; exit 1; }
             done
+            (cd ./build/apt-input && sha256sum -c "gnosisvpn_${PACKAGE_VERSION}_${arch}.deb.sha256") \
+              || { echo "Hash mismatch for ${arch}"; exit 1; }
           done
       - name: Setup GPG signing key
         run: |

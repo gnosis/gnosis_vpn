@@ -309,8 +309,7 @@ function zulipFormat(
   if (artifactVersion) {
     content += ` [Mac](https://download.gnosisvpn.io/macos/latest/gnosisvpn_${artifactVersion}_arm64.pkg)`;
   } else {
-    content +=
-      " Mac: see [macos-arm64.json manifest](https://download.gnosisvpn.io/manifests/macos-arm64.json)";
+    content += " Mac: see [macos-arm64.json manifest](https://download.gnosisvpn.io/manifests/macos-arm64.json)";
   }
   content +=
     " | Debian/Ubuntu: `curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot`\n";

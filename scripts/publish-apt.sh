@@ -5,8 +5,10 @@
 # Two channels are supported:
 #   stable    - append-only pool, all historical releases kept under
 #               pool/main/g/gnosisvpn/
-#   snapshot  - pool is replaced on every run with only the freshly built
-#               .debs, under pool/snapshot/g/gnosisvpn/
+#   snapshot  - append-only pool, all historical snapshots kept under
+#               pool/snapshot/g/gnosisvpn/. Filenames are version-pinned so
+#               old .debs stay reachable for in-flight installs. A separate
+#               retention pass is expected to prune old snapshots periodically.
 #
 # The Release file is GPG-signed (both clearsigned InRelease and detached
 # Release.gpg) using the same signing key already used for the loose .deb
@@ -159,16 +161,26 @@ stage_pool() {
     local pool_dir="${WORK_DIR}/${pool_subpath}"
     mkdir -p "$pool_dir"
 
-    if [[ $CHANNEL == "stable" ]]; then
-        log_info "Pulling existing stable pool from ${GNOSISVPN_APT_BUCKET}/${pool_subpath}/ ..."
-        # Tolerate a first-run empty pool: rsync with no source falls through.
-        if gsutil -q ls "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/" >/dev/null 2>&1; then
-            gsutil -m rsync -r "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/" "${pool_dir}/"
-        else
-            log_warn "Remote pool does not exist yet — starting from empty"
-        fi
+    log_info "Pulling existing ${CHANNEL} pool from ${GNOSISVPN_APT_BUCKET}/${pool_subpath}/ ..."
+    # Tolerate a first-run empty pool: skip rsync if remote prefix doesn't exist yet.
+    if gsutil -q ls "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/" >/dev/null 2>&1; then
+        gsutil -m rsync -r "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/" "${pool_dir}/"
     else
-        log_info "Snapshot channel — pool is replaced, not appended"
+        log_warn "Remote pool does not exist yet — starting from empty"
+    fi
+
+    if [[ $CHANNEL == "stable" ]]; then
+        for deb in "${DEBS_DIR}"/*.deb; do
+            [[ -e $deb ]] || continue
+            local name existing
+            name="$(basename "$deb")"
+            existing="${pool_dir}/${name}"
+            if [[ -f $existing ]] && ! cmp -s "$deb" "$existing"; then
+                log_error "Stable pool already contains ${name} with different content."
+                log_error "Re-releasing the same version is not supported — bump package.json or delete the old .deb manually."
+                exit 1
+            fi
+        done
     fi
 
     log_info "Copying new .deb files into ${pool_dir} ..."
@@ -263,15 +275,10 @@ upload() {
     pool_subpath="$(pool_subpath_for_channel "$CHANNEL")"
 
     log_info "Uploading pool to ${GNOSISVPN_APT_BUCKET}/${pool_subpath}/ ..."
-    if [[ $CHANNEL == "snapshot" ]]; then
-        # Snapshot pool is fully replaced — rsync with -d removes old .debs.
-        gsutil -m rsync -d -r "${WORK_DIR}/${pool_subpath}/" \
-            "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/"
-    else
-        # Stable pool is additive — never delete historical versions.
-        gsutil -m cp -n -r "${WORK_DIR}/${pool_subpath}/." \
-            "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/"
-    fi
+    # Both pools are additive: version-pinned filenames never collide, and old
+    # .debs stay reachable for in-flight apt installs and historical reference.
+    gsutil -m cp -n -r "${WORK_DIR}/${pool_subpath}/." \
+        "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/"
 
     log_info "Uploading dists/${CHANNEL} metadata ..."
     gsutil -m rsync -d -r "${WORK_DIR}/dists/${CHANNEL}/" \
