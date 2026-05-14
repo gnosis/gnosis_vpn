@@ -3,16 +3,16 @@
 # Gnosis VPN APT repository installer (Debian / Ubuntu).
 #
 # Usage:
-#   curl -fsSL https://download.gnosisvpn.io/install/linux.sh | sudo bash
-#   curl -fsSL https://download.gnosisvpn.io/install/linux.sh | sudo bash -s -- --channel=snapshot
+#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash
+#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
 #
 # Configures /etc/apt/sources.list.d/gnosisvpn.sources to pull signed packages
-# from https://download.gnosisvpn.io/apt, installs the public keyring, runs
+# from https://download.gnosisvpn.io/linux/apt, installs the public keyring, runs
 # `apt-get update`, and installs the `gnosisvpn` package.
 
 set -Eeuo pipefail
 
-REPO_URL="https://download.gnosisvpn.io/apt"
+REPO_URL="https://download.gnosisvpn.io/linux/apt"
 KEYRING_URL="${REPO_URL}/gnosisvpn-archive-keyring.gpg"
 KEYRING_PATH="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 SOURCES_PATH="/etc/apt/sources.list.d/gnosisvpn.sources"
@@ -76,7 +76,7 @@ parse_args() {
 
 require_root() {
     if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
-        err "This script must run as root. Try: curl -fsSL https://download.gnosisvpn.io/install/linux.sh | sudo bash"
+        err "This script must run as root. Try: curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash"
         exit 1
     fi
 }

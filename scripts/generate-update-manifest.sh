@@ -10,8 +10,10 @@
 #   4. Writes the manifest JSON to OUTPUT_DIR.
 #
 # Channel → GCS path mapping:
-#   stable   → download.gnosisvpn.io/stable/
-#   snapshot → download.gnosisvpn.io/latest/
+#   Linux  stable    → download.gnosisvpn.io/linux/apt/pool/main/g/gnosisvpn/
+#   Linux  snapshot  → download.gnosisvpn.io/linux/apt/pool/snapshot/g/gnosisvpn/
+#   macOS  stable    → download.gnosisvpn.io/macos/stable/
+#   macOS  snapshot  → download.gnosisvpn.io/macos/latest/
 #
 # Required environment variables:
 #   GH_TOKEN  GitHub token with read access to releases
@@ -110,15 +112,50 @@ get_snapshot_run_info() {
 }
 
 # ---------------------------------------------------------------------------
-# Platform table: "manifest_name|gcs_artifact|os_family|default_min_os"
-# gcs_artifact is the version-less filename as published to download.gnosisvpn.io.
-# Linux artifacts are GPG-signed; macOS relies on Apple notarization instead.
+# Platform table: "manifest_name|os_family|default_min_os"
+# Per-platform GCS URLs are built by build_gcs_url() below from manifest_name,
+# channel, and version. Linux artifacts are GPG-signed; macOS relies on Apple
+# notarization instead.
 # ---------------------------------------------------------------------------
 PLATFORMS=(
-    "linux-amd64|gnosisvpn_amd64.deb|linux|${MIN_OS_LINUX_UBUNTU}"
-    "linux-arm64|gnosisvpn_arm64.deb|linux|${MIN_OS_LINUX_UBUNTU}"
-    "macos-arm64|gnosisvpn_arm64.pkg|macos|${MIN_OS_MACOS}"
+    "linux-amd64|linux|${MIN_OS_LINUX_UBUNTU}"
+    "linux-arm64|linux|${MIN_OS_LINUX_UBUNTU}"
+    "macos-arm64|macos|${MIN_OS_MACOS}"
 )
+
+# Build the GCS download URL for a given platform / channel / version.
+# Linux .deb files live in the APT pool with version-pinned filenames.
+# macOS .pkg files live in /macos/<channel-dir>/ with a stable, unversioned name.
+build_gcs_url() {
+    local manifest_name="$1"
+    local channel="$2"
+    local version="$3"
+    local arch pool_dir chan_dir
+
+    case "$manifest_name" in
+    linux-*)
+        arch="${manifest_name#linux-}"
+        if [[ $channel == "stable" ]]; then
+            pool_dir="pool/main"
+        else
+            pool_dir="pool/snapshot"
+        fi
+        echo "${GCS_BASE_URL}/linux/apt/${pool_dir}/g/gnosisvpn/gnosisvpn_${version}_${arch}.deb"
+        ;;
+    macos-*)
+        arch="${manifest_name#macos-}"
+        if [[ $channel == "stable" ]]; then
+            chan_dir="stable"
+        else
+            chan_dir="latest"
+        fi
+        echo "${GCS_BASE_URL}/macos/${chan_dir}/gnosisvpn_${arch}.pkg"
+        ;;
+    *)
+        die "Unknown manifest_name: ${manifest_name}"
+        ;;
+    esac
+}
 
 # ---------------------------------------------------------------------------
 # Main
@@ -136,20 +173,19 @@ mkdir -p "$OUTPUT_DIR"
 
 # ---------------------------------------------------------------------------
 # Step 1: resolve each channel.
-#   CHANNEL_DATA stores "gcs_prefix ref version published_at" where:
-#     gcs_prefix = GCS path component ("stable" or "latest")
-#     ref        = git tag (stable, used for release notes) or "-" (snapshot)
+#   CHANNEL_DATA stores "ref version published_at" where:
+#     ref = git tag (stable, used for release notes) or "-" (snapshot)
 # ---------------------------------------------------------------------------
 declare -A CHANNEL_DATA
 
 echo "Resolving stable channel ..."
 read -r tag version published_at <<<"$(get_stable_release_info)"
-CHANNEL_DATA["stable"]="stable $tag $version $published_at"
+CHANNEL_DATA["stable"]="$tag $version $published_at"
 echo "  -> $tag ($version) published $published_at"
 
 echo "Resolving snapshot channel ..."
 read -r version published_at <<<"$(get_snapshot_run_info)"
-CHANNEL_DATA["snapshot"]="latest - $version $published_at"
+CHANNEL_DATA["snapshot"]="- $version $published_at"
 echo "  -> ($version) published $published_at"
 
 # ---------------------------------------------------------------------------
@@ -158,7 +194,7 @@ echo "  -> ($version) published $published_at"
 ERRORS=0
 
 for entry in "${PLATFORMS[@]}"; do
-    IFS='|' read -r MANIFEST_NAME GCS_ARTIFACT OS_FAMILY DEFAULT_MIN_OS <<<"$entry"
+    IFS='|' read -r MANIFEST_NAME OS_FAMILY DEFAULT_MIN_OS <<<"$entry"
 
     case "$OS_FAMILY" in
     linux) MIN_OS="${MIN_OS_VERSION_LINUX_UBUNTU:-$DEFAULT_MIN_OS}" ;;
@@ -171,22 +207,20 @@ for entry in "${PLATFORMS[@]}"; do
     CHANNELS_JSON='{}'
 
     for channel in $CHANNELS; do
-        read -r gcs_prefix ref version published_at <<<"${CHANNEL_DATA[$channel]}"
+        read -r ref version published_at <<<"${CHANNEL_DATA[$channel]}"
 
         [[ -n $version ]] ||
             die "[$channel] version is empty — cannot build manifest."
         [[ -n $published_at ]] ||
             die "[$channel] published_at is empty — cannot build manifest."
-        [[ -n $gcs_prefix ]] ||
-            die "[$channel] GCS prefix is empty — cannot build manifest."
 
-        GCS_URL="${GCS_BASE_URL}/${gcs_prefix}/${GCS_ARTIFACT}"
+        GCS_URL=$(build_gcs_url "$MANIFEST_NAME" "$channel" "$version")
         echo "  [$channel] Fetching metadata from ${GCS_URL} ..."
 
         SIZE=$(curl -skfL -o /dev/null -w "%{size_download}" "$GCS_URL" || true)
         [[ -n $SIZE ]] ||
             {
-                echo "ERROR: Could not determine size of '${GCS_ARTIFACT}' from ${GCS_URL}" >&2
+                echo "ERROR: Could not determine size of '${MANIFEST_NAME}' from ${GCS_URL}" >&2
                 ERRORS=$((ERRORS + 1))
                 continue
             }
@@ -194,7 +228,7 @@ for entry in "${PLATFORMS[@]}"; do
         SHA256=$(curl -skf "${GCS_URL}.sha256" | awk '{print $1}' || true)
         [[ -n $SHA256 ]] ||
             {
-                echo "ERROR: Could not fetch sha256 for '${GCS_ARTIFACT}' from ${GCS_URL}.sha256" >&2
+                echo "ERROR: Could not fetch sha256 for '${MANIFEST_NAME}' from ${GCS_URL}.sha256" >&2
                 ERRORS=$((ERRORS + 1))
                 continue
             }
@@ -203,7 +237,7 @@ for entry in "${PLATFORMS[@]}"; do
             ARTIFACT_SIG=$(curl -skf "${GCS_URL}.asc" | base64 | tr -d '\n' || true)
             [[ -n $ARTIFACT_SIG ]] ||
                 {
-                    echo "ERROR: Could not fetch signature for '${GCS_ARTIFACT}' from ${GCS_URL}.asc" >&2
+                    echo "ERROR: Could not fetch signature for '${MANIFEST_NAME}' from ${GCS_URL}.asc" >&2
                     ERRORS=$((ERRORS + 1))
                     continue
                 }

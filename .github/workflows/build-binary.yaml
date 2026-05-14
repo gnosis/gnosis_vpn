@@ -196,23 +196,6 @@ jobs:
           source: ./build/${{ steps.prepare_files.outputs.destination }}
           package: gnosis_vpn
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
-      - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@621619750f6772109d7840a7013135c212925d58 # setup-gcp-v3
-        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
-        with:
-          workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
-          service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
-          install_sdk: true
-      - name: Publish into bucket
-        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
-        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
-        with:
-          path: ./build/${{ steps.prepare_files.outputs.destination }}
-          destination: download.gnosisvpn.io
-      - name: Set cache control
-        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
-        run: gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://download.gnosisvpn.io/${{ steps.prepare_files.outputs.destination }}/gnosisvpn_${{ matrix.nfpm }}.${{ matrix.distribution }}*"
-        ## TODO Publish into IPFS as well
   mac:
     runs-on: depot-macos-15
     name: Build Mac
@@ -270,15 +253,15 @@ jobs:
           else
             destination="latest"
           fi
-          mkdir -p ./build/${destination}
+          mkdir -p ./build/macos/${destination}
           echo "destination=${destination}" | tee -a "$GITHUB_OUTPUT"
-          cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg ./build/${destination}/gnosisvpn_arm64.pkg
-          cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256 ./build/${destination}/gnosisvpn_arm64.pkg.sha256
+          cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg ./build/macos/${destination}/gnosisvpn_arm64.pkg
+          cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256 ./build/macos/${destination}/gnosisvpn_arm64.pkg.sha256
       - name: Publish into Google Artifact registry
         if: inputs.version_type != 'snapshot'
         uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@621619750f6772109d7840a7013135c212925d58 # upload-artifact-registry-v2
         with:
-          source: ./build/${{ steps.prepare_files.outputs.destination }}
+          source: ./build/macos/${{ steps.prepare_files.outputs.destination }}
           package: gnosis_vpn
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Setup GCP
@@ -292,9 +275,90 @@ jobs:
         if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:
-          path: ./build/${{ steps.prepare_files.outputs.destination }}
-          destination: download.gnosisvpn.io
+          path: ./build/macos/${{ steps.prepare_files.outputs.destination }}
+          destination: download.gnosisvpn.io/macos
       - name: Set cache control
         if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
-        run: gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://download.gnosisvpn.io/${{ steps.prepare_files.outputs.destination }}/**"
-    ## TODO Publish into IPFS as well
+        run: gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://download.gnosisvpn.io/macos/${{ steps.prepare_files.outputs.destination }}/**"
+        ## TODO Publish into IPFS as well
+  publish_apt:
+    name: Publish APT
+    runs-on: depot-ubuntu-22.04-4
+    needs:
+      - setup
+      - linux
+    if: |
+      needs.setup.outputs.SKIP_BUILDING != 'true' &&
+      (inputs.version_type == 'snapshot' || inputs.version_type == 'release')
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CHANNEL: ${{ inputs.version_type == 'release' && 'stable' || 'snapshot' }}
+      PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup Nix
+        uses: hoprnet/hopr-workflows/actions/setup-nix@c8d45034bb33307dfda3b4dfcd1fc4000cadc05a # setup-nix-v1
+        with:
+          cachix_cache_name: gnosis-vpn
+          cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: Download amd64 .deb artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
+        with:
+          name: gnosisvpn_${{ env.PACKAGE_VERSION }}_amd64.deb
+          path: ./build/apt-input
+      - name: Download amd64 .deb.asc artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
+        with:
+          name: gnosisvpn_${{ env.PACKAGE_VERSION }}_amd64.deb.asc
+          path: ./build/apt-input
+      - name: Download amd64 .deb.sha256 artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
+        with:
+          name: gnosisvpn_${{ env.PACKAGE_VERSION }}_amd64.deb.sha256
+          path: ./build/apt-input
+      - name: Download arm64 .deb artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
+        with:
+          name: gnosisvpn_${{ env.PACKAGE_VERSION }}_arm64.deb
+          path: ./build/apt-input
+      - name: Download arm64 .deb.asc artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
+        with:
+          name: gnosisvpn_${{ env.PACKAGE_VERSION }}_arm64.deb.asc
+          path: ./build/apt-input
+      - name: Download arm64 .deb.sha256 artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
+        with:
+          name: gnosisvpn_${{ env.PACKAGE_VERSION }}_arm64.deb.sha256
+          path: ./build/apt-input
+      - name: Verify inputs
+        run: |
+          ls -la ./build/apt-input
+          for arch in amd64 arm64; do
+            for suffix in deb deb.asc deb.sha256; do
+              file="./build/apt-input/gnosisvpn_${PACKAGE_VERSION}_${arch}.${suffix}"
+              [[ -f "$file" ]] || { echo "Missing: $file"; exit 1; }
+            done
+          done
+      - name: Setup GPG signing key
+        run: |
+          echo "${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}" > /tmp/gnosis_vpn_gpg_key.asc
+          chmod 600 /tmp/gnosis_vpn_gpg_key.asc
+      - name: Setup GCP
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@621619750f6772109d7840a7013135c212925d58 # setup-gcp-v3
+        with:
+          workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
+          service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
+          install_sdk: true
+      - name: Publish APT repository
+        shell: bash
+        env:
+          GNOSISVPN_GPG_PRIVATE_KEY_PATH: /tmp/gnosis_vpn_gpg_key.asc
+          GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
+        run: |
+          nix develop -c bash scripts/publish-apt.sh \
+            --channel "$CHANNEL" \
+            --debs ./build/apt-input

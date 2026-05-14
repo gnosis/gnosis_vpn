@@ -304,10 +304,10 @@ function zulipFormat(
     content +=
       `- [#${entry.id}](https://github.com/${entry.repository}/pull/${entry.id}) [${entry.component}] ${entry.title} by ${entry.author}\n`;
   }
-  content += "\nDownload links:";
-  content += " [Mac](https://download.gnosisvpn.io/latest/gnosisvpn_arm64.pkg) |";
-  content += " [Debian x86_64](https://download.gnosisvpn.io/latest/gnosisvpn_amd64.deb) |";
-  content += " [Debian aarch64](https://download.gnosisvpn.io/latest/gnosisvpn_arm64.deb)\n";
+  content += "\nDownloads:";
+  content += " [Mac](https://download.gnosisvpn.io/macos/latest/gnosisvpn_arm64.pkg)";
+  content +=
+    " | Debian/Ubuntu: `curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot`\n";
   return content;
 }
 
@@ -800,10 +800,10 @@ Deno.test("zulipFormat formats snapshot entries and download links", () => {
 
   if (
     !output.includes(
-      "- [GnosisVPN Debian x86_64](https://download.gnosisvpn.io/latest/gnosisvpn_amd64.deb)\n",
+      "https://download.gnosisvpn.io/linux/install.sh",
     )
   ) {
-    throw new Error("zulipFormat output is missing the Debian x86_64 download link");
+    throw new Error("zulipFormat output is missing the Linux install command");
   }
 
   if (

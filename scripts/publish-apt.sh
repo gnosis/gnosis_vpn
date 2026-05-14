@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build and publish a signed APT repository to gs://download.gnosisvpn.io/apt
+# Build and publish a signed APT repository to gs://download.gnosisvpn.io/linux/apt
 #
 # Two channels are supported:
 #   stable    - append-only pool, all historical releases kept under
@@ -21,7 +21,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck source=common.sh
 source "${SCRIPT_DIR}/common.sh"
 
-GNOSISVPN_APT_BUCKET="${GNOSISVPN_APT_BUCKET:-gs://download.gnosisvpn.io/apt}"
+GNOSISVPN_APT_BUCKET="${GNOSISVPN_APT_BUCKET:-gs://download.gnosisvpn.io/linux/apt}"
 GNOSISVPN_APT_PUBLIC_KEY="${GNOSISVPN_APT_PUBLIC_KEY:-${REPO_ROOT}/gnosisvpn-public-key.asc}"
 
 CHANNEL=""
@@ -176,6 +176,11 @@ stage_pool() {
     for deb in "${DEBS_DIR}"/*.deb; do
         [[ -e $deb ]] || continue
         cp -v "$deb" "${pool_dir}/"
+        for ext in asc sha256; do
+            if [[ -f "${deb}.${ext}" ]]; then
+                cp -v "${deb}.${ext}" "${pool_dir}/"
+            fi
+        done
         copied=$((copied + 1))
     done
     if [[ $copied -eq 0 ]]; then
@@ -277,10 +282,12 @@ upload() {
         "${GNOSISVPN_APT_BUCKET}/gnosisvpn-archive-keyring.gpg"
 
     log_info "Setting cache headers ..."
-    # .deb files are version-pinned — safe to cache for a year.
-    gsutil -m setmeta \
-        -h "Cache-Control:public, max-age=31536000, immutable" \
-        "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/*.deb" || true
+    # .deb files (and their sidecar .asc/.sha256) are version-pinned — safe to cache for a year.
+    for pattern in '*.deb' '*.deb.asc' '*.deb.sha256'; do
+        gsutil -m setmeta \
+            -h "Cache-Control:public, max-age=31536000, immutable" \
+            "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/${pattern}" || true
+    done
     # Metadata must revalidate so apt update sees fresh indexes promptly.
     gsutil -m setmeta \
         -h "Cache-Control:no-cache, max-age=60, must-revalidate" \
