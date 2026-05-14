@@ -209,8 +209,8 @@ generate_indexes() {
 
     local dists_dir="${WORK_DIR}/dists/${CHANNEL}"
     mkdir -p \
-        "${dists_dir}/main/binary-amd64" \
-        "${dists_dir}/main/binary-arm64"
+        "${dists_dir}/main/binary-amd64/by-hash/SHA256" \
+        "${dists_dir}/main/binary-arm64/by-hash/SHA256"
 
     pushd "$WORK_DIR" >/dev/null
     apt-ftparchive --arch amd64 packages "$pool_scan_root" \
@@ -221,7 +221,20 @@ generate_indexes() {
 
     gzip -kf9 "${dists_dir}/main/binary-amd64/Packages"
     gzip -kf9 "${dists_dir}/main/binary-arm64/Packages"
-    log_success "Wrote Packages and Packages.gz for amd64 and arm64"
+
+    # Place a content-addressed copy of each Packages{,.gz} under by-hash/SHA256/
+    # so apt's Acquire-By-Hash can fetch an immutable index matching whichever
+    # InRelease the client last validated — eliminates Hash Sum mismatch races
+    # during publish.
+    local arch arch_dir f hash
+    for arch in amd64 arm64; do
+        arch_dir="${dists_dir}/main/binary-${arch}"
+        for f in Packages Packages.gz; do
+            hash="$(sha256sum "${arch_dir}/${f}" | awk '{print $1}')"
+            cp "${arch_dir}/${f}" "${arch_dir}/by-hash/SHA256/${hash}"
+        done
+    done
+    log_success "Wrote Packages and Packages.gz (with by-hash copies) for amd64 and arm64"
 }
 
 generate_release() {
@@ -237,6 +250,7 @@ generate_release() {
         -o "APT::FTPArchive::Release::Architectures=amd64 arm64" \
         -o "APT::FTPArchive::Release::Components=main" \
         -o "APT::FTPArchive::Release::Description=Gnosis VPN APT repository (${CHANNEL})" \
+        -o "APT::FTPArchive::Release::Acquire-By-Hash=true" \
         release "dists/${CHANNEL}" >"${dists_dir}/Release"
     popd >/dev/null
     log_success "Release written to ${dists_dir}/Release"
@@ -280,9 +294,28 @@ upload() {
     gsutil -m cp -n -r "${WORK_DIR}/${pool_subpath}/." \
         "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/"
 
-    log_info "Uploading dists/${CHANNEL} metadata ..."
-    gsutil -m rsync -d -r "${WORK_DIR}/dists/${CHANNEL}/" \
-        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/"
+    log_info "Uploading dists/${CHANNEL} indexes (Packages + by-hash) ..."
+    # Upload Packages files and the by-hash/ subtree first. by-hash files are
+    # content-addressed and therefore immutable; we intentionally do not pass
+    # rsync's -d flag, so historical by-hash files persist long enough to
+    # satisfy clients that cached an older InRelease.
+    gsutil -m cp -r "${WORK_DIR}/dists/${CHANNEL}/main/." \
+        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/"
+
+    # Upload Release + its detached signature next. The OLD InRelease is still
+    # in the bucket and apt prefers InRelease, so clients see a consistent view
+    # at this point.
+    log_info "Uploading dists/${CHANNEL} Release + Release.gpg ..."
+    gsutil cp "${WORK_DIR}/dists/${CHANNEL}/Release" \
+        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/Release"
+    gsutil cp "${WORK_DIR}/dists/${CHANNEL}/Release.gpg" \
+        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/Release.gpg"
+
+    # Upload InRelease LAST — a single-object overwrite is atomic in GCS, so
+    # this is the atomic pointer swap that makes new indexes visible to apt.
+    log_info "Uploading dists/${CHANNEL} InRelease (atomic pointer swap) ..."
+    gsutil cp "${WORK_DIR}/dists/${CHANNEL}/InRelease" \
+        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/InRelease"
 
     log_info "Uploading public keyring ..."
     gsutil cp "${WORK_DIR}/gnosisvpn-archive-keyring.gpg" \
@@ -295,10 +328,20 @@ upload() {
             -h "Cache-Control:public, max-age=31536000, immutable" \
             "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/${pattern}" || true
     done
-    # Metadata must revalidate so apt update sees fresh indexes promptly.
+    # by-hash files are content-addressed and immutable — safe to cache long.
+    gsutil -m setmeta \
+        -h "Cache-Control:public, max-age=31536000, immutable" \
+        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/**/by-hash/**" || true
+    # Canonical metadata must revalidate so apt update sees fresh indexes promptly.
     gsutil -m setmeta \
         -h "Cache-Control:no-cache, max-age=60, must-revalidate" \
-        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/**" || true
+        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/binary-amd64/Packages" \
+        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/binary-amd64/Packages.gz" \
+        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/binary-arm64/Packages" \
+        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/binary-arm64/Packages.gz" \
+        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/Release" \
+        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/Release.gpg" \
+        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/InRelease" || true
     gsutil setmeta \
         -h "Cache-Control:public, max-age=3600" \
         "${GNOSISVPN_APT_BUCKET}/gnosisvpn-archive-keyring.gpg" || true

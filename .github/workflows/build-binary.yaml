@@ -253,15 +253,22 @@ jobs:
           else
             destination="latest"
           fi
-          mkdir -p ./build/macos/${destination}
           echo "destination=${destination}" | tee -a "$GITHUB_OUTPUT"
+          # Bucket layout: versioned filenames under ./build/macos/<channel>/.
+          mkdir -p ./build/macos/${destination}
           cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg ./build/macos/${destination}/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_arm64.pkg
           cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256 ./build/macos/${destination}/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_arm64.pkg.sha256
+          # Artifact Registry layout: version-less filenames under ./build/macos-ar/<channel>/.
+          # The 'generic upload' validator rejects '+' in filenames, so we keep
+          # the version only in the registry's version field and strip it here.
+          mkdir -p ./build/macos-ar/${destination}
+          cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg ./build/macos-ar/${destination}/gnosisvpn_arm64.pkg
+          cp ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256 ./build/macos-ar/${destination}/gnosisvpn_arm64.pkg.sha256
       - name: Publish into Google Artifact registry
         if: inputs.version_type != 'snapshot'
         uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@621619750f6772109d7840a7013135c212925d58 # upload-artifact-registry-v2
         with:
-          source: ./build/macos/${{ steps.prepare_files.outputs.destination }}
+          source: ./build/macos-ar/${{ steps.prepare_files.outputs.destination }}
           package: gnosis_vpn
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Setup GCP
