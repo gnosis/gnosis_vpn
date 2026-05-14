@@ -44,6 +44,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GNOSISVPN_CHANGELOG_FORMAT: zulip
+          GNOSISVPN_ARTIFACT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Prepare notification message
         run: |
           # Store content in environment variable for the Zulip action

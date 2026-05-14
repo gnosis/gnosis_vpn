@@ -149,7 +149,7 @@ build_gcs_url() {
         else
             chan_dir="latest"
         fi
-        echo "${GCS_BASE_URL}/macos/${chan_dir}/gnosisvpn_${arch}.pkg"
+        echo "${GCS_BASE_URL}/macos/${chan_dir}/gnosisvpn_${version}_${arch}.pkg"
         ;;
     *)
         die "Unknown manifest_name: ${manifest_name}"
