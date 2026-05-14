@@ -162,11 +162,22 @@ stage_pool() {
     mkdir -p "$pool_dir"
 
     log_info "Pulling existing ${CHANNEL} pool from ${GNOSISVPN_APT_BUCKET}/${pool_subpath}/ ..."
-    # Tolerate a first-run empty pool: skip rsync if remote prefix doesn't exist yet.
-    if gsutil -q ls "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/" >/dev/null 2>&1; then
+    # gsutil ls returns non-zero for ALL failures (empty prefix, auth/network/
+    # permission errors), so we must distinguish "matched no objects" from real
+    # errors — publishing without pulling an existing pool truncates the
+    # Packages index to only the newly built .debs and breaks `apt install
+    # gnosisvpn=<older>` until the next successful publish.
+    local ls_output ls_status=0
+    ls_output=$(gsutil ls "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/" 2>&1) || ls_status=$?
+    if [[ $ls_status -eq 0 ]]; then
         gsutil -m rsync -r "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/" "${pool_dir}/"
-    else
+    elif echo "$ls_output" | grep -qi 'matched no objects'; then
         log_warn "Remote pool does not exist yet — starting from empty"
+    else
+        log_error "Failed to read existing ${CHANNEL} pool at ${GNOSISVPN_APT_BUCKET}/${pool_subpath}/"
+        log_error "gsutil ls (exit ${ls_status}):"
+        echo "$ls_output" >&2
+        exit 1
     fi
 
     if [[ $CHANNEL == "stable" ]]; then

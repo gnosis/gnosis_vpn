@@ -9,24 +9,24 @@ This repository collects the binary artifacts that compose the Gnosis VPN projec
 Install via the APT repository (recommended — gives you `apt upgrade` for free):
 
 ```bash
-curl -fsSL https://download.gnosisvpn.io/install/linux.sh | sudo bash
+curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash
 ```
 
 Snapshot (nightly) channel:
 
 ```bash
-curl -fsSL https://download.gnosisvpn.io/install/linux.sh | sudo bash -s -- --channel=snapshot
+curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
 ```
 
 Manual repo setup (equivalent to what the installer does):
 
 ```bash
 sudo install -d -m 0755 /etc/apt/keyrings
-sudo curl -fsSL https://download.gnosisvpn.io/apt/gnosisvpn-archive-keyring.gpg \
+sudo curl -fsSL https://download.gnosisvpn.io/linux/apt/gnosisvpn-archive-keyring.gpg \
     -o /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
 sudo tee /etc/apt/sources.list.d/gnosisvpn.sources >/dev/null <<'EOF'
 Types: deb
-URIs: https://download.gnosisvpn.io/apt
+URIs: https://download.gnosisvpn.io/linux/apt
 Suites: stable
 Components: main
 Architectures: amd64 arm64

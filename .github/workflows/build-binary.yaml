@@ -289,6 +289,9 @@ jobs:
         run: gsutil -m setmeta -h "Cache-Control:public, max-age=31536000, immutable" "gs://download.gnosisvpn.io/macos/${{ steps.prepare_files.outputs.destination }}/**"
         ## TODO Publish into IPFS as well
   publish_apt:
+    # Snapshot only. Stable APT publish for releases lives in release.yaml and
+    # runs *after* the GitHub release succeeds, so apt users never see a stable
+    # version that lacks a matching GitHub release.
     name: Publish APT
     runs-on: depot-ubuntu-22.04-4
     needs:
@@ -296,12 +299,12 @@ jobs:
       - linux
     if: |
       needs.setup.outputs.SKIP_BUILDING != 'true' &&
-      (inputs.version_type == 'snapshot' || inputs.version_type == 'release')
+      inputs.version_type == 'snapshot'
     permissions:
       contents: read
       id-token: write
     env:
-      CHANNEL: ${{ inputs.version_type == 'release' && 'stable' || 'snapshot' }}
+      CHANNEL: snapshot
       PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
     steps:
       - name: Checkout repository

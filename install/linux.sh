@@ -170,6 +170,7 @@ EOF
 
 apt_install() {
     log "Refreshing APT cache and installing gnosisvpn ..."
+    log "(Optional install-time env vars: GNOSISVPN_NETWORK, GNOSISVPN_HOPR_BLOKLI_URL — see README)"
     apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y gnosisvpn
 }
@@ -181,9 +182,9 @@ print_postinstall() {
     sudo systemctl status gnosisvpn
     gnosis_vpn-ctl --help
 
-Optional environment variables (see README):
-    GNOSISVPN_NETWORK             jura | rotsee | dufour  (default: jura)
-    GNOSISVPN_HOPR_BLOKLI_URL     Override HOPR Blokli URL
+To change network or Blokli URL after install (re-runs the package's postinstall):
+    sudo GNOSISVPN_NETWORK=rotsee apt-get install --reinstall gnosisvpn
+    sudo GNOSISVPN_HOPR_BLOKLI_URL=https://… apt-get install --reinstall gnosisvpn
 
 To upgrade later:   sudo apt-get update && sudo apt-get install --only-upgrade gnosisvpn
 To uninstall:       sudo apt-get remove gnosisvpn
