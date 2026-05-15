@@ -34,7 +34,7 @@ all distribution arch sign="false":
     fi
     just package {{ distribution }} {{ arch }} {{ sign }}
 
-# Publish a signed APT repository to gs://download.gnosisvpn.io/apt for the given channel.
+# Publish a signed APT repository to gs://download.gnosisvpn.io/linux/apt for the given channel.
 # Requires GNOSISVPN_GPG_PRIVATE_KEY_PATH and GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD env vars.
 # `debs_dir` defaults to ./build/packages.
 publish-apt channel debs_dir="./build/packages":

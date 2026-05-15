@@ -1,0 +1,89 @@
+name: Publish APT
+on:
+  workflow_call:
+    inputs:
+      channel:
+        description: 'APT suite to publish into (stable or snapshot)'
+        required: true
+        type: string
+      package_version:
+        description: 'GNOSISVPN_PACKAGE_VERSION used to name the .deb artifacts'
+        required: true
+        type: string
+jobs:
+  publish:
+    runs-on: depot-ubuntu-22.04-4
+    name: Publish APT (${{ inputs.channel }})
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PACKAGE_VERSION: ${{ inputs.package_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup Nix
+        uses: hoprnet/hopr-workflows/actions/setup-nix@c8d45034bb33307dfda3b4dfcd1fc4000cadc05a # setup-nix-v1
+        with:
+          cachix_cache_name: gnosis-vpn
+          cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: Download amd64 .deb artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
+        with:
+          name: gnosisvpn_${{ env.PACKAGE_VERSION }}_amd64.deb
+          path: ./build/apt-input
+      - name: Download amd64 .deb.asc artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
+        with:
+          name: gnosisvpn_${{ env.PACKAGE_VERSION }}_amd64.deb.asc
+          path: ./build/apt-input
+      - name: Download amd64 .deb.sha256 artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
+        with:
+          name: gnosisvpn_${{ env.PACKAGE_VERSION }}_amd64.deb.sha256
+          path: ./build/apt-input
+      - name: Download arm64 .deb artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
+        with:
+          name: gnosisvpn_${{ env.PACKAGE_VERSION }}_arm64.deb
+          path: ./build/apt-input
+      - name: Download arm64 .deb.asc artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
+        with:
+          name: gnosisvpn_${{ env.PACKAGE_VERSION }}_arm64.deb.asc
+          path: ./build/apt-input
+      - name: Download arm64 .deb.sha256 artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
+        with:
+          name: gnosisvpn_${{ env.PACKAGE_VERSION }}_arm64.deb.sha256
+          path: ./build/apt-input
+      - name: Verify inputs
+        run: |
+          ls -la ./build/apt-input
+          for arch in amd64 arm64; do
+            for suffix in deb deb.asc deb.sha256; do
+              file="./build/apt-input/gnosisvpn_${PACKAGE_VERSION}_${arch}.${suffix}"
+              [[ -s "$file" ]] || { echo "Missing or empty: $file"; exit 1; }
+            done
+            (cd ./build/apt-input && sha256sum -c "gnosisvpn_${PACKAGE_VERSION}_${arch}.deb.sha256") \
+              || { echo "Hash mismatch for ${arch}"; exit 1; }
+          done
+      - name: Setup GPG signing key
+        run: |
+          echo "${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}" > /tmp/gnosis_vpn_gpg_key.asc
+          chmod 600 /tmp/gnosis_vpn_gpg_key.asc
+      - name: Setup GCP
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@621619750f6772109d7840a7013135c212925d58 # setup-gcp-v3
+        with:
+          workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
+          service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
+          install_sdk: true
+      - name: Publish APT repository
+        shell: bash
+        env:
+          GNOSISVPN_GPG_PRIVATE_KEY_PATH: /tmp/gnosis_vpn_gpg_key.asc
+          GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
+        run: |
+          nix develop -c bash scripts/publish-apt.sh \
+            --channel "${{ inputs.channel }}" \
+            --debs ./build/apt-input

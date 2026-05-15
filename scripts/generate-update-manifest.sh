@@ -124,8 +124,11 @@ PLATFORMS=(
 )
 
 # Build the GCS download URL for a given platform / channel / version.
-# Linux .deb files live in the APT pool with version-pinned filenames.
-# macOS .pkg files live in /macos/<channel-dir>/ with a stable, unversioned name.
+# Both Linux .deb and macOS .pkg filenames are version-pinned
+# (gnosisvpn_<version>_<arch>.{deb,pkg}). Linux files live in the APT pool
+# (pool/main/g/gnosisvpn for stable, pool/snapshot/g/gnosisvpn for snapshot).
+# macOS files live in /macos/<channel-dir>/ where channel-dir is "stable" or
+# "latest".
 build_gcs_url() {
     local manifest_name="$1"
     local channel="$2"

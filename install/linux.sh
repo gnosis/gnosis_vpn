@@ -53,7 +53,11 @@ parse_args() {
             shift
             ;;
         --channel)
-            CHANNEL="${2:-}"
+            if [[ -z ${2:-} ]]; then
+                err "--channel requires a value (stable | snapshot)"
+                exit 1
+            fi
+            CHANNEL="$2"
             shift 2
             ;;
         -h | --help)
@@ -122,22 +126,12 @@ detect_distro() {
 }
 
 ensure_prereqs() {
-    local missing=()
-    for cmd in curl gpg; do
-        command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
-    done
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        log "Installing prerequisites: ${missing[*]}"
+    # The keyring at $KEYRING_URL is already dearmored, so curl + ca-certificates
+    # are all we need — no local gpg invocation.
+    if ! command -v curl >/dev/null 2>&1; then
+        log "Installing prerequisites: curl ca-certificates"
         apt-get update
-        local pkgs=()
-        for cmd in "${missing[@]}"; do
-            case "$cmd" in
-            curl) pkgs+=(curl) ;;
-            gpg) pkgs+=(gnupg) ;;
-            esac
-        done
-        pkgs+=(ca-certificates)
-        DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]}"
+        DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates
     fi
 }
 

@@ -37,8 +37,13 @@ Usage: $(basename "$0") --channel <stable|snapshot> --debs <dir> [options]
 
 Required:
   --channel <stable|snapshot>     APT suite to publish into
-  --debs <dir>                    Directory containing freshly built .deb files
-                                  (must include one amd64 and one arm64 .deb)
+  --debs <dir>                    Directory containing freshly built .deb files.
+                                  Must include:
+                                    - gnosisvpn_<version>_amd64.deb
+                                    - gnosisvpn_<version>_arm64.deb
+                                  and, for each .deb, matching sidecars:
+                                    - <deb>.asc      (GPG detached signature)
+                                    - <deb>.sha256   (sha256sum output)
 
 Options:
   --work-dir <dir>                Staging directory (default: \$(mktemp -d))
@@ -56,26 +61,40 @@ EOF
 }
 
 parse_args() {
+    # Guard against `<flag>` with no value: without this, `shift 2` would abort
+    # under `set -e` before the validation block below runs, leaving the user
+    # with a silent exit 1 instead of a useful error.
+    require_value() {
+        if [[ -z ${2:-} ]]; then
+            log_error "$1 requires a value"
+            usage
+        fi
+    }
     while [[ $# -gt 0 ]]; do
         case "$1" in
         --channel)
-            CHANNEL="${2:-}"
+            require_value "$1" "${2:-}"
+            CHANNEL="$2"
             shift 2
             ;;
         --debs)
-            DEBS_DIR="${2:-}"
+            require_value "$1" "${2:-}"
+            DEBS_DIR="$2"
             shift 2
             ;;
         --work-dir)
-            WORK_DIR="${2:-}"
+            require_value "$1" "${2:-}"
+            WORK_DIR="$2"
             shift 2
             ;;
         --bucket)
-            GNOSISVPN_APT_BUCKET="${2:-}"
+            require_value "$1" "${2:-}"
+            GNOSISVPN_APT_BUCKET="$2"
             shift 2
             ;;
         --public-key)
-            GNOSISVPN_APT_PUBLIC_KEY="${2:-}"
+            require_value "$1" "${2:-}"
+            GNOSISVPN_APT_PUBLIC_KEY="$2"
             shift 2
             ;;
         -h | --help)
@@ -108,6 +127,33 @@ parse_args() {
         log_error "--debs must contain both an amd64 and an arm64 .deb (found amd64=${has_amd64} arm64=${has_arm64})"
         exit 1
     fi
+    # Sidecars (.asc + .sha256) are part of the release contract — they are
+    # consumed by scripts/generate-update-manifest.sh from the bucket and a
+    # publish without them leaves the manifest workflow broken.
+    local missing=() f
+    for deb in "$DEBS_DIR"/*.deb; do
+        [[ -e $deb ]] || continue
+        for ext in asc sha256; do
+            [[ -f "${deb}.${ext}" ]] || missing+=("${deb}.${ext}")
+        done
+    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log_error "Missing required sidecar files (every .deb needs both .asc and .sha256):"
+        for f in "${missing[@]}"; do log_error "  - ${f}"; done
+        log_error "Generate them alongside each .deb before re-running, e.g.:"
+        log_error "  gpg --armor --detach-sign --output <deb>.asc <deb>"
+        log_error "  (cd \"\$(dirname <deb>)\" && sha256sum \"\$(basename <deb>)\" > <deb>.sha256)"
+        exit 1
+    fi
+    # Sanity-check each .sha256 against the .deb it claims to hash.
+    local sha
+    for sha in "$DEBS_DIR"/*.deb.sha256; do
+        [[ -e $sha ]] || continue
+        (cd "$(dirname "$sha")" && sha256sum -c "$(basename "$sha")" >/dev/null) || {
+            log_error "sha256 mismatch: ${sha}"
+            exit 1
+        }
+    done
     if [[ -z ${GNOSISVPN_GPG_PRIVATE_KEY_PATH:-} || ! -f ${GNOSISVPN_GPG_PRIVATE_KEY_PATH} ]]; then
         log_error "GNOSISVPN_GPG_PRIVATE_KEY_PATH must point to an armored private key"
         exit 1
@@ -199,11 +245,9 @@ stage_pool() {
     for deb in "${DEBS_DIR}"/*.deb; do
         [[ -e $deb ]] || continue
         cp -v "$deb" "${pool_dir}/"
-        for ext in asc sha256; do
-            if [[ -f "${deb}.${ext}" ]]; then
-                cp -v "${deb}.${ext}" "${pool_dir}/"
-            fi
-        done
+        # Sidecars are guaranteed by parse_args — copy unconditionally.
+        cp -v "${deb}.asc" "${pool_dir}/"
+        cp -v "${deb}.sha256" "${pool_dir}/"
         copied=$((copied + 1))
     done
     if [[ $copied -eq 0 ]]; then
@@ -299,63 +343,68 @@ upload() {
     local pool_subpath
     pool_subpath="$(pool_subpath_for_channel "$CHANNEL")"
 
+    # Cache headers are set at upload time (gsutil -h) rather than via a
+    # post-upload `setmeta` wildcard. The wildcard form re-tags every historical
+    # .deb / .asc / .sha256 / by-hash object in the pool on every publish, which
+    # scales linearly with snapshot retention and makes nightlies progressively
+    # slower and more expensive. Setting headers on the cp itself only touches
+    # the newly uploaded objects.
+    local immutable_header="Cache-Control:public, max-age=31536000, immutable"
+    local revalidate_header="Cache-Control:no-cache, max-age=60, must-revalidate"
+
     log_info "Uploading pool to ${GNOSISVPN_APT_BUCKET}/${pool_subpath}/ ..."
     # Both pools are additive: version-pinned filenames never collide, and old
     # .debs stay reachable for in-flight apt installs and historical reference.
-    gsutil -m cp -n -r "${WORK_DIR}/${pool_subpath}/." \
+    # `cp -n` skips existing objects, so old files retain the headers from their
+    # original upload and we don't re-tag them.
+    gsutil -m -h "${immutable_header}" \
+        cp -n -r "${WORK_DIR}/${pool_subpath}/." \
         "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/"
 
-    log_info "Uploading dists/${CHANNEL} indexes (Packages + by-hash) ..."
-    # Upload Packages files and the by-hash/ subtree first. by-hash files are
-    # content-addressed and therefore immutable; we intentionally do not pass
-    # rsync's -d flag, so historical by-hash files persist long enough to
-    # satisfy clients that cached an older InRelease.
-    gsutil -m cp -r "${WORK_DIR}/dists/${CHANNEL}/main/." \
-        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/"
+    log_info "Uploading dists/${CHANNEL} by-hash indexes ..."
+    # by-hash files are content-addressed and therefore immutable; we
+    # intentionally do not pass rsync's -d flag, so historical by-hash files
+    # persist long enough to satisfy clients that cached an older InRelease.
+    local arch
+    for arch in amd64 arm64; do
+        gsutil -m -h "${immutable_header}" \
+            cp -r "${WORK_DIR}/dists/${CHANNEL}/main/binary-${arch}/by-hash/." \
+            "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/binary-${arch}/by-hash/"
+    done
+
+    log_info "Uploading dists/${CHANNEL} Packages indexes ..."
+    # Canonical Packages files are overwritten every publish — clients must
+    # revalidate so `apt update` sees fresh contents promptly.
+    for arch in amd64 arm64; do
+        gsutil -m -h "${revalidate_header}" \
+            cp "${WORK_DIR}/dists/${CHANNEL}/main/binary-${arch}/Packages" \
+            "${WORK_DIR}/dists/${CHANNEL}/main/binary-${arch}/Packages.gz" \
+            "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/binary-${arch}/"
+    done
 
     # Upload Release + its detached signature next. The OLD InRelease is still
     # in the bucket and apt prefers InRelease, so clients see a consistent view
     # at this point.
     log_info "Uploading dists/${CHANNEL} Release + Release.gpg ..."
-    gsutil cp "${WORK_DIR}/dists/${CHANNEL}/Release" \
+    gsutil -h "${revalidate_header}" \
+        cp "${WORK_DIR}/dists/${CHANNEL}/Release" \
         "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/Release"
-    gsutil cp "${WORK_DIR}/dists/${CHANNEL}/Release.gpg" \
+    gsutil -h "${revalidate_header}" \
+        cp "${WORK_DIR}/dists/${CHANNEL}/Release.gpg" \
         "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/Release.gpg"
 
     # Upload InRelease LAST — a single-object overwrite is atomic in GCS, so
     # this is the atomic pointer swap that makes new indexes visible to apt.
     log_info "Uploading dists/${CHANNEL} InRelease (atomic pointer swap) ..."
-    gsutil cp "${WORK_DIR}/dists/${CHANNEL}/InRelease" \
+    gsutil -h "${revalidate_header}" \
+        cp "${WORK_DIR}/dists/${CHANNEL}/InRelease" \
         "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/InRelease"
 
     log_info "Uploading public keyring ..."
-    gsutil cp "${WORK_DIR}/gnosisvpn-archive-keyring.gpg" \
+    gsutil -h "Cache-Control:public, max-age=3600" \
+        cp "${WORK_DIR}/gnosisvpn-archive-keyring.gpg" \
         "${GNOSISVPN_APT_BUCKET}/gnosisvpn-archive-keyring.gpg"
 
-    log_info "Setting cache headers ..."
-    # .deb files (and their sidecar .asc/.sha256) are version-pinned — safe to cache for a year.
-    for pattern in '*.deb' '*.deb.asc' '*.deb.sha256'; do
-        gsutil -m setmeta \
-            -h "Cache-Control:public, max-age=31536000, immutable" \
-            "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/${pattern}" || true
-    done
-    # by-hash files are content-addressed and immutable — safe to cache long.
-    gsutil -m setmeta \
-        -h "Cache-Control:public, max-age=31536000, immutable" \
-        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/**/by-hash/**" || true
-    # Canonical metadata must revalidate so apt update sees fresh indexes promptly.
-    gsutil -m setmeta \
-        -h "Cache-Control:no-cache, max-age=60, must-revalidate" \
-        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/binary-amd64/Packages" \
-        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/binary-amd64/Packages.gz" \
-        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/binary-arm64/Packages" \
-        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/binary-arm64/Packages.gz" \
-        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/Release" \
-        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/Release.gpg" \
-        "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/InRelease" || true
-    gsutil setmeta \
-        -h "Cache-Control:public, max-age=3600" \
-        "${GNOSISVPN_APT_BUCKET}/gnosisvpn-archive-keyring.gpg" || true
     log_success "Upload complete"
 }
 
