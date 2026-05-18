@@ -142,7 +142,7 @@ parse_args() {
         for f in "${missing[@]}"; do log_error "  - ${f}"; done
         log_error "Generate them alongside each .deb before re-running, e.g.:"
         log_error "  gpg --armor --detach-sign --output <deb>.asc <deb>"
-        log_error "  (cd \"\$(dirname <deb>)\" && sha256sum \"\$(basename <deb>)\" > <deb>.sha256)"
+        log_error '  (cd "$(dirname <deb>)" && sha256sum "$(basename <deb>)" > <deb>.sha256)'
         exit 1
     fi
     # Sanity-check each .sha256 against the .deb it claims to hash.
