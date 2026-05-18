@@ -332,6 +332,28 @@ sign_release() {
     log_success "Release.gpg (detached signature) written"
 }
 
+verify_signatures_against_published_key() {
+    # Fail fast if the public key file we're about to publish does not match
+    # the private key that just signed InRelease/Release.gpg — otherwise a
+    # stale committed public key (e.g. after a secret rotation) would push a
+    # repo that every apt client rejects with NO_PUBKEY at `apt update`.
+    log_info "Verifying InRelease / Release.gpg against the public key being published ..."
+    local dists_dir="${WORK_DIR}/dists/${CHANNEL}"
+    local verify_home="${WORK_DIR}/verify-gnupg"
+    mkdir -p "$verify_home"
+    chmod 700 "$verify_home"
+    GNUPGHOME="$verify_home" gpg --batch --quiet --import "$GNOSISVPN_APT_PUBLIC_KEY"
+    GNUPGHOME="$verify_home" gpg --batch --verify "${dists_dir}/InRelease" || {
+        log_error "InRelease does not verify against ${GNOSISVPN_APT_PUBLIC_KEY} — the committed public key is stale or the signing private key was rotated"
+        exit 1
+    }
+    GNUPGHOME="$verify_home" gpg --batch --verify "${dists_dir}/Release.gpg" "${dists_dir}/Release" || {
+        log_error "Release.gpg does not verify against ${GNOSISVPN_APT_PUBLIC_KEY}"
+        exit 1
+    }
+    log_success "Signatures verify against the keyring that will be published"
+}
+
 dearmor_public_key() {
     log_info "Dearmoring public key for apt keyring ..."
     gpg --dearmor <"$GNOSISVPN_APT_PUBLIC_KEY" \
@@ -425,6 +447,7 @@ main() {
     generate_indexes
     generate_release
     sign_release
+    verify_signatures_against_published_key
     dearmor_public_key
     upload
 
