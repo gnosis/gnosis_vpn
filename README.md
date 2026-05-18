@@ -32,7 +32,7 @@ Components: main
 Architectures: $(dpkg --print-architecture)
 Signed-By: /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
 EOF
-sudo apt-get update
+sudo apt-get update 
 sudo apt-get install -y gnosisvpn
 ```
 
@@ -111,10 +111,51 @@ just package dmg aarch64-darwin true
 just all dmg aarch64-darwin true
 ```
 
+### APT repository
+
+The repository at `https://download.gnosisvpn.io/linux/apt` is built and signed by [`scripts/publish-apt.sh`](scripts/publish-apt.sh), which assembles `Packages` indexes via `apt-ftparchive`, signs `InRelease` and `Release.gpg` with the GnosisVPN GPG key, and atomically swaps the new `InRelease` in place last so apt clients never see a half-updated repo. Stable releases publish from `release.yaml` (only after the GitHub release exists), and nightly builds publish to the `snapshot` suite from `build-binary.yaml`.
+
+### GCS bucket layout
+
+Everything end users see is served from `gs://download.gnosisvpn.io` (CDN: `https://download.gnosisvpn.io`):
+
+```
+download.gnosisvpn.io/
+├── linux/
+│   ├── install.sh                                      # end-user APT installer
+│   └── apt/
+│       ├── gnosisvpn-archive-keyring.gpg               # binary keyring (Signed-By:)
+│       ├── dists/
+│       │   ├── stable/
+│       │   │   ├── InRelease                           # clearsigned, atomic pointer
+│       │   │   ├── Release
+│       │   │   ├── Release.gpg
+│       │   │   └── main/binary-{amd64,arm64}/
+│       │   │       ├── Packages, Packages.gz
+│       │   │       └── by-hash/SHA256/<hash>           # Acquire-By-Hash, immutable
+│       │   └── snapshot/                               # same shape, nightly suite
+│       └── pool/
+│           ├── main/g/gnosisvpn/      gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # stable, every release
+│           └── snapshot/g/gnosisvpn/  gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # nightly, append-only
+├── macos/
+│   ├── stable/   gnosisvpn_<version>_arm64.pkg(+.sha256)
+│   └── latest/   gnosisvpn_<version>_arm64.pkg(+.sha256)   # snapshot
+└── manifests/
+    ├── linux-amd64.json
+    ├── linux-arm64.json
+    └── macos-arm64.json                                # consumed by the client app for auto-update
+```
+
 ### Scripts
 
-- `common.sh` - Shared utility functions
-- `download-binaries.sh` - Downloads pre-built binaries from GCP Artifact registry
-- `generate-manual.sh` - Creates man pages (Linux only)
-- `generate-changelog.ts` - Creates the changelog (requires Deno)
-- `generate-package.sh` - Generates packages (.deb, .dmg)
+- `common.sh` — shared utility functions (logging, version checks)
+- `config.sh` — static configuration (`MIN_OS_*`, `MIN_APP_VERSION`) used by build and manifest scripts
+- `download-binaries.sh` — downloads pre-built upstream binaries (`gnosis_vpn-client`, `gnosis_vpn-app`) from GCP Artifact Registry
+- `generate-changelog.ts` — aggregates merged PRs across the three repos; emits zulip/github/debian/json/rpm formats (requires Deno)
+- `generate-manual.sh` — creates man pages (Linux only)
+- `generate-package.sh` — dispatcher that invokes the Linux or macOS packaging script
+- `generate-package-linux.sh` — builds the `.deb` via nfpm, GPG-signs it, writes `.asc` and `.sha256` sidecars
+- `generate-package-mac.sh` — builds the macOS `.pkg` via `productbuild` and notarizes with Apple
+- `generate-update-manifest.sh` — builds per-platform JSON manifests (`linux-amd64.json`, etc.) consumed by the client app for auto-update
+- `publish-apt.sh` — builds and signs the APT repo (`Packages`, `InRelease`, `Release.gpg`) and publishes it to GCS
+
