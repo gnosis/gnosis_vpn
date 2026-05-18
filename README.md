@@ -18,18 +18,18 @@ Snapshot (nightly) channel:
 curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
 ```
 
-Manual repo setup (equivalent to what the installer does):
+Manual repo setup (equivalent to what the installer does). Replace `amd64` with `arm64` on aarch64 hosts:
 
 ```bash
 sudo install -d -m 0755 /etc/apt/keyrings
 sudo curl -fsSL https://download.gnosisvpn.io/linux/apt/gnosisvpn-archive-keyring.gpg \
     -o /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
-sudo tee /etc/apt/sources.list.d/gnosisvpn.sources >/dev/null <<'EOF'
+sudo tee /etc/apt/sources.list.d/gnosisvpn.sources >/dev/null <<EOF
 Types: deb
 URIs: https://download.gnosisvpn.io/linux/apt
 Suites: stable
 Components: main
-Architectures: amd64 arm64
+Architectures: $(dpkg --print-architecture)
 Signed-By: /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
 EOF
 sudo apt-get update

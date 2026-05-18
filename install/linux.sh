@@ -18,6 +18,7 @@ KEYRING_PATH="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 SOURCES_PATH="/etc/apt/sources.list.d/gnosisvpn.sources"
 
 CHANNEL="${GNOSISVPN_CHANNEL:-stable}"
+ARCH=""
 
 log() { printf '\033[0;34m[gnosisvpn]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
@@ -90,16 +91,15 @@ detect_arch() {
         err "dpkg not found — this installer only supports Debian and Ubuntu."
         exit 1
     fi
-    local arch
-    arch="$(dpkg --print-architecture)"
-    case "$arch" in
+    ARCH="$(dpkg --print-architecture)"
+    case "$ARCH" in
     amd64 | arm64) ;;
     *)
-        err "Unsupported architecture: ${arch}. Only amd64 and arm64 are published."
+        err "Unsupported architecture: ${ARCH}. Only amd64 and arm64 are published."
         exit 1
         ;;
     esac
-    log "Detected architecture: ${arch}"
+    log "Detected architecture: ${ARCH}"
 }
 
 detect_distro() {
@@ -150,13 +150,13 @@ install_keyring() {
 }
 
 write_sources() {
-    log "Writing APT source to ${SOURCES_PATH} (channel: ${CHANNEL})"
+    log "Writing APT source to ${SOURCES_PATH} (channel: ${CHANNEL}, arch: ${ARCH})"
     cat >"$SOURCES_PATH" <<EOF
 Types: deb
 URIs: ${REPO_URL}
 Suites: ${CHANNEL}
 Components: main
-Architectures: amd64 arm64
+Architectures: ${ARCH}
 Signed-By: ${KEYRING_PATH}
 EOF
     chmod 0644 "$SOURCES_PATH"
