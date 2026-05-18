@@ -1,4 +1,4 @@
-# Reusable: publishes a pre-built .deb bundle to the APT repo.
+# Reusable: publishes pre-built .deb artifacts to the APT repo.
 # Callers:
 #   - build-binary.yaml: snapshot channel, runs right after Linux build.
 #   - release.yaml:      stable channel, runs ONLY after the GitHub release
@@ -30,10 +30,10 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install apt tooling
         run: sudo apt-get update && sudo apt-get install -y apt-utils
-      - name: Download package bundles
+      - name: Download package artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
         with:
-          pattern: gnosisvpn_${{ env.PACKAGE_VERSION }}_*-bundle
+          pattern: gnosisvpn_${{ env.PACKAGE_VERSION }}_*.deb*
           merge-multiple: true
           path: ./build/apt-input
       - name: Verify inputs

@@ -99,11 +99,10 @@ get_snapshot_run_info() {
         --jq '.createdAt')
 
     # All platforms in the run share the same GNOSISVPN_PACKAGE_VERSION.
-    # Extract it from the Linux amd64 artifact name: gnosisvpn_VERSION_amd64.deb-bundle
-    # (build-binary.yaml uploads .deb + .asc + .sha256 as a single bundle artifact).
+    # Extract it from the Linux amd64 artifact name: gnosisvpn_VERSION_amd64.deb
     version=$(gh api "repos/$REPO/actions/runs/$run_id/artifacts" \
-        --jq '[.artifacts[] | select(.name | test("^gnosisvpn_.*_amd64\\.deb-bundle$"))] | first | .name' |
-        sed 's/^gnosisvpn_\(.*\)_amd64\.deb-bundle$/\1/')
+        --jq '[.artifacts[] | select(.name | test("^gnosisvpn_.*_amd64\\.deb$"))] | first | .name' |
+        sed 's/^gnosisvpn_\(.*\)_amd64\.deb$/\1/')
 
     [[ -n $version && $version != "null" ]] ||
         die "Could not determine version from artifacts of run $run_id."
