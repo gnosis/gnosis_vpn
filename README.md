@@ -118,8 +118,9 @@ just all dmg aarch64-darwin true
 The repository at `https://download.gnosisvpn.io/linux/apt` is built and signed by
 [`scripts/publish-apt.sh`](scripts/publish-apt.sh), which assembles `Packages` indexes via `apt-ftparchive`, signs
 `InRelease` and `Release.gpg` with the GnosisVPN GPG key, and atomically swaps the new `InRelease` in place last so apt
-clients never see a half-updated repo. Stable releases publish from `release.yaml` (only after the GitHub release
-exists), and nightly builds publish to the `snapshot` suite from `build-binary.yaml`.
+clients never see a half-updated repo. Stable publishing is gated on the GitHub release job in `release.yaml`, so apt
+clients can never see a stable version that lacks a matching GitHub release. Nightly builds publish to the `snapshot`
+suite from `build-binary.yaml` right after the Linux build completes.
 
 ### GCS bucket layout
 

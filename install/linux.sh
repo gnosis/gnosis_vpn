@@ -39,8 +39,13 @@ Supported distributions:
   Debian 11, 12, 13, 14
   Ubuntu 22.04, 24.04, 26.04 LTS
 
-After install, the gnosisvpn service should be running. Optional env vars
-read by the package's postinstall (see https://github.com/gnosis/gnosis_vpn):
+After install, the gnosisvpn service should be running. To pick a non-default
+network or Blokli URL, re-run the package's postinstall with the env vars set
+explicitly (a piped $(curl | sudo bash) cannot forward them):
+  sudo GNOSISVPN_NETWORK=rotsee apt-get install --reinstall gnosisvpn
+  sudo GNOSISVPN_HOPR_BLOKLI_URL=https://… apt-get install --reinstall gnosisvpn
+
+Accepted values:
   GNOSISVPN_NETWORK            jura | rotsee | dufour (default: jura)
   GNOSISVPN_HOPR_BLOKLI_URL    Override the HOPR Blokli URL
 EOF
@@ -169,7 +174,6 @@ EOF
 
 apt_install() {
     log "Refreshing APT cache and installing gnosisvpn ..."
-    log "(Optional install-time env vars: GNOSISVPN_NETWORK, GNOSISVPN_HOPR_BLOKLI_URL — see README)"
     apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y gnosisvpn
 }

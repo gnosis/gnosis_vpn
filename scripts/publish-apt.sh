@@ -11,8 +11,8 @@
 #               retention pass is expected to prune old snapshots periodically.
 #
 # The Release file is GPG-signed (both clearsigned InRelease and detached
-# Release.gpg) using the same signing key already used for the loose .deb
-# distribution.
+# Release.gpg) using the same GnosisVPN GPG signing key that signs each
+# .deb's .asc sidecar.
 
 set -Eeuo pipefail
 set -o errtrace
@@ -365,6 +365,9 @@ verify_deb_signatures() {
     # publish happily and only fail later on every client. Verify against
     # the public key we are about to publish, so a key rotation that didn't
     # refresh the .ascs (or any hand-staged mismatch) fails fast here.
+    #
+    # Runs before setup_gnupg on purpose — uses its own throwaway GNUPGHOME
+    # so a bad sidecar fails before we ever import the signing private key.
     log_info "Verifying .deb GPG signatures against the public key being published ..."
     local verify_home="${WORK_DIR}/verify-debs-gnupg"
     mkdir -p "$verify_home"

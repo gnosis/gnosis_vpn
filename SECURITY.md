@@ -42,7 +42,8 @@ curl -fsSL https://download.gnosisvpn.io/linux/apt/gnosisvpn-archive-keyring.gpg
     | gpg --import
 ```
 
-(This is the same key, already dearmored.)
+(This is the same key, already dearmored.) The keyring is served over HTTPS without an out-of-band signature, so before
+trusting it confirm the printed fingerprint matches `9A30 8031 FD3B FE8E DBF5 076D 84F7 3FEA 46D1 0972`.
 
 ### Verifying Package Signatures
 
