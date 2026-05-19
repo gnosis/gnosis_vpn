@@ -21,10 +21,16 @@ We strongly recommend verifying packages before installation.
 
 You can import the GnosisVPN public key using any of these methods:
 
+In every method below, `gpg --import` only prints the 64-bit key ID — not the full fingerprint — so an extra step is
+needed to display the fingerprint and compare it against the expected value above.
+
 **From keyserver:**
 
 ```bash
 gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 9A308031FD3BFE8EDBF5076D84F73FEA46D10972
+gpg --fingerprint 9A308031FD3BFE8EDBF5076D84F73FEA46D10972
+# Confirm the printed fingerprint matches 9A30 8031 FD3B FE8E DBF5  076D 84F7 3FEA 46D1 0972
+# before running the next command — it grants the key ultimate trust.
 echo "9A308031FD3BFE8EDBF5076D84F73FEA46D10972:6:" | gpg --import-ownertrust
 ```
 
@@ -32,18 +38,25 @@ echo "9A308031FD3BFE8EDBF5076D84F73FEA46D10972:6:" | gpg --import-ownertrust
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/gnosis/gnosis_vpn/main/gnosisvpn-public-key.asc
+gpg --show-keys gnosisvpn-public-key.asc
+# Confirm the printed fingerprint matches 9A30 8031 FD3B FE8E DBF5  076D 84F7 3FEA 46D1 0972
+# before importing.
 gpg --import gnosisvpn-public-key.asc
 ```
 
 **From the APT repository:**
 
+(This is the same key, already dearmored.) The keyring is served over HTTPS without an out-of-band signature, so
+download it to a file and inspect the fingerprint before importing:
+
 ```bash
 curl -fsSL https://download.gnosisvpn.io/linux/apt/gnosisvpn-archive-keyring.gpg \
-    | gpg --import
+    -o /tmp/gnosisvpn-archive-keyring.gpg
+gpg --show-keys /tmp/gnosisvpn-archive-keyring.gpg
+# Confirm the printed fingerprint matches 9A30 8031 FD3B FE8E DBF5  076D 84F7 3FEA 46D1 0972
+# before importing.
+gpg --import /tmp/gnosisvpn-archive-keyring.gpg
 ```
-
-(This is the same key, already dearmored.) The keyring is served over HTTPS without an out-of-band signature, so before
-trusting it confirm the printed fingerprint matches `9A30 8031 FD3B FE8E DBF5 076D 84F7 3FEA 46D1 0972`.
 
 ### Verifying Package Signatures
 

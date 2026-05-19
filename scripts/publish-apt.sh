@@ -252,19 +252,27 @@ stage_pool() {
         exit 1
     fi
 
-    if [[ $CHANNEL == "stable" ]]; then
-        for deb in "${DEBS_DIR}"/*.deb; do
-            [[ -e $deb ]] || continue
-            local name existing
-            name="$(basename "$deb")"
-            existing="${pool_dir}/${name}"
-            if [[ -f $existing ]] && ! cmp -s "$deb" "$existing"; then
-                log_error "Stable pool already contains ${name} with different content."
+    # Both channels are append-only: a rerun that produces different bytes for
+    # an already-published filename must fail loudly. Without this guard the
+    # local pool gets the new bytes (cp overwrites the rsynced copy) and the
+    # regenerated Packages/InRelease describe them, but `gsutil cp -n` in
+    # upload() skips the existing bucket object — leaving the bucket .deb on
+    # the old bytes and every `apt-get install` failing with Hash Sum mismatch.
+    for deb in "${DEBS_DIR}"/*.deb; do
+        [[ -e $deb ]] || continue
+        local name existing
+        name="$(basename "$deb")"
+        existing="${pool_dir}/${name}"
+        if [[ -f $existing ]] && ! cmp -s "$deb" "$existing"; then
+            log_error "${CHANNEL} pool already contains ${name} with different content."
+            if [[ $CHANNEL == "stable" ]]; then
                 log_error "Re-releasing the same version is not supported — bump package.json or delete the old .deb manually."
-                exit 1
+            else
+                log_error "Snapshot filenames embed a timestamp and must not be reused — rebuild with a fresh version or delete the old .deb manually."
             fi
-        done
-    fi
+            exit 1
+        fi
+    done
 
     log_info "Copying new .deb files into ${pool_dir} ..."
     local copied=0

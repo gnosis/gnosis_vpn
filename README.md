@@ -25,6 +25,7 @@ architecture automatically:
 sudo install -d -m 0755 /etc/apt/keyrings
 sudo curl -fsSL https://download.gnosisvpn.io/linux/apt/gnosisvpn-archive-keyring.gpg \
     -o /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
+sudo chmod 0644 /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
 sudo tee /etc/apt/sources.list.d/gnosisvpn.sources >/dev/null <<EOF
 Types: deb
 URIs: https://download.gnosisvpn.io/linux/apt
