@@ -40,14 +40,17 @@ Supported distributions:
   Ubuntu 22.04, 24.04, 26.04 LTS
 
 After install, the gnosisvpn service should be running. To pick a non-default
-network or Blokli URL, re-run the package's postinstall with the env vars set
-explicitly (a piped \$(curl | sudo bash) cannot forward them):
-  sudo GNOSISVPN_NETWORK=rotsee apt-get install --reinstall gnosisvpn
-  sudo GNOSISVPN_HOPR_BLOKLI_URL=https://… apt-get install --reinstall gnosisvpn
+network, re-run the package's postinstall with BOTH env vars set explicitly —
+the Blokli URL default is hardcoded to the jura endpoint, so it must be paired
+with a matching network override (a piped \$(curl | sudo bash) cannot forward
+them):
+  sudo GNOSISVPN_NETWORK=rotsee \\
+       GNOSISVPN_HOPR_BLOKLI_URL=https://… \\
+       apt-get install --reinstall gnosisvpn
 
 Accepted values:
   GNOSISVPN_NETWORK            jura | rotsee | dufour (default: jura)
-  GNOSISVPN_HOPR_BLOKLI_URL    Override the HOPR Blokli URL
+  GNOSISVPN_HOPR_BLOKLI_URL    Blokli endpoint matching the chosen network
 EOF
 }
 
@@ -131,17 +134,12 @@ detect_distro() {
 }
 
 ensure_prereqs() {
-    # The keyring at $KEYRING_URL is already dearmored, so curl + ca-certificates
-    # are all we need — no local gpg invocation. ca-certificates is checked
-    # independently because it's a Recommends (not a Depends) of curl, so minimal
-    # images can have curl present while the CA bundle is missing.
-    local missing=()
-    command -v curl >/dev/null 2>&1 || missing+=(curl)
-    dpkg -s ca-certificates >/dev/null 2>&1 || missing+=(ca-certificates)
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        log "Installing prerequisites: ${missing[*]}"
+    # The keyring at $KEYRING_URL is already dearmored, so curl is all we need.
+    # ca-certificates is a hard Depends of the gnosisvpn package itself.
+    if ! command -v curl >/dev/null 2>&1; then
+        log "Installing prerequisites: curl"
         apt-get update
-        DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing[@]}"
+        DEBIAN_FRONTEND=noninteractive apt-get install -y curl
     fi
 }
 
@@ -185,9 +183,12 @@ print_postinstall() {
     sudo systemctl status gnosisvpn
     gnosis_vpn-ctl --help
 
-To change network or Blokli URL after install (re-runs the package's postinstall):
-    sudo GNOSISVPN_NETWORK=rotsee apt-get install --reinstall gnosisvpn
-    sudo GNOSISVPN_HOPR_BLOKLI_URL=https://… apt-get install --reinstall gnosisvpn
+To change to a non-default network after install, re-run the package's
+postinstall with BOTH env vars set together (the Blokli URL default points at
+the jura endpoint, so it must match the chosen network):
+    sudo GNOSISVPN_NETWORK=rotsee \
+         GNOSISVPN_HOPR_BLOKLI_URL=https://… \
+         apt-get install --reinstall gnosisvpn
 
 To upgrade later:   sudo apt-get update && sudo apt-get install --only-upgrade gnosisvpn
 To uninstall:       sudo apt-get remove gnosisvpn

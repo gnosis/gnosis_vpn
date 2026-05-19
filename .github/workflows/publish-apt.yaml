@@ -66,3 +66,7 @@ jobs:
           bash scripts/publish-apt.sh \
             --channel "${{ inputs.channel }}" \
             --debs ./build/apt-input
+      - name: Remove GPG signing key
+        if: always()
+        run: |
+          shred -u /tmp/gnosis_vpn_gpg_key.asc 2>/dev/null || rm -f /tmp/gnosis_vpn_gpg_key.asc

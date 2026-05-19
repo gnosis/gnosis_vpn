@@ -631,7 +631,7 @@ async function main(): Promise<void> {
   const packageRepo = config.repositories.find((r) => r.label === "Installer")!;
   switch (config.format) {
     case "zulip":
-      content = zulipFormat(allEntries, Deno.env.get("GNOSISVPN_ARTIFACT_VERSION"));
+      content = zulipFormat(allEntries, Deno.env.get("GNOSISVPN_PACKAGE_VERSION"));
       break;
     case "github":
       content = githubFormat(

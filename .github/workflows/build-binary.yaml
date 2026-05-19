@@ -229,37 +229,37 @@ jobs:
         id: prepare_files
         run: |
           if [[ "${{ inputs.version_type }}" == "release" ]]; then
-            destination="stable"
+            channel="stable"
           else
-            destination="latest"
+            channel="latest"
           fi
-          echo "destination=${destination}" | tee -a "$GITHUB_OUTPUT"
+          echo "channel=${channel}" | tee -a "$GITHUB_OUTPUT"
           # The source .sha256 was generated against the upstream filename
           # GnosisVPN-Installer-v<version>.pkg by scripts/generate-package-mac.sh;
           # we extract the bare hash so we can write fresh .sha256 files whose
-          # embedded filenames match each renamed destination — otherwise
+          # embedded filenames match each renamed copy — otherwise
           # `shasum -c <renamed>.sha256` fails with "no such file" even though
           # the bytes are correct.
           version="${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}"
           src_pkg="./build/packages/GnosisVPN-Installer-v${version}.pkg"
           src_sha=$(cut -d' ' -f1 "${src_pkg}.sha256")
           # Bucket layout: versioned filenames under ./build/macos/<channel>/.
-          mkdir -p ./build/macos/${destination}
-          cp "${src_pkg}" "./build/macos/${destination}/gnosisvpn_${version}_arm64.pkg"
+          mkdir -p ./build/macos/${channel}
+          cp "${src_pkg}" "./build/macos/${channel}/gnosisvpn_${version}_arm64.pkg"
           printf '%s  %s\n' "${src_sha}" "gnosisvpn_${version}_arm64.pkg" \
-            > "./build/macos/${destination}/gnosisvpn_${version}_arm64.pkg.sha256"
+            > "./build/macos/${channel}/gnosisvpn_${version}_arm64.pkg.sha256"
           # Artifact Registry layout: version-less filenames under ./build/macos-ar/<channel>/.
           # The 'generic upload' validator rejects '+' in filenames, so we keep
           # the version only in the registry's version field and strip it here.
-          mkdir -p ./build/macos-ar/${destination}
-          cp "${src_pkg}" "./build/macos-ar/${destination}/gnosisvpn_arm64.pkg"
+          mkdir -p ./build/macos-ar/${channel}
+          cp "${src_pkg}" "./build/macos-ar/${channel}/gnosisvpn_arm64.pkg"
           printf '%s  %s\n' "${src_sha}" "gnosisvpn_arm64.pkg" \
-            > "./build/macos-ar/${destination}/gnosisvpn_arm64.pkg.sha256"
+            > "./build/macos-ar/${channel}/gnosisvpn_arm64.pkg.sha256"
       - name: Publish into Google Artifact registry
         if: inputs.version_type != 'snapshot'
         uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@621619750f6772109d7840a7013135c212925d58 # upload-artifact-registry-v2
         with:
-          source: ./build/macos-ar/${{ steps.prepare_files.outputs.destination }}
+          source: ./build/macos-ar/${{ steps.prepare_files.outputs.channel }}
           package: gnosis_vpn
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Setup GCP
@@ -301,8 +301,8 @@ jobs:
         if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         run: |
           gsutil -m -h "Cache-Control:public, max-age=31536000, immutable" \
-            cp -r "./build/macos/${{ steps.prepare_files.outputs.destination }}/." \
-            "gs://download.gnosisvpn.io/macos/${{ steps.prepare_files.outputs.destination }}/"
+            cp -r "./build/macos/${{ steps.prepare_files.outputs.channel }}/." \
+            "gs://download.gnosisvpn.io/macos/${{ steps.prepare_files.outputs.channel }}/"
         ## TODO Publish into IPFS as well
   publish_apt:
     # Snapshot only. Stable APT publish for releases lives in release.yaml and
