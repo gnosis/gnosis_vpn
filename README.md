@@ -18,7 +18,8 @@ Snapshot (nightly) channel:
 curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
 ```
 
-Manual repo setup (equivalent to what the installer does). Replace `amd64` with `arm64` on aarch64 hosts:
+Manual repo setup (equivalent to what the installer does). The `$(dpkg --print-architecture)` command detects the host
+architecture automatically:
 
 ```bash
 sudo install -d -m 0755 /etc/apt/keyrings
@@ -36,8 +37,9 @@ sudo apt-get update
 sudo apt-get install -y gnosisvpn
 ```
 
-Manual `.deb` download (one-off install, no automatic updates) is still available from [releases](../../releases) — see
-[SECURITY.md](./SECURITY.md) for verification.
+Manual `.deb` download is available directly from the APT pool at
+`https://download.gnosisvpn.io/linux/apt/pool/main/g/gnosisvpn/gnosisvpn_<version>_<arch>.deb` (with matching `.asc` and
+`.sha256` sidecars at the same prefix). See [SECURITY.md](./SECURITY.md) for verification.
 
 Uninstall:
 
@@ -113,7 +115,11 @@ just all dmg aarch64-darwin true
 
 ### APT repository
 
-The repository at `https://download.gnosisvpn.io/linux/apt` is built and signed by [`scripts/publish-apt.sh`](scripts/publish-apt.sh), which assembles `Packages` indexes via `apt-ftparchive`, signs `InRelease` and `Release.gpg` with the GnosisVPN GPG key, and atomically swaps the new `InRelease` in place last so apt clients never see a half-updated repo. Stable releases publish from `release.yaml` (only after the GitHub release exists), and nightly builds publish to the `snapshot` suite from `build-binary.yaml`.
+The repository at `https://download.gnosisvpn.io/linux/apt` is built and signed by
+[`scripts/publish-apt.sh`](scripts/publish-apt.sh), which assembles `Packages` indexes via `apt-ftparchive`, signs
+`InRelease` and `Release.gpg` with the GnosisVPN GPG key, and atomically swaps the new `InRelease` in place last so apt
+clients never see a half-updated repo. Stable releases publish from `release.yaml` (only after the GitHub release
+exists), and nightly builds publish to the `snapshot` suite from `build-binary.yaml`.
 
 ### GCS bucket layout
 
@@ -150,12 +156,14 @@ download.gnosisvpn.io/
 
 - `common.sh` — shared utility functions (logging, version checks)
 - `config.sh` — static configuration (`MIN_OS_*`, `MIN_APP_VERSION`) used by build and manifest scripts
-- `download-binaries.sh` — downloads pre-built upstream binaries (`gnosis_vpn-client`, `gnosis_vpn-app`) from GCP Artifact Registry
-- `generate-changelog.ts` — aggregates merged PRs across the three repos; emits zulip/github/debian/json/rpm formats (requires Deno)
+- `download-binaries.sh` — downloads pre-built upstream binaries (`gnosis_vpn-client`, `gnosis_vpn-app`) from GCP
+  Artifact Registry
+- `generate-changelog.ts` — aggregates merged PRs across the three repos; emits zulip/github/debian/json/rpm formats
+  (requires Deno)
 - `generate-manual.sh` — creates man pages (Linux only)
 - `generate-package.sh` — dispatcher that invokes the Linux or macOS packaging script
 - `generate-package-linux.sh` — builds the `.deb` via nfpm, GPG-signs it, writes `.asc` and `.sha256` sidecars
 - `generate-package-mac.sh` — builds the macOS `.pkg` via `productbuild` and notarizes with Apple
-- `generate-update-manifest.sh` — builds per-platform JSON manifests (`linux-amd64.json`, etc.) consumed by the client app for auto-update
+- `generate-update-manifest.sh` — builds per-platform JSON manifests (`linux-amd64.json`, etc.) consumed by the client
+  app for auto-update
 - `publish-apt.sh` — builds and signs the APT repo (`Packages`, `InRelease`, `Release.gpg`) and publishes it to GCS
-

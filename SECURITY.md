@@ -35,38 +35,45 @@ curl -fsSLO https://raw.githubusercontent.com/gnosis/gnosis_vpn/main/gnosisvpn-p
 gpg --import gnosisvpn-public-key.asc
 ```
 
-**From release assets:**
-
-Download `gnosisvpn-public-key.asc` from any release and import:
+**From the APT repository:**
 
 ```bash
-gpg --import gnosisvpn-public-key.asc
+curl -fsSL https://download.gnosisvpn.io/linux/apt/gnosisvpn-archive-keyring.gpg \
+    | gpg --import
 ```
+
+(This is the same key, already dearmored.)
 
 ### Verifying Package Signatures
 
-Each Linux release includes three files per package:
+The examples below use `<version>` and `<arch>` placeholders — substitute the release version (e.g., `0.79.0`) and your
+architecture (`amd64` or `arm64`).
 
-1. **Package file** (e.g., `gnosisvpn_amd64.deb`)
-2. **SHA256 checksum** (e.g., `gnosisvpn_amd64.deb.sha256`)
-3. **GPG signature** (e.g., `gnosisvpn_amd64.deb.asc`)
+Each Linux package consists of three files in the APT pool at
+`https://download.gnosisvpn.io/linux/apt/pool/main/g/gnosisvpn/` (stable) or `pool/snapshot/g/gnosisvpn/` (snapshot):
+
+1. **Package file** — `gnosisvpn_<version>_<arch>.deb`
+2. **SHA256 checksum** — `gnosisvpn_<version>_<arch>.deb.sha256`
+3. **GPG signature** — `gnosisvpn_<version>_<arch>.deb.asc`
+
+Download all three from the same prefix, then verify:
 
 #### Verify SHA256 Checksum
 
 ```bash
-sha256sum -c gnosisvpn_amd64.deb.sha256
+sha256sum -c gnosisvpn_<version>_<arch>.deb.sha256
 ```
 
 Expected output:
 
 ```
-gnosisvpn_amd64.deb: OK
+gnosisvpn_<version>_<arch>.deb: OK
 ```
 
 #### Verify GPG Signature
 
 ```bash
-gpg --verify gnosisvpn_amd64.deb.asc gnosisvpn_amd64.deb
+gpg --verify gnosisvpn_<version>_<arch>.deb.asc gnosisvpn_<version>_<arch>.deb
 ```
 
 Expected output:
@@ -86,7 +93,7 @@ gpg: Good signature from "GnosisVPN (Gnosis VPN) <tech@hoprnet.org>" [ultimate]
 **Debian/Ubuntu packages:**
 
 ```bash
-dpkg-sig --verify gnosisvpn_amd64.deb
+dpkg-sig --verify gnosisvpn_<version>_<arch>.deb
 ```
 
 ## macOS Package Verification

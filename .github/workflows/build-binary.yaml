@@ -269,15 +269,40 @@ jobs:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
           install_sdk: true
+      - name: Check no stable macOS re-release
+        # Mirrors the stable-channel guard in scripts/publish-apt.sh: refuse to
+        # overwrite a versioned stable .pkg whose bytes differ from what's
+        # already in the bucket, because the upload is tagged immutable for a
+        # year and CDN/clients would keep serving the old bytes while .sha256
+        # would point at the new ones. Same-bytes retries are idempotent.
+        if: inputs.version_type == 'release'
+        run: |
+          version="${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}"
+          dest="gs://download.gnosisvpn.io/macos/stable/gnosisvpn_${version}_arm64.pkg"
+          local_pkg="./build/macos/stable/gnosisvpn_${version}_arm64.pkg"
+          if gsutil -q stat "$dest" 2>/dev/null; then
+            tmp=$(mktemp)
+            gsutil -q cp "$dest" "$tmp"
+            if ! cmp -s "$tmp" "$local_pkg"; then
+              echo "ERROR: ${dest} already exists with different content." >&2
+              echo "Re-releasing the same version is not supported — bump package.json or delete the old .pkg manually." >&2
+              rm -f "$tmp"
+              exit 1
+            fi
+            rm -f "$tmp"
+            echo "Stable .pkg already in bucket with matching bytes; upload will be idempotent."
+          fi
       - name: Publish into bucket
+        # Cache headers are set at upload time (gsutil -h) rather than via a
+        # post-upload `setmeta` wildcard. The wildcard form re-tags every
+        # historical .pkg / .sha256 object under macos/<channel>/ on every
+        # publish, which scales linearly with snapshot retention. Setting
+        # headers on the cp itself only touches the newly uploaded objects.
         if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
-        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
-        with:
-          path: ./build/macos/${{ steps.prepare_files.outputs.destination }}
-          destination: download.gnosisvpn.io/macos
-      - name: Set cache control
-        if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
-        run: gsutil -m setmeta -h "Cache-Control:public, max-age=31536000, immutable" "gs://download.gnosisvpn.io/macos/${{ steps.prepare_files.outputs.destination }}/**"
+        run: |
+          gsutil -m -h "Cache-Control:public, max-age=31536000, immutable" \
+            cp -r "./build/macos/${{ steps.prepare_files.outputs.destination }}/." \
+            "gs://download.gnosisvpn.io/macos/${{ steps.prepare_files.outputs.destination }}/"
         ## TODO Publish into IPFS as well
   publish_apt:
     # Snapshot only. Stable APT publish for releases lives in release.yaml and

@@ -30,6 +30,7 @@ CHANNEL=""
 DEBS_DIR=""
 WORK_DIR=""
 WORK_DIR_AUTO=0
+GNUPGHOME_AUTO=0
 
 usage() {
     cat <<EOF
@@ -115,12 +116,28 @@ parse_args() {
         log_error "--debs must point to an existing directory (got: '${DEBS_DIR}')"
         usage
     fi
-    local has_amd64=0 has_arm64=0
+    # Enforce the filename shape (gnosisvpn_<version>_<arch>.deb), require
+    # both architectures, and reject mixed-version inputs — a hand-staged
+    # publish with different versions per arch would otherwise index both
+    # into Packages and quietly hand different versions to different hosts.
+    local has_amd64=0 has_arm64=0 version_seen="" this_version name
     for deb in "$DEBS_DIR"/*.deb; do
         [[ -e $deb ]] || continue
-        case "$deb" in
-        *_amd64.deb) has_amd64=1 ;;
-        *_arm64.deb) has_arm64=1 ;;
+        name="$(basename "$deb")"
+        if [[ ! $name =~ ^gnosisvpn_(.+)_(amd64|arm64)\.deb$ ]]; then
+            log_error "Unexpected .deb filename: ${name} (expected gnosisvpn_<version>_<arch>.deb)"
+            exit 1
+        fi
+        this_version="${BASH_REMATCH[1]}"
+        if [[ -z $version_seen ]]; then
+            version_seen="$this_version"
+        elif [[ $this_version != "$version_seen" ]]; then
+            log_error "All .deb files must share the same version (got '${version_seen}' and '${this_version}')"
+            exit 1
+        fi
+        case "${BASH_REMATCH[2]}" in
+        amd64) has_amd64=1 ;;
+        arm64) has_arm64=1 ;;
         esac
     done
     if [[ $has_amd64 -eq 0 || $has_arm64 -eq 0 ]]; then
@@ -193,6 +210,7 @@ pool_scan_root_for_channel() {
 setup_gnupg() {
     log_info "Importing signing key into temporary GNUPGHOME..."
     GNUPGHOME="$(mktemp -d -t gnosisvpn-gnupg-XXXXXX)"
+    GNUPGHOME_AUTO=1
     export GNUPGHOME
     chmod 700 "$GNUPGHOME"
     echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" |
@@ -216,9 +234,17 @@ stage_pool() {
     local ls_output ls_status=0
     ls_output=$(gsutil ls "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/" 2>&1) || ls_status=$?
     if [[ $ls_status -eq 0 ]]; then
-        gsutil -m rsync -r "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/" "${pool_dir}/"
+        # `-d` makes the local pool a strict mirror of the bucket pool before
+        # we drop the new .debs in. Without it, a reusable --work-dir can keep
+        # stale files from a previous failed run, which apt-ftparchive would
+        # then index into Packages and InRelease would advertise as available.
+        # Bucket-side deletion is unaffected — this is bucket → local only.
+        gsutil -m rsync -d -r "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/" "${pool_dir}/"
     elif echo "$ls_output" | grep -qi 'matched no objects'; then
         log_warn "Remote pool does not exist yet — starting from empty"
+        # Clear any leftovers a reusable --work-dir may have inherited so the
+        # local pool matches the (empty) bucket state before staging new files.
+        find "${pool_dir}" -mindepth 1 -delete
     else
         log_error "Failed to read existing ${CHANNEL} pool at ${GNOSISVPN_APT_BUCKET}/${pool_subpath}/"
         log_error "gsutil ls (exit ${ls_status}):"
@@ -332,11 +358,45 @@ sign_release() {
     log_success "Release.gpg (detached signature) written"
 }
 
+verify_deb_signatures() {
+    # The .asc sidecars are base64-embedded into per-platform manifests by
+    # scripts/generate-update-manifest.sh and consumed by the client app's
+    # updater to verify downloaded .debs. A stale or mismatched .asc would
+    # publish happily and only fail later on every client. Verify against
+    # the public key we are about to publish, so a key rotation that didn't
+    # refresh the .ascs (or any hand-staged mismatch) fails fast here.
+    log_info "Verifying .deb GPG signatures against the public key being published ..."
+    local verify_home="${WORK_DIR}/verify-debs-gnupg"
+    mkdir -p "$verify_home"
+    chmod 700 "$verify_home"
+    GNUPGHOME="$verify_home" gpg --batch --quiet --import "$GNOSISVPN_APT_PUBLIC_KEY"
+    local deb
+    for deb in "$DEBS_DIR"/*.deb; do
+        [[ -e $deb ]] || continue
+        GNUPGHOME="$verify_home" gpg --batch --verify "${deb}.asc" "$deb" 2>/dev/null || {
+            log_error "GPG signature verification failed for $(basename "$deb"): ${deb}.asc does not verify against ${GNOSISVPN_APT_PUBLIC_KEY}"
+            exit 1
+        }
+    done
+    log_success ".deb signatures verify against the keyring that will be published"
+}
+
 verify_signatures_against_published_key() {
-    # Fail fast if the public key file we're about to publish does not match
-    # the private key that just signed InRelease/Release.gpg — otherwise a
-    # stale committed public key (e.g. after a secret rotation) would push a
-    # repo that every apt client rejects with NO_PUBKEY at `apt update`.
+    # Catches one specific operator error: the committed public key in
+    # gnosisvpn-public-key.asc and the GPG private key in secrets have drifted
+    # (e.g. the secret was rotated but the .asc was not re-exported). Without
+    # this check, such a publish would dearmor the OLD public key into the
+    # bucket keyring while signing InRelease/Release.gpg with the NEW private
+    # key, breaking every fresh install.sh run (its keyring fetch + first
+    # `apt update` would fail BADSIG).
+    #
+    # This does NOT make a signing-key rotation safe by itself. Existing apt
+    # clients verify InRelease against /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg,
+    # placed once by install.sh; `apt update` never refetches it from the
+    # bucket. Rotating the signing key without first distributing a dual-key
+    # keyring (and giving clients time to pick it up) will fail every existing
+    # client's `apt update` with NO_PUBKEY/BADSIG regardless of what this
+    # check reports.
     log_info "Verifying InRelease / Release.gpg against the public key being published ..."
     local dists_dir="${WORK_DIR}/dists/${CHANNEL}"
     local verify_home="${WORK_DIR}/verify-gnupg"
@@ -422,8 +482,13 @@ upload() {
         cp "${WORK_DIR}/dists/${CHANNEL}/InRelease" \
         "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/InRelease"
 
+    # Revalidate (don't long-cache) the keyring: install.sh fetches it every
+    # run, and during a signing-key rotation a long max-age would let CDN
+    # edges serve the stale keyring for up to its TTL, producing BADSIG
+    # apt-update failures on otherwise-correct clients. Use the same header
+    # as Release/InRelease so the three move together.
     log_info "Uploading public keyring ..."
-    gsutil -h "Cache-Control:public, max-age=3600" \
+    gsutil -h "${revalidate_header}" \
         cp "${WORK_DIR}/gnosisvpn-archive-keyring.gpg" \
         "${GNOSISVPN_APT_BUCKET}/gnosisvpn-archive-keyring.gpg"
 
@@ -431,7 +496,7 @@ upload() {
 }
 
 cleanup() {
-    if [[ -n ${GNUPGHOME:-} && -d ${GNUPGHOME} && ${GNUPGHOME} == /tmp/* ]]; then
+    if [[ ${GNUPGHOME_AUTO:-0} -eq 1 && -n ${GNUPGHOME:-} && -d ${GNUPGHOME} && ${GNUPGHOME} == /tmp/* ]]; then
         rm -rf "$GNUPGHOME"
     fi
     if [[ ${WORK_DIR_AUTO:-0} -eq 1 && -n ${WORK_DIR:-} && -d ${WORK_DIR} && ${WORK_DIR} == /tmp/* ]]; then
@@ -442,6 +507,7 @@ cleanup() {
 main() {
     trap cleanup EXIT
     parse_args "$@"
+    verify_deb_signatures
     setup_gnupg
     stage_pool
     generate_indexes

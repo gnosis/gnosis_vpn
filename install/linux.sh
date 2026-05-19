@@ -127,11 +127,16 @@ detect_distro() {
 
 ensure_prereqs() {
     # The keyring at $KEYRING_URL is already dearmored, so curl + ca-certificates
-    # are all we need — no local gpg invocation.
-    if ! command -v curl >/dev/null 2>&1; then
-        log "Installing prerequisites: curl ca-certificates"
+    # are all we need — no local gpg invocation. ca-certificates is checked
+    # independently because it's a Recommends (not a Depends) of curl, so minimal
+    # images can have curl present while the CA bundle is missing.
+    local missing=()
+    command -v curl >/dev/null 2>&1 || missing+=(curl)
+    dpkg -s ca-certificates >/dev/null 2>&1 || missing+=(ca-certificates)
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log "Installing prerequisites: ${missing[*]}"
         apt-get update
-        DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates
+        DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing[@]}"
     fi
 }
 
