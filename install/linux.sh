@@ -41,7 +41,7 @@ Supported distributions:
 
 After install, the gnosisvpn service should be running. To pick a non-default
 network or Blokli URL, re-run the package's postinstall with the env vars set
-explicitly (a piped $(curl | sudo bash) cannot forward them):
+explicitly (a piped \$(curl | sudo bash) cannot forward them):
   sudo GNOSISVPN_NETWORK=rotsee apt-get install --reinstall gnosisvpn
   sudo GNOSISVPN_HOPR_BLOKLI_URL=https://… apt-get install --reinstall gnosisvpn
 

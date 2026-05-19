@@ -467,6 +467,24 @@ upload() {
             "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/binary-${arch}/"
     done
 
+    # Upload the keyring BEFORE Release/InRelease. install.sh treats the
+    # keyring as a prerequisite for the `.sources` file it writes (Signed-By:
+    # points at it), and existing apt clients validate InRelease against
+    # whatever keyring is on disk — so the keyring must always be in place
+    # before the atomic InRelease swap makes new metadata visible. Otherwise a
+    # crash between the InRelease and keyring uploads (or a `install.sh` run
+    # during that window) leaves a brand-new repo with no fetchable keyring.
+    #
+    # Cache header rationale: install.sh fetches the keyring every run, and
+    # during a signing-key rotation a long max-age would let CDN edges serve
+    # the stale keyring for up to its TTL, producing BADSIG apt-update
+    # failures on otherwise-correct clients. Same header as Release/InRelease
+    # so the three move together.
+    log_info "Uploading public keyring ..."
+    gsutil -h "${revalidate_header}" \
+        cp "${WORK_DIR}/gnosisvpn-archive-keyring.gpg" \
+        "${GNOSISVPN_APT_BUCKET}/gnosisvpn-archive-keyring.gpg"
+
     # Upload Release + its detached signature next. The OLD InRelease is still
     # in the bucket and apt prefers InRelease, so clients see a consistent view
     # at this point.
@@ -484,16 +502,6 @@ upload() {
     gsutil -h "${revalidate_header}" \
         cp "${WORK_DIR}/dists/${CHANNEL}/InRelease" \
         "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/InRelease"
-
-    # Revalidate (don't long-cache) the keyring: install.sh fetches it every
-    # run, and during a signing-key rotation a long max-age would let CDN
-    # edges serve the stale keyring for up to its TTL, producing BADSIG
-    # apt-update failures on otherwise-correct clients. Use the same header
-    # as Release/InRelease so the three move together.
-    log_info "Uploading public keyring ..."
-    gsutil -h "${revalidate_header}" \
-        cp "${WORK_DIR}/gnosisvpn-archive-keyring.gpg" \
-        "${GNOSISVPN_APT_BUCKET}/gnosisvpn-archive-keyring.gpg"
 
     log_success "Upload complete"
 }
