@@ -49,7 +49,7 @@ jobs:
           done
       - name: Setup GPG signing key
         run: |
-          echo "${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}" > /tmp/gnosis_vpn_gpg_key.asc
+          printf '%s' "${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}" > /tmp/gnosis_vpn_gpg_key.asc
           chmod 600 /tmp/gnosis_vpn_gpg_key.asc
       - name: Setup GCP
         uses: hoprnet/hopr-workflows/actions/setup-gcp@621619750f6772109d7840a7013135c212925d58 # setup-gcp-v3
