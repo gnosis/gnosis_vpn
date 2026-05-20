@@ -22,10 +22,12 @@ Manual repo setup (equivalent to what the installer does). The `$(dpkg --print-a
 architecture automatically:
 
 ```bash
-sudo install -d -m 0755 /etc/apt/keyrings
-sudo curl -fsSL https://download.gnosisvpn.io/linux/apt/gnosisvpn-archive-keyring.gpg \
-    -o /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
-sudo chmod 0644 /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
+# 1. Add the signing key
+sudo install -dm 0755 /etc/apt/keyrings
+curl -fsSL https://download.gnosisvpn.io/linux/apt/gnosisvpn-archive-keyring.gpg \
+  | sudo install -m 0644 /dev/stdin /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
+
+# 2. Add the repository
 sudo tee /etc/apt/sources.list.d/gnosisvpn.sources >/dev/null <<EOF
 Types: deb
 URIs: https://download.gnosisvpn.io/linux/apt
@@ -34,8 +36,9 @@ Components: main
 Architectures: $(dpkg --print-architecture)
 Signed-By: /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
 EOF
-sudo apt-get update 
-sudo apt-get install -y gnosisvpn
+
+# 3. Install
+sudo apt-get update && sudo apt-get install -y gnosisvpn
 ```
 
 Manual `.deb` download is available directly from the APT pool at
