@@ -162,7 +162,8 @@ generate_completions() {
     mkdir -p "${completions_dir}"
     "${BINARY_DIR}/gnosis_vpn-ctl" completions bash >"${completions_dir}/gnosis_vpn-ctl.bash"
     "${BINARY_DIR}/gnosis_vpn-ctl" completions fish >"${completions_dir}/gnosis_vpn-ctl.fish"
-    "${BINARY_DIR}/gnosis_vpn-ctl" completions zsh >"${completions_dir}/_gnosis_vpn-ctl"
+    "${BINARY_DIR}/gnosis_vpn-ctl" completions zsh  >"${completions_dir}/_gnosis_vpn-ctl"
+    chmod 0644 "${completions_dir}/gnosis_vpn-ctl.bash" "${completions_dir}/gnosis_vpn-ctl.fish" "${completions_dir}/_gnosis_vpn-ctl"
     log_success "Generated shell completions"
 }
 

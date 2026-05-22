@@ -596,7 +596,11 @@ generate_completions() {
     mkdir -p "${share_dir}/zsh/site-functions"
     "${BUILD_DIR}/download/gnosis_vpn-ctl" completions bash >"${share_dir}/bash-completion/completions/gnosis_vpn-ctl"
     "${BUILD_DIR}/download/gnosis_vpn-ctl" completions fish >"${share_dir}/fish/vendor_completions.d/gnosis_vpn-ctl.fish"
-    "${BUILD_DIR}/download/gnosis_vpn-ctl" completions zsh >"${share_dir}/zsh/site-functions/_gnosis_vpn-ctl"
+    "${BUILD_DIR}/download/gnosis_vpn-ctl" completions zsh  >"${share_dir}/zsh/site-functions/_gnosis_vpn-ctl"
+    chmod 0644 \
+        "${share_dir}/bash-completion/completions/gnosis_vpn-ctl" \
+        "${share_dir}/fish/vendor_completions.d/gnosis_vpn-ctl.fish" \
+        "${share_dir}/zsh/site-functions/_gnosis_vpn-ctl"
     log_success "Generated shell completions"
 }
 
