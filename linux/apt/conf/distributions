@@ -1,0 +1,23 @@
+Origin: GnosisVPN
+Label: GnosisVPN
+Suite: stable
+Codename: stable
+Architectures: amd64 arm64
+Components: main
+Description: Gnosis VPN APT repository (stable)
+SignWith: 84F73FEA46D10972
+DebIndices: Packages Release . .gz
+Contents:
+Limit: -1
+
+Origin: GnosisVPN
+Label: GnosisVPN
+Suite: snapshot
+Codename: snapshot
+Architectures: amd64 arm64
+Components: snapshot
+Description: Gnosis VPN APT repository (snapshot)
+SignWith: 84F73FEA46D10972
+DebIndices: Packages Release . .gz
+Contents:
+Limit: -1

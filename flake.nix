@@ -64,7 +64,7 @@
             google-cloud-sdk
           ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             dpkg
-            apt
+            reprepro
           ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
             curl
             openssl

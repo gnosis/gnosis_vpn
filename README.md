@@ -120,11 +120,12 @@ just all dmg aarch64-darwin true
 ### APT repository
 
 The repository at `https://download.gnosisvpn.io/linux/apt` is built and signed by
-[`scripts/publish-apt.sh`](scripts/publish-apt.sh), which assembles `Packages` indexes via `apt-ftparchive`, signs
-`InRelease` and `Release.gpg` with the GnosisVPN GPG key, and atomically swaps the new `InRelease` in place last so apt
-clients never see a half-updated repo. Stable publishing is gated on the GitHub release job in `release.yaml`, so apt
-clients can never see a stable version that lacks a matching GitHub release. Nightly builds publish to the `snapshot`
-suite from `build-binary.yaml` right after the Linux build completes.
+[`scripts/publish-apt.sh`](scripts/publish-apt.sh), which uses [`reprepro`](https://salsa.debian.org/brlink/reprepro)
+configured by [`linux/apt/conf/distributions`](linux/apt/conf/distributions) to assemble `Packages` indexes and sign
+`InRelease`/`Release.gpg` with the GnosisVPN GPG key. The new `InRelease` is uploaded last so the swap is atomic and
+apt clients never see a half-updated repo. Stable publishing is gated on the GitHub release job in `release.yaml`, so
+apt clients can never see a stable version that lacks a matching GitHub release. Nightly builds publish to the
+`snapshot` suite from `build-binary.yaml` right after the Linux build completes.
 
 ### GCS bucket layout
 
@@ -141,10 +142,8 @@ download.gnosisvpn.io/
 │       │   │   ├── InRelease                           # clearsigned, atomic pointer
 │       │   │   ├── Release
 │       │   │   ├── Release.gpg
-│       │   │   └── main/binary-{amd64,arm64}/
-│       │   │       ├── Packages, Packages.gz
-│       │   │       └── by-hash/SHA256/<hash>           # Acquire-By-Hash, immutable
-│       │   └── snapshot/                               # same shape, nightly suite
+│       │   │   └── main/binary-{amd64,arm64}/Packages(+.gz)
+│       │   └── snapshot/                               # same shape, component is `snapshot/` (not `main/`)
 │       └── pool/
 │           ├── main/g/gnosisvpn/      gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # stable, every release
 │           └── snapshot/g/gnosisvpn/  gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # nightly, append-only

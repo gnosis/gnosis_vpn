@@ -29,7 +29,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install apt tooling
-        run: sudo apt-get update && sudo apt-get install -y apt-utils
+        run: sudo apt-get update && sudo apt-get install -y reprepro gnupg gpg-agent
       - name: Download package artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.8
         with:

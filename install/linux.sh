@@ -158,12 +158,21 @@ install_keyring() {
 }
 
 write_sources() {
-    log "Writing APT source to ${SOURCES_PATH} (channel: ${CHANNEL}, arch: ${ARCH})"
+    # Component name must match the Components: field in linux/apt/conf/distributions
+    # for the channel being subscribed to (stable→main, snapshot→snapshot). Reprepro
+    # derives the on-bucket pool path from that field, and apt fetches Packages from
+    # dists/<suite>/<component>/binary-<arch>/.
+    local component
+    case "$CHANNEL" in
+    stable) component="main" ;;
+    snapshot) component="snapshot" ;;
+    esac
+    log "Writing APT source to ${SOURCES_PATH} (channel: ${CHANNEL}, component: ${component}, arch: ${ARCH})"
     cat >"$SOURCES_PATH" <<EOF
 Types: deb
 URIs: ${REPO_URL}
 Suites: ${CHANNEL}
-Components: main
+Components: ${component}
 Architectures: ${ARCH}
 Signed-By: ${KEYRING_PATH}
 EOF
@@ -182,13 +191,6 @@ print_postinstall() {
 [gnosisvpn] Installed. Quick checks:
     sudo systemctl status gnosisvpn
     gnosis_vpn-ctl --help
-
-To change to a non-default network after install, re-run the package's
-postinstall with BOTH env vars set together (the Blokli URL default points at
-the jura endpoint, so it must match the chosen network):
-    sudo GNOSISVPN_NETWORK=rotsee \
-         GNOSISVPN_HOPR_BLOKLI_URL=https://… \
-         apt-get install --reinstall gnosisvpn
 
 To upgrade later:   sudo apt-get update && sudo apt-get install --only-upgrade gnosisvpn
 To uninstall:       sudo apt-get remove gnosisvpn

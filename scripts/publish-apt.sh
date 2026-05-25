@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
 #
 # Build and publish a signed APT repository to gs://download.gnosisvpn.io/linux/apt
+# using reprepro.
 #
 # Two channels are supported:
 #   stable    - append-only pool, all historical releases kept under
-#               pool/main/g/gnosisvpn/
+#               pool/main/g/gnosisvpn/ (Components: main).
 #   snapshot  - append-only pool, all historical snapshots kept under
-#               pool/snapshot/g/gnosisvpn/. Filenames are version-pinned so
-#               old .debs stay reachable for in-flight installs. A separate
-#               retention pass is expected to prune old snapshots periodically.
+#               pool/snapshot/g/gnosisvpn/ (Components: snapshot). Filenames are
+#               version-pinned so old .debs stay reachable for in-flight installs.
+#               A separate retention pass is expected to prune old snapshots
+#               periodically.
 #
-# The Release file is GPG-signed (both clearsigned InRelease and detached
-# Release.gpg) using the same GnosisVPN GPG signing key that signs each
-# .deb's .asc sidecar.
+# Repository metadata (Packages, Release, InRelease, Release.gpg) is produced
+# by reprepro from linux/apt/conf/distributions. Reprepro drives gpg via
+# SignWith: with the passphrase presetted into gpg-agent, so it never appears
+# on a command line. Same key signs each .deb's .asc sidecar (out-of-band,
+# in generate-package-linux.sh).
 
 set -Eeuo pipefail
 set -o errtrace
@@ -25,6 +29,9 @@ source "${SCRIPT_DIR}/common.sh"
 
 GNOSISVPN_APT_BUCKET="${GNOSISVPN_APT_BUCKET:-gs://download.gnosisvpn.io/linux/apt}"
 GNOSISVPN_APT_PUBLIC_KEY="${GNOSISVPN_APT_PUBLIC_KEY:-${REPO_ROOT}/gnosisvpn-public-key.asc}"
+GNOSISVPN_APT_CONF_DIR="${GNOSISVPN_APT_CONF_DIR:-${REPO_ROOT}/linux/apt/conf}"
+# Long key ID of the signing key. Must match SignWith: in conf/distributions.
+GNOSISVPN_APT_SIGNING_KEY="${GNOSISVPN_APT_SIGNING_KEY:-84F73FEA46D10972}"
 
 CHANNEL=""
 DEBS_DIR=""
@@ -57,14 +64,17 @@ Options:
 Environment:
   GNOSISVPN_GPG_PRIVATE_KEY_PATH      Armored private key file (required)
   GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD  Passphrase for the private key (required)
+  GNOSISVPN_APT_CONF_DIR              Directory with reprepro's distributions file
+                                      (default: ${GNOSISVPN_APT_CONF_DIR})
+  GNOSISVPN_APT_SIGNING_KEY           Long key ID matching SignWith: in
+                                      conf/distributions (default: ${GNOSISVPN_APT_SIGNING_KEY})
 EOF
     exit "${1:-1}"
 }
 
 parse_args() {
-    # Guard against `<flag>` with no value: without this, `shift 2` would abort
-    # under `set -e` before the validation block below runs, leaving the user
-    # with a silent exit 1 instead of a useful error.
+    # Without this guard `shift 2` would trip `set -e` before the helpful
+    # error below, exiting silently.
     require_value() {
         if [[ -z ${2:-} ]]; then
             log_error "$1 requires a value"
@@ -116,10 +126,8 @@ parse_args() {
         log_error "--debs must point to an existing directory (got: '${DEBS_DIR}')"
         usage
     fi
-    # Enforce the filename shape (gnosisvpn_<version>_<arch>.deb), require
-    # both architectures, and reject mixed-version inputs — a hand-staged
-    # publish with different versions per arch would otherwise index both
-    # into Packages and quietly hand different versions to different hosts.
+    # Enforce filename shape, require both arches, reject mixed-version inputs
+    # (else Packages would index both and clients on different arches get different versions).
     local has_amd64=0 has_arm64=0 version_seen="" this_version name
     for deb in "$DEBS_DIR"/*.deb; do
         [[ -e $deb ]] || continue
@@ -144,9 +152,8 @@ parse_args() {
         log_error "--debs must contain both an amd64 and an arm64 .deb (found amd64=${has_amd64} arm64=${has_arm64})"
         exit 1
     fi
-    # Sidecars (.asc + .sha256) are part of the release contract — they are
-    # consumed by scripts/generate-update-manifest.sh from the bucket and a
-    # publish without them leaves the manifest workflow broken.
+    # Sidecars (.asc + .sha256) are consumed by generate-update-manifest.sh
+    # from the bucket — required release contract.
     local missing=() f
     for deb in "$DEBS_DIR"/*.deb; do
         [[ -e $deb ]] || continue
@@ -155,11 +162,8 @@ parse_args() {
         done
     done
     if [[ ${#missing[@]} -gt 0 ]]; then
-        log_error "Missing required sidecar files (every .deb needs both .asc and .sha256):"
+        log_error "Missing sidecar files (each .deb needs .asc + .sha256):"
         for f in "${missing[@]}"; do log_error "  - ${f}"; done
-        log_error "Generate them alongside each .deb before re-running, e.g.:"
-        log_error "  gpg --armor --detach-sign --output <deb>.asc <deb>"
-        log_error '  (cd "$(dirname <deb>)" && sha256sum "$(basename <deb>)" > <deb>.sha256)'
         exit 1
     fi
     # Sanity-check each .sha256 against the .deb it claims to hash.
@@ -183,15 +187,24 @@ parse_args() {
         log_error "Public key not found: ${GNOSISVPN_APT_PUBLIC_KEY}"
         exit 1
     fi
+    if ! command -v reprepro >/dev/null 2>&1; then
+        log_error "reprepro not installed (install with: sudo apt-get install -y reprepro)"
+        exit 1
+    fi
+    if [[ ! -f "${GNOSISVPN_APT_CONF_DIR}/distributions" ]]; then
+        log_error "reprepro distributions file not found: ${GNOSISVPN_APT_CONF_DIR}/distributions"
+        exit 1
+    fi
     if [[ -z $WORK_DIR ]]; then
         WORK_DIR="$(mktemp -d -t gnosisvpn-apt-XXXXXX)"
         WORK_DIR_AUTO=1
     fi
 }
 
-# Path inside the bucket and inside the work dir where the suite's .debs live.
-# Stable uses the standard pool/main/, snapshot uses pool/snapshot/ so the two
-# suites cannot accidentally cross-contaminate.
+# Bucket and work-dir paths for each channel. Reprepro derives the pool path
+# from the Components: field in conf/distributions, so these must match:
+#   stable    Components: main      → pool/main/g/gnosisvpn/
+#   snapshot  Components: snapshot  → pool/snapshot/g/gnosisvpn/
 pool_subpath_for_channel() {
     case "$1" in
     stable) echo "pool/main/g/gnosisvpn" ;;
@@ -199,31 +212,53 @@ pool_subpath_for_channel() {
     esac
 }
 
-# Pool prefix that apt-ftparchive will scan when generating Packages.
-pool_scan_root_for_channel() {
+component_for_channel() {
     case "$1" in
-    stable) echo "pool/main" ;;
-    snapshot) echo "pool/snapshot" ;;
+    stable) echo "main" ;;
+    snapshot) echo "snapshot" ;;
     esac
 }
 
-setup_gnupg() {
-    log_info "Importing signing key into temporary GNUPGHOME..."
+reprepro_setup() {
+    log_info "Configuring GNUPGHOME and presetting signing passphrase ..."
     GNUPGHOME="$(mktemp -d -t gnosisvpn-gnupg-XXXXXX)"
     GNUPGHOME_AUTO=1
     export GNUPGHOME
     chmod 700 "$GNUPGHOME"
+    # SHA512 + agent-cached passphrase: matches the previous --digest-algo
+    # SHA512 + --passphrase-fd 0 behavior without putting the passphrase on a
+    # gpg command line.
+    printf 'digest-algo SHA512\nuse-agent\n' >"$GNUPGHOME/gpg.conf"
+    printf 'allow-preset-passphrase\nmax-cache-ttl 7200\n' >"$GNUPGHOME/gpg-agent.conf"
+
     echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" |
         gpg --batch --pinentry-mode loopback --passphrase-fd 0 \
             --import "$GNOSISVPN_GPG_PRIVATE_KEY_PATH"
-    log_success "Signing key imported"
+    gpg-connect-agent /bye >/dev/null
+    # Preset passphrase for every keygrip on the key (primary + subkeys) so any
+    # signing subkey reprepro picks is unlocked.
+    local preset_bin
+    preset_bin="$(gpgconf --list-dirs libexecdir)/gpg-preset-passphrase"
+    gpg --batch --with-keygrip --list-secret-keys "$GNOSISVPN_APT_SIGNING_KEY" |
+        awk '/Keygrip/ {print $3}' |
+        while read -r grip; do
+            "$preset_bin" --preset "$grip" <<<"$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD"
+        done
+
+    # Reprepro re-derives db/ from the local pool every run. Wipe leftover
+    # state a reused --work-dir may have inherited.
+    rm -rf "$WORK_DIR/db" "$WORK_DIR/pool" "$WORK_DIR/dists" "$WORK_DIR/incoming"
+    log_success "GNUPGHOME ready"
 }
 
 stage_pool() {
     local pool_subpath
     pool_subpath="$(pool_subpath_for_channel "$CHANNEL")"
-    local pool_dir="${WORK_DIR}/${pool_subpath}"
-    mkdir -p "$pool_dir"
+    # All .debs (rsynced existing + newly built) land in incoming/ first;
+    # reprepro_publish consumes that directory and re-places the .debs into
+    # the pool path derived from Components: in conf/distributions.
+    local incoming_dir="${WORK_DIR}/incoming"
+    mkdir -p "$incoming_dir"
 
     log_info "Pulling existing ${CHANNEL} pool from ${GNOSISVPN_APT_BUCKET}/${pool_subpath}/ ..."
     # gsutil ls returns non-zero for ALL failures (empty prefix, auth/network/
@@ -234,17 +269,17 @@ stage_pool() {
     local ls_output ls_status=0
     ls_output=$(gsutil ls "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/" 2>&1) || ls_status=$?
     if [[ $ls_status -eq 0 ]]; then
-        # `-d` makes the local pool a strict mirror of the bucket pool before
-        # we drop the new .debs in. Without it, a reusable --work-dir can keep
-        # stale files from a previous failed run, which apt-ftparchive would
-        # then index into Packages and InRelease would advertise as available.
+        # `-d` makes incoming/ a strict mirror of the bucket pool before we
+        # drop the new .debs in. Without it, a reusable --work-dir can keep
+        # stale files from a previous failed run, which reprepro would then
+        # ingest and InRelease would advertise as available.
         # Bucket-side deletion is unaffected — this is bucket → local only.
-        gsutil -m rsync -d -r "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/" "${pool_dir}/"
+        gsutil -m rsync -d -r "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/" "${incoming_dir}/"
     elif echo "$ls_output" | grep -qi 'matched no objects'; then
         log_warn "Remote pool does not exist yet — starting from empty"
-        # Clear any leftovers a reusable --work-dir may have inherited so the
-        # local pool matches the (empty) bucket state before staging new files.
-        find "${pool_dir}" -mindepth 1 -delete
+        # Clear any leftovers a reusable --work-dir may have inherited so
+        # incoming/ matches the (empty) bucket state before staging new files.
+        find "${incoming_dir}" -mindepth 1 -delete
     else
         log_error "Failed to read existing ${CHANNEL} pool at ${GNOSISVPN_APT_BUCKET}/${pool_subpath}/"
         log_error "gsutil ls (exit ${ls_status}):"
@@ -262,7 +297,7 @@ stage_pool() {
         [[ -e $deb ]] || continue
         local name existing
         name="$(basename "$deb")"
-        existing="${pool_dir}/${name}"
+        existing="${incoming_dir}/${name}"
         if [[ -f $existing ]] && ! cmp -s "$deb" "$existing"; then
             log_error "${CHANNEL} pool already contains ${name} with different content."
             if [[ $CHANNEL == "stable" ]]; then
@@ -274,117 +309,62 @@ stage_pool() {
         fi
     done
 
-    log_info "Copying new .deb files into ${pool_dir} ..."
+    log_info "Copying new .deb files into ${incoming_dir} ..."
     local copied=0
     for deb in "${DEBS_DIR}"/*.deb; do
         [[ -e $deb ]] || continue
-        cp -v "$deb" "${pool_dir}/"
+        cp -v "$deb" "${incoming_dir}/"
         # Sidecars are guaranteed by parse_args — copy unconditionally.
-        cp -v "${deb}.asc" "${pool_dir}/"
-        cp -v "${deb}.sha256" "${pool_dir}/"
+        cp -v "${deb}.asc" "${incoming_dir}/"
+        cp -v "${deb}.sha256" "${incoming_dir}/"
         copied=$((copied + 1))
     done
     if [[ $copied -eq 0 ]]; then
         log_error "No .deb files found in ${DEBS_DIR}"
         exit 1
     fi
-    log_success "Staged ${copied} .deb file(s) into pool"
+    log_success "Staged ${copied} new .deb file(s) into ${incoming_dir}"
 }
 
-generate_indexes() {
-    log_info "Generating Packages indexes ..."
-    local pool_scan_root
-    pool_scan_root="$(pool_scan_root_for_channel "$CHANNEL")"
+reprepro_publish() {
+    local incoming_dir="${WORK_DIR}/incoming"
+    local pool_dir="${WORK_DIR}/$(pool_subpath_for_channel "$CHANNEL")"
 
-    local dists_dir="${WORK_DIR}/dists/${CHANNEL}"
-    mkdir -p \
-        "${dists_dir}/main/binary-amd64/by-hash/SHA256" \
-        "${dists_dir}/main/binary-arm64/by-hash/SHA256"
-
-    pushd "$WORK_DIR" >/dev/null
-    apt-ftparchive --arch amd64 packages "$pool_scan_root" \
-        >"${dists_dir}/main/binary-amd64/Packages"
-    apt-ftparchive --arch arm64 packages "$pool_scan_root" \
-        >"${dists_dir}/main/binary-arm64/Packages"
-    popd >/dev/null
-
-    gzip -kf9 "${dists_dir}/main/binary-amd64/Packages"
-    gzip -kf9 "${dists_dir}/main/binary-arm64/Packages"
-
-    # Place a content-addressed copy of each Packages{,.gz} under by-hash/SHA256/
-    # so apt's Acquire-By-Hash can fetch an immutable index matching whichever
-    # InRelease the client last validated — eliminates Hash Sum mismatch races
-    # during publish.
-    local arch arch_dir f hash
-    for arch in amd64 arm64; do
-        arch_dir="${dists_dir}/main/binary-${arch}"
-        for f in Packages Packages.gz; do
-            hash="$(sha256sum "${arch_dir}/${f}" | awk '{print $1}')"
-            cp "${arch_dir}/${f}" "${arch_dir}/by-hash/SHA256/${hash}"
-        done
+    log_info "Ingesting ${CHANNEL} .debs into reprepro ..."
+    # --export=never batches the work; one final `reprepro export` regenerates
+    # Packages / Release / InRelease / Release.gpg once at the end.
+    local count=0 deb
+    for deb in "${incoming_dir}"/*.deb; do
+        [[ -e $deb ]] || continue
+        reprepro -b "$WORK_DIR" --confdir "$GNOSISVPN_APT_CONF_DIR" \
+            --export=never includedeb "$CHANNEL" "$deb"
+        count=$((count + 1))
     done
-    log_success "Wrote Packages and Packages.gz (with by-hash copies) for amd64 and arm64"
-}
+    [[ $count -gt 0 ]] || { log_error "No .deb files in ${incoming_dir}"; exit 1; }
+    reprepro -b "$WORK_DIR" --confdir "$GNOSISVPN_APT_CONF_DIR" export "$CHANNEL"
 
-generate_release() {
-    log_info "Generating Release file ..."
-    local dists_dir="${WORK_DIR}/dists/${CHANNEL}"
-
-    pushd "$WORK_DIR" >/dev/null
-    apt-ftparchive \
-        -o "APT::FTPArchive::Release::Origin=GnosisVPN" \
-        -o "APT::FTPArchive::Release::Label=GnosisVPN" \
-        -o "APT::FTPArchive::Release::Suite=${CHANNEL}" \
-        -o "APT::FTPArchive::Release::Codename=${CHANNEL}" \
-        -o "APT::FTPArchive::Release::Architectures=amd64 arm64" \
-        -o "APT::FTPArchive::Release::Components=main" \
-        -o "APT::FTPArchive::Release::Description=Gnosis VPN APT repository (${CHANNEL})" \
-        -o "APT::FTPArchive::Release::Acquire-By-Hash=true" \
-        release "dists/${CHANNEL}" >"${dists_dir}/Release"
-    popd >/dev/null
-    log_success "Release written to ${dists_dir}/Release"
-}
-
-sign_release() {
-    log_info "Signing Release ..."
-    local dists_dir="${WORK_DIR}/dists/${CHANNEL}"
-
-    rm -f "${dists_dir}/InRelease" "${dists_dir}/Release.gpg"
-
-    echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" |
-        gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
-            --digest-algo SHA512 \
-            --clearsign --output "${dists_dir}/InRelease" \
-            "${dists_dir}/Release"
-    log_success "InRelease (clearsigned) written"
-
-    echo "$GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD" |
-        gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
-            --digest-algo SHA512 \
-            --armor --detach-sign --output "${dists_dir}/Release.gpg" \
-            "${dists_dir}/Release"
-    log_success "Release.gpg (detached signature) written"
+    # Reprepro ignores .asc / .sha256 sidecars — copy them alongside the .debs
+    # it just placed in the pool.
+    mkdir -p "$pool_dir"
+    shopt -s nullglob
+    cp -t "$pool_dir" "${incoming_dir}"/*.deb.asc "${incoming_dir}"/*.deb.sha256
+    shopt -u nullglob
+    log_success "Reprepro published ${count} .deb file(s)"
 }
 
 verify_deb_signatures() {
-    # The .asc sidecars are base64-embedded into per-platform manifests by
-    # scripts/generate-update-manifest.sh and consumed by the client app's
-    # updater to verify downloaded .debs. A stale or mismatched .asc would
-    # publish happily and only fail later on every client. Verify against
-    # the public key we are about to publish, so a key rotation that didn't
-    # refresh the .ascs (or any hand-staged mismatch) fails fast here.
-    #
-    # Runs before setup_gnupg on purpose — uses its own throwaway GNUPGHOME
-    # so a bad sidecar fails before we ever import the signing private key.
+    # Each .deb ships with a `.asc` — a detached GPG signature used by the
+    # client app's auto-updater to confirm the .deb really came from us
+    # (beyond just trusting the manifest's hash).
     log_info "Verifying .deb GPG signatures against the public key being published ..."
-    local verify_home="${WORK_DIR}/verify-debs-gnupg"
-    mkdir -p "$verify_home"
-    chmod 700 "$verify_home"
-    GNUPGHOME="$verify_home" gpg --batch --quiet --import "$GNOSISVPN_APT_PUBLIC_KEY"
+    VERIFY_GNUPGHOME="${WORK_DIR}/verify-gnupg"
+    mkdir -p "$VERIFY_GNUPGHOME"
+    chmod 700 "$VERIFY_GNUPGHOME"
+    GNUPGHOME="$VERIFY_GNUPGHOME" gpg --batch --quiet --import "$GNOSISVPN_APT_PUBLIC_KEY"
     local deb
     for deb in "$DEBS_DIR"/*.deb; do
         [[ -e $deb ]] || continue
-        GNUPGHOME="$verify_home" gpg --batch --verify "${deb}.asc" "$deb" 2>/dev/null || {
+        GNUPGHOME="$VERIFY_GNUPGHOME" gpg --batch --verify "${deb}.asc" "$deb" 2>/dev/null || {
             log_error "GPG signature verification failed for $(basename "$deb"): ${deb}.asc does not verify against ${GNOSISVPN_APT_PUBLIC_KEY}"
             exit 1
         }
@@ -393,32 +373,18 @@ verify_deb_signatures() {
 }
 
 verify_signatures_against_published_key() {
-    # Catches one specific operator error: the committed public key in
-    # gnosisvpn-public-key.asc and the GPG private key in secrets have drifted
-    # (e.g. the secret was rotated but the .asc was not re-exported). Without
-    # this check, such a publish would dearmor the OLD public key into the
-    # bucket keyring while signing InRelease/Release.gpg with the NEW private
-    # key, breaking every fresh install.sh run (its keyring fetch + first
-    # `apt update` would fail BADSIG).
-    #
-    # This does NOT make a signing-key rotation safe by itself. Existing apt
-    # clients verify InRelease against /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg,
-    # placed once by install.sh; `apt update` never refetches it from the
-    # bucket. Rotating the signing key without first distributing a dual-key
-    # keyring (and giving clients time to pick it up) will fail every existing
-    # client's `apt update` with NO_PUBKEY/BADSIG regardless of what this
-    # check reports.
+    # Catches drift between the committed gnosisvpn-public-key.asc and the
+    # private key in secrets — without it, publish would dearmor the OLD pub
+    # key into the bucket keyring while signing InRelease with the NEW key,
+    # BADSIG-ing every fresh install.sh run. Does NOT make rotation safe:
+    # existing clients still have the old keyring on disk. Reuses VERIFY_GNUPGHOME.
     log_info "Verifying InRelease / Release.gpg against the public key being published ..."
     local dists_dir="${WORK_DIR}/dists/${CHANNEL}"
-    local verify_home="${WORK_DIR}/verify-gnupg"
-    mkdir -p "$verify_home"
-    chmod 700 "$verify_home"
-    GNUPGHOME="$verify_home" gpg --batch --quiet --import "$GNOSISVPN_APT_PUBLIC_KEY"
-    GNUPGHOME="$verify_home" gpg --batch --verify "${dists_dir}/InRelease" || {
+    GNUPGHOME="$VERIFY_GNUPGHOME" gpg --batch --verify "${dists_dir}/InRelease" || {
         log_error "InRelease does not verify against ${GNOSISVPN_APT_PUBLIC_KEY} — the committed public key is stale or the signing private key was rotated"
         exit 1
     }
-    GNUPGHOME="$verify_home" gpg --batch --verify "${dists_dir}/Release.gpg" "${dists_dir}/Release" || {
+    GNUPGHOME="$VERIFY_GNUPGHOME" gpg --batch --verify "${dists_dir}/Release.gpg" "${dists_dir}/Release" || {
         log_error "Release.gpg does not verify against ${GNOSISVPN_APT_PUBLIC_KEY}"
         exit 1
     }
@@ -436,12 +402,10 @@ upload() {
     local pool_subpath
     pool_subpath="$(pool_subpath_for_channel "$CHANNEL")"
 
-    # Cache headers are set at upload time (gsutil -h) rather than via a
-    # post-upload `setmeta` wildcard. The wildcard form re-tags every historical
-    # .deb / .asc / .sha256 / by-hash object in the pool on every publish, which
-    # scales linearly with snapshot retention and makes nightlies progressively
-    # slower and more expensive. Setting headers on the cp itself only touches
-    # the newly uploaded objects.
+    # Cache headers set at upload time (gsutil -h), not via post-upload
+    # `setmeta` wildcards — the wildcard form re-tags every historical
+    # .deb / .asc / .sha256 in the pool on each publish, scaling linearly
+    # with snapshot retention.
     local immutable_header="Cache-Control:public, max-age=31536000, immutable"
     local revalidate_header="Cache-Control:no-cache, max-age=60, must-revalidate"
 
@@ -454,40 +418,26 @@ upload() {
         cp -n -r "${WORK_DIR}/${pool_subpath}/." \
         "${GNOSISVPN_APT_BUCKET}/${pool_subpath}/"
 
-    log_info "Uploading dists/${CHANNEL} by-hash indexes ..."
-    # by-hash files are content-addressed and therefore immutable; we
-    # intentionally do not pass rsync's -d flag, so historical by-hash files
-    # persist long enough to satisfy clients that cached an older InRelease.
-    local arch
-    for arch in amd64 arm64; do
-        gsutil -m -h "${immutable_header}" \
-            cp -r "${WORK_DIR}/dists/${CHANNEL}/main/binary-${arch}/by-hash/." \
-            "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/binary-${arch}/by-hash/"
-    done
+    # reprepro 5.4.x has no Acquire-By-Hash, so no by-hash dirs to upload.
+    # Atomic InRelease swap (uploaded last) keeps clients from seeing partial state.
+    local arch component
+    component="$(component_for_channel "$CHANNEL")"
 
     log_info "Uploading dists/${CHANNEL} Packages indexes ..."
     # Canonical Packages files are overwritten every publish — clients must
     # revalidate so `apt update` sees fresh contents promptly.
     for arch in amd64 arm64; do
         gsutil -m -h "${revalidate_header}" \
-            cp "${WORK_DIR}/dists/${CHANNEL}/main/binary-${arch}/Packages" \
-            "${WORK_DIR}/dists/${CHANNEL}/main/binary-${arch}/Packages.gz" \
-            "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/main/binary-${arch}/"
+            cp "${WORK_DIR}/dists/${CHANNEL}/${component}/binary-${arch}/Packages" \
+            "${WORK_DIR}/dists/${CHANNEL}/${component}/binary-${arch}/Packages.gz" \
+            "${GNOSISVPN_APT_BUCKET}/dists/${CHANNEL}/${component}/binary-${arch}/"
     done
 
-    # Upload the keyring BEFORE Release/InRelease. install.sh treats the
-    # keyring as a prerequisite for the `.sources` file it writes (Signed-By:
-    # points at it), and existing apt clients validate InRelease against
-    # whatever keyring is on disk — so the keyring must always be in place
-    # before the atomic InRelease swap makes new metadata visible. Otherwise a
-    # crash between the InRelease and keyring uploads (or a `install.sh` run
-    # during that window) leaves a brand-new repo with no fetchable keyring.
-    #
-    # Cache header rationale: install.sh fetches the keyring every run, and
-    # during a signing-key rotation a long max-age would let CDN edges serve
-    # the stale keyring for up to its TTL, producing BADSIG apt-update
-    # failures on otherwise-correct clients. Same header as Release/InRelease
-    # so the three move together.
+    # Keyring uploaded BEFORE Release/InRelease so it's in place when the
+    # atomic InRelease swap reveals new metadata — a crash between uploads
+    # would otherwise leave clients with no fetchable keyring. Revalidate
+    # header matches Release/InRelease so during a key rotation no CDN edge
+    # serves the stale keyring alongside metadata signed by the new key.
     log_info "Uploading public keyring ..."
     gsutil -h "${revalidate_header}" \
         cp "${WORK_DIR}/gnosisvpn-archive-keyring.gpg" \
@@ -515,6 +465,9 @@ upload() {
 }
 
 cleanup() {
+    if [[ -n ${GNUPGHOME:-} && -d ${GNUPGHOME} ]]; then
+        gpgconf --kill gpg-agent 2>/dev/null || true
+    fi
     if [[ ${GNUPGHOME_AUTO:-0} -eq 1 && -n ${GNUPGHOME:-} && -d ${GNUPGHOME} && ${GNUPGHOME} == /tmp/* ]]; then
         rm -rf "$GNUPGHOME"
     fi
@@ -527,11 +480,9 @@ main() {
     trap cleanup EXIT
     parse_args "$@"
     verify_deb_signatures
-    setup_gnupg
+    reprepro_setup
     stage_pool
-    generate_indexes
-    generate_release
-    sign_release
+    reprepro_publish
     verify_signatures_against_published_key
     dearmor_public_key
     upload
