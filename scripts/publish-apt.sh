@@ -340,7 +340,10 @@ reprepro_publish() {
             --export=never includedeb "$CHANNEL" "$deb"
         count=$((count + 1))
     done
-    [[ $count -gt 0 ]] || { log_error "No .deb files in ${incoming_dir}"; exit 1; }
+    [[ $count -gt 0 ]] || {
+        log_error "No .deb files in ${incoming_dir}"
+        exit 1
+    }
     reprepro -b "$WORK_DIR" --confdir "$GNOSISVPN_APT_CONF_DIR" export "$CHANNEL"
 
     # Reprepro ignores .asc / .sha256 sidecars — copy them alongside the .debs
