@@ -134,13 +134,9 @@ detect_distro() {
 }
 
 ensure_prereqs() {
-    # The keyring at $KEYRING_URL is already dearmored, so curl is all we need.
-    # ca-certificates is a hard Depends of the gnosisvpn package itself.
-    if ! command -v curl >/dev/null 2>&1; then
-        log "Installing prerequisites: curl"
-        apt-get update
-        DEBIAN_FRONTEND=noninteractive apt-get install -y curl
-    fi
+    log "Ensuring prerequisites: ca-certificates, curl"
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl
 }
 
 install_keyring() {

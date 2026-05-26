@@ -78,9 +78,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.BOT_TOKEN }}
   publish_apt:
-    # Publishes the stable APT suite only after the release job has created the
-    # GitHub release and bumped the *_RELEASE_VERSION repo variables, so apt
-    # clients never see a stable version that lacks a matching GitHub release.
+    # Runs after `release` so apt never advertises a version without a matching GitHub release.
     name: Publish APT (stable)
     needs:
       - build_binary
