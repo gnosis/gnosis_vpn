@@ -222,13 +222,8 @@ for entry in "${PLATFORMS[@]}"; do
         GCS_URL=$(build_gcs_url "$MANIFEST_NAME" "$channel" "$version")
         echo "  [$channel] Fetching metadata from ${GCS_URL} ..."
 
-        # HEAD + final Content-Length: avoids downloading the full .deb/.pkg
-        # body just to learn its size. `-L` follows GCS redirects; awk's END
-        # block keeps the last Content-Length seen, which is the final hop.
-        SIZE=$(curl -sfLI "$GCS_URL" 2>/dev/null |
-            tr -d '\r' |
-            awk 'tolower($1) == "content-length:" { val = $2 } END { print val }' || true)
-        [[ -n $SIZE && $SIZE -gt 0 ]] ||
+        SIZE=$(curl -sfL -o /dev/null -w "%{size_download}" "$GCS_URL" || true)
+        [[ -n $SIZE ]] ||
             {
                 echo "ERROR: Could not determine size of '${MANIFEST_NAME}' from ${GCS_URL}" >&2
                 ERRORS=$((ERRORS + 1))

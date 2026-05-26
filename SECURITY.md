@@ -64,7 +64,8 @@ The examples below use `<version>` and `<arch>` placeholders — substitute the 
 architecture (`amd64` or `arm64`).
 
 Each Linux package consists of three files in the APT pool at
-`https://download.gnosisvpn.io/linux/apt/pool/main/g/gnosisvpn/` (stable) or `pool/snapshot/g/gnosisvpn/` (snapshot):
+`https://download.gnosisvpn.io/linux/apt/pool/main/g/gnosisvpn/` (stable) or
+`https://download.gnosisvpn.io/linux/apt/pool/snapshot/g/gnosisvpn/` (snapshot):
 
 1. **Package file** — `gnosisvpn_<version>_<arch>.deb`
 2. **SHA256 checksum** — `gnosisvpn_<version>_<arch>.deb.sha256`

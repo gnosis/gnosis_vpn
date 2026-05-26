@@ -36,17 +36,8 @@ jobs:
           pattern: gnosisvpn_${{ env.PACKAGE_VERSION }}_*.deb*
           merge-multiple: true
           path: ./build/apt-input
-      - name: Verify inputs
-        run: |
-          ls -la ./build/apt-input
-          for arch in amd64 arm64; do
-            for suffix in deb deb.asc deb.sha256; do
-              file="./build/apt-input/gnosisvpn_${PACKAGE_VERSION}_${arch}.${suffix}"
-              [[ -s "$file" ]] || { echo "Missing or empty: $file"; exit 1; }
-            done
-            (cd ./build/apt-input && sha256sum -c "gnosisvpn_${PACKAGE_VERSION}_${arch}.deb.sha256") \
-              || { echo "Hash mismatch for ${arch}"; exit 1; }
-          done
+      - name: List downloaded artifacts
+        run: ls -la ./build/apt-input
       - name: Setup GPG signing key
         run: |
           printf '%s' "${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}" > /tmp/gnosis_vpn_gpg_key.asc

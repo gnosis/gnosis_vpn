@@ -468,8 +468,12 @@ upload() {
 }
 
 cleanup() {
+    # Explicit --homedir scopes the kill to the temp agent we spawned, not
+    # whichever agent the user's ~/.gnupg may have running. Redundant while
+    # GNUPGHOME is still exported here, but makes the intent local-visible
+    # and survives a future refactor that drops the export.
     if [[ -n ${GNUPGHOME:-} && -d ${GNUPGHOME} ]]; then
-        gpgconf --kill gpg-agent 2>/dev/null || true
+        gpgconf --homedir "$GNUPGHOME" --kill gpg-agent 2>/dev/null || true
     fi
     if [[ ${GNUPGHOME_AUTO:-0} -eq 1 && -n ${GNUPGHOME:-} && -d ${GNUPGHOME} && ${GNUPGHOME} == /tmp/* ]]; then
         rm -rf "$GNUPGHOME"

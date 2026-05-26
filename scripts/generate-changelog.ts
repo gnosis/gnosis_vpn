@@ -297,7 +297,7 @@ function extractChangelogType(title: string): string {
 
 function zulipFormat(
   entries: ChangelogEntry[],
-  artifactVersion: string | undefined,
+  packageVersion: string | undefined,
 ): string {
   let content = "A new snapshot build is available for testing with the following new content:\n\n";
 
@@ -306,10 +306,10 @@ function zulipFormat(
       `- [#${entry.id}](https://github.com/${entry.repository}/pull/${entry.id}) [${entry.component}] ${entry.title} by ${entry.author}\n`;
   }
   content += "\nDownloads:";
-  if (artifactVersion) {
+  if (packageVersion) {
     // macOS .pkg filenames substitute '-' for '+' in the version slug for
     // Artifact Registry compatibility (see build-binary.yaml::prepare_files).
-    const macFileSlug = artifactVersion.replaceAll("+", "-");
+    const macFileSlug = packageVersion.replaceAll("+", "-");
     content += ` [Mac](https://download.gnosisvpn.io/macos/latest/gnosisvpn_${macFileSlug}_arm64.pkg)`;
   } else {
     content += " Mac: see [macos-arm64.json manifest](https://download.gnosisvpn.io/manifests/macos-arm64.json)";
@@ -825,7 +825,7 @@ Deno.test("zulipFormat formats snapshot entries and download links", () => {
   }
 });
 
-Deno.test("zulipFormat without artifactVersion falls back to the manifest link", () => {
+Deno.test("zulipFormat without packageVersion falls back to the manifest link", () => {
   const output = zulipFormat([], undefined);
   if (!output.includes("https://download.gnosisvpn.io/manifests/macos-arm64.json")) {
     throw new Error("zulipFormat fallback should point at the macos-arm64.json manifest");
