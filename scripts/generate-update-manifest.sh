@@ -225,9 +225,9 @@ for entry in "${PLATFORMS[@]}"; do
         # HEAD + final Content-Length: avoids downloading the full .deb/.pkg
         # body just to learn its size. `-L` follows GCS redirects; awk's END
         # block keeps the last Content-Length seen, which is the final hop.
-        SIZE=$(curl -sfLI "$GCS_URL" 2>/dev/null \
-            | tr -d '\r' \
-            | awk 'tolower($1) == "content-length:" { val = $2 } END { print val }' || true)
+        SIZE=$(curl -sfLI "$GCS_URL" 2>/dev/null |
+            tr -d '\r' |
+            awk 'tolower($1) == "content-length:" { val = $2 } END { print val }' || true)
         [[ -n $SIZE && $SIZE -gt 0 ]] ||
             {
                 echo "ERROR: Could not determine size of '${MANIFEST_NAME}' from ${GCS_URL}" >&2
