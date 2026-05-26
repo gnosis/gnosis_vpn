@@ -222,7 +222,7 @@ for entry in "${PLATFORMS[@]}"; do
         GCS_URL=$(build_gcs_url "$MANIFEST_NAME" "$channel" "$version")
         echo "  [$channel] Fetching metadata from ${GCS_URL} ..."
 
-        SIZE=$(curl -skfL -o /dev/null -w "%{size_download}" "$GCS_URL" || true)
+        SIZE=$(curl -sfL -o /dev/null -w "%{size_download}" "$GCS_URL" || true)
         [[ -n $SIZE ]] ||
             {
                 echo "ERROR: Could not determine size of '${MANIFEST_NAME}' from ${GCS_URL}" >&2
@@ -230,7 +230,7 @@ for entry in "${PLATFORMS[@]}"; do
                 continue
             }
 
-        SHA256=$(curl -skf "${GCS_URL}.sha256" | awk '{print $1}' || true)
+        SHA256=$(curl -sf "${GCS_URL}.sha256" | awk '{print $1}' || true)
         [[ -n $SHA256 ]] ||
             {
                 echo "ERROR: Could not fetch sha256 for '${MANIFEST_NAME}' from ${GCS_URL}.sha256" >&2
@@ -239,7 +239,7 @@ for entry in "${PLATFORMS[@]}"; do
             }
 
         if [[ $OS_FAMILY == "linux" ]]; then
-            ARTIFACT_SIG=$(curl -skf "${GCS_URL}.asc" | base64 | tr -d '\n' || true)
+            ARTIFACT_SIG=$(curl -sf "${GCS_URL}.asc" | base64 | tr -d '\n' || true)
             [[ -n $ARTIFACT_SIG ]] ||
                 {
                     echo "ERROR: Could not fetch signature for '${MANIFEST_NAME}' from ${GCS_URL}.asc" >&2

@@ -60,6 +60,10 @@ print_platform_banner() {
 check_platform_prerequisites() {
     log_info "Checking prerequisites..."
     local missing=0
+    if ! command -v gpg >/dev/null 2>&1; then
+        log_error "gpg not found — required to dearmor the bundled APT keyring"
+        missing=$((missing + 1))
+    fi
     if [[ ! -d ${BINARY_DIR} ]] || [[ ! -f "${BINARY_DIR}/gnosis_vpn-root" ]]; then
         log_error "Binaries not found in ${BINARY_DIR}/"
         log_error "Run 'just download ${GNOSISVPN_DISTRIBUTION} ${GNOSISVPN_ARCHITECTURE}' first"
