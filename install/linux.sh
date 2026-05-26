@@ -188,6 +188,10 @@ print_postinstall() {
     sudo systemctl status gnosisvpn
     gnosis_vpn-ctl --help
 
+[gnosisvpn] Signing key installed at /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
+    To verify:            gpg --show-keys /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
+    Details:  https://github.com/hoprnet/gnosis_vpn/blob/main/SECURITY.md
+
 To upgrade later:   sudo apt-get update && sudo apt-get install --only-upgrade gnosisvpn
 To uninstall:       sudo apt-get remove gnosisvpn
 EOF
