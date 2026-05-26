@@ -234,32 +234,25 @@ jobs:
             channel="latest"
           fi
           echo "channel=${channel}" | tee -a "$GITHUB_OUTPUT"
-          # The source .sha256 was generated against the upstream filename
-          # GnosisVPN-Installer-v<version>.pkg by scripts/generate-package-mac.sh;
-          # we extract the bare hash so we can write fresh .sha256 files whose
-          # embedded filenames match each renamed copy — otherwise
-          # `shasum -c <renamed>.sha256` fails with "no such file" even though
-          # the bytes are correct.
           version="${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}"
+          # AR rejects '+' in filenames; we substitute '-' for the slug and
+          # reuse it for GCS so both targets share one staging dir. The
+          # canonical version (with '+') is preserved in env vars and manifests.
+          fs_version="${version//+/-}"
           src_pkg="./build/packages/GnosisVPN-Installer-v${version}.pkg"
+          # The upstream .sha256 hard-codes GnosisVPN-Installer-v<version>.pkg
+          # as its filename, so we rewrite it to match the renamed .pkg —
+          # otherwise `shasum -c` fails with "no such file".
           src_sha=$(cut -d' ' -f1 "${src_pkg}.sha256")
-          # Bucket layout: versioned filenames under ./build/macos/<channel>/.
           mkdir -p ./build/macos/${channel}
-          cp "${src_pkg}" "./build/macos/${channel}/gnosisvpn_${version}_arm64.pkg"
-          printf '%s  %s\n' "${src_sha}" "gnosisvpn_${version}_arm64.pkg" \
-            > "./build/macos/${channel}/gnosisvpn_${version}_arm64.pkg.sha256"
-          # Artifact Registry layout: version-less filenames under ./build/macos-ar/<channel>/.
-          # The 'generic upload' validator rejects '+' in filenames, so we keep
-          # the version only in the registry's version field and strip it here.
-          mkdir -p ./build/macos-ar/${channel}
-          cp "${src_pkg}" "./build/macos-ar/${channel}/gnosisvpn_arm64.pkg"
-          printf '%s  %s\n' "${src_sha}" "gnosisvpn_arm64.pkg" \
-            > "./build/macos-ar/${channel}/gnosisvpn_arm64.pkg.sha256"
+          cp "${src_pkg}" "./build/macos/${channel}/gnosisvpn_${fs_version}_arm64.pkg"
+          printf '%s  %s\n' "${src_sha}" "gnosisvpn_${fs_version}_arm64.pkg" \
+            > "./build/macos/${channel}/gnosisvpn_${fs_version}_arm64.pkg.sha256"
       - name: Publish into Google Artifact registry
         if: inputs.version_type != 'snapshot'
         uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@621619750f6772109d7840a7013135c212925d58 # upload-artifact-registry-v2
         with:
-          source: ./build/macos-ar/${{ steps.prepare_files.outputs.channel }}
+          source: ./build/macos/${{ steps.prepare_files.outputs.channel }}
           package: gnosis_vpn
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Setup GCP
@@ -270,11 +263,9 @@ jobs:
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
           install_sdk: true
       - name: Check no stable macOS re-release
-        # Mirrors the stable-channel guard in scripts/publish-apt.sh: refuse to
-        # overwrite a versioned stable .pkg whose bytes differ from what's
-        # already in the bucket, because the upload is tagged immutable for a
-        # year and CDN/clients would keep serving the old bytes while .sha256
-        # would point at the new ones. Same-bytes retries are idempotent.
+        # Refuse to overwrite a versioned stable .pkg with different bytes —
+        # the immutable cache would split client bytes from .sha256. Retries
+        # with matching bytes are idempotent. Mirrors scripts/publish-apt.sh.
         if: inputs.version_type == 'release'
         run: |
           version="${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}"
@@ -294,20 +285,14 @@ jobs:
           fi
       - name: Publish into bucket
         # Cache headers are set at upload time (gsutil -h) rather than via a
-        # post-upload `setmeta` wildcard. The wildcard form re-tags every
-        # historical .pkg / .sha256 object under macos/<channel>/ on every
-        # publish, which scales linearly with snapshot retention. Setting
-        # headers on the cp itself only touches the newly uploaded objects.
+        # post-upload `setmeta` wildcard to only touch the newly uploaded objects.
         if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         run: |
           gsutil -m -h "Cache-Control:public, max-age=31536000, immutable" \
             cp -r "./build/macos/${{ steps.prepare_files.outputs.channel }}/." \
             "gs://download.gnosisvpn.io/macos/${{ steps.prepare_files.outputs.channel }}/"
-        ## TODO Publish into IPFS as well
+  ## TODO Publish into IPFS as well
   publish_apt:
-    # Snapshot only. Stable APT publish for releases lives in release.yaml and
-    # runs *after* the GitHub release succeeds, so apt users never see a stable
-    # version that lacks a matching GitHub release.
     name: Publish APT
     needs:
       - setup

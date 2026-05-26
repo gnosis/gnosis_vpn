@@ -307,7 +307,10 @@ function zulipFormat(
   }
   content += "\nDownloads:";
   if (artifactVersion) {
-    content += ` [Mac](https://download.gnosisvpn.io/macos/latest/gnosisvpn_${artifactVersion}_arm64.pkg)`;
+    // macOS .pkg filenames substitute '-' for '+' in the version slug for
+    // Artifact Registry compatibility (see build-binary.yaml::prepare_files).
+    const macFileSlug = artifactVersion.replaceAll("+", "-");
+    content += ` [Mac](https://download.gnosisvpn.io/macos/latest/gnosisvpn_${macFileSlug}_arm64.pkg)`;
   } else {
     content += " Mac: see [macos-arm64.json manifest](https://download.gnosisvpn.io/manifests/macos-arm64.json)";
   }
@@ -807,7 +810,7 @@ Deno.test("zulipFormat formats snapshot entries and download links", () => {
 
   if (
     !output.includes(
-      "[Mac](https://download.gnosisvpn.io/macos/latest/gnosisvpn_2026.05.14+build.143052_arm64.pkg)",
+      "[Mac](https://download.gnosisvpn.io/macos/latest/gnosisvpn_2026.05.14-build.143052_arm64.pkg)",
     )
   ) {
     throw new Error("zulipFormat output is missing the versioned Mac download link");

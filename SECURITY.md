@@ -123,20 +123,20 @@ Download the package and checksum from the release page https://github.com/gnosi
 
 ```bash
 # Verify checksum
-shasum -a 256 -c gnosisvpn_arm64.pkg.sha256
+shasum -a 256 -c gnosisvpn_<version>_arm64.pkg.sha256
 ```
 
 Expected output:
 
 ```
-gnosisvpn_arm64.pkg: OK
+gnosisvpn_<version>_arm64.pkg: OK
 ```
 
 ### Verify Code Signature (macOS)
 
 ```bash
 # Verify installer package signature
-pkgutil --check-signature gnosisvpn_arm64.pkg
+pkgutil --check-signature gnosisvpn_<version>_arm64.pkg
 
 # After installation, verify app signature
 codesign --verify --deep --strict /Applications/Gnosis\ VPN.app

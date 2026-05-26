@@ -147,7 +147,7 @@ download.gnosisvpn.io/
 │       └── pool/
 │           ├── main/g/gnosisvpn/      gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # stable, every release
 │           └── snapshot/g/gnosisvpn/  gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # nightly, append-only
-├── macos/
+├── macos/                                                  # <version> uses '-' in place of '+' (Artifact Registry compat)
 │   ├── stable/   gnosisvpn_<version>_arm64.pkg(+.sha256)
 │   └── latest/   gnosisvpn_<version>_arm64.pkg(+.sha256)   # snapshot
 └── manifests/

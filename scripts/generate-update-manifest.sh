@@ -124,16 +124,17 @@ PLATFORMS=(
 )
 
 # Build the GCS download URL for a given platform / channel / version.
-# Both Linux .deb and macOS .pkg filenames are version-pinned
-# (gnosisvpn_<version>_<arch>.{deb,pkg}). Linux files live in the APT pool
+# Linux .deb filenames embed the canonical version directly
+# (gnosisvpn_<version>_<arch>.deb) and live in the APT pool
 # (pool/main/g/gnosisvpn for stable, pool/snapshot/g/gnosisvpn for snapshot).
-# macOS files live in /macos/<channel-dir>/ where channel-dir is "stable" or
-# "latest".
+# macOS .pkg filenames substitute '-' for '+' in the version slug for
+# Artifact Registry compatibility (see build-binary.yaml::prepare_files) and
+# live in /macos/<channel-dir>/ where channel-dir is "stable" or "latest".
 build_gcs_url() {
     local manifest_name="$1"
     local channel="$2"
     local version="$3"
-    local arch pool_dir chan_dir
+    local arch pool_dir chan_dir fs_version
 
     case "$manifest_name" in
     linux-*)
@@ -152,7 +153,8 @@ build_gcs_url() {
         else
             chan_dir="latest"
         fi
-        echo "${GCS_BASE_URL}/macos/${chan_dir}/gnosisvpn_${version}_${arch}.pkg"
+        fs_version="${version//+/-}"
+        echo "${GCS_BASE_URL}/macos/${chan_dir}/gnosisvpn_${fs_version}_${arch}.pkg"
         ;;
     *)
         die "Unknown manifest_name: ${manifest_name}"
