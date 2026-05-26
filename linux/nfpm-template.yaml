@@ -118,6 +118,19 @@ contents:
       mode: 0644
       owner: root
       group: root
+  # Shell completions
+  - src: ./build/completions/gnosis_vpn-ctl.bash
+    dst: /usr/share/bash-completion/completions/gnosis_vpn-ctl
+    file_info:
+      mode: 0644
+  - src: ./build/completions/gnosis_vpn-ctl.fish
+    dst: /usr/share/fish/vendor_completions.d/gnosis_vpn-ctl.fish
+    file_info:
+      mode: 0644
+  - src: ./build/completions/_gnosis_vpn-ctl
+    dst: /usr/share/zsh/vendor-completions/_gnosis_vpn-ctl
+    file_info:
+      mode: 0644
   # Manual pages
   - src: ./build/man/man1/gnosis_vpn-root.1.gz
     dst: /usr/share/man/man1/gnosis_vpn-root.1.gz
