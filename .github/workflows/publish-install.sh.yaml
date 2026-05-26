@@ -1,16 +1,16 @@
-name: Publish Installer
+name: Publish install.sh
 on:
   push:
     branches: [main]
     paths:
       - install/linux.sh
-      - .github/workflows/publish-installer.yaml
+      - .github/workflows/publish-install.sh.yaml
   workflow_dispatch:
 permissions:
   contents: read
   id-token: write
 concurrency:
-  group: publish-installer
+  group: publish-install.sh
   cancel-in-progress: false
 jobs:
   publish:
