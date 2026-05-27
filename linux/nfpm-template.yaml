@@ -3,6 +3,8 @@ name: gnosisvpn
 arch: "${NFPM_ARCHITECTURE}"
 platform: linux
 version: "${GNOSISVPN_PACKAGE_VERSION}"
+# None, because 'semver' strips zeros (2026.05.27 -> 2026.5.27)
+version_schema: none
 section: net
 priority: optional
 maintainer: Hoprnet <tech@hoprnet.org>
