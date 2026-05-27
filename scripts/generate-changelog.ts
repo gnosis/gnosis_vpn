@@ -297,6 +297,7 @@ function extractChangelogType(title: string): string {
 
 function zulipFormat(
   entries: ChangelogEntry[],
+  packageVersion: string | undefined,
 ): string {
   let content = "A new snapshot build is available for testing with the following new content:\n\n";
 
@@ -304,10 +305,17 @@ function zulipFormat(
     content +=
       `- [#${entry.id}](https://github.com/${entry.repository}/pull/${entry.id}) [${entry.component}] ${entry.title} by ${entry.author}\n`;
   }
-  content += "\nDownload links:";
-  content += " [Mac](https://download.gnosisvpn.io/latest/gnosisvpn_arm64.pkg) |";
-  content += " [Debian x86_64](https://download.gnosisvpn.io/latest/gnosisvpn_amd64.deb) |";
-  content += " [Debian aarch64](https://download.gnosisvpn.io/latest/gnosisvpn_arm64.deb)\n";
+  content += "\nDownloads:";
+  if (packageVersion) {
+    // macOS .pkg filenames substitute '-' for '+' in the version slug for
+    // Artifact Registry compatibility (see build-binary.yaml::prepare_files).
+    const macFileSlug = packageVersion.replaceAll("+", "-");
+    content += ` [Mac](https://download.gnosisvpn.io/macos/latest/gnosisvpn_${macFileSlug}_arm64.pkg)`;
+  } else {
+    content += " Mac: see [macos-arm64.json manifest](https://download.gnosisvpn.io/manifests/macos-arm64.json)";
+  }
+  content +=
+    " | Debian/Ubuntu: `curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot`\n";
   return content;
 }
 
@@ -626,7 +634,7 @@ async function main(): Promise<void> {
   const packageRepo = config.repositories.find((r) => r.label === "Installer")!;
   switch (config.format) {
     case "zulip":
-      content = zulipFormat(allEntries);
+      content = zulipFormat(allEntries, Deno.env.get("GNOSISVPN_PACKAGE_VERSION"));
       break;
     case "github":
       content = githubFormat(
@@ -784,9 +792,11 @@ Deno.test("zulipFormat formats snapshot entries and download links", () => {
       repository: "gnosis/gnosis_vpn-client",
       component: "cli",
     } as ChangelogEntry,
-  ]);
+  ], "2026.05.14+build.143052");
 
-  if (!output.includes("A new snapshot build is available with the following updates:\n\n")) {
+  if (
+    !output.includes("A new snapshot build is available for testing with the following new content:\n\n")
+  ) {
     throw new Error("zulipFormat output is missing the snapshot intro");
   }
 
@@ -800,18 +810,28 @@ Deno.test("zulipFormat formats snapshot entries and download links", () => {
 
   if (
     !output.includes(
-      "- [GnosisVPN Debian x86_64](https://download.gnosisvpn.io/latest/gnosisvpn_amd64.deb)\n",
+      "[Mac](https://download.gnosisvpn.io/macos/latest/gnosisvpn_2026.05.14-build.143052_arm64.pkg)",
     )
   ) {
-    throw new Error("zulipFormat output is missing the Debian x86_64 download link");
+    throw new Error("zulipFormat output is missing the versioned Mac download link");
   }
 
   if (
     !output.includes(
-      "Please note that this is a snapshot release intended for testing and may contain unstable features.\n",
+      "https://download.gnosisvpn.io/linux/install.sh",
     )
   ) {
-    throw new Error("zulipFormat output is missing the snapshot warning");
+    throw new Error("zulipFormat output is missing the Linux install command");
+  }
+});
+
+Deno.test("zulipFormat without packageVersion falls back to the manifest link", () => {
+  const output = zulipFormat([], undefined);
+  if (!output.includes("https://download.gnosisvpn.io/manifests/macos-arm64.json")) {
+    throw new Error("zulipFormat fallback should point at the macos-arm64.json manifest");
+  }
+  if (output.includes("gnosisvpn_undefined_arm64.pkg")) {
+    throw new Error("zulipFormat must not emit an undefined-versioned Mac URL");
   }
 });
 

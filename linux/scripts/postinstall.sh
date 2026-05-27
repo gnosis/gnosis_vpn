@@ -81,6 +81,54 @@ configure_filesystem_permissions() {
     echo "$LOG_PREFIX SUCCESS: Directory permissions configured"
 }
 
+register_apt_repo() {
+    if ! command -v dpkg >/dev/null 2>&1 || ! command -v apt-get >/dev/null 2>&1; then
+        return 0
+    fi
+
+    local sources_path="/etc/apt/sources.list.d/gnosisvpn.sources"
+    if [[ -f $sources_path ]]; then
+        echo "$LOG_PREFIX INFO: APT source already registered at $sources_path (leaving as-is)"
+        return 0
+    fi
+
+    local keyring_src="/usr/share/gnosisvpn/gnosisvpn-archive-keyring.gpg"
+    local keyring_dst="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
+    if [[ ! -f $keyring_src ]]; then
+        echo "$LOG_PREFIX WARNING: Keyring not found at $keyring_src — skipping APT source registration"
+        return 0
+    fi
+
+    # Channel matches the .deb the user just installed
+    local version channel component
+    version="$(cat /etc/gnosisvpn/version.txt 2>/dev/null || echo "")"
+    if [[ $version == *"+"* ]]; then
+        channel="snapshot"
+        component="snapshot"
+    else
+        channel="stable"
+        component="main"
+    fi
+
+    local arch
+    arch="$(dpkg --print-architecture)"
+
+    echo "$LOG_PREFIX INFO: Registering GnosisVPN APT source (channel: $channel, arch: $arch)"
+    install -d -m 0755 /etc/apt/keyrings
+    install -m 0644 "$keyring_src" "$keyring_dst"
+    cat >"$sources_path" <<EOF
+Types: deb
+URIs: https://download.gnosisvpn.io/linux/apt
+Suites: ${channel}
+Components: ${component}
+Architectures: ${arch}
+Signed-By: ${keyring_dst}
+EOF
+    chmod 0644 "$sources_path"
+    echo "$LOG_PREFIX SUCCESS: APT source registered at $sources_path"
+    echo "$LOG_PREFIX INFO: Run 'sudo apt-get update' to refresh the package cache"
+}
+
 # Enable and start the systemd service
 enable_and_start_systemd_service() {
     echo "$LOG_PREFIX INFO: Setting up systemd service..."
@@ -199,6 +247,7 @@ install_desktop_shortcut_for_user() {
 main() {
     create_system_user_and_group
     configure_filesystem_permissions
+    register_apt_repo
     enable_and_start_systemd_service
     install_desktop_shortcut_for_user
 

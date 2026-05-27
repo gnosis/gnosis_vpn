@@ -72,6 +72,14 @@ contents:
       mode: 0644
       owner: root
       group: root
+  # Dearmored signing public key, used by postinstall.sh to register the APT
+  # source so `apt-get update` sees future versions after a manual `dpkg -i`.
+  - src: ./build/resources/gnosisvpn-archive-keyring.gpg
+    dst: /usr/share/gnosisvpn/gnosisvpn-archive-keyring.gpg
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
   - src: ./linux/resources/gnosisvpn.env
     dst: /etc/gnosisvpn/gnosisvpn.env
     type: config

@@ -77,3 +77,14 @@ jobs:
           gh variable set GNOSISVPN_APP_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}"
         env:
           GH_TOKEN: ${{ secrets.BOT_TOKEN }}
+  publish_apt:
+    # Runs after `release` so apt never advertises a version without a matching GitHub release.
+    name: Publish APT (stable)
+    needs:
+      - build_binary
+      - release
+    uses: ./.github/workflows/publish-apt.yaml
+    with:
+      channel: stable
+      package_version: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+    secrets: inherit

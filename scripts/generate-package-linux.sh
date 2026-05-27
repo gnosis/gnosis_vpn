@@ -60,6 +60,10 @@ print_platform_banner() {
 check_platform_prerequisites() {
     log_info "Checking prerequisites..."
     local missing=0
+    if ! command -v gpg >/dev/null 2>&1; then
+        log_error "gpg not found — required to dearmor the bundled APT keyring"
+        missing=$((missing + 1))
+    fi
     if [[ ! -d ${BINARY_DIR} ]] || [[ ! -f "${BINARY_DIR}/gnosis_vpn-root" ]]; then
         log_error "Binaries not found in ${BINARY_DIR}/"
         log_error "Run 'just download ${GNOSISVPN_DISTRIBUTION} ${GNOSISVPN_ARCHITECTURE}' first"
@@ -124,6 +128,11 @@ generate_nfpm_config() {
     mkdir -p "${BUILD_DIR}/resources"
     echo "${GNOSISVPN_PACKAGE_VERSION}" >"${BUILD_DIR}/resources/version.txt"
     log_success "Generated version file: ${BUILD_DIR}/resources/version.txt"
+    # Dearmor the public key so the postinstall can register the APT source
+    # without needing gnupg as a package dependency on the target host.
+    gpg --dearmor <"${SCRIPT_DIR}/../gnosisvpn-public-key.asc" \
+        >"${BUILD_DIR}/resources/gnosisvpn-archive-keyring.gpg"
+    log_success "Dearmored keyring: ${BUILD_DIR}/resources/gnosisvpn-archive-keyring.gpg"
     # Always use absolute path for rootfs
     local rootfs
     rootfs="$(cd "${BUILD_DIR}/app-contents/rootfs" && pwd)"
