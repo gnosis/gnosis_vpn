@@ -8,7 +8,6 @@ Description: Gnosis VPN APT repository (stable)
 SignWith: 84F73FEA46D10972
 DebIndices: Packages Release . .gz
 Contents:
-Limit: -1
 
 Origin: GnosisVPN
 Label: GnosisVPN
@@ -20,4 +19,3 @@ Description: Gnosis VPN APT repository (snapshot)
 SignWith: 84F73FEA46D10972
 DebIndices: Packages Release . .gz
 Contents:
-Limit: -1
