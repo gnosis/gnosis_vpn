@@ -7,13 +7,13 @@ on:
         required: true
         type: string
       client_version:
-        description: "Override gnosis_vpn-client artifact version. 'latest' = auto-resolve latest merged PR (default). Only honored when version_type=snapshot."
-        required: false
+        description: "gnosis_vpn-client artifact version. 'latest' = newest in Artifact Registry. Only honored when version_type=snapshot."
+        required: true
         type: string
         default: "latest"
       app_version:
-        description: "Override gnosis_vpn-app artifact version. 'latest' = auto-resolve latest merged PR (default). Only honored when version_type=snapshot."
-        required: false
+        description: "gnosis_vpn-app artifact version. 'latest' = newest in Artifact Registry. Only honored when version_type=snapshot."
+        required: true
         type: string
         default: "latest"
     outputs:
@@ -23,12 +23,8 @@ on:
         value: ${{ jobs.setup.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
       GNOSISVPN_CLIENT_VERSION:
         value: ${{ jobs.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
-      LATEST_GNOSISVPN_CLIENT_PR_VERSION:
-        value: ${{ jobs.setup.outputs.LATEST_GNOSISVPN_CLIENT_PR_VERSION }}
       GNOSISVPN_APP_VERSION:
         value: ${{ jobs.setup.outputs.GNOSISVPN_APP_VERSION }}
-      LATEST_GNOSISVPN_APP_PR_VERSION:
-        value: ${{ jobs.setup.outputs.LATEST_GNOSISVPN_APP_PR_VERSION }}
       SNAPSHOT_TRIGGERED:
         value: ${{ jobs.setup.outputs.SKIP_BUILDING == 'false' }}
 concurrency:
@@ -40,15 +36,23 @@ jobs:
     name: Setup
     permissions:
       contents: read
+      id-token: write # OIDC GCP auth for the snapshot-only AR version resolution.
     outputs:
       GNOSISVPN_PACKAGE_VERSION: ${{ steps.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       LATEST_GNOSISVPN_PACKAGE_PR_VERSION: ${{ steps.setup.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
       GNOSISVPN_CLIENT_VERSION: ${{ steps.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
-      LATEST_GNOSISVPN_CLIENT_PR_VERSION: ${{ steps.setup.outputs.LATEST_GNOSISVPN_CLIENT_PR_VERSION }}
       GNOSISVPN_APP_VERSION: ${{ steps.setup.outputs.GNOSISVPN_APP_VERSION }}
-      LATEST_GNOSISVPN_APP_PR_VERSION: ${{ steps.setup.outputs.LATEST_GNOSISVPN_APP_PR_VERSION }}
       SKIP_BUILDING: ${{ steps.setup.outputs.SKIP_BUILDING }}
     steps:
+      - name: Setup GCP (for Artifact Registry version resolution)
+        # Only the snapshot path resolves versions from AR; other modes keep the
+        # GitHub-merge-based resolution and don't need GCP in setup.
+        if: inputs.version_type == 'snapshot'
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@621619750f6772109d7840a7013135c212925d58 # setup-gcp-v3
+        with:
+          workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
+          service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
+          install_sdk: true
       - name: Setup environment variables
         id: setup
         env:
@@ -77,18 +81,42 @@ jobs:
             gh api "repos/gnosis/$repo/releases/latest" --jq '.tag_name' | sed 's/^v//'
           }
 
+          # Newest version uploaded to Artifact Registry for a given package,
+          # sorted by createTime descending. Returns the bare version string
+          # (e.g. "0.86.0+pr.562"). Empty output if no versions exist.
+          # `--sort-by='~createTime'`: '~' is gcloud's descending-order marker.
+          # `awk -F/` strips the resource-path prefix that gcloud returns under
+          # `--format='value(name)'` and leaves just the leaf version.
+          ar_latest_version() {
+            local package=$1
+            gcloud artifacts versions list \
+              --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries \
+              --package="$package" --sort-by='~createTime' --limit=1 \
+              --format='value(name)' 2>/dev/null \
+              | awk -F/ '{print $NF}'
+          }
+
+          # 0 if at least one file exists for <package>:<version> in AR. Used
+          # to pre-flight manual overrides — no walk-back, because user pinned
+          # explicitly and a missing pin is an error, not a substitution.
+          ar_version_exists() {
+            local package=$1 version=$2
+            gcloud artifacts files list \
+              --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries \
+              --package="$package" --version="$version" --limit=1 \
+              --format='value(name)' 2>/dev/null | grep -q .
+          }
+
           LATEST_GNOSISVPN_PACKAGE_PR_VERSION=$(get_latest_pr_version "gnosis_vpn" "package.json")
+          # Client/app GitHub-PR resolution is still done here because the
+          # commit/pr cases below use it. The snapshot case bypasses it and
+          # asks AR directly (see resolution block).
           LATEST_GNOSISVPN_CLIENT_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-client" "Cargo.toml")
           LATEST_GNOSISVPN_APP_PR_VERSION=$(get_latest_pr_version "gnosis_vpn-app" "src-tauri/Cargo.toml")
           LATEST_GNOSISVPN_PACKAGE_VERSION_NUMBER=$(echo "$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | cut -d '+' -f 1)
           LATEST_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER=$(echo "$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | cut -d '+' -f 2 | cut -d '.' -f 2)
           PREVIOUS_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER=$(echo "${PREVIOUS_GNOSISVPN_PACKAGE_PR_VERSION}" | cut -d '+' -f 2 | cut -d '.' -f 2)
           echo "LATEST_GNOSISVPN_PACKAGE_PR_VERSION=$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | tee -a "$GITHUB_OUTPUT"
-          # Always emit auto-resolved client/app PR versions so snapshot-build's
-          # var-tracking step stays tied to the real latest merged PR even when
-          # a manual override is used for the actual build.
-          echo "LATEST_GNOSISVPN_CLIENT_PR_VERSION=$LATEST_GNOSISVPN_CLIENT_PR_VERSION" | tee -a "$GITHUB_OUTPUT"
-          echo "LATEST_GNOSISVPN_APP_PR_VERSION=$LATEST_GNOSISVPN_APP_PR_VERSION" | tee -a "$GITHUB_OUTPUT"
 
           # Tracks whether a snapshot run pinned client/app via inputs (vs the
           # default 'latest' auto-resolve). Used below to bypass SKIP_BUILDING.
@@ -96,31 +124,55 @@ jobs:
 
           case "${{ inputs.version_type }}" in
             snapshot)
-              # Honor client_version / app_version inputs for manual unblock
-              # (e.g. when the latest merged PR's upstream binary never published
-              # and we need to pin a known-good PR). 'latest' (default) keeps
-              # the auto-resolved LATEST_*_PR_VERSION behavior. Anything else is
-              # validated against the canonical artifact-key regex from
-              # scripts/common.sh:37 to fail fast before the matrix spins up.
+              # 'latest' (default) resolves to the newest version that actually
+              # exists in Artifact Registry — Artifact Registry is the source
+              # of truth for "this binary is buildable", not GitHub's merge log.
+              # That means the next cron run automatically picks up a newer PR
+              # the moment its binaries publish, with no walk-back logic.
+              # Manual overrides are still validated against the canonical
+              # artifact-key regex (scripts/common.sh:37) AND pre-flight-checked
+              # in AR so typos fail before the matrix spins up.
               CLIENT_OVERRIDE="${{ inputs.client_version }}"
               APP_OVERRIDE="${{ inputs.app_version }}"
               SEMVER_RE='^[0-9]+\.[0-9]+\.[0-9]+(\+(pr|commit|build)(\.[0-9A-Za-z-]+)*)?$'
 
+              # client
               if [[ -z "$CLIENT_OVERRIDE" || "$CLIENT_OVERRIDE" == "latest" ]]; then
-                CLIENT_RESOLVED="$LATEST_GNOSISVPN_CLIENT_PR_VERSION"
+                CLIENT_RESOLVED=$(ar_latest_version "gnosis_vpn-client")
+                if [[ -z "$CLIENT_RESOLVED" ]]; then
+                  echo "::error::No gnosis_vpn-client versions found in Artifact Registry. Producer CI is broken or the repo is empty."
+                  exit 1
+                fi
+                echo "Resolved gnosis_vpn-client latest from AR: $CLIENT_RESOLVED"
               elif [[ "$CLIENT_OVERRIDE" =~ $SEMVER_RE ]]; then
-                CLIENT_RESOLVED="$CLIENT_OVERRIDE"
-                OVERRIDE_ACTIVE=true
+                if ar_version_exists "gnosis_vpn-client" "$CLIENT_OVERRIDE"; then
+                  CLIENT_RESOLVED="$CLIENT_OVERRIDE"
+                  OVERRIDE_ACTIVE=true
+                else
+                  echo "::error::client_version '$CLIENT_OVERRIDE' not found in Artifact Registry. Use 'latest' or a known-good version."
+                  exit 1
+                fi
               else
                 echo "::error::Invalid client_version '$CLIENT_OVERRIDE'. Expected MAJOR.MINOR.PATCH(+pr.N|+commit.SHA|+build.TS) or 'latest'."
                 exit 1
               fi
 
+              # app
               if [[ -z "$APP_OVERRIDE" || "$APP_OVERRIDE" == "latest" ]]; then
-                APP_RESOLVED="$LATEST_GNOSISVPN_APP_PR_VERSION"
+                APP_RESOLVED=$(ar_latest_version "gnosis_vpn-app")
+                if [[ -z "$APP_RESOLVED" ]]; then
+                  echo "::error::No gnosis_vpn-app versions found in Artifact Registry."
+                  exit 1
+                fi
+                echo "Resolved gnosis_vpn-app latest from AR: $APP_RESOLVED"
               elif [[ "$APP_OVERRIDE" =~ $SEMVER_RE ]]; then
-                APP_RESOLVED="$APP_OVERRIDE"
-                OVERRIDE_ACTIVE=true
+                if ar_version_exists "gnosis_vpn-app" "$APP_OVERRIDE"; then
+                  APP_RESOLVED="$APP_OVERRIDE"
+                  OVERRIDE_ACTIVE=true
+                else
+                  echo "::error::app_version '$APP_OVERRIDE' not found in Artifact Registry. Use 'latest' or a known-good version."
+                  exit 1
+                fi
               else
                 echo "::error::Invalid app_version '$APP_OVERRIDE'. Expected MAJOR.MINOR.PATCH(+pr.N|+commit.SHA|+build.TS) or 'latest'."
                 exit 1
@@ -154,21 +206,27 @@ jobs:
               ;;
           esac
 
-          # A manual override means the user explicitly requested this build,
-          # so don't skip even if no new PR has merged since the last snapshot.
+          # Skip only when there is literally nothing new to ship: this repo's
+          # latest merged PR hasn't moved AND the client/app versions we'd
+          # resolve now (from AR) match what we built last time. The
+          # CLIENT_RESOLVED / APP_RESOLVED comparison is what makes the
+          # workflow naturally retry once a missing upstream binary finally
+          # publishes — RESOLVED moves the moment the artifact lands, while
+          # PREVIOUS (vars.GNOSISVPN_*_PR_VERSION) holds the last actually-built.
+          # A manual override always forces a build (OVERRIDE_ACTIVE=true).
           if [[ "${{ inputs.version_type}}" == "snapshot" ]] &&
              [[ "${OVERRIDE_ACTIVE}" != "true" ]] &&
              [[ "${LATEST_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER}" == "${PREVIOUS_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER}" ]] &&
-             [[ "${LATEST_GNOSISVPN_CLIENT_PR_VERSION}" == "${PREVIOUS_GNOSISVPN_CLIENT_PR_VERSION}" ]] &&
-             [[ "${LATEST_GNOSISVPN_APP_PR_VERSION}" == "${PREVIOUS_GNOSISVPN_APP_PR_VERSION}" ]]; then
+             [[ "${CLIENT_RESOLVED}" == "${PREVIOUS_GNOSISVPN_CLIENT_PR_VERSION}" ]] &&
+             [[ "${APP_RESOLVED}" == "${PREVIOUS_GNOSISVPN_APP_PR_VERSION}" ]]; then
             echo "SKIP_BUILDING=true" | tee -a "$GITHUB_OUTPUT"
-            echo "No new merged PRs found for gnosis_vpn, gnosis_vpn-client, or gnosis_vpn-app. Skipping snapshot build."
+            echo "Resolved client/app versions match last successful build — nothing to rebuild."
           else
             echo "SKIP_BUILDING=false" | tee -a "$GITHUB_OUTPUT"
             if [[ "${OVERRIDE_ACTIVE}" == "true" ]]; then
               echo "Manual override in effect (client=${CLIENT_RESOLVED}, app=${APP_RESOLVED}); forcing build."
             else
-              echo "Proceeding with the build."
+              echo "Building (client=${CLIENT_RESOLVED}, app=${APP_RESOLVED})."
             fi
           fi
   linux:

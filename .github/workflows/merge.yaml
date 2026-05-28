@@ -19,6 +19,9 @@ jobs:
     uses: ./.github/workflows/build-binary.yaml
     with:
       version_type: pr
+      # Required by build-binary.yaml; only consumed in the snapshot case.
+      client_version: latest
+      app_version: latest
     secrets: inherit
   snapshot-build:
     name: Snapshot build
