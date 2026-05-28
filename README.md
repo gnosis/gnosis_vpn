@@ -41,9 +41,16 @@ EOF
 sudo apt-get update && sudo apt-get install -y gnosisvpn
 ```
 
-Manual `.deb` download is available directly from the APT pool at
+Manual `.deb` download is available directly from from
+[the releases page](https://github.com/gnosis/gnosis_vpn/releases), or the APT pool at
 `https://download.gnosisvpn.io/linux/apt/pool/main/g/gnosisvpn/gnosisvpn_<version>_<arch>.deb` (with matching `.asc` and
 `.sha256` sidecars at the same prefix). See [SECURITY.md](./SECURITY.md) for verification.
+
+Install:
+
+```bash
+sudo apt install ./gnosisvpn_*.deb
+```
 
 Uninstall:
 
