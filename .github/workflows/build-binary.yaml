@@ -6,6 +6,16 @@ on:
         description: 'Possible values are snapshot, commit, pr, release'
         required: true
         type: string
+      client_version:
+        description: "Override gnosis_vpn-client artifact version. 'latest' = auto-resolve latest merged PR (default). Only honored when version_type=snapshot."
+        required: false
+        type: string
+        default: "latest"
+      app_version:
+        description: "Override gnosis_vpn-app artifact version. 'latest' = auto-resolve latest merged PR (default). Only honored when version_type=snapshot."
+        required: false
+        type: string
+        default: "latest"
     outputs:
       GNOSISVPN_PACKAGE_VERSION:
         value: ${{ jobs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
@@ -13,8 +23,12 @@ on:
         value: ${{ jobs.setup.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
       GNOSISVPN_CLIENT_VERSION:
         value: ${{ jobs.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
+      LATEST_GNOSISVPN_CLIENT_PR_VERSION:
+        value: ${{ jobs.setup.outputs.LATEST_GNOSISVPN_CLIENT_PR_VERSION }}
       GNOSISVPN_APP_VERSION:
         value: ${{ jobs.setup.outputs.GNOSISVPN_APP_VERSION }}
+      LATEST_GNOSISVPN_APP_PR_VERSION:
+        value: ${{ jobs.setup.outputs.LATEST_GNOSISVPN_APP_PR_VERSION }}
       SNAPSHOT_TRIGGERED:
         value: ${{ jobs.setup.outputs.SKIP_BUILDING == 'false' }}
 concurrency:
@@ -30,7 +44,9 @@ jobs:
       GNOSISVPN_PACKAGE_VERSION: ${{ steps.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       LATEST_GNOSISVPN_PACKAGE_PR_VERSION: ${{ steps.setup.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
       GNOSISVPN_CLIENT_VERSION: ${{ steps.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
+      LATEST_GNOSISVPN_CLIENT_PR_VERSION: ${{ steps.setup.outputs.LATEST_GNOSISVPN_CLIENT_PR_VERSION }}
       GNOSISVPN_APP_VERSION: ${{ steps.setup.outputs.GNOSISVPN_APP_VERSION }}
+      LATEST_GNOSISVPN_APP_PR_VERSION: ${{ steps.setup.outputs.LATEST_GNOSISVPN_APP_PR_VERSION }}
       SKIP_BUILDING: ${{ steps.setup.outputs.SKIP_BUILDING }}
     steps:
       - name: Setup environment variables
@@ -68,12 +84,51 @@ jobs:
           LATEST_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER=$(echo "$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | cut -d '+' -f 2 | cut -d '.' -f 2)
           PREVIOUS_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER=$(echo "${PREVIOUS_GNOSISVPN_PACKAGE_PR_VERSION}" | cut -d '+' -f 2 | cut -d '.' -f 2)
           echo "LATEST_GNOSISVPN_PACKAGE_PR_VERSION=$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | tee -a "$GITHUB_OUTPUT"
+          # Always emit auto-resolved client/app PR versions so snapshot-build's
+          # var-tracking step stays tied to the real latest merged PR even when
+          # a manual override is used for the actual build.
+          echo "LATEST_GNOSISVPN_CLIENT_PR_VERSION=$LATEST_GNOSISVPN_CLIENT_PR_VERSION" | tee -a "$GITHUB_OUTPUT"
+          echo "LATEST_GNOSISVPN_APP_PR_VERSION=$LATEST_GNOSISVPN_APP_PR_VERSION" | tee -a "$GITHUB_OUTPUT"
+
+          # Tracks whether a snapshot run pinned client/app via inputs (vs the
+          # default 'latest' auto-resolve). Used below to bypass SKIP_BUILDING.
+          OVERRIDE_ACTIVE=false
 
           case "${{ inputs.version_type }}" in
             snapshot)
+              # Honor client_version / app_version inputs for manual unblock
+              # (e.g. when the latest merged PR's upstream binary never published
+              # and we need to pin a known-good PR). 'latest' (default) keeps
+              # the auto-resolved LATEST_*_PR_VERSION behavior. Anything else is
+              # validated against the canonical artifact-key regex from
+              # scripts/common.sh:37 to fail fast before the matrix spins up.
+              CLIENT_OVERRIDE="${{ inputs.client_version }}"
+              APP_OVERRIDE="${{ inputs.app_version }}"
+              SEMVER_RE='^[0-9]+\.[0-9]+\.[0-9]+(\+(pr|commit|build)(\.[0-9A-Za-z-]+)*)?$'
+
+              if [[ -z "$CLIENT_OVERRIDE" || "$CLIENT_OVERRIDE" == "latest" ]]; then
+                CLIENT_RESOLVED="$LATEST_GNOSISVPN_CLIENT_PR_VERSION"
+              elif [[ "$CLIENT_OVERRIDE" =~ $SEMVER_RE ]]; then
+                CLIENT_RESOLVED="$CLIENT_OVERRIDE"
+                OVERRIDE_ACTIVE=true
+              else
+                echo "::error::Invalid client_version '$CLIENT_OVERRIDE'. Expected MAJOR.MINOR.PATCH(+pr.N|+commit.SHA|+build.TS) or 'latest'."
+                exit 1
+              fi
+
+              if [[ -z "$APP_OVERRIDE" || "$APP_OVERRIDE" == "latest" ]]; then
+                APP_RESOLVED="$LATEST_GNOSISVPN_APP_PR_VERSION"
+              elif [[ "$APP_OVERRIDE" =~ $SEMVER_RE ]]; then
+                APP_RESOLVED="$APP_OVERRIDE"
+                OVERRIDE_ACTIVE=true
+              else
+                echo "::error::Invalid app_version '$APP_OVERRIDE'. Expected MAJOR.MINOR.PATCH(+pr.N|+commit.SHA|+build.TS) or 'latest'."
+                exit 1
+              fi
+
               echo "GNOSISVPN_PACKAGE_VERSION=$(date +%Y.%m.%d+build.%H%M%S)" | tee -a "$GITHUB_OUTPUT"
-              echo "GNOSISVPN_CLIENT_VERSION=${LATEST_GNOSISVPN_CLIENT_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
-              echo "GNOSISVPN_APP_VERSION=${LATEST_GNOSISVPN_APP_PR_VERSION}" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_CLIENT_VERSION=${CLIENT_RESOLVED}" | tee -a "$GITHUB_OUTPUT"
+              echo "GNOSISVPN_APP_VERSION=${APP_RESOLVED}" | tee -a "$GITHUB_OUTPUT"
               ;;
             commit)
               sha="${{ github.event.pull_request.head.sha }}"
@@ -99,7 +154,10 @@ jobs:
               ;;
           esac
 
+          # A manual override means the user explicitly requested this build,
+          # so don't skip even if no new PR has merged since the last snapshot.
           if [[ "${{ inputs.version_type}}" == "snapshot" ]] &&
+             [[ "${OVERRIDE_ACTIVE}" != "true" ]] &&
              [[ "${LATEST_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER}" == "${PREVIOUS_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER}" ]] &&
              [[ "${LATEST_GNOSISVPN_CLIENT_PR_VERSION}" == "${PREVIOUS_GNOSISVPN_CLIENT_PR_VERSION}" ]] &&
              [[ "${LATEST_GNOSISVPN_APP_PR_VERSION}" == "${PREVIOUS_GNOSISVPN_APP_PR_VERSION}" ]]; then
@@ -107,7 +165,11 @@ jobs:
             echo "No new merged PRs found for gnosis_vpn, gnosis_vpn-client, or gnosis_vpn-app. Skipping snapshot build."
           else
             echo "SKIP_BUILDING=false" | tee -a "$GITHUB_OUTPUT"
-            echo "Proceeding with the build."
+            if [[ "${OVERRIDE_ACTIVE}" == "true" ]]; then
+              echo "Manual override in effect (client=${CLIENT_RESOLVED}, app=${APP_RESOLVED}); forcing build."
+            else
+              echo "Proceeding with the build."
+            fi
           fi
   linux:
     runs-on: ${{ matrix.runner }}

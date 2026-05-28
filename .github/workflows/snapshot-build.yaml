@@ -1,6 +1,17 @@
 name: Snapshot Build
 on:
   workflow_dispatch:
+    inputs:
+      client_version:
+        description: "gnosis_vpn-client artifact version (e.g. 0.86.0+pr.562). 'latest' = latest merged PR."
+        required: false
+        type: string
+        default: "latest"
+      app_version:
+        description: "gnosis_vpn-app artifact version (e.g. 0.21.0+pr.123). 'latest' = latest merged PR."
+        required: false
+        type: string
+        default: "latest"
   repository_dispatch:
     types: [snapshot_build]
   schedule:
@@ -17,6 +28,9 @@ jobs:
     uses: ./.github/workflows/build-binary.yaml
     with:
       version_type: snapshot
+      # `|| 'latest'` covers schedule / repository_dispatch where inputs.* is empty.
+      client_version: ${{ inputs.client_version || 'latest' }}
+      app_version: ${{ inputs.app_version || 'latest' }}
     secrets: inherit
   update_snapshot:
     name: Update snapshot
@@ -64,8 +78,16 @@ jobs:
           topic: "Snapshot Builds"
           content: ${{ env.NOTIFICATION_CONTENT }}
       - name: Update latest merged PR variables
+        # Track the auto-resolved latest merged PR, not whatever was actually
+        # built — so a manual override of client_version/app_version doesn't
+        # poison vars.GNOSISVPN_*_PR_VERSION for the next scheduled cron run.
+        # Step-scoped env overrides the job-level env (which stays tied to
+        # actually-built values so the changelog step describes the real build).
         env:
           GH_TOKEN: ${{ secrets.BOT_TOKEN }}
+          GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
+          GNOSISVPN_CLIENT_VERSION: ${{ needs.build_binary.outputs.LATEST_GNOSISVPN_CLIENT_PR_VERSION }}
+          GNOSISVPN_APP_VERSION: ${{ needs.build_binary.outputs.LATEST_GNOSISVPN_APP_PR_VERSION }}
         run: |
           if [[ "${GNOSISVPN_PACKAGE_VERSION}" != "${GNOSISVPN_PREVIOUS_PACKAGE_VERSION}" ]]; then
             echo "New merged PR found for gnosis_vpn: ${GNOSISVPN_PACKAGE_VERSION}"
