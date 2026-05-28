@@ -64,6 +64,12 @@ jobs:
           GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ vars.GNOSISVPN_CLIENT_RELEASE_VERSION }}
           GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_APP_RELEASE_VERSION }}
           GNOSISVPN_CHANGELOG_FORMAT: github
+          # Aggregate PRs merged into the dispatching ref (e.g. a release branch)
+          # rather than main, so close-release on a non-main branch produces release
+          # notes that match what actually shipped on that branch. Only affects the
+          # gnosis_vpn (installer) repo lookup; client/app PRs are aggregated from
+          # their own repos with the default branch.
+          GNOSISVPN_BRANCH: ${{ github.ref_name }}
       - name: Release version
         uses: hoprnet/hopr-workflows/actions/release-version@2cae201c4f92e86cf40480704bdc5c2d53bce772 # release-version-v3
         with:

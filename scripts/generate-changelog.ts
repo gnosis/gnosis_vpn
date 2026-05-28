@@ -23,6 +23,10 @@
 interface RepoConfig {
   repo: string;
   label: string;
+  // PR `base=` filter. Defaults to "main"; the installer repo is overridable
+  // via GNOSISVPN_BRANCH so close-release on a release branch only includes
+  // installer PRs that targeted that branch.
+  branch: string;
   previousVersion: string;
   currentVersion: string;
   allowMissingRelease: boolean;
@@ -31,7 +35,6 @@ interface RepoConfig {
 interface Config {
   repositories: RepoConfig[];
   format: "zulip" | "github" | "debian" | "json" | "rpm";
-  branch: string;
   ghApiMaxAttempts: number;
   ghToken: string;
 }
@@ -576,6 +579,7 @@ function readConfig(): Config {
       {
         repo: "gnosis/gnosis_vpn",
         label: "Installer",
+        branch: Deno.env.get("GNOSISVPN_BRANCH") || "main",
         previousVersion: previousPackageVersion,
         currentVersion: currentPackageVersion,
         allowMissingRelease: true, // Allow missing release for installer since it may not be created yet
@@ -583,6 +587,7 @@ function readConfig(): Config {
       {
         repo: "gnosis/gnosis_vpn-client",
         label: "Client",
+        branch: "main",
         previousVersion: previousCliVersion,
         currentVersion: currentCliVersion,
         allowMissingRelease: false,
@@ -590,13 +595,13 @@ function readConfig(): Config {
       {
         repo: "gnosis/gnosis_vpn-app",
         label: "App",
+        branch: "main",
         previousVersion: previousAppVersion,
         currentVersion: currentAppVersion,
         allowMissingRelease: false,
       },
     ],
     format: format as Config["format"],
-    branch: Deno.env.get("GNOSISVPN_BRANCH") || "main",
     ghApiMaxAttempts: parseInt(Deno.env.get("GH_API_MAX_ATTEMPTS") || "6", 10),
     ghToken,
   };
@@ -608,24 +613,23 @@ async function main(): Promise<void> {
   const config = readConfig();
 
   console.error("Generating release notes...");
-  for (const { label, previousVersion, currentVersion } of config.repositories) {
-    console.error(`  ${label}: ${previousVersion} -> ${currentVersion}`);
+  for (const { label, previousVersion, currentVersion, branch } of config.repositories) {
+    console.error(`  ${label}: ${previousVersion} -> ${currentVersion} (base: ${branch})`);
   }
   console.error(`  Format: ${config.format}`);
-  console.error(`  Branch: ${config.branch}`);
   console.error("");
 
   // Fetch PRs from all repositories
   const allEntries: ChangelogEntry[] = [];
 
-  for (const { repo, label, previousVersion, currentVersion, allowMissingRelease } of config.repositories) {
+  for (const { repo, label, branch, previousVersion, currentVersion, allowMissingRelease } of config.repositories) {
     if (previousVersion === currentVersion) continue;
 
     const previousDate = await getVersionDate(config, repo, previousVersion, false);
     const currentDate = await getVersionDate(config, repo, currentVersion, allowMissingRelease);
     log("INFO", `${label} date range: ${previousDate} to ${currentDate}`);
 
-    const entries = await fetchMergedPRs(config, repo, previousDate, currentDate, label, config.branch);
+    const entries = await fetchMergedPRs(config, repo, previousDate, currentDate, label, branch);
     allEntries.push(...entries);
   }
 
