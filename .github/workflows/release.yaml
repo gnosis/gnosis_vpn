@@ -31,6 +31,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Verify tag does not already exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+        run: |
+          tag="v${GNOSISVPN_PACKAGE_VERSION}"
+          if gh api "repos/${{ github.repository }}/git/refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "ERROR: tag ${tag} already exists — refusing to re-release." >&2
+            echo "Bump package.json or delete the existing tag/release manually before retrying." >&2
+            exit 1
+          fi
+          echo "Tag ${tag} does not exist — proceeding."
       - name: Setup Nix
         uses: hoprnet/hopr-workflows/actions/setup-nix@c8d45034bb33307dfda3b4dfcd1fc4000cadc05a # setup-nix-v1
         with:
