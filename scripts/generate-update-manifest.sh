@@ -76,36 +76,18 @@ get_stable_release_info() {
     echo "$tag $version $published_at"
 }
 
-# Returns "version published_at" for the latest successful snapshot build.
-# Version is extracted from the Linux amd64 artifact name, which embeds the build timestamp.
+# Returns "version published_at" for the latest snapshot, read from repository
+# variables that snapshot-build.yaml writes only when it actually produces
+# artifacts — so they always reflect a real snapshot, never a no-op skipped run.
 get_snapshot_run_info() {
-    local run_id published_at version
+    local version published_at
+    version=$(gh variable get GNOSISVPN_SNAPSHOT_VERSION --repo "$REPO")
+    published_at=$(gh variable get GNOSISVPN_SNAPSHOT_DATE --repo "$REPO")
 
-    run_id=$(gh run list \
-        --repo "$REPO" \
-        --workflow "snapshot-build.yaml" \
-        --branch main \
-        --status success \
-        --limit 1 \
-        --json databaseId \
-        --jq '.[0].databaseId')
-
-    [[ -n $run_id && $run_id != "null" ]] ||
-        die "No successful snapshot-build workflow run found."
-
-    published_at=$(gh run view "$run_id" \
-        --repo "$REPO" \
-        --json createdAt \
-        --jq '.createdAt')
-
-    # All platforms in the run share the same GNOSISVPN_PACKAGE_VERSION.
-    # Extract it from the Linux amd64 artifact name: gnosisvpn_VERSION_amd64.deb
-    version=$(gh api "repos/$REPO/actions/runs/$run_id/artifacts" \
-        --jq '[.artifacts[] | select(.name | test("^gnosisvpn_.*_amd64\\.deb$"))] | first | .name' |
-        sed 's/^gnosisvpn_\(.*\)_amd64\.deb$/\1/')
-
-    [[ -n $version && $version != "null" ]] ||
-        die "Could not determine version from artifacts of run $run_id."
+    [[ -n $version ]] ||
+        die "Repository variable GNOSISVPN_SNAPSHOT_VERSION is empty — has snapshot-build.yaml published a snapshot yet?"
+    [[ -n $published_at ]] ||
+        die "Repository variable GNOSISVPN_SNAPSHOT_DATE is empty — has snapshot-build.yaml published a snapshot yet?"
     validate_version "$version"
 
     echo "$version $published_at"

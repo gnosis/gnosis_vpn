@@ -79,3 +79,16 @@ jobs:
             echo "New merged PR found for gnosis_vpn-app: ${GNOSISVPN_APP_VERSION}"
             gh variable set GNOSISVPN_APP_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_APP_VERSION}"
           fi
+      - name: Publish snapshot manifest variables
+        # This job only runs when artifacts were actually built
+        # (SNAPSHOT_TRIGGERED == 'true'), so these variables always reflect the
+        # most recent real snapshot — never a no-op skipped run. generate-update-manifest.sh
+        # reads them instead of walking workflow runs to find the latest non-skipped build.
+        env:
+          GH_TOKEN: ${{ secrets.BOT_TOKEN }}
+          GNOSISVPN_SNAPSHOT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+        run: |
+          published_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "Publishing snapshot version ${GNOSISVPN_SNAPSHOT_VERSION} (published_at ${published_at})"
+          gh variable set GNOSISVPN_SNAPSHOT_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_SNAPSHOT_VERSION}"
+          gh variable set GNOSISVPN_SNAPSHOT_DATE --repo ${{ github.repository }} --body "${published_at}"
