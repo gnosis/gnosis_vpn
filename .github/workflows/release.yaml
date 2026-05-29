@@ -69,7 +69,7 @@ jobs:
           # notes that match what actually shipped on that branch. Only affects the
           # gnosis_vpn (installer) repo lookup; client/app PRs are aggregated from
           # their own repos with the default branch.
-          GNOSISVPN_BRANCH: ${{ github.ref_name }}
+          GNOSISVPN_PACKAGE_BRANCH: ${{ github.ref_name }}
       - name: Release version
         uses: hoprnet/hopr-workflows/actions/release-version@2cae201c4f92e86cf40480704bdc5c2d53bce772 # release-version-v3
         with:

@@ -76,45 +76,19 @@ get_stable_release_info() {
     echo "$tag $version $published_at"
 }
 
-# Returns "version published_at" for the latest snapshot build that actually
-# produced artifacts. snapshot-build skips its build jobs when no new PRs have
-# merged since the previous snapshot (see build-binary.yaml SKIP_BUILDING),
-# yet the run still concludes as "success" — so we walk newest-first and pick
-# the first run whose artifacts include gnosisvpn_*_amd64.deb.
+# Returns "version published_at" for the latest snapshot, read from repository
+# variables that snapshot-build.yaml writes only when it actually produces
+# artifacts — so they always reflect a real snapshot, never a no-op skipped run.
 get_snapshot_run_info() {
-    local run_ids run_id published_at version=""
+    local version published_at
+    version=$(gh variable get GNOSISVPN_SNAPSHOT_VERSION --repo "$REPO")
+    published_at=$(gh variable get GNOSISVPN_SNAPSHOT_DATE --repo "$REPO")
 
-    mapfile -t run_ids < <(gh run list \
-        --repo "$REPO" \
-        --workflow "snapshot-build.yaml" \
-        --branch main \
-        --status success \
-        --limit 20 \
-        --json databaseId \
-        --jq '.[].databaseId')
-
-    [[ ${#run_ids[@]} -gt 0 ]] ||
-        die "No successful snapshot-build workflow run found."
-
-    # All platforms in the run share the same GNOSISVPN_PACKAGE_VERSION.
-    # Extract it from the Linux amd64 artifact name: gnosisvpn_VERSION_amd64.deb
-    for run_id in "${run_ids[@]}"; do
-        version=$(gh api "repos/$REPO/actions/runs/$run_id/artifacts" \
-            --jq '[.artifacts[] | select(.name | test("^gnosisvpn_.*_amd64\\.deb$"))] | first | .name' |
-            sed 's/^gnosisvpn_\(.*\)_amd64\.deb$/\1/')
-        if [[ -n $version && $version != "null" ]]; then
-            break
-        fi
-    done
-
-    [[ -n $version && $version != "null" ]] ||
-        die "No snapshot-build run with a gnosisvpn_*_amd64.deb artifact found in the last ${#run_ids[@]} successful runs."
+    [[ -n $version ]] ||
+        die "Repository variable GNOSISVPN_SNAPSHOT_VERSION is empty — has snapshot-build.yaml published a snapshot yet?"
+    [[ -n $published_at ]] ||
+        die "Repository variable GNOSISVPN_SNAPSHOT_DATE is empty — has snapshot-build.yaml published a snapshot yet?"
     validate_version "$version"
-
-    published_at=$(gh run view "$run_id" \
-        --repo "$REPO" \
-        --json createdAt \
-        --jq '.createdAt')
 
     echo "$version $published_at"
 }

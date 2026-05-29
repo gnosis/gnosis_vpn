@@ -24,7 +24,7 @@ interface RepoConfig {
   repo: string;
   label: string;
   // PR `base=` filter. Defaults to "main"; the installer repo is overridable
-  // via GNOSISVPN_BRANCH so close-release on a release branch only includes
+  // via GNOSISVPN_PACKAGE_BRANCH so close-release on a release branch only includes
   // installer PRs that targeted that branch.
   branch: string;
   previousVersion: string;
@@ -579,7 +579,7 @@ function readConfig(): Config {
       {
         repo: "gnosis/gnosis_vpn",
         label: "Installer",
-        branch: Deno.env.get("GNOSISVPN_BRANCH") || "main",
+        branch: Deno.env.get("GNOSISVPN_PACKAGE_BRANCH") || "main",
         previousVersion: previousPackageVersion,
         currentVersion: currentPackageVersion,
         allowMissingRelease: true, // Allow missing release for installer since it may not be created yet
