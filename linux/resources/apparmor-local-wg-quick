@@ -1,0 +1,4 @@
+# Allow wg-quick to read the GnosisVPN-managed WireGuard config.
+# Ubuntu 26.04's wireguard-tools ships an enforcing 'wg-quick' AppArmor profile
+# that otherwise only permits /etc/wireguard/. See gnosisvpn postinstall.sh.
+/var/lib/gnosisvpn/.cache/wg0_gnosisvpn.conf r,

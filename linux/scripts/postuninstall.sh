@@ -31,6 +31,28 @@ fi
 echo "$LOG_PREFIX INFO: Reloading systemd daemon..."
 deb-systemd-helper daemon-reload || true
 
+# Reparse the wg-quick AppArmor profile so the now-removed local drop-in
+# (/etc/apparmor.d/local/wg-quick) include is dropped. No-op where the profile or
+# AppArmor isn't present (RPM/Arch/older Ubuntu/AppArmor-disabled).
+reload_apparmor_wg_quick() {
+    # Only relevant where the wg-quick AppArmor profile exists (e.g. Ubuntu 26.04+).
+    if [[ ! -e /etc/apparmor.d/wg-quick ]]; then
+        return 0
+    fi
+    if ! command -v apparmor_parser >/dev/null 2>&1; then
+        return 0
+    fi
+    # Skip if AppArmor isn't actually enabled in the kernel.
+    if [[ -r /sys/module/apparmor/parameters/enabled ]] &&
+        [[ "$(cat /sys/module/apparmor/parameters/enabled)" != "Y" ]]; then
+        return 0
+    fi
+    echo "$LOG_PREFIX INFO: reloading wg-quick AppArmor profile after drop-in removal..."
+    apparmor_parser -r -T -W /etc/apparmor.d/wg-quick ||
+        echo "$LOG_PREFIX WARNING: failed to reload wg-quick AppArmor profile"
+}
+reload_apparmor_wg_quick
+
 # Check if this is a complete purge
 IS_PURGE=false
 case "$PKG_MANAGER" in
