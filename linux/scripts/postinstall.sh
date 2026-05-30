@@ -143,12 +143,12 @@ reload_apparmor_wg_quick() {
         return 0
     fi
     # Skip if AppArmor isn't actually enabled in the kernel.
-    if [[ -r /sys/module/apparmor/parameters/enabled ]] \
-        && [[ "$(cat /sys/module/apparmor/parameters/enabled)" != "Y" ]]; then
+    if [[ -r /sys/module/apparmor/parameters/enabled ]] &&
+        [[ "$(cat /sys/module/apparmor/parameters/enabled)" != "Y" ]]; then
         return 0
     fi
     echo "$LOG_PREFIX INFO: reloading wg-quick AppArmor profile to allow GnosisVPN config..."
-    apparmor_parser -r -T -W /etc/apparmor.d/wg-quick || \
+    apparmor_parser -r -T -W /etc/apparmor.d/wg-quick ||
         echo "$LOG_PREFIX WARNING: failed to reload wg-quick AppArmor profile"
 }
 
