@@ -129,6 +129,29 @@ EOF
     echo "$LOG_PREFIX INFO: Run 'sudo apt-get update' to refresh the package cache"
 }
 
+# Reload the wg-quick AppArmor profile so it picks up our local drop-in
+# (/etc/apparmor.d/local/wg-quick), which grants read access to the GnosisVPN
+# WireGuard config under /var/lib/gnosisvpn/.cache/. No-op where the profile or
+# AppArmor isn't present (RPM/Arch/older Ubuntu/AppArmor-disabled).
+reload_apparmor_wg_quick() {
+    # Only relevant where the wg-quick AppArmor profile exists (e.g. Ubuntu 26.04+).
+    if [[ ! -e /etc/apparmor.d/wg-quick ]]; then
+        echo "$LOG_PREFIX INFO: no wg-quick AppArmor profile present, skipping reload"
+        return 0
+    fi
+    if ! command -v apparmor_parser >/dev/null 2>&1; then
+        return 0
+    fi
+    # Skip if AppArmor isn't actually enabled in the kernel.
+    if [[ -r /sys/module/apparmor/parameters/enabled ]] \
+        && [[ "$(cat /sys/module/apparmor/parameters/enabled)" != "Y" ]]; then
+        return 0
+    fi
+    echo "$LOG_PREFIX INFO: reloading wg-quick AppArmor profile to allow GnosisVPN config..."
+    apparmor_parser -r -T -W /etc/apparmor.d/wg-quick || \
+        echo "$LOG_PREFIX WARNING: failed to reload wg-quick AppArmor profile"
+}
+
 # Enable and start the systemd service
 enable_and_start_systemd_service() {
     echo "$LOG_PREFIX INFO: Setting up systemd service..."
@@ -248,6 +271,7 @@ main() {
     create_system_user_and_group
     configure_filesystem_permissions
     register_apt_repo
+    reload_apparmor_wg_quick
     enable_and_start_systemd_service
     install_desktop_shortcut_for_user
 
