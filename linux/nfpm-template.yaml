@@ -120,6 +120,16 @@ contents:
       mode: 0644
       owner: root
       group: root
+  # AppArmor local drop-in: grants the wg-quick profile (Ubuntu 26.04+) read
+  # access to our managed WireGuard config. Plain content (no type: config) so
+  # it is removed cleanly on uninstall; postinstall/postuninstall reparse the
+  # wg-quick profile to pick up / drop this local include.
+  - src: ./linux/resources/apparmor-local-wg-quick
+    dst: /etc/apparmor.d/local/wg-quick
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
   # Shell completions
   - src: ./build/completions/gnosis_vpn-ctl.bash
     dst: /usr/share/bash-completion/completions/gnosis_vpn-ctl
