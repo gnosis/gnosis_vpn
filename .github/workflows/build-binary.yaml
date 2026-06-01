@@ -184,6 +184,23 @@ jobs:
         with:
           name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
           path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
+      - name: Stage package for Artifact Registry
+        if: inputs.version_type == 'release'
+        run: |
+          # Stage into a clean dir so only the .deb + sidecars are uploaded,
+          # under the same versioned filenames as the APT repo
+          base="gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}"
+          mkdir -p ./build/registry
+          cp "./build/packages/${base}" "./build/registry/${base}"
+          cp "./build/packages/${base}.asc" "./build/registry/${base}.asc"
+          cp "./build/packages/${base}.sha256" "./build/registry/${base}.sha256"
+      - name: Publish into Google Artifact registry
+        if: inputs.version_type == 'release'
+        uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@621619750f6772109d7840a7013135c212925d58 # upload-artifact-registry-v2
+        with:
+          source: ./build/registry
+          package: gnosis_vpn
+          version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
   mac:
     runs-on: depot-macos-15
     name: Build Mac
