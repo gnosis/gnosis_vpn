@@ -165,21 +165,9 @@ generate_package() {
     log_success "Package created: ${BUILD_DIR}/packages/${PKG_NAME}"
 }
 
-generate_completions() {
-    log_info "Generating shell completions..."
-    local completions_dir="${BUILD_DIR}/completions"
-    mkdir -p "${completions_dir}"
-    "${BINARY_DIR}/gnosis_vpn-ctl" completions bash >"${completions_dir}/gnosis_vpn-ctl.bash"
-    "${BINARY_DIR}/gnosis_vpn-ctl" completions fish >"${completions_dir}/gnosis_vpn-ctl.fish"
-    "${BINARY_DIR}/gnosis_vpn-ctl" completions zsh >"${completions_dir}/_gnosis_vpn-ctl"
-    chmod 0644 "${completions_dir}/gnosis_vpn-ctl.bash" "${completions_dir}/gnosis_vpn-ctl.fish" "${completions_dir}/_gnosis_vpn-ctl"
-    log_success "Generated shell completions"
-}
-
 # Build Linux package
 build_platform_package() {
     prepare_app_contents
-    generate_completions
     generate_nfpm_config
     generate_package
 }
