@@ -82,16 +82,12 @@
     <dict>
         <key>NumberOfFiles</key>
         <integer>1024</integer>
-        <key>NumberOfProcesses</key>
-        <integer>100</integer>
     </dict>
 
     <key>SoftResourceLimits</key>
     <dict>
         <key>NumberOfFiles</key>
         <integer>512</integer>
-        <key>NumberOfProcesses</key>
-        <integer>50</integer>
     </dict>
 
     <!-- Exit Timeout -->
