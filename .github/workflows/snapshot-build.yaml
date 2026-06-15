@@ -65,7 +65,7 @@ jobs:
           content: ${{ env.NOTIFICATION_CONTENT }}
       - name: Update latest merged PR variables
         env:
-          GH_TOKEN: ${{ secrets.BOT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GNOSIS_VPN_BOT_TOKEN }}
         run: |
           if [[ "${GNOSISVPN_PACKAGE_VERSION}" != "${GNOSISVPN_PREVIOUS_PACKAGE_VERSION}" ]]; then
             echo "New merged PR found for gnosis_vpn: ${GNOSISVPN_PACKAGE_VERSION}"
@@ -85,7 +85,7 @@ jobs:
         # most recent real snapshot — never a no-op skipped run. generate-update-manifest.sh
         # reads them instead of walking workflow runs to find the latest non-skipped build.
         env:
-          GH_TOKEN: ${{ secrets.BOT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GNOSIS_VPN_BOT_TOKEN }}
           GNOSISVPN_SNAPSHOT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
         run: |
           published_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")

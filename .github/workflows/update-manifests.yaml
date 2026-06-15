@@ -36,7 +36,7 @@ jobs:
       - name: Generate update manifests
         run: bash ./scripts/generate-update-manifest.sh
         env:
-          GH_TOKEN: ${{ secrets.BOT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GNOSIS_VPN_BOT_TOKEN }}
           OUTPUT_DIR: ./build/manifests
       - name: Sign manifests
         uses: hoprnet/hopr-workflows/actions/sign-file@7bfd6309e663ce6f3a80b3f5a8a2eb4ae9d20108 # sign-file-v2
