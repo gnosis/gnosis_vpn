@@ -14,7 +14,6 @@
 # already reference only the retained versions. This workflow removes the
 # now-orphaned bucket objects, which is therefore safe — no client ever sees a
 # deleted file still referenced by metadata.
-
 name: Prune Bucket
 on:
   workflow_call:

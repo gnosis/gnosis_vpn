@@ -58,12 +58,18 @@ parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
         --prefix)
-            [[ -n ${2:-} ]] || { log_error "--prefix requires a value"; usage; }
+            [[ -n ${2:-} ]] || {
+                log_error "--prefix requires a value"
+                usage
+            }
             PREFIX="$2"
             shift 2
             ;;
         --keep)
-            [[ -n ${2:-} ]] || { log_error "--keep requires a value"; usage; }
+            [[ -n ${2:-} ]] || {
+                log_error "--keep requires a value"
+                usage
+            }
             KEEP="$2"
             shift 2
             ;;
@@ -81,9 +87,18 @@ parse_args() {
         esac
     done
 
-    [[ -n $PREFIX ]] || { log_error "--prefix is required"; usage; }
-    [[ $PREFIX == gs://* ]] || { log_error "--prefix must be a gs:// URL (got: '${PREFIX}')"; usage; }
-    [[ $KEEP =~ ^[0-9]+$ && $KEEP -ge 1 ]] || { log_error "--keep must be a positive integer (got: '${KEEP}')"; usage; }
+    [[ -n $PREFIX ]] || {
+        log_error "--prefix is required"
+        usage
+    }
+    [[ $PREFIX == gs://* ]] || {
+        log_error "--prefix must be a gs:// URL (got: '${PREFIX}')"
+        usage
+    }
+    [[ $KEEP =~ ^[0-9]+$ && $KEEP -ge 1 ]] || {
+        log_error "--keep must be a positive integer (got: '${KEEP}')"
+        usage
+    }
     # Normalize to a single trailing slash so wildcard joins are predictable.
     PREFIX="${PREFIX%/}/"
 
