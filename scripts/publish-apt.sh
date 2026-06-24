@@ -4,22 +4,13 @@
 # using reprepro.
 #
 # Two channels are supported:
-#   stable    - pool/main/g/gnosisvpn/ (Components: main)
-#   snapshot  - pool/snapshot/g/gnosisvpn/ (Components: snapshot)
-#
-# Index retention is reprepro's job, not ours: with no Limit: in
-# linux/apt/conf/distributions, reprepro keeps only the newest version of the
-# package in each suite's Packages index (and drops superseded .debs from its
-# own local pool). So the published index always references exactly one .deb,
-# regardless of how many we feed it.
-#
-# What reprepro does NOT do is clean the REMOTE bucket: upload() uses `cp -n`
-# (add-only), so every version ever published lingers as an orphan object that
-# the index no longer references. Pruning those is a SEPARATE, success-gated
-# step handled by .github/workflows/prune-bucket.yaml (which also prunes the
-# macOS dirs) — see scripts/prune-bucket-versions.sh. It keeps the newest N
-# objects (N from scripts/config.sh) so an in-flight `apt install` that cached
-# the previous index can still fetch the .deb it points at.
+#   stable    - append-only pool, all historical releases kept under
+#               pool/main/g/gnosisvpn/ (Components: main).
+#   snapshot  - append-only pool, all historical snapshots kept under
+#               pool/snapshot/g/gnosisvpn/ (Components: snapshot). Filenames are
+#               version-pinned so old .debs stay reachable for in-flight installs.
+#               A separate retention pass is expected to prune old snapshots
+#               periodically.
 #
 # Repository metadata (Packages, Release, InRelease, Release.gpg) is produced
 # by reprepro from linux/apt/conf/distributions. Reprepro drives gpg via
