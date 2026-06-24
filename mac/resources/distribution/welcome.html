@@ -56,6 +56,18 @@
         width: 100%;
       }
 
+      .package-version {
+        font-size: 13px;
+        font-weight: 600;
+        color: #333;
+      }
+
+      .component-versions {
+        font-size: 11px;
+        color: #888;
+        margin-top: 2px;
+      }
+
       .requirements h3 {
         color: #333;
         font-size: 14px;
@@ -97,6 +109,14 @@
           color: #ddd;
         }
 
+        .package-version {
+          color: #fff;
+        }
+
+        .component-versions {
+          color: #999;
+        }
+
         .feature-icon {
           color: #66aaff;
         }
@@ -126,13 +146,10 @@
 
     <div class="feature-list">
       <h3>What will be installed</h3>
-      <div class="feature-item">
-        <span class="feature-icon">&#10003;</span>
-        <span class="feature-text">Gnosis VPN app __GNOSISVPN_APP_VERSION__</span>
-      </div>
-      <div class="feature-item">
-        <span class="feature-icon">&#10003;</span>
-        <span class="feature-text">Gnosis VPN system service __GNOSISVPN_CLIENT_VERSION__</span>
+      <div class="package-version">Gnosis VPN __GNOSISVPN_PACKAGE_VERSION__</div>
+      <div class="component-versions">
+        App __GNOSISVPN_APP_VERSION__ <br />
+        System service __GNOSISVPN_CLIENT_VERSION__
       </div>
     </div>
 
@@ -141,7 +158,7 @@
     <div class="requirements">
       <h3>System Requirements</h3>
       <ul>
-        <li>macOS 14.0 (Sonoma) or later</li>
+        <li>macOS 15.0 (Sequoia) or later</li>
         <li>Approximately 100MB of available disk space</li>
       </ul>
     </div>
