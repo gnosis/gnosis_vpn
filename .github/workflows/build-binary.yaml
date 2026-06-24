@@ -330,3 +330,17 @@ jobs:
       channel: snapshot
       package_version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
     secrets: inherit
+  prune_bucket:
+    name: Prune bucket
+    needs:
+      - setup
+      - linux
+      - mac
+      - publish_apt
+    if: |
+      needs.setup.outputs.SKIP_BUILDING != 'true' &&
+      inputs.version_type == 'snapshot'
+    uses: ./.github/workflows/prune-bucket.yaml
+    with:
+      channel: snapshot
+    secrets: inherit

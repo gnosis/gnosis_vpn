@@ -94,3 +94,14 @@ jobs:
       channel: stable
       package_version: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
     secrets: inherit
+  prune_bucket:
+    # Prune old stable versions only after the build (macOS upload) and the
+    # stable APT publish both succeeded.
+    name: Prune bucket (stable)
+    needs:
+      - build_binary
+      - publish_apt
+    uses: ./.github/workflows/prune-bucket.yaml
+    with:
+      channel: stable
+    secrets: inherit
