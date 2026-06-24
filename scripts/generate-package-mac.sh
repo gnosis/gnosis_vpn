@@ -453,6 +453,7 @@ build_distribution_package() {
 
     # Generate welcome.html from template
     if [[ -f "${distribution_dir}/welcome.html" ]]; then
+        sed -i "s/__GNOSISVPN_PACKAGE_VERSION__/v${GNOSISVPN_PACKAGE_VERSION}/g" "$distribution_dir/welcome.html"
         sed -i "s/__GNOSISVPN_APP_VERSION__/v${GNOSISVPN_APP_VERSION}/g" "$distribution_dir/welcome.html"
         sed -i "s/__GNOSISVPN_CLIENT_VERSION__/v${GNOSISVPN_CLIENT_VERSION}/g" "$distribution_dir/welcome.html"
     else
@@ -460,8 +461,7 @@ build_distribution_package() {
     fi
 
     local dist_xml_resolved="${BUILD_DIR}/Distribution.xml"
-    local min_os_major="${MIN_OS_MACOS%%.*}"
-    sed "s/__MIN_OS_MACOS_MAJOR__/${min_os_major}/g" "$DISTRIBUTION_XML" >"$dist_xml_resolved"
+    sed "s/__MIN_OS_MACOS__/${MIN_OS_MACOS}/g" "$DISTRIBUTION_XML" >"$dist_xml_resolved"
 
     productbuild \
         --distribution "$dist_xml_resolved" \
