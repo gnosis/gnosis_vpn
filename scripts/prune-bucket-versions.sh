@@ -9,12 +9,14 @@
 # release.yaml for stable. Retention counts come from scripts/config.sh.
 #
 # Best-effort: a failed deletion warns but exits 0, so cleanup never turns a
-# successful publish red. Only call AFTER publishing — the retained set sorts
-# newest, so the just-published version is never deleted.
+# successful publish red. Only call AFTER publishing — versions sort ascending
+# (sort -V) and only those older than the newest --keep are deleted, so the
+# just-published version (the newest) is always retained.
 #
 # SAFETY: only call this AFTER the new version is fully published and every
-# index/manifest references the retained set. The retained set always includes
-# the just-published version because it sorts newest, so it is never deleted.
+# index/manifest references the retained set. Versions are sorted ascending and
+# only the oldest beyond the newest --keep are deleted (head -n -KEEP), so the
+# just-published version — being the newest — is always retained, never deleted.
 
 set -Eeuo pipefail
 set -o errtrace
@@ -82,6 +84,10 @@ parse_args() {
     }
     [[ $PREFIX == gs://* ]] || {
         log_error "--prefix must be a gs:// URL (got: '${PREFIX}')"
+        usage
+    }
+    [[ $PREFIX != *[][*?]* ]] || {
+        log_error "--prefix must not contain wildcard characters (* ? [ ]): '${PREFIX}'"
         usage
     }
     [[ $KEEP =~ ^[0-9]+$ && $KEEP -ge 1 ]] || {

@@ -16,6 +16,15 @@ on:
         description: 'Channel to prune (stable or snapshot)'
         required: true
         type: string
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Channel to prune (stable or snapshot)'
+        required: true
+        type: choice
+        options:
+          - stable
+          - snapshot
 jobs:
   prune:
     runs-on: depot-ubuntu-22.04-4
