@@ -1,27 +1,16 @@
 #!/usr/bin/env bash
 #
-# Prune old gnosisvpn artifacts under a GCS prefix, keeping only the latest
-# --keep versions (ordered by `sort -V`). For every version outside the
-# retention window, all of its objects are deleted: the primary artifact
-# (.deb / .pkg) and its .asc / .sha256 sidecars.
+# Prune old gnosisvpn artifacts under a GCS prefix, keeping only the newest
+# --keep versions (by `sort -V`). Each pruned version loses all its objects:
+# the .deb / .pkg plus its .asc / .sha256 sidecars.
 #
-# Versions are derived from object basenames of the shape
-#   gnosisvpn_<version>_<arch>.<deb|pkg>
-# so both filename conventions are handled: APT .debs embed the canonical
-# version with '+' (gnosisvpn_2026.06.24+build.143000_amd64.deb) and macOS
-# .pkgs substitute '-' for '+' (gnosisvpn_2026.06.24-build.143000_arm64.pkg).
-# `sort -V` orders both shapes chronologically.
+# Caller: .github/workflows/prune-bucket.yaml runs this twice per channel (APT
+# pool + macOS dir) after a successful publish — build-binary.yaml for snapshot,
+# release.yaml for stable. Retention counts come from scripts/config.sh.
 #
-# Callers:
-#   - scripts/publish-apt.sh           pool/main + pool/snapshot, AFTER the
-#                                       atomic InRelease swap.
-#   - .github/workflows/build-binary.yaml (mac job)  macos/stable + macos/latest,
-#                                       AFTER the .pkg upload.
-#
-# Pruning is best-effort: a failed deletion logs a warning but never returns
-# non-zero, so it cannot turn an already-successful publish red. Orphaned
-# objects left behind are harmless (no index/manifest references them) and get
-# retried on the next publish.
+# Best-effort: a failed deletion warns but exits 0, so cleanup never turns a
+# successful publish red. Only call AFTER publishing — the retained set sorts
+# newest, so the just-published version is never deleted.
 #
 # SAFETY: only call this AFTER the new version is fully published and every
 # index/manifest references the retained set. The retained set always includes

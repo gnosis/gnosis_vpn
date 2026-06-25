@@ -8,7 +8,6 @@
 #                        build, and APT publish to have succeeded.
 #   - release.yaml:      stable channel, needs the build and the stable APT
 #                        publish to have succeeded.
-
 name: Prune Bucket
 on:
   workflow_call:
