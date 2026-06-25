@@ -8,12 +8,7 @@
 #                        build, and APT publish to have succeeded.
 #   - release.yaml:      stable channel, needs the build and the stable APT
 #                        publish to have succeeded.
-#
-# NOTE: the APT *index* is pruned during the publish itself
-# (scripts/publish-apt.sh::prune_incoming), so the published Packages/InRelease
-# already reference only the retained versions. This workflow removes the
-# now-orphaned bucket objects, which is therefore safe — no client ever sees a
-# deleted file still referenced by metadata.
+
 name: Prune Bucket
 on:
   workflow_call:
