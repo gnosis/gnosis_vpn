@@ -1,0 +1,72 @@
+# Reusable: prunes old artifacts from gs://download.gnosisvpn.io, keeping only
+# the newest N versions per channel (N from scripts/config.sh). Deletes the
+# primary artifact plus its .asc / .sha256 sidecars for every pruned version,
+# across both the APT pool and the macOS directory of the channel.
+#
+# Callers run this ONLY after a successful publish:
+#   - build-binary.yaml: snapshot channel, needs the snapshot Linux build, macOS
+#                        build, and APT publish to have succeeded.
+#   - release.yaml:      stable channel, needs the build and the stable APT
+#                        publish to have succeeded.
+name: Prune Bucket
+on:
+  workflow_call:
+    inputs:
+      channel:
+        description: 'Channel to prune (stable or snapshot)'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Channel to prune (stable or snapshot)'
+        required: true
+        type: choice
+        options:
+          - stable
+          - snapshot
+jobs:
+  prune:
+    runs-on: depot-ubuntu-22.04-4
+    name: Prune bucket (${{ inputs.channel }})
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup GCP
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@621619750f6772109d7840a7013135c212925d58 # setup-gcp-v3
+        with:
+          workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
+          service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
+          install_sdk: true
+      - name: Prune old versions
+        continue-on-error: true
+        shell: bash
+        run: |
+          channel="${{ inputs.channel }}"
+          # Retention counts: single source of truth in scripts/config.sh.
+          source scripts/config.sh
+          case "$channel" in
+            snapshot)
+              apt_pool="pool/snapshot/g/gnosisvpn"
+              macos_dir="latest"
+              keep="$RETAIN_SNAPSHOT"
+              ;;
+            stable)
+              apt_pool="pool/main/g/gnosisvpn"
+              macos_dir="stable"
+              keep="$RETAIN_STABLE"
+              ;;
+            *)
+              echo "Invalid channel: '$channel' (expected stable or snapshot)" >&2
+              exit 1
+              ;;
+          esac
+          bash scripts/prune-bucket-versions.sh \
+            --prefix "gs://download.gnosisvpn.io/linux/apt/${apt_pool}/" \
+            --keep "$keep"
+          bash scripts/prune-bucket-versions.sh \
+            --prefix "gs://download.gnosisvpn.io/macos/${macos_dir}/" \
+            --keep "$keep"
