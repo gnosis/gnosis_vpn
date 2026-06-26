@@ -8,9 +8,6 @@ on:
         description: Propose the ENS contenthash update to the owning Safe
         type: boolean
         default: true
-  # Run automatically once manifests are ready. Update Manifests is itself
-  # triggered by "Close release" completing, so reacting to Update Manifests
-  # means both Close release and Update Manifests are done.
   workflow_run:
     workflows:
       - Update Manifests
@@ -21,20 +18,13 @@ on:
 jobs:
   prep-ipfs:
     runs-on: ubuntu-latest
-    # On the automatic (workflow_run) trigger, only proceed when the upstream
-    # Update Manifests run succeeded. repository_dispatch / workflow_dispatch
-    # runs are unaffected by this guard.
-    if: >-
-      ${{ github.event_name != 'workflow_run'
-
-          || github.event.workflow_run.conclusion == 'success' }}
+    # On the automatic (workflow_run) trigger, only proceed when the upstream Update Manifests run succeeded.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: read
       actions: read
       id-token: write
     steps:
-      # First, before the artifact downloads below — actions/checkout cleans its
-      # destination, so running it later would wipe ./merged-build.
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Resolve latest run IDs
@@ -107,6 +97,7 @@ jobs:
         run: |
           mkdir -p ./ipfs
           mkdir -p ./ipfs/manifests
+          mkdir -p ./ipfs/keys
           mkdir -p ./ipfs/macos/stable
           mkdir -p ./ipfs/linux/apt/pool/main/g/gnosisvpn
 
