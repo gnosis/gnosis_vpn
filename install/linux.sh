@@ -7,13 +7,16 @@
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
 #
 # Configures /etc/apt/sources.list.d/gnosisvpn.sources to pull signed packages
-# from https://download.gnosisvpn.io/linux/apt, installs the public keyring, runs
+# from the Gnosis VPN APT repository, installs the public keyring, runs
 # `apt-get update`, and installs the `gnosisvpn` package.
 
 set -Eeuo pipefail
 
-REPO_URL="https://download.gnosisvpn.io/linux/apt"
-KEYRING_URL="${REPO_URL}/gnosisvpn-archive-keyring.gpg"
+# APT repository mirrors, tried in order. The IPFS/DNSLink gateway is primary;
+# the GCS bucket is the fallback. Both serve identical content signed by the same
+# key, so apt transparently fails over between them when one is unavailable.
+REPO_URL_PRIMARY="https://downloads.vpn.gnosis.eth.limo/linux/apt"
+REPO_URL_BACKUP="https://download.gnosisvpn.io/linux/apt"
 KEYRING_PATH="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 SOURCES_PATH="/etc/apt/sources.list.d/gnosisvpn.sources"
 
@@ -142,15 +145,21 @@ ensure_prereqs() {
 install_keyring() {
     log "Installing repository signing key to ${KEYRING_PATH}"
     install -d -m 0755 /etc/apt/keyrings
-    local tmp
+    local tmp url
     tmp="$(mktemp)"
-    if ! curl -fsSL "$KEYRING_URL" -o "$tmp"; then
-        err "Failed to download keyring from ${KEYRING_URL}"
-        rm -f "$tmp"
-        exit 1
-    fi
-    install -m 0644 "$tmp" "$KEYRING_PATH"
+    for url in "${REPO_URL_PRIMARY}/gnosisvpn-archive-keyring.gpg" \
+        "${REPO_URL_BACKUP}/gnosisvpn-archive-keyring.gpg"; do
+        if curl -fsSL "$url" -o "$tmp"; then
+            log "Downloaded signing key from ${url}"
+            install -m 0644 "$tmp" "$KEYRING_PATH"
+            rm -f "$tmp"
+            return
+        fi
+        warn "Failed to download keyring from ${url}; trying next source"
+    done
+    err "Failed to download keyring from all sources"
     rm -f "$tmp"
+    exit 1
 }
 
 write_sources() {
@@ -164,9 +173,11 @@ write_sources() {
     snapshot) component="snapshot" ;;
     esac
     log "Writing APT source to ${SOURCES_PATH} (channel: ${CHANNEL}, component: ${component}, arch: ${ARCH})"
+    # Two space-separated URIs: apt prefers the first and falls back to the second
+    # when it is unavailable. Both mirrors serve the same key-signed content.
     cat >"$SOURCES_PATH" <<EOF
 Types: deb
-URIs: ${REPO_URL}
+URIs: ${REPO_URL_PRIMARY} ${REPO_URL_BACKUP}
 Suites: ${CHANNEL}
 Components: ${component}
 Architectures: ${ARCH}

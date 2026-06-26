@@ -405,6 +405,9 @@ upload() {
     local pool_subpath
     pool_subpath="$(pool_subpath_for_channel "$CHANNEL")"
 
+    local bucket_root="${GNOSISVPN_APT_BUCKET#gs://}"
+    bucket_root="gs://${bucket_root%%/*}"
+
     # Cache headers set at upload time (gsutil -h), not via post-upload
     # `setmeta` wildcards — the wildcard form re-tags every historical
     # .deb / .asc / .sha256 in the pool on each publish, scaling linearly
@@ -445,6 +448,12 @@ upload() {
     gsutil -h "${revalidate_header}" \
         cp "${WORK_DIR}/gnosisvpn-archive-keyring.gpg" \
         "${GNOSISVPN_APT_BUCKET}/gnosisvpn-archive-keyring.gpg"
+
+    # Publish the armored key under keys/
+    log_info "Uploading armored public key to ${bucket_root}/keys/gnosisvpn-public-key.asc ..."
+    gsutil -h "Content-Type:application/pgp-keys" -h "${revalidate_header}" \
+        cp "${GNOSISVPN_APT_PUBLIC_KEY}" \
+        "${bucket_root}/keys/gnosisvpn-public-key.asc"
 
     # Upload Release + its detached signature next. The OLD InRelease is still
     # in the bucket and apt prefers InRelease, so clients see a consistent view
