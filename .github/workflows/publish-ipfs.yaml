@@ -34,6 +34,10 @@ jobs:
       actions: read 
       id-token: write
     steps:
+      # First, before the artifact downloads below — actions/checkout cleans its
+      # destination, so running it later would wipe ./merged-build.
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Resolve latest run IDs
         id: runs
         env:
@@ -118,6 +122,7 @@ jobs:
           cp ./merged-build/binary/*.deb* ./ipfs/linux/apt/pool/main/g/gnosisvpn/
           cp ./merged-build/binary/*.pkg* ./ipfs/macos/stable/
           cp -r ./merged-build/manifests/* ./ipfs/manifests/
+          cp ./gnosisvpn-public-key.asc ./ipfs/keys/
 
           ls -la ./ipfs/
 
