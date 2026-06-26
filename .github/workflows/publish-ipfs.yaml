@@ -1,0 +1,151 @@
+name: Publish download page and binaries to IPFS
+
+on:
+  repository_dispatch:
+    types: [trigger-merge]
+  workflow_dispatch:
+    inputs:
+      propose_ens:
+        description: Propose the ENS contenthash update to the owning Safe
+        type: boolean
+        default: true
+  # Run automatically once manifests are ready. Update Manifests is itself
+  # triggered by "Close release" completing, so reacting to Update Manifests
+  # means both Close release and Update Manifests are done.
+  workflow_run:
+    workflows:
+      - Update Manifests
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  prep-ipfs:
+    runs-on: ubuntu-latest
+    # On the automatic (workflow_run) trigger, only proceed when the upstream
+    # Update Manifests run succeeded. repository_dispatch / workflow_dispatch
+    # runs are unaffected by this guard.
+    if: >-
+      ${{ github.event_name != 'workflow_run'
+          || github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: read 
+      actions: read 
+      id-token: write
+    steps:
+      - name: Resolve latest run IDs
+        id: runs
+        env:
+          GH_TOKEN: ${{ secrets.GNOSIS_VPN_BOT_TOKEN }}
+        run: |
+          set -euo pipefail
+          # The website 'downloads' app is uploaded per-commit as
+          # build-downloads-<sha> (see _deploy-app.yml in the website repo), so
+          # there is no stable artifact name to filter on. Match the
+          # 'build-downloads-' prefix and take the most recent non-expired
+          # artifact built on main, capturing both its run id and exact name.
+          website_artifact=$(gh api "repos/gnosis/gnosis-vpn-website-monorepo/actions/artifacts?per_page=100" \
+            --jq '[.artifacts[]
+                   | select(.expired == false)
+                   | select(.workflow_run.head_branch == "main")
+                   | select(.name | startswith("build-downloads-"))]
+                  | sort_by(.created_at) | reverse | .[0]')
+          if [ -z "$website_artifact" ] || [ "$website_artifact" = "null" ]; then
+            echo "::error::No build-downloads-<sha> artifact found on main in gnosis-vpn-website-monorepo" >&2
+            exit 1
+          fi
+          website_run=$(jq -r '.workflow_run.id' <<<"$website_artifact")
+          website_name=$(jq -r '.name' <<<"$website_artifact")
+          echo "website_run=$website_run" >> "$GITHUB_OUTPUT"
+          echo "website_name=$website_name" >> "$GITHUB_OUTPUT"
+          # Binaries come from this repo's latest successful "Close release" run.
+          release_run=$(GH_TOKEN="${{ github.token }}" gh run list --workflow release.yaml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          echo "release_run=$release_run" >> "$GITHUB_OUTPUT"
+          # Manifests come from this repo's "Update Manifests" workflow, which runs
+          # after a release/snapshot. Take them from its latest successful run.
+          manifests_run=$(GH_TOKEN="${{ github.token }}" gh run list --workflow update-manifests.yaml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          echo "manifests_run=$manifests_run" >> "$GITHUB_OUTPUT"
+
+      - name: Download Website Artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ steps.runs.outputs.website_name }}
+          path: ./merged-build/website/
+          repository: gnosis/gnosis-vpn-website-monorepo
+          run-id: ${{ steps.runs.outputs.website_run }}
+          github-token: ${{ secrets.GNOSIS_VPN_BOT_TOKEN }}
+
+      - name: Download Binary Artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: ./merged-build/binary/
+          run-id: ${{ steps.runs.outputs.release_run }}
+          github-token: ${{ github.token }}
+          merge-multiple: true
+
+      - name: Download Manifests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: manifests
+          path: ./merged-build/manifests/
+          run-id: ${{ steps.runs.outputs.manifests_run }}
+          github-token: ${{ github.token }}
+
+      - name: Setup GCP
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@621619750f6772109d7840a7013135c212925d58 # setup-gcp-v3
+        with:
+          workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
+          service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
+          install_sdk: true
+
+      - name: Download APT index
+        run: |
+          for path in linux/apt/dists/stable/main; do
+            mkdir -p "./merged-build/apt/${path}"
+            gsutil -m rsync -r "gs://download.gnosisvpn.io/${path}" "./merged-build/apt/${path}"
+          done
+
+      - name: Merge Folders
+        run: |
+          mkdir -p ./ipfs
+          mkdir -p ./ipfs/manifests
+          mkdir -p ./ipfs/macos/stable
+          mkdir -p ./ipfs/linux/apt/pool/main/g/gnosisvpn
+
+          cp -r ./merged-build/website/* ./ipfs/
+          cp -r ./merged-build/apt/* ./ipfs/
+          cp ./merged-build/binary/*.deb* ./ipfs/linux/apt/pool/main/g/gnosisvpn/
+          cp ./merged-build/binary/*.pkg* ./ipfs/macos/stable/
+          cp -r ./merged-build/manifests/* ./ipfs/manifests/
+
+          ls -la ./ipfs/
+
+    deploy-ipfs:
+      needs: [prep-ipfs]
+      uses: gnosis/gh-action-pinata/.github/workflows/pinata-deployment.yml@6197bbf8ffd6bee0d4ddb633af27633ca80a6a26 # 0.2.0
+      with:
+        environment: prod
+        project_name: gnosis-vpn-downloads
+        build_dir: ./ipfs
+        build_artifact_name: build-${{ github.sha }}
+      secrets:
+        PINATA_JWT: ${{ secrets.PINATA_JWT }}
+
+  propose-ens:
+    needs: [deploy-ipfs]
+    if: ${{ inputs.propose_ens }}
+    runs-on: ubuntu-latest
+    environment: prod
+    timeout-minutes: 10
+    steps:
+      - name: Propose ENS contenthash update
+        uses: hoprnet/hopr-workflows/actions/propose-ens-contenthash@5b0f0e6c7e3a02e30a33b9f5150fb5b118676e58 # propose-ens-contenthash-v1
+        with:
+          cid: ${{ needs.deploy-ipfs.outputs.ipfs_hash }}
+          ens_name: ${{ vars.ENS_NAME }}
+          resolver_address: ${{ vars.RESOLVER_ADDRESS }}
+          safe_address: ${{ vars.SAFE_ADDRESS }}
+          ens_delegate_private_key: ${{ secrets.ENS_DELEGATE_PRIVATE_KEY }}
+          safe_api_key: ${{ secrets.SAFE_API_KEY }}
+          tx_origin: 'gnosis_vpn/publish-ipfs'
