@@ -52,5 +52,6 @@ jobs:
         with:
           path: ./build/manifests
           destination: download.gnosisvpn.io
+          process_gcloudignore: false
       - name: Set cache control
         run: gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://download.gnosisvpn.io/manifests/**"
