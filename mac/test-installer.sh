@@ -125,36 +125,47 @@ test_build_structure() {
 }
 
 # 3. Signing Validation (Optional)
+# Signing is optional (e.g. local builds without certificates), so this section
+# only asserts signatures when the package is actually signed. The distribution
+# package is named gnosisvpn_<version>_<arch>.pkg whether or not it is signed,
+# so signedness is detected via pkgutil rather than inferred from the filename.
 test_signing() {
-    local signed_pkg
-    signed_pkg=$(find "${BUILD_DIR}/packages" -name "gnosisvpn_*_*.pkg" -print -quit)
+    local pkg
+    pkg=$(find "${BUILD_DIR}/packages" -name "gnosisvpn_*_*.pkg" -print -quit)
 
-    if [[ -n $signed_pkg ]]; then
-        log_info "Signed package found: $(basename "$signed_pkg")"
+    if [[ -z $pkg ]]; then
+        log_info "No distribution package found. Skipping signing tests."
+        return 0
+    fi
 
-        # Check package signature
-        if command -v pkgutil >/dev/null; then
-            run_test "Package signature verification" "pkgutil --check-signature '$signed_pkg' >/dev/null"
-        else
-            log_test "Skipping package signature check (pkgutil not found)"
-        fi
+    if ! command -v pkgutil >/dev/null; then
+        log_test "Skipping signing tests (pkgutil not found)"
+        return 0
+    fi
 
-        # Check binary signatures (if we can on this platform)
-        if command -v codesign >/dev/null; then
-            local rootfs="${BUILD_DIR}/app-contents/rootfs"
-            local bins_to_check=("wg" "wireguard-go")
+    if ! pkgutil --check-signature "$pkg" 2>/dev/null | grep -q 'Status: signed'; then
+        log_info "Package is unsigned: $(basename "$pkg"). Skipping signing tests."
+        return 0
+    fi
 
-            for bin in "${bins_to_check[@]}"; do
-                local bin_path="$rootfs/usr/local/bin/$bin"
-                if [[ -f $bin_path ]]; then
-                    run_test "Binary signature '$bin'" "codesign --verify --deep --strict '$bin_path' >/dev/null"
-                fi
-            done
-        else
-            log_test "Skipping binary signature check (codesign not found)"
-        fi
+    log_info "Signed package found: $(basename "$pkg")"
+
+    # Check package signature
+    run_test "Package signature verification" "pkgutil --check-signature '$pkg' >/dev/null"
+
+    # Check binary signatures (if we can on this platform)
+    if command -v codesign >/dev/null; then
+        local rootfs="${BUILD_DIR}/app-contents/rootfs"
+        local bins_to_check=("wg" "wireguard-go")
+
+        for bin in "${bins_to_check[@]}"; do
+            local bin_path="$rootfs/usr/local/bin/$bin"
+            if [[ -f $bin_path ]]; then
+                run_test "Binary signature '$bin'" "codesign --verify --deep --strict '$bin_path' >/dev/null"
+            fi
+        done
     else
-        log_info "No signed package found. Skipping signing tests."
+        log_test "Skipping binary signature check (codesign not found)"
     fi
 }
 

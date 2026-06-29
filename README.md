@@ -198,62 +198,46 @@ deadlock.
 ## CI/CD workflows
 
 The diagram below shows every GitHub Actions workflow, what triggers each one (automatic vs. manual), and how they chain
-together across the **snapshot** and **stable** channels.
+together across the **snapshot** and **stable** channels. `Build`, `Publish APT`, and `Prune Bucket` are reusable
+workflows (`workflow_call`) invoked as ordered steps by the channel pipelines; `Prune Bucket` can also be run manually.
 
-- Solid arrows (`-->`) are event triggers.
-- Thick arrows (`==>`) are reusable-workflow calls (`uses:`).
-- Dashed arrows (`-.->`) are follow-on triggers fired when the upstream workflow completes (`workflow_run` /
+- Solid arrows (`-->`) are event triggers and the ordered steps within a pipeline.
+- Dashed arrows (`-.->`) are separate workflows triggered when the upstream workflow completes (`workflow_run` /
   `repository_dispatch`).
 
 ```mermaid
 flowchart TD
-    %% ---------- Event triggers ----------
-    trPR([PR opened / updated · automatic])
-    trMerge([PR merged to main · automatic])
-    trRel([Close release · manual])
-    trSnap([daily cron · after labeled merge · manual + automatic])
-    trMan([manual dispatch])
-    trIpfsMan([manual dispatch])
-    trPruneMan([manual dispatch])
-    trPush([push install/linux.sh · automatic + manual])
+    %% ---------------- Dev builds (no publish) ----------------
+    trPR([PR opened / updated · automatic]) --> PR["<b>PR</b><br/>Build (commit) — build only, no publish"]
+    trMerge([PR merged to main · automatic]) --> MERGE["<b>Merge PR</b><br/>Build (pr) — build only, no publish"]
+    MERGE -. "if 'snapshot-build' label · repository_dispatch" .-> NBUILD
 
-    %% ---------- Workflows ----------
-    PR["<b>PR</b>"]
-    MERGE["<b>Merge PR</b>"]
-    REL["<b>Close release</b><br/>channel: stable"]
-    SNAP["<b>Snapshot Build</b><br/>channel: snapshot"]
-    BUILD["<b>Build</b> · reusable<br/>build"]
-    APT["<b>Publish APT</b> · reusable<br/>publish to APT repo"]
-    PRUNE["<b>Prune Bucket</b> · reusable<br/>purge old APT repo versions"]
-    MAN["<b>Update Manifests</b><br/>manifest upload"]
-    IPFS["<b>Publish to IPFS</b><br/>publish to IPFS"]
-    ENS["<b>Propose ENS change</b><br/>(stable only)"]
-    INSTALL["<b>Publish install.sh</b>"]
+    %% ---------------- Stable channel ----------------
+    trRel([Close release · manual]) --> SBUILD
+    subgraph S["Close release · channel: stable"]
+      direction TB
+      SBUILD["<b>Build</b> (release)<br/>build .deb + macOS .pkg<br/>macOS .pkg → bucket"] --> SGH["GitHub release<br/>(gates stable APT)"]
+      SGH --> SAPT["<b>Publish APT</b> (stable)"]
+      SAPT --> SPRUNE["<b>Prune Bucket</b> (stable)<br/>purge old APT + macOS versions"]
+    end
 
-    %% ---------- Event trigger edges ----------
-    trPR --> PR
-    trMerge --> MERGE
-    trRel --> REL
-    trSnap --> SNAP
-    trMan --> MAN
-    trIpfsMan --> IPFS
-    trPruneMan --> PRUNE
-    trPush --> INSTALL
+    %% ---------------- Snapshot channel ----------------
+    trSnap([daily cron · labeled-merge dispatch · manual]) --> NBUILD
+    subgraph N["Snapshot Build · channel: snapshot"]
+      direction TB
+      NBUILD["<b>Build</b> (snapshot)<br/>build .deb + macOS .pkg<br/>macOS .pkg → bucket"] --> NAPT["<b>Publish APT</b> (snapshot)"]
+      NAPT --> NPRUNE["<b>Prune Bucket</b> (snapshot)<br/>purge old APT + macOS versions"]
+    end
 
-    %% ---------- Reusable-workflow calls (uses:) ----------
-    PR ==>|version: commit| BUILD
-    MERGE ==>|version: pr| BUILD
-    REL ==>|version: release| BUILD
-    SNAP ==>|version: snapshot| BUILD
-    BUILD ==>|snapshot| APT
-    BUILD ==>|snapshot| PRUNE
-    REL ==>|stable · after GitHub release| APT
-    REL ==>|stable| PRUNE
+    %% ---------------- Manifests → IPFS → ENS ----------------
+    SPRUNE -. "on Close release completion" .-> MAN
+    NPRUNE -. "on Snapshot Build completion" .-> MAN
+    trMan([manual dispatch]) --> MAN["<b>Update Manifests</b><br/>manifest upload"]
+    MAN -. "stable release only" .-> IPFS["<b>Publish to IPFS</b><br/>publish to IPFS (Pinata)"]
+    trIpfs([manual · repository_dispatch]) --> IPFS
+    IPFS -->|if toggled| ENS["<b>Propose ENS change</b>"]
 
-    %% ---------- Follow-on triggers ----------
-    MERGE -. "if 'snapshot-build' label" .-> SNAP
-    REL -. on completion .-> MAN
-    SNAP -. on completion .-> MAN
-    MAN -. on completion .-> IPFS
-    IPFS -->|stable release only| ENS
+    %% ---------------- Standalone ----------------
+    trPush([push install/linux.sh · automatic + manual]) --> INSTALL["<b>Publish install.sh</b>"]
+    trPruneM([manual dispatch]) --> PRUNEM["<b>Prune Bucket</b> (manual run)"]
 ```
