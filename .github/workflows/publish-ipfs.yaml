@@ -89,7 +89,7 @@ jobs:
           install_sdk: true
       - name: Download APT index
         run: |
-          for path in linux/apt/dists/stable/main; do
+          for path in linux/apt/dists/stable/; do
             mkdir -p "./merged-build/apt/${path}"
             gsutil -m rsync -r "gs://download.gnosisvpn.io/${path}" "./merged-build/apt/${path}"
           done
