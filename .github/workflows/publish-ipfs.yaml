@@ -162,7 +162,7 @@ jobs:
       PINATA_JWT: ${{ secrets.PINATA_JWT }}
   propose-ens:
     needs: [prep-ipfs, deploy-ipfs]
-    # Only propose the ENS update for stable releases — see prep-ipfs.from_release.
+    # Only propose the ENS update for stable releases.
     if: ${{ needs.prep-ipfs.outputs.from_release == 'true' }}
     runs-on: ubuntu-latest
     environment: prod
