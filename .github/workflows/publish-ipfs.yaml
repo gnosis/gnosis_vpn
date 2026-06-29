@@ -145,6 +145,7 @@ jobs:
           cp ./gnosisvpn-public-key.asc ./ipfs/keys/
 
           ls -la ./ipfs/
+          ls -la ./ipfs/macos/stable/
       - name: Upload IPFS build
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

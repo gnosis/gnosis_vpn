@@ -110,11 +110,11 @@ test_build_structure() {
     # Packages
     # Note: Package name might have version, so check for .pkg extension
     run_test "Component package exists" "[[ -n \$(find '${BUILD_DIR}/packages' -name 'GnosisVPN.pkg' -print -quit) ]]"
-    run_test "Distribution package exists" "[[ -n \$(find '${BUILD_DIR}/packages' -name 'GnosisVPN-Installer-*.pkg' -print -quit) ]]"
+    run_test "Distribution package exists" "[[ -n \$(find '${BUILD_DIR}/packages' -name 'gnosisvpn_*_*.pkg' -print -quit) ]]"
 
     # SHA256 Checksum Validation
     local checksum_file
-    checksum_file=$(find "${BUILD_DIR}/packages" -name "GnosisVPN-Installer-*.pkg.sha256" -print -quit)
+    checksum_file=$(find "${BUILD_DIR}/packages" -name "gnosisvpn_*_*.pkg.sha256" -print -quit)
     if [[ -n $checksum_file ]]; then
         run_test "Checksum file exists" "[[ -f '$checksum_file' ]]"
         # Check if the file contains two fields (hash and filename)
@@ -127,7 +127,7 @@ test_build_structure() {
 # 3. Signing Validation (Optional)
 test_signing() {
     local signed_pkg
-    signed_pkg=$(find "${BUILD_DIR}/packages" -name "GnosisVPN-Installer-*-signed.pkg" -print -quit)
+    signed_pkg=$(find "${BUILD_DIR}/packages" -name "gnosisvpn_*_*.pkg" -print -quit)
 
     if [[ -n $signed_pkg ]]; then
         log_info "Signed package found: $(basename "$signed_pkg")"
