@@ -194,3 +194,66 @@ Updates are grouped by ecosystem:
 
 `prCreation: immediate` is intentional — CI only triggers on pull request events, so waiting for branch checks would
 deadlock.
+
+## CI/CD workflows
+
+The diagram below shows every GitHub Actions workflow, what triggers each one (automatic vs. manual), and how they chain
+together across the **snapshot** and **stable** channels.
+
+- Solid arrows (`-->`) are event triggers.
+- Thick arrows (`==>`) are reusable-workflow calls (`uses:`).
+- Dashed arrows (`-.->`) are follow-on triggers fired when the upstream workflow completes (`workflow_run` /
+  `repository_dispatch`).
+
+```mermaid
+flowchart TD
+    %% ---------- Event triggers ----------
+    trPR([PR opened / updated · automatic])
+    trMerge([PR merged to main · automatic])
+    trRel([Close release · manual])
+    trSnap([daily cron · after labeled merge · manual + automatic])
+    trMan([manual dispatch])
+    trIpfsMan([manual dispatch])
+    trPruneMan([manual dispatch])
+    trPush([push install/linux.sh · automatic + manual])
+
+    %% ---------- Workflows ----------
+    PR["<b>PR</b>"]
+    MERGE["<b>Merge PR</b>"]
+    REL["<b>Close release</b><br/>channel: stable"]
+    SNAP["<b>Snapshot Build</b><br/>channel: snapshot"]
+    BUILD["<b>Build</b> · reusable<br/>build"]
+    APT["<b>Publish APT</b> · reusable<br/>publish to APT repo"]
+    PRUNE["<b>Prune Bucket</b> · reusable<br/>purge old APT repo versions"]
+    MAN["<b>Update Manifests</b><br/>manifest upload"]
+    IPFS["<b>Publish to IPFS</b><br/>publish to IPFS"]
+    ENS["<b>Propose ENS change</b><br/>(stable only)"]
+    INSTALL["<b>Publish install.sh</b>"]
+
+    %% ---------- Event trigger edges ----------
+    trPR --> PR
+    trMerge --> MERGE
+    trRel --> REL
+    trSnap --> SNAP
+    trMan --> MAN
+    trIpfsMan --> IPFS
+    trPruneMan --> PRUNE
+    trPush --> INSTALL
+
+    %% ---------- Reusable-workflow calls (uses:) ----------
+    PR ==>|version: commit| BUILD
+    MERGE ==>|version: pr| BUILD
+    REL ==>|version: release| BUILD
+    SNAP ==>|version: snapshot| BUILD
+    BUILD ==>|snapshot| APT
+    BUILD ==>|snapshot| PRUNE
+    REL ==>|stable · after GitHub release| APT
+    REL ==>|stable| PRUNE
+
+    %% ---------- Follow-on triggers ----------
+    MERGE -. "if 'snapshot-build' label" .-> SNAP
+    REL -. on completion .-> MAN
+    SNAP -. on completion .-> MAN
+    MAN -. on completion .-> IPFS
+    IPFS -->|stable release only| ENS
+```
