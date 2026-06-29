@@ -265,16 +265,20 @@ for entry in "${PLATFORMS[@]}"; do
         min_app_version: $min_app_version
       }')
 
-        # Same entry, only download_url repointed at the IPFS host.
-        CHANNEL_ENTRY_IPFS=$(echo "$CHANNEL_ENTRY" |
-            jq --arg download_url "$IPFS_URL" '.download_url = $download_url')
-
         CHANNELS_JSON=$(echo "$CHANNELS_JSON" |
             jq --arg ch "$channel" --argjson entry "$CHANNEL_ENTRY" \
                 '. + {($ch): $entry}')
-        CHANNELS_JSON_IPFS=$(echo "$CHANNELS_JSON_IPFS" |
-            jq --arg ch "$channel" --argjson entry "$CHANNEL_ENTRY_IPFS" \
-                '. + {($ch): $entry}')
+
+        # IPFS hosts stable binaries only, so the IPFS manifest carries the
+        # stable channel exclusively — snapshot is skipped here.
+        if [[ $channel == "stable" ]]; then
+            # Same entry, only download_url repointed at the IPFS host.
+            CHANNEL_ENTRY_IPFS=$(echo "$CHANNEL_ENTRY" |
+                jq --arg download_url "$IPFS_URL" '.download_url = $download_url')
+            CHANNELS_JSON_IPFS=$(echo "$CHANNELS_JSON_IPFS" |
+                jq --arg ch "$channel" --argjson entry "$CHANNEL_ENTRY_IPFS" \
+                    '. + {($ch): $entry}')
+        fi
     done
 
     BODY=$(jq -n \
