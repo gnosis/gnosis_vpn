@@ -12,9 +12,8 @@
 
 set -Eeuo pipefail
 
-# APT repository mirrors, tried in order. The IPFS/DNSLink gateway is primary;
-# the GCS bucket is the fallback. Both serve identical content signed by the same
-# key, so apt transparently fails over between them when one is unavailable.
+# APT repository mirrors, tried in order.
+# Both serve identical stable content, gnosisvpn.io also snapshots.
 REPO_URL_PRIMARY="https://downloads.vpn.gnosis.eth.limo/linux/apt"
 REPO_URL_BACKUP="https://download.gnosisvpn.io/linux/apt"
 KEYRING_PATH="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"

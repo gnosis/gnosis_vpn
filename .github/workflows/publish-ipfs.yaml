@@ -93,6 +93,8 @@ jobs:
             mkdir -p "./merged-build/apt/${path}"
             gsutil -m rsync -r "gs://download.gnosisvpn.io/${path}" "./merged-build/apt/${path}"
           done
+          # Keyring apt clients use to verify the repository signature.
+          gsutil cp "gs://download.gnosisvpn.io/linux/apt/gnosisvpn-archive-keyring.gpg" "./merged-build/apt/linux/apt/gnosisvpn-archive-keyring.gpg"
       - name: Merge Folders
         run: |
           mkdir -p ./ipfs
@@ -100,6 +102,7 @@ jobs:
           mkdir -p ./ipfs/keys
           mkdir -p ./ipfs/macos/stable
           mkdir -p ./ipfs/linux/apt/pool/main/g/gnosisvpn
+          mkdir -p ./ipfs/keys
 
           cp -r ./merged-build/website/* ./ipfs/
           cp -r ./merged-build/apt/* ./ipfs/
@@ -109,16 +112,16 @@ jobs:
           cp ./gnosisvpn-public-key.asc ./ipfs/keys/
 
           ls -la ./ipfs/
-    deploy-ipfs:
-      needs: [prep-ipfs]
-      uses: gnosis/gh-action-pinata/.github/workflows/pinata-deployment.yml@6197bbf8ffd6bee0d4ddb633af27633ca80a6a26 # 0.2.0
-      with:
-        environment: prod
-        project_name: gnosis-vpn-downloads
-        build_dir: ./ipfs
-        build_artifact_name: build-${{ github.sha }}
-      secrets:
-        PINATA_JWT: ${{ secrets.PINATA_JWT }}
+  deploy-ipfs:
+    needs: [prep-ipfs]
+    uses: gnosis/gh-action-pinata/.github/workflows/pinata-deployment.yml@6197bbf8ffd6bee0d4ddb633af27633ca80a6a26 # 0.2.0
+    with:
+      environment: prod
+      project_name: gnosis-vpn-downloads
+      build_dir: ./ipfs
+      build_artifact_name: build-${{ github.sha }}
+    secrets:
+      PINATA_JWT: ${{ secrets.PINATA_JWT }}
   propose-ens:
     needs: [deploy-ipfs]
     if: ${{ inputs.propose_ens }}

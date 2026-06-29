@@ -204,7 +204,7 @@ for entry in "${PLATFORMS[@]}"; do
             die "[$channel] published_at is empty — cannot build manifest."
 
         GCS_URL=$(build_gcs_url "$MANIFEST_NAME" "$channel" "$version")
-        # The IPFS manifest mirrors the same path layout; only the host differs.
+        # The IPFS manifest mirrors the same path layout for the stable channel.
         # File metadata below is still fetched from GCS (same binary, authoritative source).
         IPFS_URL="${GCS_URL/#$GCS_BASE_URL/$IPFS_BASE_URL}"
         echo "  [$channel] Fetching metadata from ${GCS_URL} ..."
