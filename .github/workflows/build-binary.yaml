@@ -240,17 +240,7 @@ jobs:
           GNOSISVPN_APPLE_ID: ${{ secrets.GNOSISVPN_APPLE_ID }}
           GNOSISVPN_APPLE_TEAM_ID: ${{ secrets.GNOSISVPN_APPLE_TEAM_ID }}
           GNOSISVPN_APPLE_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_PASSWORD }}
-      - name: Upload Package
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: GnosisVPN-Installer.pkg
-          path: ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg
-      - name: Upload Signature
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: GnosisVPN-Installer.pkg.sha256
-          path: ./build/packages/GnosisVPN-Installer-v${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}.pkg.sha256
-      - name: Prepare files for upload
+      - name: Resolve package name and channel
         id: prepare_files
         run: |
           if [[ "${{ inputs.version_type }}" == "release" ]]; then
@@ -260,19 +250,24 @@ jobs:
           fi
           echo "channel=${channel}" | tee -a "$GITHUB_OUTPUT"
           version="${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}"
-          # AR rejects '+' in filenames; we substitute '-' for the slug and
-          # reuse it for GCS so both targets share one staging dir. The
-          # canonical version (with '+') is preserved in env vars and manifests.
           fs_version="${version//+/-}"
-          src_pkg="./build/packages/GnosisVPN-Installer-v${version}.pkg"
-          # The upstream .sha256 hard-codes GnosisVPN-Installer-v<version>.pkg
-          # as its filename, so we rewrite it to match the renamed .pkg —
-          # otherwise `shasum -c` fails with "no such file".
-          src_sha=$(cut -d' ' -f1 "${src_pkg}.sha256")
-          mkdir -p ./build/macos/${channel}
-          cp "${src_pkg}" "./build/macos/${channel}/gnosisvpn_${fs_version}_arm64.pkg"
-          printf '%s  %s\n' "${src_sha}" "gnosisvpn_${fs_version}_arm64.pkg" \
-            > "./build/macos/${channel}/gnosisvpn_${fs_version}_arm64.pkg.sha256"
+          echo "pkg=gnosisvpn_${fs_version}_arm64.pkg" | tee -a "$GITHUB_OUTPUT"
+      - name: Upload Package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.prepare_files.outputs.pkg }}
+          path: ./build/packages/${{ steps.prepare_files.outputs.pkg }}
+      - name: Upload Signature
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.prepare_files.outputs.pkg }}.sha256
+          path: ./build/packages/${{ steps.prepare_files.outputs.pkg }}.sha256
+      - name: Stage files for upload
+        run: |
+          mkdir -p "./build/macos/${{ steps.prepare_files.outputs.channel }}"
+          cp "./build/packages/${{ steps.prepare_files.outputs.pkg }}" \
+             "./build/packages/${{ steps.prepare_files.outputs.pkg }}.sha256" \
+             "./build/macos/${{ steps.prepare_files.outputs.channel }}/"
       - name: Publish into Google Artifact registry
         if: inputs.version_type != 'snapshot'
         uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@621619750f6772109d7840a7013135c212925d58 # upload-artifact-registry-v2
@@ -293,9 +288,8 @@ jobs:
         # with matching bytes are idempotent. Mirrors scripts/publish-apt.sh.
         if: inputs.version_type == 'release'
         run: |
-          version="${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}"
-          dest="gs://download.gnosisvpn.io/macos/stable/gnosisvpn_${version}_arm64.pkg"
-          local_pkg="./build/macos/stable/gnosisvpn_${version}_arm64.pkg"
+          dest="gs://download.gnosisvpn.io/macos/stable/${{ steps.prepare_files.outputs.pkg }}"
+          local_pkg="./build/macos/stable/${{ steps.prepare_files.outputs.pkg }}"
           if gsutil -q stat "$dest" 2>/dev/null; then
             tmp=$(mktemp)
             gsutil -q cp "$dest" "$tmp"

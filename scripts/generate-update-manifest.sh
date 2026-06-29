@@ -31,6 +31,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/config.sh"
 
 GCS_BASE_URL="https://download.gnosisvpn.io"
+IPFS_BASE_URL="https://downloads.vpn.gnosis.eth"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -192,6 +193,7 @@ for entry in "${PLATFORMS[@]}"; do
     echo "Processing platform $MANIFEST_NAME ..."
 
     CHANNELS_JSON='{}'
+    CHANNELS_JSON_IPFS='{}'
 
     for channel in $CHANNELS; do
         read -r ref version published_at <<<"${CHANNEL_DATA[$channel]}"
@@ -202,6 +204,9 @@ for entry in "${PLATFORMS[@]}"; do
             die "[$channel] published_at is empty — cannot build manifest."
 
         GCS_URL=$(build_gcs_url "$MANIFEST_NAME" "$channel" "$version")
+        # The IPFS manifest mirrors the same path layout for the stable channel.
+        # File metadata below is still fetched from GCS (same binary, authoritative source).
+        IPFS_URL="${GCS_URL/#$GCS_BASE_URL/$IPFS_BASE_URL}"
         echo "  [$channel] Fetching metadata from ${GCS_URL} ..."
 
         SIZE=$(curl -sfL -o /dev/null -w "%{size_download}" "$GCS_URL" || true)
@@ -263,6 +268,17 @@ for entry in "${PLATFORMS[@]}"; do
         CHANNELS_JSON=$(echo "$CHANNELS_JSON" |
             jq --arg ch "$channel" --argjson entry "$CHANNEL_ENTRY" \
                 '. + {($ch): $entry}')
+
+        # IPFS hosts stable binaries only, so the IPFS manifest carries the
+        # stable channel exclusively — snapshot is skipped here.
+        if [[ $channel == "stable" ]]; then
+            # Same entry, only download_url repointed at the IPFS host.
+            CHANNEL_ENTRY_IPFS=$(echo "$CHANNEL_ENTRY" |
+                jq --arg download_url "$IPFS_URL" '.download_url = $download_url')
+            CHANNELS_JSON_IPFS=$(echo "$CHANNELS_JSON_IPFS" |
+                jq --arg ch "$channel" --argjson entry "$CHANNEL_ENTRY_IPFS" \
+                    '. + {($ch): $entry}')
+        fi
     done
 
     BODY=$(jq -n \
@@ -274,6 +290,16 @@ for entry in "${PLATFORMS[@]}"; do
     OUT_PATH="$OUTPUT_DIR/$MANIFEST_NAME.json"
     echo "$BODY" >"$OUT_PATH"
     echo "  Written: $OUT_PATH"
+
+    BODY_IPFS=$(jq -n \
+        --argjson schema_version 1 \
+        --arg generated_at "$GENERATED_AT" \
+        --argjson channels "$CHANNELS_JSON_IPFS" \
+        '{schema_version: $schema_version, generated_at: $generated_at, channels: $channels}')
+
+    OUT_PATH_IPFS="$OUTPUT_DIR/$MANIFEST_NAME.ipfs.json"
+    echo "$BODY_IPFS" >"$OUT_PATH_IPFS"
+    echo "  Written: $OUT_PATH_IPFS"
 done
 
 [[ $ERRORS -eq 0 ]] || die "$ERRORS error(s) during manifest generation."
