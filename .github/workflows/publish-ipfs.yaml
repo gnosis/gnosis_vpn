@@ -36,6 +36,7 @@ jobs:
         id: runs
         env:
           GH_TOKEN: ${{ secrets.GNOSIS_VPN_BOT_TOKEN }}
+          GH_TOKEN_READ_ONLY_WEBSITES: ${{ secrets.BOT_TOKEN }}
         run: |
           set -euo pipefail
           # The website 'downloads' app is uploaded per-commit as
@@ -43,7 +44,7 @@ jobs:
           # there is no stable artifact name to filter on. Match the
           # 'build-downloads-' prefix and take the most recent non-expired
           # artifact built on main, capturing both its run id and exact name.
-          website_artifact=$(gh api "repos/gnosis/gnosis-vpn-website-monorepo/actions/artifacts?per_page=100" \
+          website_artifact=$(GH_TOKEN="$GH_TOKEN_READ_ONLY_WEBSITES" gh api "repos/gnosis/gnosis-vpn-website-monorepo/actions/artifacts?per_page=100" \
             --jq '[.artifacts[]
                    | select(.expired == false)
                    | select(.workflow_run.head_branch == "main")
@@ -100,7 +101,7 @@ jobs:
           path: ./merged-build/website/
           repository: gnosis/gnosis-vpn-website-monorepo
           run-id: ${{ steps.runs.outputs.website_run }}
-          github-token: ${{ secrets.GNOSIS_VPN_BOT_TOKEN }}
+          github-token: ${{ secrets.BOT_TOKEN }}
       - name: Download Binary Artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
