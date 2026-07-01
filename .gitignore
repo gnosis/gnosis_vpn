@@ -10,3 +10,5 @@ build
 *.p12
 gnosisvpn-private-key.asc
 /.direnv/
+.secrets
+.variables
