@@ -11,6 +11,16 @@ on:
           - patch
           - minor
           - major
+      client_version:
+        description: 'Client version to release (default: latest gnosis_vpn-client GitHub release)'
+        required: false
+        type: string
+        default: ''
+      app_version:
+        description: 'App version to release (default: latest gnosis_vpn-app GitHub release)'
+        required: false
+        type: string
+        default: ''
 permissions:
   contents: write
   id-token: write
@@ -23,6 +33,8 @@ jobs:
     uses: ./.github/workflows/build-binary.yaml
     with:
       version_type: release
+      client_version: ${{ inputs.client_version }}
+      app_version: ${{ inputs.app_version }}
     secrets: inherit
   release:
     runs-on: depot-ubuntu-22.04-4

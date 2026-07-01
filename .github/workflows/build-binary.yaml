@@ -6,6 +6,16 @@ on:
         description: 'Possible values are snapshot, commit, pr, release'
         required: true
         type: string
+      client_version:
+        description: 'Client version to build against; defaults to the GNOSISVPN_CLIENT_LATEST_VERSION repo variable (or the latest client release when version_type=release)'
+        required: false
+        type: string
+        default: ''
+      app_version:
+        description: 'App version to build against; defaults to the GNOSISVPN_APP_LATEST_VERSION repo variable (or the latest app release when version_type=release)'
+        required: false
+        type: string
+        default: ''
     outputs:
       GNOSISVPN_PACKAGE_VERSION:
         value: ${{ jobs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
@@ -42,6 +52,8 @@ jobs:
           GNOSISVPN_APP_PREVIOUS_VERSION: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
           GNOSISVPN_CLIENT_LATEST_VERSION: ${{ vars.GNOSISVPN_CLIENT_LATEST_VERSION }}
           GNOSISVPN_APP_LATEST_VERSION: ${{ vars.GNOSISVPN_APP_LATEST_VERSION }}
+          INPUT_CLIENT_VERSION: ${{ inputs.client_version }}
+          INPUT_APP_VERSION: ${{ inputs.app_version }}
         run: |
           sudo apt update && sudo apt install -y gh
           get_latest_pr_version() {
@@ -64,22 +76,25 @@ jobs:
           }
 
           LATEST_GNOSISVPN_PACKAGE_PR_VERSION=$(get_latest_pr_version "gnosis_vpn" "package.json")
-          # The client/app versions to build against come from repository variables that the
-          # gnosis_vpn-client and gnosis_vpn-app publish workflows update ONLY after their
-          # binaries are successfully uploaded to the artifact registry. Reading the latest
-          # *merged PR* (as before) could pick a PR whose upload failed, making the later
-          # `just download` step fail with NOT_FOUND.
+          # The client/app versions to build against are resolved in order of precedence:
+          #   1. the client_version / app_version workflow inputs, when provided;
+          #   2. the GNOSISVPN_CLIENT_LATEST_VERSION / GNOSISVPN_APP_LATEST_VERSION repo
+          #      variables, which the gnosis_vpn-client / gnosis_vpn-app publish workflows
+          #      update ONLY after their binaries are successfully uploaded to the registry.
+          # Reading the latest *merged PR* (as before) could pick a PR whose upload failed,
+          # making the later `just download` step fail with NOT_FOUND.
           #
-          # CONTRACT: these variables must hold the exact registry version tag,
-          # e.g. "0.91.1+pr.638". The value is used verbatim as the GCP artifact tag in
+          # CONTRACT: the resolved value must be the exact registry version tag,
+          # e.g. "0.91.1+pr.638". It is used verbatim as the GCP artifact tag in
           # download-binaries.sh, in the snapshot skip comparison below, and in the "+pr."
           # branch of generate-changelog.ts, so a different encoding would break those.
-          LATEST_GNOSISVPN_CLIENT_PR_VERSION="${GNOSISVPN_CLIENT_LATEST_VERSION}"
-          LATEST_GNOSISVPN_APP_PR_VERSION="${GNOSISVPN_APP_LATEST_VERSION}"
+          LATEST_GNOSISVPN_CLIENT_PR_VERSION="${INPUT_CLIENT_VERSION:-$GNOSISVPN_CLIENT_LATEST_VERSION}"
+          LATEST_GNOSISVPN_APP_PR_VERSION="${INPUT_APP_VERSION:-$GNOSISVPN_APP_LATEST_VERSION}"
           if [[ "${{ inputs.version_type }}" != "release" ]] &&
              { [[ -z "${LATEST_GNOSISVPN_CLIENT_PR_VERSION}" ]] || [[ -z "${LATEST_GNOSISVPN_APP_PR_VERSION}" ]]; }; then
-            echo "ERROR: repository variables GNOSISVPN_CLIENT_LATEST_VERSION and GNOSISVPN_APP_LATEST_VERSION must be set." >&2
-            echo "They are updated by the gnosis_vpn-client / gnosis_vpn-app publish workflows after a successful binary upload." >&2
+            echo "ERROR: provide the client_version / app_version inputs, or set the" >&2
+            echo "GNOSISVPN_CLIENT_LATEST_VERSION and GNOSISVPN_APP_LATEST_VERSION repository variables." >&2
+            echo "The variables are updated by the gnosis_vpn-client / gnosis_vpn-app publish workflows after a successful binary upload." >&2
             exit 1
           fi
           LATEST_GNOSISVPN_PACKAGE_VERSION_NUMBER=$(echo "$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | cut -d '+' -f 1)
@@ -113,8 +128,8 @@ jobs:
               GNOSISVPN_PACKAGE_VERSION=$(gh api \
                 "repos/${{ github.repository }}/contents/package.json?ref=${{ github.ref }}" \
                 --jq '.content' | base64 --decode | jq -r '.version')
-              GNOSISVPN_CLIENT_VERSION=$(get_latest_release_version "gnosis_vpn-client")
-              GNOSISVPN_APP_VERSION=$(get_latest_release_version "gnosis_vpn-app")
+              GNOSISVPN_CLIENT_VERSION="${INPUT_CLIENT_VERSION:-$(get_latest_release_version "gnosis_vpn-client")}"
+              GNOSISVPN_APP_VERSION="${INPUT_APP_VERSION:-$(get_latest_release_version "gnosis_vpn-app")}"
               echo "GNOSISVPN_PACKAGE_VERSION=${GNOSISVPN_PACKAGE_VERSION}" | tee -a "$GITHUB_OUTPUT"
               echo "GNOSISVPN_CLIENT_VERSION=${GNOSISVPN_CLIENT_VERSION}" | tee -a "$GITHUB_OUTPUT"
               echo "GNOSISVPN_APP_VERSION=${GNOSISVPN_APP_VERSION}" | tee -a "$GITHUB_OUTPUT"
