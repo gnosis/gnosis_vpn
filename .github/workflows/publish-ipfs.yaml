@@ -1,4 +1,4 @@
-name: Publish download page and binaries to IPFS
+name: Publish IPFS (download page and binaries)
 on:
   repository_dispatch:
     types: [trigger-merge]
@@ -36,7 +36,7 @@ jobs:
         id: runs
         env:
           GH_TOKEN: ${{ secrets.GNOSIS_VPN_BOT_TOKEN }}
-          GH_TOKEN_READ_ONLY_WEBSITES: ${{ secrets.BOT_TOKEN }}
+          BOT_TOKEN_READ_ONLY_WEBSITES: ${{ secrets.BOT_TOKEN_READ_ONLY_WEBSITES }}
         run: |
           set -euo pipefail
           # The website 'downloads' app is uploaded per-commit as
@@ -44,7 +44,7 @@ jobs:
           # there is no stable artifact name to filter on. Match the
           # 'build-downloads-' prefix and take the most recent non-expired
           # artifact built on main, capturing both its run id and exact name.
-          website_artifact=$(GH_TOKEN="$GH_TOKEN_READ_ONLY_WEBSITES" gh api "repos/gnosis/gnosis-vpn-website-monorepo/actions/artifacts?per_page=100" \
+          website_artifact=$(GH_TOKEN="$BOT_TOKEN_READ_ONLY_WEBSITES" gh api "repos/gnosis/gnosis-vpn-website-monorepo/actions/artifacts?per_page=100" \
             --jq '[.artifacts[]
                    | select(.expired == false)
                    | select(.workflow_run.head_branch == "main")
