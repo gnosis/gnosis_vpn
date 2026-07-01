@@ -126,13 +126,13 @@ just all dmg aarch64-darwin true
 
 ### APT repository
 
-The **stable** APT repo is served over IPFS via the ENS gateway at
-`https://downloads.vpn.gnosis.eth.limo/linux/apt` (see [IPFS deployment layout](#ipfs-deployment-layout)).
+The **stable** APT repo is served over IPFS via the ENS gateway at `https://downloads.vpn.gnosis.eth.limo/linux/apt`
+(see [IPFS deployment layout](#ipfs-deployment-layout)).
 
 The full repository — stable plus the nightly `snapshot` suite — is served from
-`https://download.gnosisvpn.io/linux/apt`, built and signed by
-[`scripts/publish-apt.sh`](scripts/publish-apt.sh), which uses [`reprepro`](https://salsa.debian.org/brlink/reprepro)
-configured by [`linux/apt/conf/distributions`](linux/apt/conf/distributions) to assemble `Packages` indexes and sign
+`https://download.gnosisvpn.io/linux/apt`, built and signed by [`scripts/publish-apt.sh`](scripts/publish-apt.sh), which
+uses [`reprepro`](https://salsa.debian.org/brlink/reprepro) configured by
+[`linux/apt/conf/distributions`](linux/apt/conf/distributions) to assemble `Packages` indexes and sign
 `InRelease`/`Release.gpg` with the GnosisVPN GPG key. The new `InRelease` is uploaded last so the swap is atomic and apt
 clients never see a half-updated repo. Stable publishing is gated on the GitHub release job in `release.yaml`, so apt
 clients can never see a stable version that lacks a matching GitHub release. Nightly builds publish to the `snapshot`
@@ -226,7 +226,6 @@ deadlock.
 The diagram below shows every GitHub Actions workflow, what triggers each one (automatic vs. manual), and how they chain
 together across the **snapshot** and **stable** channels. `Build`, `Publish APT`, and `Prune Bucket` are reusable
 workflows (`workflow_call`) invoked as ordered steps by the channel pipelines; `Prune Bucket` can also be run manually.
-
 
 ```mermaid
 flowchart TD
