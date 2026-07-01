@@ -15,6 +15,7 @@ concurrency:
 jobs:
   build-binary:
     name: Build
+    if: ${{ github.event.pull_request.head.repo.fork == false }}
     uses: ./.github/workflows/build-binary.yaml
     with:
       version_type: commit
