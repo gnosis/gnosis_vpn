@@ -33,10 +33,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gh
+      - name: Generate GitHub App token
+        id: bot-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.GH_APP_GNOSISVPN_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_GNOSISVPN_BOT_PRIVATE_KEY }}
+          owner: gnosis
       - name: Generate update manifests
         run: bash ./scripts/generate-update-manifest.sh
         env:
-          GH_TOKEN: ${{ secrets.GNOSIS_VPN_BOT_TOKEN }}
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           OUTPUT_DIR: ./build/manifests
       - name: Sign manifests
         uses: hoprnet/hopr-workflows/actions/sign-file@7bfd6309e663ce6f3a80b3f5a8a2eb4ae9d20108 # sign-file-v2
