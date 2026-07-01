@@ -44,7 +44,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup Nix
-        uses: hoprnet/hopr-workflows/actions/setup-nix@5477bd53d62ac15c4804b31fbd55966b29a43997 # setup-nix-v2
+        uses: hoprnet/hopr-workflows/actions/setup-nix@eedb4b7701714299852ca5243f1544b817653f33 # setup-nix-v2
         with:
           cachix_cache_name: gnosis-vpn
           cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
@@ -70,8 +70,15 @@ jobs:
           # gnosis_vpn (installer) repo lookup; client/app PRs are aggregated from
           # their own repos with the default branch.
           GNOSISVPN_PACKAGE_BRANCH: ${{ github.ref_name }}
+      - name: Generate GitHub App token
+        id: bot-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.GH_APP_GNOSISVPN_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_GNOSISVPN_BOT_PRIVATE_KEY }}
+          owner: gnosis
       - name: Release version
-        uses: hoprnet/hopr-workflows/actions/release-version@2cae201c4f92e86cf40480704bdc5c2d53bce772 # release-version-v3
+        uses: hoprnet/hopr-workflows/actions/release-version@eedb4b7701714299852ca5243f1544b817653f33 # release-version-v5
         with:
           source_branch: ${{ github.ref_name }}
           file: package.json
@@ -85,7 +92,8 @@ jobs:
           gcp_service_account: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
           gcp_artifact_package: gnosis_vpn
           release_notes_file: ./build/changelog/changelog
-          github_token: ${{ secrets.GNOSIS_VPN_BOT_TOKEN }}
+          github_app_private_key: ${{ secrets.GH_APP_GNOSISVPN_BOT_PRIVATE_KEY }}
+          github_app_client_id: ${{ secrets.GH_APP_GNOSISVPN_CLIENT_ID }}
       - name: Bump Version
         id: bump
         shell: bash
@@ -94,7 +102,7 @@ jobs:
           gh variable set GNOSISVPN_CLIENT_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}"
           gh variable set GNOSISVPN_APP_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}"
         env:
-          GH_TOKEN: ${{ secrets.GNOSIS_VPN_BOT_TOKEN }}
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
   publish_apt:
     # Runs after `release` so apt never advertises a version without a matching GitHub release.
     name: Publish APT (stable)
