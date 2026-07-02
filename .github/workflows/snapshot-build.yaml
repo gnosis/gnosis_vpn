@@ -1,6 +1,17 @@
 name: Snapshot Build
 on:
   workflow_dispatch:
+    inputs:
+      client_version:
+        description: 'Client version to build against (default: GNOSISVPN_CLIENT_LATEST_VERSION repo variable)'
+        required: false
+        type: string
+        default: ''
+      app_version:
+        description: 'App version to build against (default: GNOSISVPN_APP_LATEST_VERSION repo variable)'
+        required: false
+        type: string
+        default: ''
   repository_dispatch:
     types: [snapshot_build]
   schedule:
@@ -17,6 +28,8 @@ jobs:
     uses: ./.github/workflows/build-binary.yaml
     with:
       version_type: snapshot
+      client_version: ${{ inputs.client_version }}
+      app_version: ${{ inputs.app_version }}
     secrets: inherit
   update_snapshot:
     name: Update snapshot
