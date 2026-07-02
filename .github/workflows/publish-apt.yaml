@@ -43,7 +43,7 @@ jobs:
           printf '%s' "${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}" > /tmp/gnosis_vpn_gpg_key.asc
           chmod 600 /tmp/gnosis_vpn_gpg_key.asc
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@621619750f6772109d7840a7013135c212925d58 # setup-gcp-v3
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
