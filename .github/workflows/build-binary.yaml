@@ -176,8 +176,6 @@ jobs:
       - name: Setup GCP
         uses: hoprnet/hopr-workflows/actions/setup-gcp@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
-          workload_identity_provider: projects/277369779617/locations/global/workloadIdentityPools/github-workflow-pool/providers/github-provider
-          service_account: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
           install_sdk: true
       - name: Setup Nix
         uses: hoprnet/hopr-workflows/actions/setup-nix@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
@@ -249,8 +247,6 @@ jobs:
       - name: Setup GCP
         uses: hoprnet/hopr-workflows/actions/setup-gcp@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
-          workload_identity_provider: projects/277369779617/locations/global/workloadIdentityPools/github-workflow-pool/providers/github-provider
-          service_account: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
           install_sdk: true
       - name: Setup Nix
         uses: hoprnet/hopr-workflows/actions/setup-nix@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
