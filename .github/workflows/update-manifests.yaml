@@ -22,9 +22,9 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@621619750f6772109d7840a7013135c212925d58 # setup-gcp-v3
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
@@ -35,7 +35,7 @@ jobs:
           sudo apt-get install -y gh
       - name: Generate GitHub App token
         id: bot-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           client-id: ${{ secrets.GH_APP_GNOSISVPN_CLIENT_ID }}
           private-key: ${{ secrets.GH_APP_GNOSISVPN_BOT_PRIVATE_KEY }}
@@ -46,7 +46,7 @@ jobs:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           OUTPUT_DIR: ./build/manifests
       - name: Sign manifests
-        uses: hoprnet/hopr-workflows/actions/sign-file@7bfd6309e663ce6f3a80b3f5a8a2eb4ae9d20108 # sign-file-v2
+        uses: hoprnet/hopr-workflows/actions/sign-file@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           path: ./build/manifests
           architecture: x86_64-linux
@@ -55,13 +55,13 @@ jobs:
       - name: List manifests folder
         run: ls -la ./build/manifests
       - name: Upload manifests artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           name: manifests
           path: ./build/manifests
           if-no-files-found: error
       - name: Publish manifests to bucket
-        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
+        uses: google-github-actions/upload-cloud-storage@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           path: ./build/manifests
           destination: download.gnosisvpn.io

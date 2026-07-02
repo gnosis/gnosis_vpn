@@ -172,14 +172,14 @@ jobs:
             distribution: deb
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@621619750f6772109d7840a7013135c212925d58 # setup-gcp-v3
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           google_credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
           install_sdk: true
       - name: Setup Nix
-        uses: hoprnet/hopr-workflows/actions/setup-nix@5477bd53d62ac15c4804b31fbd55966b29a43997 # setup-nix-v2
+        uses: hoprnet/hopr-workflows/actions/setup-nix@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           cachix_cache_name: gnosis-vpn
           cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
@@ -203,17 +203,17 @@ jobs:
           GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
           GNOSISVPN_CHANGELOG_FORMAT: debian
       - name: Upload Package
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}
           path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}
       - name: Upload Signature
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc
           path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc
       - name: Upload Hash
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
           path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
@@ -229,7 +229,7 @@ jobs:
           cp "./build/packages/${base}.sha256" "./build/registry/${base}.sha256"
       - name: Publish into Google Artifact registry
         if: inputs.version_type == 'release'
-        uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@621619750f6772109d7840a7013135c212925d58 # upload-artifact-registry-v2
+        uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           source: ./build/registry
           package: gnosis_vpn
@@ -244,14 +244,14 @@ jobs:
     if: needs.setup.outputs.SKIP_BUILDING != 'true'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@621619750f6772109d7840a7013135c212925d58 # setup-gcp-v3
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           google_credentials: ${{ secrets.GCP_SA_GITHUB_ACTIONS }}
           install_sdk: true
       - name: Setup Nix
-        uses: hoprnet/hopr-workflows/actions/setup-nix@5477bd53d62ac15c4804b31fbd55966b29a43997 # setup-nix-v2
+        uses: hoprnet/hopr-workflows/actions/setup-nix@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           cachix_cache_name: gnosis-vpn
           cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
@@ -286,12 +286,12 @@ jobs:
           fs_version="${version//+/-}"
           echo "pkg=gnosisvpn_${fs_version}_arm64.pkg" | tee -a "$GITHUB_OUTPUT"
       - name: Upload Package
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           name: ${{ steps.prepare_files.outputs.pkg }}
           path: ./build/packages/${{ steps.prepare_files.outputs.pkg }}
       - name: Upload Signature
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           name: ${{ steps.prepare_files.outputs.pkg }}.sha256
           path: ./build/packages/${{ steps.prepare_files.outputs.pkg }}.sha256
@@ -303,13 +303,13 @@ jobs:
              "./build/macos/${{ steps.prepare_files.outputs.channel }}/"
       - name: Publish into Google Artifact registry
         if: inputs.version_type != 'snapshot'
-        uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@621619750f6772109d7840a7013135c212925d58 # upload-artifact-registry-v2
+        uses: hoprnet/hopr-workflows/actions/upload-artifact-registry@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           source: ./build/macos/${{ steps.prepare_files.outputs.channel }}
           package: gnosis_vpn
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@621619750f6772109d7840a7013135c212925d58 # setup-gcp-v3
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         if: inputs.version_type == 'snapshot' || inputs.version_type == 'release'
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider

@@ -46,9 +46,9 @@ jobs:
       GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
       - name: Setup Nix
-        uses: hoprnet/hopr-workflows/actions/setup-nix@eedb4b7701714299852ca5243f1544b817653f33 # setup-nix-v2
+        uses: hoprnet/hopr-workflows/actions/setup-nix@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           cachix_cache_name: gnosis-vpn
           cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
@@ -67,7 +67,7 @@ jobs:
             echo "EOF"
           } >> $GITHUB_ENV
       - name: Notify release
-        uses: zulip/github-actions-zulip/send-message@f675f2b4eb2a95fae974215476dcb7ad8dfeff6b # v2.0.2
+        uses: zulip/github-actions-zulip/send-message@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           api-key: ${{ secrets.ZULIP_API_KEY }}
           email: ${{ secrets.ZULIP_EMAIL }}
@@ -78,7 +78,7 @@ jobs:
           content: ${{ env.NOTIFICATION_CONTENT }}
       - name: Generate GitHub App token
         id: bot-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
         with:
           client-id: ${{ secrets.GH_APP_GNOSISVPN_CLIENT_ID }}
           private-key: ${{ secrets.GH_APP_GNOSISVPN_BOT_PRIVATE_KEY }}
