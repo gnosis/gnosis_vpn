@@ -134,7 +134,7 @@ jobs:
     permissions:
       contents: write
     env:
-      GH_TOKEN: ${{ secrets.GNOSIS_VPN_BOT_TOKEN }}
+      GH_TOKEN: ${{ steps.bot-token.outputs.token }}
       GH_REPO: ${{ github.repository }}
       VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
     steps:
