@@ -128,8 +128,9 @@ jobs:
     runs-on: depot-ubuntu-22.04-4
     needs:
       - build_binary
-      - release
+      - release # the release does the tag and the gh release
       - publish_apt
+    # No matter what, always run, only not if the release was skipped, or the publish_apt succeeded (in which case the release was successful)
     if: ${{ always() && needs.release.result != 'skipped' && needs.publish_apt.result != 'success' }}
     permissions:
       contents: write
