@@ -126,13 +126,40 @@ just all dmg aarch64-darwin true
 
 ### APT repository
 
-The repository at `https://download.gnosisvpn.io/linux/apt` is built and signed by
-[`scripts/publish-apt.sh`](scripts/publish-apt.sh), which uses [`reprepro`](https://salsa.debian.org/brlink/reprepro)
-configured by [`linux/apt/conf/distributions`](linux/apt/conf/distributions) to assemble `Packages` indexes and sign
+The **stable** APT repo is served over IPFS via the ENS gateway at `https://downloads.vpn.gnosis.eth.limo/linux/apt`
+(see [IPFS deployment layout](#ipfs-deployment-layout)).
+
+The full repository — stable plus the nightly `snapshot` suite — is served from
+`https://download.gnosisvpn.io/linux/apt`, built and signed by [`scripts/publish-apt.sh`](scripts/publish-apt.sh), which
+uses [`reprepro`](https://salsa.debian.org/brlink/reprepro) configured by
+[`linux/apt/conf/distributions`](linux/apt/conf/distributions) to assemble `Packages` indexes and sign
 `InRelease`/`Release.gpg` with the GnosisVPN GPG key. The new `InRelease` is uploaded last so the swap is atomic and apt
 clients never see a half-updated repo. Stable publishing is gated on the GitHub release job in `release.yaml`, so apt
 clients can never see a stable version that lacks a matching GitHub release. Nightly builds publish to the `snapshot`
 suite from `build-binary.yaml` right after the Linux build completes.
+
+### IPFS deployment layout
+
+```
+<CID>/
+├── index.html …                                       # website 'downloads' app (static export, at root)
+├── keys/
+│   └── gnosisvpn-public-key.asc                        # GnosisVPN GPG public key
+├── linux/
+│   └── apt/
+│       ├── gnosisvpn-archive-keyring.gpg               # binary keyring (Signed-By:)
+│       ├── dists/stable/                               # stable suite only (no snapshot on IPFS)
+│       │   ├── InRelease
+│       │   ├── Release
+│       │   ├── Release.gpg
+│       │   └── main/binary-{amd64,arm64}/Packages(+.gz)
+│       └── pool/main/g/gnosisvpn/  gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)
+├── macos/
+│   └── stable/   gnosisvpn_<version>_arm64.pkg(+.sha256)
+└── manifests/                                              # consumed by the client app for auto-update
+    ├── {linux-amd64,linux-arm64,macos-arm64}.json(+.asc, +.sha256)
+    └── {linux-amd64,linux-arm64,macos-arm64}.ipfs.json(+.asc, +.sha256)   # client uses these over IPFS
+```
 
 ### GCS bucket layout
 
@@ -157,10 +184,9 @@ download.gnosisvpn.io/
 ├── macos/                                                  # <version> uses '-' in place of '+' (Artifact Registry compat)
 │   ├── stable/   gnosisvpn_<version>_arm64.pkg(+.sha256)
 │   └── latest/   gnosisvpn_<version>_arm64.pkg(+.sha256)   # snapshot
-└── manifests/
-    ├── linux-amd64.json
-    ├── linux-arm64.json
-    └── macos-arm64.json                                # consumed by the client app for auto-update
+└── manifests/                                              # consumed by the client app for auto-update
+    ├── {linux-amd64,linux-arm64,macos-arm64}.json(+.asc, +.sha256)
+    └── {linux-amd64,linux-arm64,macos-arm64}.ipfs.json(+.asc, +.sha256)   # IPFS stable-only variant
 ```
 
 ### Scripts
@@ -201,19 +227,25 @@ The diagram below shows every GitHub Actions workflow, what triggers each one (a
 together across the **snapshot** and **stable** channels. `Build`, `Publish APT`, and `Prune Bucket` are reusable
 workflows (`workflow_call`) invoked as ordered steps by the channel pipelines; `Prune Bucket` can also be run manually.
 
-- Solid arrows (`-->`) are event triggers and the ordered steps within a pipeline.
-- Dashed arrows (`-.->`) are separate workflows triggered when the upstream workflow completes (`workflow_run` /
-  `repository_dispatch`).
-
 ```mermaid
 flowchart TD
+    %% ---------------- Layout only: keep the three entry triggers on one row at the top ----------------
+    %% A transparent subgraph laid out left-to-right pins its members to a single rank,
+    %% regardless of how deep each trigger's downstream chain runs.
+    subgraph TRIG[" "]
+      direction LR
+      trRel([Close release · manual])
+      trMerge([PR merged to main · automatic])
+      trSnap([daily cron · labeled-merge dispatch · manual])
+    end
+    style TRIG fill:transparent,stroke:transparent
+
     %% ---------------- Dev builds (no publish) ----------------
-    trPR([PR opened / updated · automatic]) --> PR["<b>PR</b><br/>Build (commit) — build only, no publish"]
-    trMerge([PR merged to main · automatic]) --> MERGE["<b>Merge PR</b><br/>Build (pr) — build only, no publish"]
+    trMerge --> MERGE["<b>Merge PR</b><br/>Build (pr) — build only, no publish"]
     MERGE -. "if 'snapshot-build' label · repository_dispatch" .-> NBUILD
 
     %% ---------------- Stable channel ----------------
-    trRel([Close release · manual]) --> SBUILD
+    trRel --> SBUILD
     subgraph S["Close release · channel: stable"]
       direction TB
       SBUILD["<b>Build</b> (release)<br/>build .deb + macOS .pkg<br/>macOS .pkg → bucket"] --> SGH["GitHub release<br/>(gates stable APT)"]
@@ -222,7 +254,7 @@ flowchart TD
     end
 
     %% ---------------- Snapshot channel ----------------
-    trSnap([daily cron · labeled-merge dispatch · manual]) --> NBUILD
+    trSnap --> NBUILD
     subgraph N["Snapshot Build · channel: snapshot"]
       direction TB
       NBUILD["<b>Build</b> (snapshot)<br/>build .deb + macOS .pkg<br/>macOS .pkg → bucket"] --> NAPT["<b>Publish APT</b> (snapshot)"]
@@ -237,7 +269,18 @@ flowchart TD
     trIpfs([manual · repository_dispatch]) --> IPFS
     IPFS -->|if toggled| ENS["<b>Propose ENS change</b>"]
 
-    %% ---------------- Standalone ----------------
+    %% ---------------- Far-right column: PR build + standalone publishers ----------------
+    trPR([PR opened / updated · automatic]) --> PR["<b>PR</b><br/>Build (commit) — build only, no publish"]
     trPush([push install/linux.sh · automatic + manual]) --> INSTALL["<b>Publish install.sh</b>"]
     trPruneM([manual dispatch]) --> PRUNEM["<b>Prune Bucket</b> (manual run)"]
+
+    %% ---------------- Layout only: invisible links (~~~), no semantic meaning ----------------
+    %% manifests group sits below the snapshot group
+    NPRUNE ~~~ trMan
+    %% attach the standalone column to the snapshot group's right so it packs far right,
+    %% declared after trMan so it biases to the right of the manifests column
+    NPRUNE ~~~ trPR
+    %% stack the far-right column (PR build → install.sh → manual prune) top-to-bottom
+    PR ~~~ trPush
+    INSTALL ~~~ trPruneM
 ```

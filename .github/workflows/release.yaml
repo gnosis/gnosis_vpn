@@ -123,3 +123,40 @@ jobs:
     with:
       channel: stable
     secrets: inherit
+  rollback:
+    name: Rollback release on failure
+    runs-on: depot-ubuntu-22.04-4
+    needs:
+      - build_binary
+      - release # the release does the tag and the gh release
+      - publish_apt
+    # No matter what, always run, only not if the release was skipped, or the publish_apt succeeded (in which case the release was successful)
+    if: ${{ always() && needs.release.result != 'skipped' && needs.publish_apt.result != 'success' }}
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+    steps:
+      - name: Delete release and tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${VERSION}" ]; then
+            echo "No package version resolved; nothing to roll back." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          tag="v${VERSION}"
+          echo "### Rolling back release ${tag}" | tee -a "$GITHUB_STEP_SUMMARY"
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release delete "${tag}" --cleanup-tag --yes
+            echo "- Deleted GitHub release and tag ${tag}" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- No release ${tag} found; checking for a dangling tag" | tee -a "$GITHUB_STEP_SUMMARY"
+            if gh api -X DELETE "repos/${GH_REPO}/git/refs/tags/${tag}" >/dev/null 2>&1; then
+              echo "- Deleted dangling tag ${tag}" | tee -a "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- No tag ${tag} to delete" | tee -a "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
