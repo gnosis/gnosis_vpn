@@ -24,7 +24,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@ac3e0b6137b0ba470a30c373aab2ceba9e0879e4 # setup-gcp-v4
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
@@ -46,7 +46,7 @@ jobs:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           OUTPUT_DIR: ./build/manifests
       - name: Sign manifests
-        uses: hoprnet/hopr-workflows/actions/sign-file@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
+        uses: hoprnet/hopr-workflows/actions/sign-file@97a7c86f59aafbf8f71581a402a07165de51750e # sign-file-v2
         with:
           path: ./build/manifests
           architecture: x86_64-linux
