@@ -7,12 +7,12 @@ on:
         required: true
         type: string
       client_version:
-        description: 'Client version to build against; defaults to the GNOSISVPN_CLIENT_LATEST_VERSION repo variable (or the latest client release when version_type=release)'
+        description: 'Client version to build against; defaults to the newest version in the registry that has binaries for all architectures (or the latest client release when version_type=release)'
         required: false
         type: string
         default: ''
       app_version:
-        description: 'App version to build against; defaults to the GNOSISVPN_APP_LATEST_VERSION repo variable (or the latest app release when version_type=release)'
+        description: 'App version to build against; defaults to the newest version in the registry that has binaries for all architectures (or the latest app release when version_type=release)'
         required: false
         type: string
         default: ''
@@ -36,6 +36,7 @@ jobs:
     name: Setup
     permissions:
       contents: read
+      id-token: write
     outputs:
       GNOSISVPN_PACKAGE_VERSION: ${{ steps.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       LATEST_GNOSISVPN_PACKAGE_PR_VERSION: ${{ steps.setup.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
@@ -43,6 +44,14 @@ jobs:
       GNOSISVPN_APP_VERSION: ${{ steps.setup.outputs.GNOSISVPN_APP_VERSION }}
       SKIP_BUILDING: ${{ steps.setup.outputs.SKIP_BUILDING }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup GCP
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@eedb4b7701714299852ca5243f1544b817653f33 # hopr-workflows v0.11.1
+        with:
+          workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
+          service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
+          install_sdk: true
       - name: Setup environment variables
         id: setup
         env:
@@ -50,8 +59,6 @@ jobs:
           GNOSISVPN_PACKAGE_PREVIOUS_VERSION: ${{ vars.GNOSISVPN_PACKAGE_PR_VERSION }}
           GNOSISVPN_CLIENT_PREVIOUS_VERSION: ${{ vars.GNOSISVPN_CLIENT_PR_VERSION }}
           GNOSISVPN_APP_PREVIOUS_VERSION: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
-          GNOSISVPN_CLIENT_LATEST_VERSION: ${{ vars.GNOSISVPN_CLIENT_LATEST_VERSION }}
-          GNOSISVPN_APP_LATEST_VERSION: ${{ vars.GNOSISVPN_APP_LATEST_VERSION }}
           INPUT_CLIENT_VERSION: ${{ inputs.client_version }}
           INPUT_APP_VERSION: ${{ inputs.app_version }}
         run: |
@@ -76,26 +83,21 @@ jobs:
           }
 
           LATEST_GNOSISVPN_PACKAGE_PR_VERSION=$(get_latest_pr_version "gnosis_vpn" "package.json")
-          # The client/app versions to build against are resolved in order of precedence:
-          #   1. the client_version / app_version workflow inputs, when provided;
-          #   2. the GNOSISVPN_CLIENT_LATEST_VERSION / GNOSISVPN_APP_LATEST_VERSION repo
-          #      variables, which the gnosis_vpn-client / gnosis_vpn-app publish workflows
-          #      update ONLY after their binaries are successfully uploaded to the registry.
-          # Reading the latest *merged PR* (as before) could pick a PR whose upload failed,
-          # making the later `just download` step fail with NOT_FOUND.
-          #
+          
+          # Auto-detecting the newest *complete* version 
           # CONTRACT: the resolved value must be the exact registry version tag,
           # e.g. "0.91.1+pr.638". It is used verbatim as the GCP artifact tag in
           # download-binaries.sh, in the snapshot skip comparison below, and in the "+pr."
           # branch of generate-changelog.ts, so a different encoding would break those.
-          LATEST_GNOSISVPN_CLIENT_PR_VERSION="${INPUT_CLIENT_VERSION:-$GNOSISVPN_CLIENT_LATEST_VERSION}"
-          LATEST_GNOSISVPN_APP_PR_VERSION="${INPUT_APP_VERSION:-$GNOSISVPN_APP_LATEST_VERSION}"
-          if [[ "${{ inputs.version_type }}" != "release" ]] &&
-             { [[ -z "${LATEST_GNOSISVPN_CLIENT_PR_VERSION}" ]] || [[ -z "${LATEST_GNOSISVPN_APP_PR_VERSION}" ]]; }; then
-            echo "ERROR: provide the client_version / app_version inputs, or set the" >&2
-            echo "GNOSISVPN_CLIENT_LATEST_VERSION and GNOSISVPN_APP_LATEST_VERSION repository variables." >&2
-            echo "The variables are updated by the gnosis_vpn-client / gnosis_vpn-app publish workflows after a successful binary upload." >&2
-            exit 1
+          if [[ "${{ inputs.version_type }}" != "release" ]]; then
+            LATEST_GNOSISVPN_CLIENT_PR_VERSION="${INPUT_CLIENT_VERSION:-$(
+              ./scripts/resolve-registry-version.sh gnosis_vpn-client \
+                gnosis_vpn-root-x86_64-linux gnosis_vpn-worker-x86_64-linux gnosis_vpn-ctl-x86_64-linux \
+                gnosis_vpn-root-aarch64-linux gnosis_vpn-worker-aarch64-linux gnosis_vpn-ctl-aarch64-linux \
+                gnosis_vpn-root-aarch64-darwin gnosis_vpn-worker-aarch64-darwin gnosis_vpn-ctl-aarch64-darwin)}"
+            LATEST_GNOSISVPN_APP_PR_VERSION="${INPUT_APP_VERSION:-$(
+              ./scripts/resolve-registry-version.sh gnosis_vpn-app \
+                gnosis_vpn-app-x86_64-linux.deb gnosis_vpn-app-aarch64-linux.deb gnosis_vpn-app-aarch64-darwin.dmg)}"
           fi
           LATEST_GNOSISVPN_PACKAGE_VERSION_NUMBER=$(echo "$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | cut -d '+' -f 1)
           LATEST_GNOSISVPN_PACKAGE_VERSION_PR_NUMBER=$(echo "$LATEST_GNOSISVPN_PACKAGE_PR_VERSION" | cut -d '+' -f 2 | cut -d '.' -f 2)

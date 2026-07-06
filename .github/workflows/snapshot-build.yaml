@@ -3,12 +3,12 @@ on:
   workflow_dispatch:
     inputs:
       client_version:
-        description: 'Client version to build against (default: GNOSISVPN_CLIENT_LATEST_VERSION repo variable)'
+        description: 'Client version to build against (default: newest registry version with binaries for all architectures)'
         required: false
         type: string
         default: ''
       app_version:
-        description: 'App version to build against (default: GNOSISVPN_APP_LATEST_VERSION repo variable)'
+        description: 'App version to build against (default: newest registry version with binaries for all architectures)'
         required: false
         type: string
         default: ''
