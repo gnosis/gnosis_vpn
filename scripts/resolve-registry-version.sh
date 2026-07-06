@@ -56,23 +56,47 @@ main() {
         exit 1
     fi
 
-    local newest="" version present missing file
+    local newest="" version files_raw files_rc missing file line found
     while IFS= read -r version; do
         [[ -z $version ]] && continue
         [[ -z $newest ]] && newest="$version"
 
-        # File resource names are URL-encoded (…%2F<version>%2F<filename>) or
-        # slash-separated; reduce each to its bare filename.
-        present="$(gcloud artifacts files list \
+        # List this version's files. `value(name)` returns full resource names
+        # whose file segment is the ".../files/<package>:<version>:<filename>"
+        # coordinate (same form download-binaries.sh uses). Capture stderr and
+        # the exit code so a real gcloud failure is surfaced rather than being
+        # silently treated as "version incomplete".
+        set +e
+        files_raw="$(gcloud artifacts files list \
             --project="${GCP_PROJECT}" --location="${GCP_LOCATION}" --repository="${GCP_REPOSITORY}" \
-            --package="${package}" --version="${version}" --format="value(name)" 2>/dev/null |
-            sed -e 's/.*%2F//' -e 's#.*/##')"
+            --package="${package}" --version="${version}" --format="value(name)" 2>&1)"
+        files_rc=$?
+        set -e
+        if [[ $files_rc -ne 0 ]]; then
+            log_error "gcloud artifacts files list failed for ${package} ${version} (exit ${files_rc}):"
+            log_error "${files_raw}"
+            exit 1
+        fi
+        if [[ -n ${RESOLVE_DEBUG:-} ]]; then
+            log_info "[debug] files listed for ${package} ${version}:" >&2
+            printf '%s\n' "${files_raw}" | sed 's/^/[debug]   /' >&2
+        fi
 
+        # A required file is present when some listed name ENDS WITH that
+        # filename — separator-agnostic, so it works whether the file segment is
+        # ":"-, "/"- or "%2F"-separated. Filenames are distinct and none is a
+        # suffix of another, so ends-with matching is unambiguous here.
         missing=()
         for file in "${required_files[@]}"; do
-            if ! grep -qxF "$file" <<<"$present"; then
-                missing+=("$file")
-            fi
+            found=0
+            while IFS= read -r line; do
+                [[ -z $line ]] && continue
+                if [[ $line == *"$file" ]]; then
+                    found=1
+                    break
+                fi
+            done <<<"${files_raw}"
+            [[ $found -eq 1 ]] || missing+=("$file")
         done
 
         if [[ ${#missing[@]} -eq 0 ]]; then
