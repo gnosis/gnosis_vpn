@@ -32,7 +32,7 @@ usage() {
 
 main() {
     local package="${1:-}"
-    if [[ -z "$package" ]]; then
+    if [[ -z $package ]]; then
         usage
     fi
     shift
@@ -48,25 +48,25 @@ main() {
     local versions
     versions="$(gcloud artifacts versions list \
         --project="${GCP_PROJECT}" --location="${GCP_LOCATION}" --repository="${GCP_REPOSITORY}" \
-        --package="${package}" --sort-by="~createTime" --format="value(name)" \
-        | sed 's#.*/##')"
+        --package="${package}" --sort-by="~createTime" --format="value(name)" |
+        sed 's#.*/##')"
 
-    if [[ -z "$versions" ]]; then
+    if [[ -z $versions ]]; then
         log_error "No versions found for package '${package}' in ${GCP_REPOSITORY}."
         exit 1
     fi
 
     local newest="" version present missing file
     while IFS= read -r version; do
-        [[ -z "$version" ]] && continue
-        [[ -z "$newest" ]] && newest="$version"
+        [[ -z $version ]] && continue
+        [[ -z $newest ]] && newest="$version"
 
         # File resource names are URL-encoded (…%2F<version>%2F<filename>) or
         # slash-separated; reduce each to its bare filename.
         present="$(gcloud artifacts files list \
             --project="${GCP_PROJECT}" --location="${GCP_LOCATION}" --repository="${GCP_REPOSITORY}" \
-            --package="${package}" --version="${version}" --format="value(name)" 2>/dev/null \
-            | sed -e 's/.*%2F//' -e 's#.*/##')"
+            --package="${package}" --version="${version}" --format="value(name)" 2>/dev/null |
+            sed -e 's/.*%2F//' -e 's#.*/##')"
 
         missing=()
         for file in "${required_files[@]}"; do
