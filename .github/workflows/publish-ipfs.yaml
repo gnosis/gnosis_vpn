@@ -51,14 +51,14 @@ jobs:
           # there is no stable artifact name to filter on. Match the
           # 'build-downloads-' prefix and take the most recent non-expired
           # artifact built on main, capturing both its run id and exact name.
-          website_artifact=$(GH_TOKEN="$BOT_TOKEN_READ_ONLY_WEBSITES" gh api "repos/gnosis/gnosis-vpn-website-monorepo/actions/artifacts?per_page=100" \
+          website_artifact=$(GH_TOKEN="$BOT_TOKEN_READ_ONLY_WEBSITES" gh api "repos/gnosis/gnosis_vpn-website_monorepo/actions/artifacts?per_page=100" \
             --jq '[.artifacts[]
                    | select(.expired == false)
                    | select(.workflow_run.head_branch == "main")
                    | select(.name | startswith("build-downloads-"))]
                   | sort_by(.created_at) | reverse | .[0]')
           if [ -z "$website_artifact" ] || [ "$website_artifact" = "null" ]; then
-            echo "::error::No build-downloads-<sha> artifact found on main in gnosis-vpn-website-monorepo" >&2
+            echo "::error::No build-downloads-<sha> artifact found on main in gnosis_vpn-website_monorepo" >&2
             exit 1
           fi
           website_run=$(jq -r '.workflow_run.id' <<<"$website_artifact")
@@ -106,7 +106,7 @@ jobs:
         with:
           name: ${{ steps.runs.outputs.website_name }}
           path: ./merged-build/website/
-          repository: gnosis/gnosis-vpn-website-monorepo
+          repository: gnosis/gnosis_vpn-website_monorepo
           run-id: ${{ steps.runs.outputs.website_run }}
           github-token: ${{ secrets.BOT_TOKEN_READ_ONLY_WEBSITES }}
       - name: Download Binary Artifacts
