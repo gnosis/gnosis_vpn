@@ -207,6 +207,10 @@ for entry in "${PLATFORMS[@]}"; do
         # The IPFS manifest mirrors the same path layout for the stable channel.
         # File metadata below is still fetched from GCS (same binary, authoritative source).
         IPFS_URL="${GCS_URL/#$GCS_BASE_URL/$IPFS_BASE_URL}"
+        # TEMP, only to push 0.81.2 that was created with a different naming scheme. Remove this once 0.81.2 is no longer the latest stable.
+        if [[ $OS_FAMILY == "macos" ]]; then
+            IPFS_URL="${IPFS_URL%/*}/GnosisVPN-Installer-v${version}.pkg"
+        fi
         echo "  [$channel] Fetching metadata from ${GCS_URL} ..."
 
         SIZE=$(curl -sfL -o /dev/null -w "%{size_download}" "$GCS_URL" || true)
