@@ -2,25 +2,25 @@ version = 5
 
 [destinations.USA]
 address = "0x7220CfE91F369bfE79F883c2891e97407D7a4D48"
-meta = { location = "Omaha" }
+meta = { location = "Omaha", flag = "US" }
 path = { intermediates = [ "0xFE3AF421afB84EED445c2B8f1892E3984D3e41eA" ] }
 
 [destinations.UK]
 address = "0xcD9D0E23cD999dFC0D1400D837F8e612DbbbDFAA"
-meta = { location = "London" }
+meta = { location = "London", flag = "GB" }
 path = { intermediates = [ "0xc00B7d90463394eC29a080393fF09A2ED82a0F86" ] }
 
 [destinations.India]
 address = "0x1062696f8eec5b71bfa6be7e52df1d7457428106"
-meta = { location = "Mumbai" }
+meta = { location = "Mumbai", flag = "IN" }
 path = { intermediates = [ "0x8f40df42bba9fa560bdf0b66a0d964a9a1ee85c3" ] }
 
 [destinations.Australia]
 address = "0x64885d2d2bc9df7b415aac184e020c632d715dff"
-meta = { location = "Sydney" }
+meta = { location = "Sydney", flag = "AU" }
 path = { intermediates = [ "0xee7c14d7081cdeed6503478db0bfc26e4353feef" ] }
 
 [destinations."South Korea"]
 address = "0xd8efe2ebe14c8cc193d5a9f5afd81276549fad67"
-meta = { location = "Seoul" }
+meta = { location = "Seoul", flag = "KR" }
 path = { intermediates = [ "0x16a8c54a8ac982d167adae90781e0f822ed1db2d" ] }
