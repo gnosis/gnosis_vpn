@@ -37,7 +37,6 @@ COMPONENT_PKG="GnosisVPN.pkg"
 CHOICE_PACKAGES=(
     "network:jura"
     "network:rotsee"
-    "network:dufour"
     "loglevel:info"
     "loglevel:debug"
 )
