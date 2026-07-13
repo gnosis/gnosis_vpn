@@ -44,9 +44,16 @@ TOML configuration templates for different network environments.
 
 ```toml
 [destinations.0xAddress]
-meta = { location = "Country" }
+meta = { location = "City", flag = "XX" }
 path = { intermediates = ["0xIntermediateAddress"] }
 ```
+
+The `meta` table accepts any string key-value pairs. Two keys are used by the UI:
+
+| Key        | Required | Description                                                                                             |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------- |
+| `location` | yes      | Human-readable city name shown in the exit node list                                                    |
+| `flag`     | no       | ISO 3166-1 alpha-2 country code (e.g. `"SE"`, `"BR"`, `"GB"`) used to render the country flag in the UI |
 
 ## Usage
 
