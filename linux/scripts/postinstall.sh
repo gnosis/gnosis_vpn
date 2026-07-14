@@ -221,11 +221,21 @@ enable_and_start_systemd_service() {
 # Create desktop shortcut for a user
 install_desktop_shortcut_for_user() {
     # Get the user who ran sudo (or current user if run directly)
-    local target_user="$SUDO_USER"
+    local target_user="${SUDO_USER:-}"
 
     # If no SUDO_USER, try current USER
     if [ -z "$target_user" ] || [ "$target_user" = "root" ]; then
-        target_user="$USER"
+        target_user="${USER:-}"
+    fi
+
+    # Still nothing: likely a PackageKit install (App Center / GNOME Software
+    # double-click), which runs as root with no sudo context. Fall back to the
+    # owner of the active graphical session, best-effort.
+    if [ -z "$target_user" ] || [ "$target_user" = "root" ]; then
+        if command -v loginctl >/dev/null 2>&1; then
+            target_user="$(loginctl list-sessions --no-legend 2>/dev/null |
+                awk '$3 != "root" && ($4 == "seat0" || $4 == "-") {print $3; exit}' || true)"
+        fi
     fi
 
     # Skip if still no user identified or if root

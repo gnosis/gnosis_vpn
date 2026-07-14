@@ -12,7 +12,7 @@ description: |
   Decentralized, trustless, uncensorable VPN for the web3 age.
   Fully anonymous browsing over a decentralized mixnet.
 license: GNU General Public License v3.0
-homepage: https://gnosisvpn.com/
+homepage: https://vpn.gnosis.eth.limo/
 rpm:
   signature:
     key_file: ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}

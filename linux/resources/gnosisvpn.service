@@ -1,6 +1,6 @@
 [Unit]
 Description=Gnosis VPN Service
-Documentation=https://gnosisvpn.com
+Documentation=https://docs.vpn.gnosis.eth.limo/
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=200
