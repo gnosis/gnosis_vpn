@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Copyright 2024-2025 Maelcum Inc -->
 <component type="desktop-application">
-  <id>com.gnosisvpn.GnosisVPN</id>
+  <id>com.gnosisvpn.gnosisvpnclient</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <name>Gnosis VPN</name>

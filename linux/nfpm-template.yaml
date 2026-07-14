@@ -110,7 +110,7 @@ contents:
   - src: ./linux/resources/copyright
     dst: /usr/share/doc/gnosisvpn/copyright
   - src: ./linux/resources/gnosisvpn.metainfo.xml
-    dst: /usr/share/metainfo/com.gnosisvpn.GnosisVPN.metainfo.xml
+    dst: /usr/share/metainfo/com.gnosisvpn.gnosisvpnclient.metainfo.xml
     file_info:
       mode: 0644
       owner: root
