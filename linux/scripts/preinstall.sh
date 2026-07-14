@@ -14,7 +14,7 @@ LOG_PREFIX="[GnosisVPN preinstall]"
 # Check if running with proper privileges: root - sudo, a root shell, or PackageKit
 if [[ $EUID -ne 0 ]]; then
     echo "$LOG_PREFIX ERROR: This script must be run as root" >&2
-    echo "$LOG_PREFIX ERROR: Install the package with your package manager (e.g., 'sudo apt install -y ./gnosisvpn.deb') or via your software center" >&2
+    echo "$LOG_PREFIX ERROR: Install the package with your package manager (e.g., 'sudo apt install -y ./gnosisvpn_*.deb') or via your software center" >&2
     exit 1
 fi
 

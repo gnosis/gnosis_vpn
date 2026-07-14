@@ -47,7 +47,10 @@ configure_filesystem_permissions() {
     if [[ ! -d /etc/gnosisvpn ]]; then
         mkdir -p /etc/gnosisvpn
     fi
-    chown gnosisvpn:gnosisvpn /etc/gnosisvpn
+    # Directory is root-owned so the unprivileged 'gnosisvpn' worker cannot
+    # replace files loaded by the root service (e.g. gnosisvpn-dynamic.env).
+    # 'gnosisvpn' group + 755 keeps read/traverse for the worker.
+    chown root:gnosisvpn /etc/gnosisvpn
     chmod 755 /etc/gnosisvpn
     chown gnosisvpn:gnosisvpn /etc/gnosisvpn/*.toml 2>/dev/null || true
     chmod 644 /etc/gnosisvpn/*.toml 2>/dev/null || true
@@ -94,8 +97,12 @@ configure_filesystem_permissions() {
 # Values here override /etc/gnosisvpn/gnosisvpn.env.
 GNOSISVPN_HOPR_BLOKLI_URL=$blokli_url
 EOF
+        # Root-owned: this file is loaded by the root systemd service via
+        # EnvironmentFile, so it must not be writable by the unprivileged
+        # 'gnosisvpn' user (would allow env injection, e.g. LD_PRELOAD, into
+        # the root service). 644 lets the service read it.
         chmod 644 "$dynamic_env"
-        chown gnosisvpn:gnosisvpn "$dynamic_env"
+        chown root:root "$dynamic_env"
     fi
 
     # Restore the packaged (empty) value in the conffile so it matches dpkg's
