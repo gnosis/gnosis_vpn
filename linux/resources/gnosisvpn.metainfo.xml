@@ -11,8 +11,6 @@
       age, providing fully anonymous browsing over a decentralized mixnet.
     </p>
   </description>
-  <!-- Must match the bundled desktop file name so the store associates this
-       metadata (and its license) with the app being installed. -->
   <launchable type="desktop-id">Gnosis VPN.desktop</launchable>
   <icon type="stock">gnosis_vpn-app</icon>
   <categories>
