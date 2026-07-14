@@ -69,11 +69,9 @@ configure_filesystem_permissions() {
         ln -sf /etc/gnosisvpn/config-"$network_name".toml /etc/gnosisvpn/config.toml
     fi
 
-    # Write the dynamic environment overrides to a script-generated file
-    # instead of editing gnosisvpn.env: that file is a dpkg conffile, and
-    # modifying it here marks it "changed by you or a script", causing an
-    # interactive conffile prompt on later upgrades (fatal for the piped
-    # `curl | sudo bash` installer).
+    # Write dynamic env overrides to a script-generated file instead of editing
+    # gnosisvpn.env: that's a dpkg conffile, and modifying it here triggers an
+    # interactive conffile prompt on upgrades (fatal for `curl | sudo bash`).
     local dynamic_env=/etc/gnosisvpn/gnosisvpn-dynamic.env
 
     # Migration: older postinstalls sed-ed the Blokli URL directly into the

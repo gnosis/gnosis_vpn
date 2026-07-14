@@ -191,11 +191,9 @@ EOF
 apt_install() {
     log "Refreshing APT cache and installing gnosisvpn ..."
     apt-get update
-    # DEBIAN_FRONTEND=noninteractive only silences debconf, not dpkg conffile
-    # prompts. When this script runs via `curl | sudo bash` there is no usable
-    # stdin, so an unanswered conffile prompt aborts dpkg with "end of file on
-    # stdin at conffile prompt". --force-confdef/--force-confold answer it
-    # non-interactively (keep the existing file unless dpkg has a safe default).
+    # DEBIAN_FRONTEND silences debconf but not dpkg conffile prompts, which abort
+    # under `curl | sudo bash` (no stdin). --force-confdef/--force-confold answer
+    # them non-interactively (keep the existing file unless dpkg has a safe default).
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
         -o Dpkg::Options::="--force-confdef" \
         -o Dpkg::Options::="--force-confold" \

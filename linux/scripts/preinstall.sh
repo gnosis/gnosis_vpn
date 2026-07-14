@@ -11,9 +11,7 @@ set -euo pipefail
 
 LOG_PREFIX="[GnosisVPN preinstall]"
 
-# Check if running with proper privileges. Root is all that is required —
-# installs may come via sudo, a root shell, or PackageKit (App Center /
-# GNOME Software double-click), which runs as root without any sudo context.
+# Check if running with proper privileges: root - sudo, a root shell, or PackageKit
 if [[ $EUID -ne 0 ]]; then
     echo "$LOG_PREFIX ERROR: This script must be run as root" >&2
     echo "$LOG_PREFIX ERROR: Install the package with your package manager (e.g., 'sudo apt install -y ./gnosisvpn.deb') or via your software center" >&2
