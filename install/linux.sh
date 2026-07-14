@@ -48,7 +48,10 @@ with a matching network override (a piped \$(curl | sudo bash) cannot forward
 them):
   sudo GNOSISVPN_NETWORK=rotsee \\
        GNOSISVPN_HOPR_BLOKLI_URL=https://… \\
-       apt-get install --reinstall gnosisvpn
+       apt-get install --reinstall \\
+       -o Dpkg::Options::="--force-confdef" \\
+       -o Dpkg::Options::="--force-confold" \\
+       gnosisvpn
 
 Accepted values:
   GNOSISVPN_NETWORK            jura | rotsee (default: jura)
@@ -188,7 +191,13 @@ EOF
 apt_install() {
     log "Refreshing APT cache and installing gnosisvpn ..."
     apt-get update
-    DEBIAN_FRONTEND=noninteractive apt-get install -y gnosisvpn
+    # DEBIAN_FRONTEND silences debconf but not dpkg conffile prompts, which abort
+    # under `curl | sudo bash` (no stdin). --force-confdef/--force-confold answer
+    # them non-interactively (keep the existing file unless dpkg has a safe default).
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        -o Dpkg::Options::="--force-confdef" \
+        -o Dpkg::Options::="--force-confold" \
+        gnosisvpn
 }
 
 print_postinstall() {

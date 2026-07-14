@@ -1,6 +1,6 @@
 [Unit]
 Description=Gnosis VPN Service
-Documentation=https://gnosisvpn.com
+Documentation=https://docs.vpn.gnosis.eth.limo/
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=200
@@ -13,6 +13,7 @@ Group=root
 
 # Environment and configuration
 EnvironmentFile=/etc/gnosisvpn/gnosisvpn.env
+EnvironmentFile=-/etc/gnosisvpn/gnosisvpn-dynamic.env
 WorkingDirectory=/var/lib/gnosisvpn
 
 # Main service command

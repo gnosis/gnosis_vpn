@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.gnosisvpn.gnosisvpnclient</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Gnosis VPN</name>
+  <summary>Decentralized, trustless, uncensorable VPN for the web3 age</summary>
+  <description>
+    <p>
+      Gnosis VPN is a decentralized, trustless, uncensorable VPN for the web3
+      age, providing fully anonymous browsing over a decentralized mixnet.
+    </p>
+  </description>
+  <launchable type="desktop-id">Gnosis VPN.desktop</launchable>
+  <icon type="stock">gnosis_vpn-app</icon>
+  <categories>
+    <category>Network</category>
+    <category>Security</category>
+  </categories>
+  <url type="homepage">https://vpn.gnosis.eth.limo/</url>
+  <url type="bugtracker">https://github.com/gnosis/gnosis_vpn/issues</url>
+  <developer id="com.gnosisvpn">
+    <name>Gnosis VPN</name>
+  </developer>
+  <provides>
+    <binary>gnosis_vpn-app</binary>
+  </provides>
+  <content_rating type="oars-1.1" />
+</component>
