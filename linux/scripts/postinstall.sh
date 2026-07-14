@@ -97,10 +97,14 @@ configure_filesystem_permissions() {
 # Values here override /etc/gnosisvpn/gnosisvpn.env.
 GNOSISVPN_HOPR_BLOKLI_URL=$blokli_url
 EOF
-        # Root-owned: this file is loaded by the root systemd service via
-        # EnvironmentFile, so it must not be writable by the unprivileged
-        # 'gnosisvpn' user (would allow env injection, e.g. LD_PRELOAD, into
-        # the root service). 644 lets the service read it.
+    fi
+
+    # Root-owned: this file is loaded by the root systemd service via
+    # EnvironmentFile, so it must not be writable by the unprivileged
+    # 'gnosisvpn' user (would allow env injection, e.g. LD_PRELOAD, into the
+    # root service). 644 lets the service read it. Applied unconditionally so an
+    # upgrade also hardens a pre-existing file, not only a freshly written one.
+    if [[ -f $dynamic_env ]]; then
         chmod 644 "$dynamic_env"
         chown root:root "$dynamic_env"
     fi
@@ -249,9 +253,12 @@ install_desktop_shortcut_for_user() {
         return
     fi
 
-    # Get the user's home directory
+    # Get the user's home directory. The loginctl fallback above can yield a
+    # user not present in passwd; keep the lookup non-fatal (|| true) so the
+    # empty-home check below handles it instead of aborting postinstall under
+    # `set -e`/`pipefail`.
     local user_home
-    user_home=$(getent passwd "$target_user" | cut -d: -f6)
+    user_home=$(getent passwd "$target_user" | cut -d: -f6) || true
 
     if [ -z "$user_home" ]; then
         echo "$LOG_PREFIX WARNING: Could not find home directory for user $target_user"
