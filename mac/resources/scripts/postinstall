@@ -16,7 +16,7 @@
 #   $4: Root directory "/" for the current system
 #
 # Environment variables from Distribution.xml choices:
-#   INSTALLER_CHOICE_NETWORK: "jura" or "dufour"
+#   INSTALLER_CHOICE_NETWORK: "jura" or "rotsee"
 #   INSTALLER_CHOICE_LOGLEVEL: "debug" or "info"
 
 set -euo pipefail

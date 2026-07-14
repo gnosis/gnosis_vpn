@@ -51,7 +51,7 @@ them):
        apt-get install --reinstall gnosisvpn
 
 Accepted values:
-  GNOSISVPN_NETWORK            jura | rotsee | dufour (default: jura)
+  GNOSISVPN_NETWORK            jura | rotsee (default: jura)
   GNOSISVPN_HOPR_BLOKLI_URL    Blokli endpoint matching the chosen network
 EOF
 }
