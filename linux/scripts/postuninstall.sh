@@ -80,12 +80,6 @@ if [[ -d /var/log/gnosisvpn ]]; then
     rm -rf /var/log/gnosisvpn
 fi
 
-# Remove logrotate configuration
-if [[ -f /etc/logrotate.d/gnosisvpn ]]; then
-    echo "$LOG_PREFIX INFO: Removing logrotate configuration"
-    rm -f /etc/logrotate.d/gnosisvpn
-fi
-
 # Remove documentation directory
 if [[ -d /usr/share/doc/gnosisvpn ]]; then
     echo "$LOG_PREFIX INFO: Removing documentation directory: /usr/share/doc/gnosisvpn"
@@ -105,6 +99,15 @@ fi
 
 if [[ $IS_PURGE == "true" ]]; then
     echo "$LOG_PREFIX INFO: Performing complete removal (purge)..."
+
+    # Remove logrotate configuration. Purge only: it is a dpkg conffile, and
+    # deleting it on plain remove makes dpkg record the deletion as
+    # intentional, so it would never be restored on reinstall. dpkg purge
+    # removes it itself on deb; this covers rpm/arch.
+    if [[ -f /etc/logrotate.d/gnosisvpn ]]; then
+        echo "$LOG_PREFIX INFO: Removing logrotate configuration"
+        rm -f /etc/logrotate.d/gnosisvpn
+    fi
 
     # Remove state directory
     if [[ -d /var/lib/gnosisvpn ]]; then
