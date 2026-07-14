@@ -20,7 +20,7 @@
     <category>Network</category>
     <category>Security</category>
   </categories>
-  <url type="homepage">https://gnosisvpn.com/</url>
+  <url type="homepage">https://vpn.gnosis.eth.limo/</url>
   <url type="bugtracker">https://github.com/gnosis/gnosis_vpn/issues</url>
   <developer id="com.gnosisvpn">
     <name>Gnosis VPN</name>
