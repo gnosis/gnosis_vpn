@@ -60,7 +60,7 @@ print_banner() {
 # Confirm uninstallation
 confirm_uninstall() {
     echo "This will remove:"
-    echo "  - Binaries: $BIN_DIR/gnosis_vpn-root, $BIN_DIR/gnosis_vpn-worker, $BIN_DIR/gnosis_vpn-ctl, $BIN_DIR/gnosis_vpn-manager"
+    echo "  - Binaries: $BIN_DIR/gnosis_vpn-root, $BIN_DIR/gnosis_vpn-worker, $BIN_DIR/gnosis_vpn-ctl, $BIN_DIR/gnosis_vpn-update, $BIN_DIR/gnosis_vpn-manager"
     echo "  - Launchd service: /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
     echo "  - Configuration: $CONFIG_DIR/"
     echo "  - Service logs: $LOG_DIR"
@@ -213,7 +213,7 @@ remove_binaries() {
 
     local removed=0
 
-    for binary in "gnosis_vpn-root" "gnosis_vpn-worker" "gnosis_vpn-ctl" "gnosis_vpn-manager"; do
+    for binary in "gnosis_vpn-root" "gnosis_vpn-worker" "gnosis_vpn-ctl" "gnosis_vpn-update" "gnosis_vpn-manager"; do
         if [[ -f "$BIN_DIR/$binary" ]]; then
             rm -f "$BIN_DIR/$binary"
             log_success "Removed $BIN_DIR/$binary"
@@ -305,6 +305,11 @@ verify_uninstall() {
 
     if [[ -f "$BIN_DIR/gnosis_vpn-ctl" ]]; then
         log_error "Binary still exists: $BIN_DIR/gnosis_vpn-ctl"
+        errors=$((errors + 1))
+    fi
+
+    if [[ -f "$BIN_DIR/gnosis_vpn-update" ]]; then
+        log_error "Binary still exists: $BIN_DIR/gnosis_vpn-update"
         errors=$((errors + 1))
     fi
 

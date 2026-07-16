@@ -47,8 +47,10 @@ The installer scripts support these environment variables:
 After installation, files are located at:
 
 - Binaries: `/usr/local/bin/`
-  - `gnosis_vpn` - Main VPN daemon
+  - `gnosis_vpn-root` - Root VPN daemon
+  - `gnosis_vpn-worker` - VPN worker binary
   - `gnosis_vpn-ctl` - Control utility
+  - `gnosis_vpn-update` - Self-updater utility
 - Application: `/Applications/Gnosis VPN.app`
 - Configuration: `/etc/gnosisvpn/config.toml`
 - Logs Pre-install: `/Library/Logs/GnosisVPN/installer/preinstall.log`

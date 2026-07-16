@@ -12,6 +12,7 @@ source "${SCRIPT_DIR}/common.sh"
 # Safe default values
 : "${GNOSISVPN_CLIENT_VERSION:=}"
 : "${GNOSISVPN_APP_VERSION:=}"
+: "${GNOSISVPN_TOOLKIT_VERSION:=}"
 : "${GNOSISVPN_ARCHITECTURE:=x86_64-linux}"
 : "${GNOSISVPN_DISTRIBUTION:=deb}"
 
@@ -22,6 +23,7 @@ usage() {
     echo "Options:"
     echo "  --cli-version <version>        Set the Client version (e.g., latest, v0.50.7, 0.50.7+pr.465)"
     echo "  --app-version <version>        Set the App version (e.g., latest, v0.2.2, 0.2.2+pr.10)"
+    echo "  --toolkit-version <version>    Set the Toolkit version (e.g., latest, v0.1.0, 0.1.0+pr.5), macOS only"
     echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux, aarch64-darwin), default: x86_64-linux"
     echo "  --distribution <type>          Set the distribution type (deb, dmg), default: deb"
     echo "  -h, --help                     Show this help message"
@@ -48,6 +50,16 @@ parse_args() {
                 log_error "'--app-version <version>' requires a value"
                 usage
             elif ! check_version_syntax "$GNOSISVPN_APP_VERSION"; then
+                exit 1
+            fi
+            shift 2
+            ;;
+        --toolkit-version)
+            GNOSISVPN_TOOLKIT_VERSION="${2:-}"
+            if [[ -z $GNOSISVPN_TOOLKIT_VERSION ]]; then
+                log_error "'--toolkit-version <version>' requires a value"
+                usage
+            elif ! check_version_syntax "$GNOSISVPN_TOOLKIT_VERSION"; then
                 exit 1
             fi
             shift 2
@@ -98,6 +110,17 @@ parse_args() {
         log_info "Parameter '--app-version' set to 'latest', using version ${GNOSISVPN_APP_VERSION}"
     fi
 
+    # The toolkit only publishes darwin binaries, so its version is only resolved there
+    if [[ ${GNOSISVPN_ARCHITECTURE} == "aarch64-darwin" ]]; then
+        if [[ -z $GNOSISVPN_TOOLKIT_VERSION ]]; then
+            GNOSISVPN_TOOLKIT_VERSION=$(get_latest_release "gnosis/gnosis_vpn-toolkit")
+            log_info "Parameter '--toolkit-version' not specified, defaulting to latest release"
+        elif [[ $GNOSISVPN_TOOLKIT_VERSION == "latest" ]]; then
+            GNOSISVPN_TOOLKIT_VERSION=$(get_latest_release "gnosis/gnosis_vpn-toolkit")
+            log_info "Parameter '--toolkit-version' set to 'latest', using version ${GNOSISVPN_TOOLKIT_VERSION}"
+        fi
+    fi
+
     log_success "Command-line arguments parsed successfully"
 }
 
@@ -145,6 +168,11 @@ download_darwin_binaries() {
         chmod 755 "${BINARY_DIR}/${artifact}"
         echo "Downloaded binary: ${BINARY_DIR}/${artifact}"
     done
+    echo "Downloading gnosis_vpn-toolkit:${GNOSISVPN_TOOLKIT_VERSION}:gnosis_vpn-update-aarch64-darwin"
+    gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
+        "gnosis_vpn-toolkit:${GNOSISVPN_TOOLKIT_VERSION}:gnosis_vpn-update-aarch64-darwin" --local-filename=gnosis_vpn-update
+    chmod 755 "${BINARY_DIR}/gnosis_vpn-update"
+    echo "Downloaded binary: ${BINARY_DIR}/gnosis_vpn-update"
     echo "Downloading gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-aarch64-darwin.dmg"
     gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
         "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-aarch64-darwin.dmg" --local-filename=gnosis_vpn-app.dmg
@@ -160,6 +188,9 @@ print_summary() {
     echo "=========================================="
     echo "Client Version:    ${GNOSISVPN_CLIENT_VERSION}"
     echo "App Version:       ${GNOSISVPN_APP_VERSION}"
+    if [[ -n ${GNOSISVPN_TOOLKIT_VERSION} ]]; then
+        echo "Toolkit Version:   ${GNOSISVPN_TOOLKIT_VERSION}"
+    fi
     echo "Distribution:      ${GNOSISVPN_DISTRIBUTION}"
     echo "Architecture:      ${GNOSISVPN_ARCHITECTURE}"
     echo "Build Directory:   ${BUILD_DIR}"

@@ -12,6 +12,11 @@ on:
         required: false
         type: string
         default: ''
+      toolkit_version:
+        description: 'Toolkit version to build against (default: newest registry version with the darwin binary)'
+        required: false
+        type: string
+        default: ''
   repository_dispatch:
     types: [snapshot_build]
   schedule:
@@ -30,6 +35,7 @@ jobs:
       version_type: snapshot
       client_version: ${{ inputs.client_version }}
       app_version: ${{ inputs.app_version }}
+      toolkit_version: ${{ inputs.toolkit_version }}
     secrets: inherit
   update_snapshot:
     name: Update snapshot
@@ -41,9 +47,11 @@ jobs:
       GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
       GNOSISVPN_CLIENT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}
       GNOSISVPN_APP_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}
+      GNOSISVPN_TOOLKIT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_TOOLKIT_VERSION }}
       GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ vars.GNOSISVPN_PACKAGE_PR_VERSION }}
       GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ vars.GNOSISVPN_CLIENT_PR_VERSION }}
       GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
+      GNOSISVPN_PREVIOUS_TOOLKIT_VERSION: ${{ vars.GNOSISVPN_TOOLKIT_PR_VERSION }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -98,6 +106,10 @@ jobs:
           if [[ "${GNOSISVPN_APP_VERSION}" != "${GNOSISVPN_PREVIOUS_APP_VERSION}" ]]; then
             echo "New merged PR found for gnosis_vpn-app: ${GNOSISVPN_APP_VERSION}"
             gh variable set GNOSISVPN_APP_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_APP_VERSION}"
+          fi
+          if [[ "${GNOSISVPN_TOOLKIT_VERSION}" != "${GNOSISVPN_PREVIOUS_TOOLKIT_VERSION}" ]]; then
+            echo "New merged PR found for gnosis_vpn-toolkit: ${GNOSISVPN_TOOLKIT_VERSION}"
+            gh variable set GNOSISVPN_TOOLKIT_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_TOOLKIT_VERSION}"
           fi
       - name: Publish snapshot manifest variables
         # This job only runs when artifacts were actually built
