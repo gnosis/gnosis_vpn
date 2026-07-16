@@ -967,7 +967,7 @@ verify_path() {
 
     # Binaries are already in /usr/local/bin which is typically in PATH
     log_success "Binaries installed to $BIN_DIR (typically in PATH)"
-    log_info "You should be able to run 'gnosis_vpn-root', 'gnosis_vpn-worker' and 'gnosis_vpn-ctl' from anywhere"
+    log_info "You should be able to run 'gnosis_vpn-root', 'gnosis_vpn-worker', 'gnosis_vpn-ctl' and 'gnosis_vpn-update' from anywhere"
 }
 
 # Verify installation
