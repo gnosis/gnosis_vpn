@@ -21,9 +21,9 @@ usage() {
     echo "Usage: $0 --cli-version <version> --app-version <version> [options]"
     echo
     echo "Options:"
-    echo "  --cli-version <version>        Set the Client version (e.g., latest, v0.50.7, 0.50.7+pr.465)"
-    echo "  --app-version <version>        Set the App version (e.g., latest, v0.2.2, 0.2.2+pr.10)"
-    echo "  --toolkit-version <version>    Set the Toolkit version (e.g., latest, v0.1.0, 0.1.0+pr.5), macOS only"
+    echo "  --cli-version <version>        Set the Client version (e.g., latest, 0.50.7, 0.50.7+pr.465)"
+    echo "  --app-version <version>        Set the App version (e.g., latest, 0.2.2, 0.2.2+pr.10)"
+    echo "  --toolkit-version <version>    Set the Toolkit version (e.g., latest, 0.1.0, 0.1.0+pr.5), macOS only"
     echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux, aarch64-darwin), default: x86_64-linux"
     echo "  --distribution <type>          Set the distribution type (deb, dmg), default: deb"
     echo "  -h, --help                     Show this help message"
