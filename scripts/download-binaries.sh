@@ -119,6 +119,9 @@ parse_args() {
             GNOSISVPN_TOOLKIT_VERSION=$(get_latest_release "gnosis/gnosis_vpn-toolkit")
             log_info "Parameter '--toolkit-version' set to 'latest', using version ${GNOSISVPN_TOOLKIT_VERSION}"
         fi
+    elif [[ -n $GNOSISVPN_TOOLKIT_VERSION ]]; then
+        log_warn "'--toolkit-version' only applies to aarch64-darwin builds; ignoring value '${GNOSISVPN_TOOLKIT_VERSION}'"
+        GNOSISVPN_TOOLKIT_VERSION=""
     fi
 
     log_success "Command-line arguments parsed successfully"
