@@ -887,7 +887,7 @@ update_binaries() {
     local installation_type="$1"
 
     log_info "Updating binaries..."
-    binaries_array=(gnosis_vpn-root:root:wheel:750 gnosis_vpn-worker:root:gnosisvpn:750 gnosis_vpn-ctl:gnosisvpn:gnosisvpn:755 wg:root:wheel:755 wireguard-go:root:wheel:755 wg-quick:root:wheel:755)
+    binaries_array=(gnosis_vpn-root:root:wheel:750 gnosis_vpn-worker:root:gnosisvpn:750 gnosis_vpn-ctl:gnosisvpn:gnosisvpn:755 gnosis_vpn-update:root:wheel:755 wg:root:wheel:755 wireguard-go:root:wheel:755 wg-quick:root:wheel:755)
 
     # For fresh installations, just copy all binaries
     if [[ "$installation_type" == "fresh" ]]; then
@@ -967,7 +967,7 @@ verify_path() {
 
     # Binaries are already in /usr/local/bin which is typically in PATH
     log_success "Binaries installed to $BIN_DIR (typically in PATH)"
-    log_info "You should be able to run 'gnosis_vpn-root', 'gnosis_vpn-worker' and 'gnosis_vpn-ctl' from anywhere"
+    log_info "You should be able to run 'gnosis_vpn-root', 'gnosis_vpn-worker', 'gnosis_vpn-ctl' and 'gnosis_vpn-update' from anywhere"
 }
 
 # Verify installation
@@ -976,7 +976,7 @@ verify_installation() {
 
     local errors=0
 
-    for binary in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
+    for binary in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl gnosis_vpn-update; do
         if [[ ! -x "$BIN_DIR/${binary}" ]]; then
             log_error "$BIN_DIR/${binary} binary not found or not executable"
             errors=$((errors + 1))

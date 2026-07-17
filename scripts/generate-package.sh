@@ -135,6 +135,9 @@ print_summary() {
     if [[ ${GNOSISVPN_APP_VERSION:-} != "" ]]; then
         echo "App Version:       ${GNOSISVPN_APP_VERSION}"
     fi
+    if [[ ${GNOSISVPN_TOOLKIT_VERSION:-} != "" ]]; then
+        echo "Toolkit Version:   ${GNOSISVPN_TOOLKIT_VERSION}"
+    fi
     echo "Build Date:        $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
     print_platform_summary
     echo "=========================================="

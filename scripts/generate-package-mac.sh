@@ -221,7 +221,7 @@ prepare_build_dir() {
     fi
 
     # Copy binaries
-    for binary in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
+    for binary in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl gnosis_vpn-update; do
         if [[ -f "${BUILD_DIR}/download/${binary}" ]]; then
             cp "${BUILD_DIR}/download/${binary}" "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/${binary}"
             log_success "Copied binary: ${binary}"
@@ -465,6 +465,7 @@ build_distribution_package() {
         sed -i "s/__GNOSISVPN_PACKAGE_VERSION__/v${GNOSISVPN_PACKAGE_VERSION}/g" "$distribution_dir/welcome.html"
         sed -i "s/__GNOSISVPN_APP_VERSION__/v${GNOSISVPN_APP_VERSION}/g" "$distribution_dir/welcome.html"
         sed -i "s/__GNOSISVPN_CLIENT_VERSION__/v${GNOSISVPN_CLIENT_VERSION}/g" "$distribution_dir/welcome.html"
+        sed -i "s/__GNOSISVPN_TOOLKIT_VERSION__/v${GNOSISVPN_TOOLKIT_VERSION}/g" "$distribution_dir/welcome.html"
     else
         log_warn "welcome.html not found, using default if available"
     fi

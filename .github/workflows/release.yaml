@@ -21,6 +21,11 @@ on:
         required: false
         type: string
         default: ''
+      toolkit_version:
+        description: 'Toolkit version to release (default: latest gnosis_vpn-toolkit GitHub release)'
+        required: false
+        type: string
+        default: ''
 permissions:
   contents: write
   id-token: write
@@ -35,6 +40,7 @@ jobs:
       version_type: release
       client_version: ${{ inputs.client_version }}
       app_version: ${{ inputs.app_version }}
+      toolkit_version: ${{ inputs.toolkit_version }}
     secrets: inherit
   release:
     runs-on: depot-ubuntu-22.04-4
@@ -53,6 +59,7 @@ jobs:
           echo "- Package version: v${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
           echo "- Client version: v${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
           echo "- App version: v${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "- Toolkit version: v${{ needs.build_binary.outputs.GNOSISVPN_TOOLKIT_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Generate Release Notes
         run: nix develop -c ./scripts/generate-changelog.ts
         env:
@@ -102,6 +109,7 @@ jobs:
           gh variable set GNOSISVPN_PACKAGE_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}"
           gh variable set GNOSISVPN_CLIENT_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}"
           gh variable set GNOSISVPN_APP_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}"
+          gh variable set GNOSISVPN_TOOLKIT_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_TOOLKIT_VERSION }}"
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
   publish_apt:
