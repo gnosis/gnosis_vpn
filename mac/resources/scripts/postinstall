@@ -69,8 +69,10 @@ ROLLBACK_STEPS=()
 ROLLBACK_ENABLED=true
 PREV_CONFIG_FILE=""
 
-# Read installer version baked into the package payload at build time.
-INSTALLER_VERSION=$(cat "${VERSION_FILE}")
+# Read installer version baked into the scripts dir at build time. It is
+# deliberately not part of the payload: $VERSION_FILE must keep the previous
+# version until save_version_info writes it at the successful end of main.
+INSTALLER_VERSION=$(cat "${SCRIPT_DIR}/version.txt")
 
 load_installer_choices() {
     local choice_dir="/Library/Logs/GnosisVPN/installer"
@@ -1313,9 +1315,6 @@ main() {
     # Set proper permissions
     set_permissions
 
-    # Save version information
-    save_version_info
-
     # Configure sudo privileges for service management
     configure_sudo_privileges
 
@@ -1346,6 +1345,13 @@ main() {
 
     # Print summary
     print_summary "$installation_type"
+
+    # Save version information. Must stay after every step that can fail:
+    # a failed install would otherwise leave version.txt claiming the new
+    # version, which breaks gnosis_vpn-update's channel inference and its
+    # already-installed/downgrade gates on the next attempt (rollback does
+    # not restore this file).
+    save_version_info
 
     # Disable rollback after successful completion
     disable_rollback
