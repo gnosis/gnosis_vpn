@@ -69,8 +69,17 @@ ROLLBACK_STEPS=()
 ROLLBACK_ENABLED=true
 PREV_CONFIG_FILE=""
 
-# Read installer version baked into the package payload at build time.
-INSTALLER_VERSION=$(cat "${VERSION_FILE}")
+# Read installer version baked into the scripts dir at build time. It is
+# deliberately not part of the payload: $VERSION_FILE must keep the previous
+# version until save_version_info writes it at the successful end of main.
+# Fail fast with an actionable message if the file is missing OR empty — an
+# empty read would otherwise complete the install and let save_version_info
+# write an empty $VERSION_FILE, corrupting gnosis_vpn-update's state.
+INSTALLER_VERSION=$(cat "${SCRIPT_DIR}/version.txt" 2>/dev/null || true)
+if [[ -z "$INSTALLER_VERSION" ]]; then
+    log_error "Missing or empty ${SCRIPT_DIR}/version.txt — the package was built without baking the installer version (generate-package-mac.sh writes it into the pkg scripts dir)"
+    exit 1
+fi
 
 load_installer_choices() {
     local choice_dir="/Library/Logs/GnosisVPN/installer"
@@ -1234,6 +1243,8 @@ copy_logs_rotation_conf() {
     fi
 }
 
+# Launching the UI is a convenience: it must never fail the install, so every
+# command that can legitimately come up empty is guarded against set -euo pipefail.
 launch_app() {
     if [[ -d "$UI_TARGET_APP" ]]; then
         log_info "Scheduling Gnosis VPN UI launch after installer wizard closes..."
@@ -1241,14 +1252,20 @@ launch_app() {
 
         # Detect the current logged-in user so we open the app in their session
         local current_user
-        current_user=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }')
+        current_user=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }' || true)
+        if [[ -z "$current_user" ]]; then
+            log_warn "No logged-in console user detected; skipping UI launch"
+            return 0
+        fi
 
-        # Attempt to detect the Installer process PID to wait for it to exit before launching the app
+        # Attempt to detect the Installer process PID to wait for it to exit before
+        # launching the app. CLI installs (installer(8), e.g. via gnosis_vpn-update)
+        # have no GUI Installer process, so pgrep matching nothing is a normal case.
         local installer_pid=""
         local all_installer_pids
-        all_installer_pids=$(pgrep -x "Installer" 2>/dev/null)
+        all_installer_pids=$(pgrep -x "Installer" 2>/dev/null || true)
         local installer_count
-        installer_count=$(echo "$all_installer_pids" | grep -c .)
+        installer_count=$(echo "$all_installer_pids" | grep -c . || true)
         if [[ "$installer_count" -eq 1 ]]; then
             installer_pid="$all_installer_pids"
         elif [[ "$installer_count" -gt 1 ]]; then
@@ -1268,7 +1285,7 @@ launch_app() {
             log_info "App will open once the installer wizard is closed"
         else
             log_warn "Could not determine installer PID; launching immediately"
-            su -l "$current_user" -c "open '$app_path'"
+            su -l "$current_user" -c "open '$app_path'" || log_warn "Failed to launch UI application"
         fi
     else
         log_warn "UI application not found at $UI_TARGET_APP, cannot launch"
@@ -1313,9 +1330,6 @@ main() {
     # Set proper permissions
     set_permissions
 
-    # Save version information
-    save_version_info
-
     # Configure sudo privileges for service management
     configure_sudo_privileges
 
@@ -1347,14 +1361,22 @@ main() {
     # Print summary
     print_summary "$installation_type"
 
+    # Launch UI application (best-effort; guarded internally so it cannot fail)
+    launch_app
+
+    # Save version information. Must stay after every step that can fail:
+    # a failed install would otherwise leave version.txt claiming the new
+    # version, which breaks gnosis_vpn-update's channel inference and its
+    # already-installed/downgrade gates on the next attempt (rollback does
+    # not restore this file). Only rollback teardown and success logging may
+    # follow this call.
+    save_version_info
+
     # Disable rollback after successful completion
     disable_rollback
 
     # Log script completion
     log_script_end "success"
-
-    # Launch UI application
-    launch_app
 }
 
 # Execute main function

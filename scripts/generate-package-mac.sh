@@ -202,10 +202,14 @@ prepare_build_dir() {
     # UI app archive will be added during binary embedding
     mkdir -p "${BUILD_DIR}/scripts"
 
-    # Bake installer version into package payload so the app can read it after installation
-    echo "${GNOSISVPN_PACKAGE_VERSION}" >"${BUILD_DIR}/app-contents/rootfs/etc/gnosisvpn/version.txt"
-    chmod 0644 "${BUILD_DIR}/app-contents/rootfs/etc/gnosisvpn/version.txt"
-    log_success "Version baked into package payload: ${GNOSISVPN_PACKAGE_VERSION}"
+    # Bake the installer version into the scripts dir, NOT the payload rootfs:
+    # payload extraction happens before postinstall, so a rootfs copy would
+    # overwrite /etc/gnosisvpn/version.txt even when the install later fails.
+    # postinstall writes it to /etc/gnosisvpn/version.txt only at the end of a
+    # fully successful install, after every step that can fail.
+    echo "${GNOSISVPN_PACKAGE_VERSION}" >"${BUILD_DIR}/scripts/version.txt"
+    chmod 0644 "${BUILD_DIR}/scripts/version.txt"
+    log_success "Version baked into installer scripts: ${GNOSISVPN_PACKAGE_VERSION}"
 
     # Copy config templates to package payload
     if [[ -d "$RESOURCES_DIR/config/templates" ]]; then
