@@ -205,7 +205,8 @@ prepare_build_dir() {
     # Bake the installer version into the scripts dir, NOT the payload rootfs:
     # payload extraction happens before postinstall, so a rootfs copy would
     # overwrite /etc/gnosisvpn/version.txt even when the install later fails.
-    # postinstall writes it to /etc/gnosisvpn/version.txt as its final step.
+    # postinstall writes it to /etc/gnosisvpn/version.txt only at the end of a
+    # fully successful install, after every step that can fail.
     echo "${GNOSISVPN_PACKAGE_VERSION}" >"${BUILD_DIR}/scripts/version.txt"
     chmod 0644 "${BUILD_DIR}/scripts/version.txt"
     log_success "Version baked into installer scripts: ${GNOSISVPN_PACKAGE_VERSION}"
