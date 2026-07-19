@@ -72,7 +72,14 @@ PREV_CONFIG_FILE=""
 # Read installer version baked into the scripts dir at build time. It is
 # deliberately not part of the payload: $VERSION_FILE must keep the previous
 # version until save_version_info writes it at the successful end of main.
-INSTALLER_VERSION=$(cat "${SCRIPT_DIR}/version.txt")
+# Fail fast with an actionable message if the file is missing OR empty — an
+# empty read would otherwise complete the install and let save_version_info
+# write an empty $VERSION_FILE, corrupting gnosis_vpn-update's state.
+INSTALLER_VERSION=$(cat "${SCRIPT_DIR}/version.txt" 2>/dev/null || true)
+if [[ -z "$INSTALLER_VERSION" ]]; then
+    log_error "Missing or empty ${SCRIPT_DIR}/version.txt — the package was built without baking the installer version (generate-package-mac.sh writes it into the pkg scripts dir)"
+    exit 1
+fi
 
 load_installer_choices() {
     local choice_dir="/Library/Logs/GnosisVPN/installer"
