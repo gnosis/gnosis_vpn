@@ -67,9 +67,11 @@ jobs:
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
           GNOSISVPN_CLIENT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}
           GNOSISVPN_APP_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}
+          GNOSISVPN_TOOLKIT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_TOOLKIT_VERSION }}
           GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ vars.GNOSISVPN_PACKAGE_RELEASE_VERSION }}
           GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ vars.GNOSISVPN_CLIENT_RELEASE_VERSION }}
           GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_APP_RELEASE_VERSION }}
+          GNOSISVPN_PREVIOUS_TOOLKIT_VERSION: ${{ vars.GNOSISVPN_TOOLKIT_RELEASE_VERSION }}
           GNOSISVPN_CHANGELOG_FORMAT: github
           # Aggregate PRs merged into the dispatching ref (e.g. a release branch)
           # rather than main, so close-release on a non-main branch produces release
