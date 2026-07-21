@@ -136,27 +136,53 @@ register_apt_repo() {
     fi
 
     local sources_path="/etc/apt/sources.list.d/gnosisvpn.sources"
-    if [[ -f $sources_path ]]; then
-        echo "$LOG_PREFIX INFO: APT source already registered at $sources_path (leaving as-is)"
-        return 0
-    fi
-
     local keyring_src="/usr/share/gnosisvpn/gnosisvpn-archive-keyring.gpg"
     local keyring_dst="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
-    if [[ ! -f $keyring_src ]]; then
-        echo "$LOG_PREFIX WARNING: Keyring not found at $keyring_src — skipping APT source registration"
-        return 0
-    fi
 
-    # Channel matches the .deb the user just installed
-    local version channel component
+    # Channel matches the .deb the user just installed. Any "+" in the version
+    # (date-based snapshots, +pr., +commit. builds) means the snapshot channel.
+    local version channel component uris
     version="$(cat /etc/gnosisvpn/version.txt 2>/dev/null || echo "")"
     if [[ $version == *"+"* ]]; then
         channel="snapshot"
         component="snapshot"
+        # Only gnosisvpn.io publishes dists/snapshot/; listing the IPFS mirror
+        # here would hard-fail every apt-get update.
+        uris="https://download.gnosisvpn.io/linux/apt"
     else
         channel="stable"
         component="main"
+        # Both mirrors publish the stable suite (matches install/linux.sh).
+        uris="https://downloads.vpn.gnosis.eth.limo/linux/apt https://download.gnosisvpn.io/linux/apt"
+    fi
+
+    if [[ -f $sources_path ]]; then
+        # Keep the file when it already tracks this package's channel (also
+        # preserves the installer-written stable file with both mirrors);
+        # rewrite it when the channels disagree so a manual cross-channel .deb
+        # install switches the update path along with the package.
+        local existing_suites
+        existing_suites="$(awk 'tolower($1) == "suites:" { sub(/^[^:]*:[[:space:]]*/, ""); gsub(/[[:space:]\r]+$/, ""); print; exit }' \
+            "$sources_path" 2>/dev/null || true)"
+
+        if [[ -z $existing_suites ]]; then
+            echo "$LOG_PREFIX WARNING: No parseable 'Suites:' line in $sources_path — leaving it untouched"
+            return 0
+        fi
+        if [[ $existing_suites == "$channel" ]]; then
+            echo "$LOG_PREFIX INFO: APT source already tracks the '$channel' channel at $sources_path (leaving as-is)"
+            return 0
+        fi
+        if [[ -z $version ]]; then
+            echo "$LOG_PREFIX WARNING: Cannot determine this package's channel (missing /etc/gnosisvpn/version.txt) — leaving $sources_path untouched"
+            return 0
+        fi
+        echo "$LOG_PREFIX INFO: APT source tracks '$existing_suites' but this package is from the '$channel' channel — rewriting $sources_path"
+    fi
+
+    if [[ ! -f $keyring_src ]]; then
+        echo "$LOG_PREFIX WARNING: Keyring not found at $keyring_src — skipping APT source registration"
+        return 0
     fi
 
     local arch
@@ -167,7 +193,7 @@ register_apt_repo() {
     install -m 0644 "$keyring_src" "$keyring_dst"
     cat >"$sources_path" <<EOF
 Types: deb
-URIs: https://download.gnosisvpn.io/linux/apt
+URIs: ${uris}
 Suites: ${channel}
 Components: ${component}
 Architectures: ${arch}

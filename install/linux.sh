@@ -5,6 +5,7 @@
 # Usage:
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
+#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=rotsee
 #
 # Configures /etc/apt/sources.list.d/gnosisvpn.sources to pull signed packages
 # from the Gnosis VPN APT repository, installs the public keyring, runs
@@ -12,14 +13,17 @@
 
 set -Eeuo pipefail
 
-# APT repository mirrors, tried in order.
-# Both serve identical stable content, gnosisvpn.io also snapshots.
+# APT repository mirrors. Both serve identical key-signed stable content;
+# only gnosisvpn.io also serves the snapshot suite.
 REPO_URL_PRIMARY="https://downloads.vpn.gnosis.eth.limo/linux/apt"
 REPO_URL_BACKUP="https://download.gnosisvpn.io/linux/apt"
 KEYRING_PATH="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 SOURCES_PATH="/etc/apt/sources.list.d/gnosisvpn.sources"
 
 CHANNEL="${GNOSISVPN_CHANNEL:-stable}"
+# Empty means "leave the network alone": postinstall defaults to jura on a
+# fresh install and keeps the existing choice on re-runs.
+NETWORK="${GNOSISVPN_NETWORK:-}"
 ARCH=""
 
 log() { printf '\033[0;34m[gnosisvpn]\033[0m %s\n' "$*"; }
@@ -30,32 +34,35 @@ usage() {
     cat <<EOF
 Install the Gnosis VPN APT repository and the gnosisvpn package.
 
-Usage: linux.sh [--channel=stable|snapshot] [--help]
+Usage: linux.sh [--channel=stable|snapshot] [--network=jura|rotsee] [--help]
 
 Options:
   --channel=<stable|snapshot>   APT channel to subscribe to (default: stable).
                                 Also configurable via GNOSISVPN_CHANNEL env var.
+  --network=<jura|rotsee>       Network to configure (default: jura on first
+                                install; omitting keeps an existing choice).
+                                Also configurable via GNOSISVPN_NETWORK env var.
   -h, --help                    Show this help and exit.
 
 Supported distributions:
   Debian 11, 12, 13, 14
   Ubuntu 22.04, 24.04, 26.04 LTS
 
-After install, the gnosisvpn service should be running. To pick a non-default
-network, re-run the package's postinstall with BOTH env vars set explicitly —
-the Blokli URL default is hardcoded to the jura endpoint, so it must be paired
-with a matching network override (a piped \$(curl | sudo bash) cannot forward
-them):
-  sudo GNOSISVPN_NETWORK=rotsee \\
-       GNOSISVPN_HOPR_BLOKLI_URL=https://… \\
-       apt-get install --reinstall \\
-       -o Dpkg::Options::="--force-confdef" \\
-       -o Dpkg::Options::="--force-confold" \\
-       gnosisvpn
+After install, the gnosisvpn service should be running. To switch networks
+later, re-run this installer with --network=<name>; to switch channels, re-run
+with --channel=<stable|snapshot> (switching back to stable downgrades the
+package to the newest stable release).
 
-Accepted values:
+Caution: a re-run without --channel selects the default (stable). On a
+snapshot installation, pass --channel=snapshot again when re-running (e.g. to
+switch networks), or the installer will downgrade the package to stable.
+
+Environment variables:
+  GNOSISVPN_CHANNEL            stable | snapshot (default: stable)
   GNOSISVPN_NETWORK            jura | rotsee (default: jura)
-  GNOSISVPN_HOPR_BLOKLI_URL    Blokli endpoint matching the chosen network
+  GNOSISVPN_HOPR_BLOKLI_URL    Custom Blokli endpoint; defaults to the one
+                               matching the chosen network
+                               (https://blokli.<network>.hoprnet.link)
 EOF
 }
 
@@ -74,6 +81,18 @@ parse_args() {
             CHANNEL="$2"
             shift 2
             ;;
+        --network=*)
+            NETWORK="${1#*=}"
+            shift
+            ;;
+        --network)
+            if [[ -z ${2:-} ]]; then
+                err "--network requires a value (jura | rotsee)"
+                exit 1
+            fi
+            NETWORK="$2"
+            shift 2
+            ;;
         -h | --help)
             usage
             exit 0
@@ -88,6 +107,11 @@ parse_args() {
 
     if [[ $CHANNEL != "stable" && $CHANNEL != "snapshot" ]]; then
         err "--channel must be 'stable' or 'snapshot' (got: '${CHANNEL}')"
+        exit 1
+    fi
+
+    if [[ -n $NETWORK && $NETWORK != "jura" && $NETWORK != "rotsee" ]]; then
+        err "--network must be 'jura' or 'rotsee' (got: '${NETWORK}')"
         exit 1
     fi
 }
@@ -169,17 +193,29 @@ write_sources() {
     # for the channel being subscribed to (stable→main, snapshot→snapshot). Reprepro
     # derives the on-bucket pool path from that field, and apt fetches Packages from
     # dists/<suite>/<component>/binary-<arch>/.
-    local component
+    #
+    # Multiple space-separated URIs are separate sources, not fallbacks: apt must
+    # resolve the Release file of every listed source or `apt-get update` fails
+    # hard. So each channel lists only the mirrors that publish its suite.
+    local component uris
     case "$CHANNEL" in
-    stable) component="main" ;;
-    snapshot) component="snapshot" ;;
+    stable)
+        component="main"
+        # Both mirrors publish the stable suite; listing both gives apt a
+        # second source to download identical signed packages from.
+        uris="${REPO_URL_PRIMARY} ${REPO_URL_BACKUP}"
+        ;;
+    snapshot)
+        component="snapshot"
+        # Only the gnosisvpn.io mirror publishes the snapshot suite; the IPFS
+        # mirror has no dists/snapshot/ and would break every apt-get update.
+        uris="${REPO_URL_BACKUP}"
+        ;;
     esac
     log "Writing APT source to ${SOURCES_PATH} (channel: ${CHANNEL}, component: ${component}, arch: ${ARCH})"
-    # Two space-separated URIs: apt prefers the first and falls back to the second
-    # when it is unavailable. Both mirrors serve the same key-signed content.
     cat >"$SOURCES_PATH" <<EOF
 Types: deb
-URIs: ${REPO_URL_PRIMARY} ${REPO_URL_BACKUP}
+URIs: ${uris}
 Suites: ${CHANNEL}
 Components: ${component}
 Architectures: ${ARCH}
@@ -189,15 +225,63 @@ EOF
 }
 
 apt_install() {
-    log "Refreshing APT cache and installing gnosisvpn ..."
+    log "Refreshing APT cache ..."
     apt-get update
+
+    # Channel candidate, queried against an empty dpkg status file: apt never
+    # reports a candidate below the installed version (downgrades need pins
+    # > 1000), which would mask the stable candidate after a snapshot→stable
+    # switch. LC_ALL=C keeps the "Candidate:" label unlocalized.
+    local candidate installed
+    candidate="$(LC_ALL=C apt-cache -o Dir::State::status=/dev/null policy gnosisvpn 2>/dev/null |
+        sed -n 's/^ *Candidate: *//p' || true)"
+    if [[ -z $candidate || $candidate == "(none)" ]]; then
+        err "No installable gnosisvpn package found on the '${CHANNEL}' channel for ${ARCH}."
+        err "Check ${SOURCES_PATH} and the 'apt-get update' output above."
+        exit 1
+    fi
+
+    # Installed version; empty when not installed (config-files-only remnants
+    # of a removed package count as not installed).
+    installed="$(dpkg-query -W -f='${db:Status-Status} ${Version}' gnosisvpn 2>/dev/null || true)"
+    case "$installed" in
+    "installed "*) installed="${installed#installed }" ;;
+    *) installed="" ;;
+    esac
+
     # DEBIAN_FRONTEND silences debconf but not dpkg conffile prompts, which abort
     # under `curl | sudo bash` (no stdin). --force-confdef/--force-confold answer
-    # them non-interactively (keep the existing file unless dpkg has a safe default).
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        -o Dpkg::Options::="--force-confdef" \
-        -o Dpkg::Options::="--force-confold" \
-        gnosisvpn
+    # them non-interactively (keep the existing file unless dpkg has a safe
+    # default); conffile prompts are most likely during channel downgrades.
+    local apt_opts=(-y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
+    local package="gnosisvpn"
+    if [[ -n $installed ]] && dpkg --compare-versions "$installed" gt "$candidate"; then
+        # Channel switch (e.g. snapshot→stable): apt never downgrades on its
+        # own, so pin the channel candidate and allow the downgrade.
+        log "Installed gnosisvpn ${installed} is newer than the '${CHANNEL}' channel candidate ${candidate}; downgrading to match the channel."
+        apt_opts+=(--allow-downgrades)
+        package="gnosisvpn=${candidate}"
+    elif [[ -n $NETWORK ]]; then
+        # --reinstall forces the postinstall to run (to apply the network
+        # change) even when the package is already at the candidate version.
+        # Not needed on the downgrade path: the version change runs it anyway.
+        apt_opts+=(--reinstall)
+    fi
+
+    log "Installing ${package} ..."
+    if [[ -n $NETWORK ]]; then
+        # An explicit network choice reaches the package's postinstall through
+        # these env vars; both must be set together because the postinstall's
+        # Blokli URL default is hardcoded to the jura endpoint.
+        local blokli_url="${GNOSISVPN_HOPR_BLOKLI_URL:-https://blokli.${NETWORK}.hoprnet.link}"
+        log "Selecting network: ${NETWORK} (Blokli endpoint: ${blokli_url})"
+        DEBIAN_FRONTEND=noninteractive \
+            GNOSISVPN_NETWORK="$NETWORK" \
+            GNOSISVPN_HOPR_BLOKLI_URL="$blokli_url" \
+            apt-get install "${apt_opts[@]}" "$package"
+    else
+        DEBIAN_FRONTEND=noninteractive apt-get install "${apt_opts[@]}" "$package"
+    fi
 }
 
 print_postinstall() {
@@ -211,8 +295,10 @@ print_postinstall() {
     To verify:            gpg --show-keys /etc/apt/keyrings/gnosisvpn-archive-keyring.gpg
     Details:  https://github.com/hoprnet/gnosis_vpn/blob/main/SECURITY.md
 
-To upgrade later:   sudo apt-get update && sudo apt-get install --only-upgrade gnosisvpn
-To uninstall:       sudo apt-get remove gnosisvpn
+To upgrade later:    sudo apt-get update && sudo apt-get install --only-upgrade gnosisvpn
+To switch networks:  re-run this installer with --network=<jura|rotsee>
+To switch channels:  re-run this installer with --channel=<stable|snapshot>
+To uninstall:        sudo apt-get remove gnosisvpn
 EOF
 }
 

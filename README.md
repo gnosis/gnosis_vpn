@@ -6,7 +6,7 @@ This repository collects the binary artifacts that compose the Gnosis VPN projec
 
 ### Debian / Ubuntu
 
-Install via the APT repository (recommended — gives you `apt upgrade` for free):
+Install via the APT repository (recommended):
 
 ```bash
 curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash
@@ -16,6 +16,23 @@ Snapshot (nightly) channel:
 
 ```bash
 curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
+```
+
+Snapshot installs and upgrades pull from `download.gnosisvpn.io` only — the IPFS mirror serves just the stable suite.
+
+**Switching channels:** re-run the installer with the desired `--channel`. Switching snapshot→stable performs an
+automatic pinned downgrade to the newest stable release (snapshot versions always sort above stable ones, so plain
+`apt upgrade` would never move back on its own). Caution: a re-run without `--channel` selects the default (stable) —
+on a snapshot installation, pass `--channel=snapshot` again when re-running, e.g. to switch networks. Manually
+installing a `.deb` from the other channel (`sudo apt install ./gnosisvpn_*.deb`) re-points
+`/etc/apt/sources.list.d/gnosisvpn.sources` at that package's channel; run `sudo apt-get update` afterwards.
+
+The installer sets up the default network (`jura`) unless told otherwise. To pick a different network — or to switch an
+existing installation — pass `--network` (combinable with `--channel`; see
+[Linux Installation Environment Variables](#linux-installation-environment-variables)):
+
+```bash
+curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=rotsee
 ```
 
 Manual repo setup (equivalent to what the installer does). The `$(dpkg --print-architecture)` command detects the host
@@ -48,9 +65,12 @@ Manual `.deb` download is available directly from from
 
 Install:
 
+Either double-click the `.deb` file to open it in the App Center and then click the Install button, or run:
+
 ```bash
 sudo apt install ./gnosisvpn_*.deb
 ```
+
 
 Uninstall:
 
