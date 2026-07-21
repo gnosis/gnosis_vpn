@@ -22,9 +22,9 @@ Snapshot installs and upgrades pull from `download.gnosisvpn.io` only — the IP
 
 **Switching channels:** re-run the installer with the desired `--channel`. Switching snapshot→stable performs an
 automatic pinned downgrade to the newest stable release (snapshot versions always sort above stable ones, so plain
-`apt upgrade` would never move back on its own). Caution: a re-run without `--channel` selects the default (stable) —
-on a snapshot installation, pass `--channel=snapshot` again when re-running, e.g. to switch networks. Manually
-installing a `.deb` from the other channel (`sudo apt install ./gnosisvpn_*.deb`) re-points
+`apt upgrade` would never move back on its own). Caution: a re-run without `--channel` selects the default (stable) — on
+a snapshot installation, pass `--channel=snapshot` again when re-running, e.g. to switch networks. Manually installing a
+`.deb` from the other channel (`sudo apt install ./gnosisvpn_*.deb`) re-points
 `/etc/apt/sources.list.d/gnosisvpn.sources` at that package's channel; run `sudo apt-get update` afterwards.
 
 The installer sets up the default network (`jura`) unless told otherwise. To pick a different network — or to switch an
@@ -70,7 +70,6 @@ Either double-click the `.deb` file to open it in the App Center and then click 
 ```bash
 sudo apt install ./gnosisvpn_*.deb
 ```
-
 
 Uninstall:
 
