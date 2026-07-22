@@ -253,13 +253,15 @@ apt_install() {
     # under `curl | sudo bash` (no stdin). --force-confdef/--force-confold answer
     # them non-interactively (keep the existing file unless dpkg has a safe
     # default); conffile prompts are most likely during channel downgrades.
-    local apt_opts=(-y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
+    # --allow-downgrades: apt refuses -y downgrades without it, which would
+    # abort a snapshot→stable channel switch; harmless otherwise since apt
+    # only downgrades when pointed at a lower version explicitly.
+    local apt_opts=(-y --allow-downgrades -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
     local package="gnosisvpn"
     if [[ -n $installed ]] && dpkg --compare-versions "$installed" gt "$candidate"; then
         # Channel switch (e.g. snapshot→stable): apt never downgrades on its
-        # own, so pin the channel candidate and allow the downgrade.
+        # own, so pin the channel candidate.
         log "Installed gnosisvpn ${installed} is newer than the '${CHANNEL}' channel candidate ${candidate}; downgrading to match the channel."
-        apt_opts+=(--allow-downgrades)
         package="gnosisvpn=${candidate}"
     elif [[ -n $NETWORK || -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then
         # --reinstall forces the postinstall to run (to apply the network and/or
@@ -271,8 +273,11 @@ apt_install() {
 
     log "Installing ${package} ..."
     # Forward explicit overrides to the package's postinstall through these env
-    # vars. A network choice fills in a matching Blokli endpoint default (the
-    # postinstall's own default is hardcoded to jura); an explicit
+    # vars; without them the postinstall keeps an existing network and Blokli
+    # endpoint (defaulting to jura on a fresh install). A network choice fills
+    # in a matching Blokli endpoint default: recent postinstalls derive that
+    # themselves, but keep forwarding the derived URL for already-published
+    # debs whose postinstall defaults to jura; an explicit
     # GNOSISVPN_HOPR_BLOKLI_URL is honored on its own, with or without a network.
     local install_env=(DEBIAN_FRONTEND=noninteractive)
     if [[ -n $NETWORK ]]; then
