@@ -261,27 +261,29 @@ apt_install() {
         log "Installed gnosisvpn ${installed} is newer than the '${CHANNEL}' channel candidate ${candidate}; downgrading to match the channel."
         apt_opts+=(--allow-downgrades)
         package="gnosisvpn=${candidate}"
-    elif [[ -n $NETWORK ]]; then
-        # --reinstall forces the postinstall to run (to apply the network
-        # change) even when the package is already at the candidate version.
-        # Not needed on the downgrade path: the version change runs it anyway.
+    elif [[ -n $NETWORK || -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then
+        # --reinstall forces the postinstall to run (to apply the network and/or
+        # Blokli URL override) even when the package is already at the candidate
+        # version. Not needed on the downgrade path: the version change runs it
+        # anyway.
         apt_opts+=(--reinstall)
     fi
 
     log "Installing ${package} ..."
+    # Forward explicit overrides to the package's postinstall through these env
+    # vars. A network choice fills in a matching Blokli endpoint default (the
+    # postinstall's own default is hardcoded to jura); an explicit
+    # GNOSISVPN_HOPR_BLOKLI_URL is honored on its own, with or without a network.
+    local install_env=(DEBIAN_FRONTEND=noninteractive)
     if [[ -n $NETWORK ]]; then
-        # An explicit network choice reaches the package's postinstall through
-        # these env vars; both must be set together because the postinstall's
-        # Blokli URL default is hardcoded to the jura endpoint.
         local blokli_url="${GNOSISVPN_HOPR_BLOKLI_URL:-https://blokli.${NETWORK}.hoprnet.link}"
         log "Selecting network: ${NETWORK} (Blokli endpoint: ${blokli_url})"
-        DEBIAN_FRONTEND=noninteractive \
-            GNOSISVPN_NETWORK="$NETWORK" \
-            GNOSISVPN_HOPR_BLOKLI_URL="$blokli_url" \
-            apt-get install "${apt_opts[@]}" "$package"
-    else
-        DEBIAN_FRONTEND=noninteractive apt-get install "${apt_opts[@]}" "$package"
+        install_env+=(GNOSISVPN_NETWORK="$NETWORK" GNOSISVPN_HOPR_BLOKLI_URL="$blokli_url")
+    elif [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then
+        log "Using Blokli endpoint: ${GNOSISVPN_HOPR_BLOKLI_URL}"
+        install_env+=(GNOSISVPN_HOPR_BLOKLI_URL="$GNOSISVPN_HOPR_BLOKLI_URL")
     fi
+    env "${install_env[@]}" apt-get install "${apt_opts[@]}" "$package"
 }
 
 print_postinstall() {

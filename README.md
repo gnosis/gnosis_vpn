@@ -84,8 +84,10 @@ sudo apt remove gnosisvpn
 `/etc/gnosisvpn/config.toml` during installation.
 
 **GNOSISVPN_HOPR_BLOKLI_URL** Defines the URL for the HOPR Blokli service used by GnosisVPN. If not set, defaults to
-`https://blokli.jura.hoprnet.link`. This URL is written to `/etc/gnosisvpn/gnosisvpn.env` and used by the application
-for network operations.
+`https://blokli.jura.hoprnet.link` (or `https://blokli.<network>.hoprnet.link` when `--network` is given). The installer
+honors this override on its own, with or without `--network`. The effective URL is written to
+`/etc/gnosisvpn/gnosisvpn-dynamic.env` (which overrides the packaged `/etc/gnosisvpn/gnosisvpn.env` conffile, kept empty
+so upgrades stay prompt-free) and used by the application for network operations.
 
 ## Reporting Issues
 
