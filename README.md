@@ -35,10 +35,10 @@ different network — or to switch an existing installation — pass `--network`
 curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=rotsee
 ```
 
-Manual repo setup (equivalent to what the installer does for the stable channel — it lists both mirrors, the
-IPFS/ENS gateway and the CDN, as independent sources of the same signed packages; for snapshot use
-`Suites: snapshot`, `Components: snapshot`, and only the `download.gnosisvpn.io` URI). The
-`$(dpkg --print-architecture)` command detects the host architecture automatically:
+Manual repo setup (equivalent to what the installer does for the stable channel — it lists both mirrors, the IPFS/ENS
+gateway and the CDN, as independent sources of the same signed packages; for snapshot use `Suites: snapshot`,
+`Components: snapshot`, and only the `download.gnosisvpn.io` URI). The `$(dpkg --print-architecture)` command detects
+the host architecture automatically:
 
 ```bash
 # 1. Add the signing key
@@ -60,10 +60,9 @@ EOF
 sudo apt-get update && sudo apt-get install -y gnosisvpn
 ```
 
-Manual `.deb` download is available directly from
-[the releases page](https://github.com/gnosis/gnosis_vpn/releases), or the APT pool at
-`https://download.gnosisvpn.io/linux/apt/pool/main/g/gnosisvpn/gnosisvpn_<version>_<arch>.deb` (with matching `.asc` and
-`.sha256` sidecars at the same prefix). See [SECURITY.md](./SECURITY.md) for verification.
+Manual `.deb` download is available directly from [the releases page](https://github.com/gnosis/gnosis_vpn/releases), or
+the APT pool at `https://download.gnosisvpn.io/linux/apt/pool/main/g/gnosisvpn/gnosisvpn_<version>_<arch>.deb` (with
+matching `.asc` and `.sha256` sidecars at the same prefix). See [SECURITY.md](./SECURITY.md) for verification.
 
 Install:
 
@@ -73,8 +72,8 @@ Either double-click the `.deb` file to open it in the App Center and then click 
 sudo apt install ./gnosisvpn_*.deb
 ```
 
-To pick a network (and optionally a custom Blokli endpoint) when installing the `.deb` directly, pass the
-environment variables after `sudo`:
+To pick a network (and optionally a custom Blokli endpoint) when installing the `.deb` directly, pass the environment
+variables after `sudo`:
 
 ```bash
 sudo GNOSISVPN_NETWORK=rotsee apt install ./gnosisvpn_*.deb
@@ -85,10 +84,10 @@ Note: re-installing the **same version** via `apt` does nothing — the package 
 `GNOSISVPN_NETWORK` passed this way is silently ignored. To change the network on an existing installation, re-run the
 installer script with `--network=<name>` (or use `sudo GNOSISVPN_NETWORK=<name> dpkg -i ./gnosisvpn_*.deb`).
 
-Installing the `.deb` directly also registers the APT source for the package's own channel (stable for release
-versions, snapshot for versions containing `+`), so subsequent `apt-get update && apt-get upgrade` picks up new
-releases without running the installer script. An existing `/etc/apt/sources.list.d/gnosisvpn.sources` is left
-untouched unless it tracks the other channel.
+Installing the `.deb` directly also registers the APT source for the package's own channel (stable for release versions,
+snapshot for versions containing `+`), so subsequent `apt-get update && apt-get upgrade` picks up new releases without
+running the installer script. An existing `/etc/apt/sources.list.d/gnosisvpn.sources` is left untouched unless it tracks
+the other channel.
 
 Uninstall:
 
@@ -99,8 +98,8 @@ sudo apt remove gnosisvpn
 ### Linux Installation Environment Variables
 
 **GNOSISVPN_CHANNEL** Selects the APT channel the installer script subscribes to: `stable` (default) or `snapshot`.
-Equivalent to the `--channel` flag; only meaningful for the installer script, not for direct `.deb` installs (a
-`.deb`'s channel is determined by its version, see above).
+Equivalent to the `--channel` flag; only meaningful for the installer script, not for direct `.deb` installs (a `.deb`'s
+channel is determined by its version, see above).
 
 **GNOSISVPN_NETWORK** Specifies the network configuration to use for GnosisVPN. Possible values include `jura`,
 `rotsee`, etc. The default is `jura` if not set. This variable determines which configuration file is symlinked to
@@ -108,8 +107,8 @@ Equivalent to the `--channel` flag; only meaningful for the installer script, no
 
 **GNOSISVPN_HOPR_BLOKLI_URL** Defines the URL for the HOPR Blokli service used by GnosisVPN. If not set, defaults to
 `https://blokli.<network>.hoprnet.link` for the selected network (`https://blokli.jura.hoprnet.link` when no network is
-selected) — both when installing via the installer script and when installing the `.deb` directly. The installer
-honors this override on its own, with or without `--network`. The effective URL is written to
+selected) — both when installing via the installer script and when installing the `.deb` directly. The installer honors
+this override on its own, with or without `--network`. The effective URL is written to
 `/etc/gnosisvpn/gnosisvpn-dynamic.env` (which overrides the packaged `/etc/gnosisvpn/gnosisvpn.env` conffile, kept empty
 so upgrades stay prompt-free) and used by the application for network operations.
 
