@@ -28,8 +28,8 @@ The installer accepts options after `-s --`:
   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=rotsee
   ```
 
-- `--reset-identity` — back up the worker's config directory (`/var/lib/gnosisvpn/.config/`, holding the HOPR
-  identity, safe, and node database) by renaming it to `.config.<timestamp>.bak`, and remove the network override
+- `--reset-identity` — back up the worker's config directory (`/var/lib/gnosisvpn/.config/`, holding the HOPR identity,
+  safe, and node database) by renaming it to `.config.<timestamp>.bak`, and remove the network override
   (`/etc/gnosisvpn/gnosisvpn-dynamic.env`), so the service generates a fresh identity on restart. Env var:
   `GNOSISVPN_RESET_IDENTITY=true`.
 
@@ -142,9 +142,9 @@ Direct `.deb` installs have no flags — these environment variables configure t
   ```
 
 - `GNOSISVPN_RESET_IDENTITY=true` — back up the worker's config directory (`/var/lib/gnosisvpn/.config/`, holding the
-  HOPR identity, safe, and node database) by renaming it to `.config.<timestamp>.bak`, and remove the network
-  override (`/etc/gnosisvpn/gnosisvpn-dynamic.env`), before the service starts, so a fresh identity is generated
-  (default: `false`).
+  HOPR identity, safe, and node database) by renaming it to `.config.<timestamp>.bak`, and remove the network override
+  (`/etc/gnosisvpn/gnosisvpn-dynamic.env`), before the service starts, so a fresh identity is generated (default:
+  `false`).
 
   ```bash
   sudo env GNOSISVPN_RESET_IDENTITY=true apt install ./gnosisvpn_*.deb
