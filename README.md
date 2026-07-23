@@ -72,17 +72,18 @@ Either double-click the `.deb` file to open it in the App Center and then click 
 sudo apt install ./gnosisvpn_*.deb
 ```
 
-To pick a network (and optionally a custom Blokli endpoint) when installing the `.deb` directly, pass the environment
-variables after `sudo`:
+To pick a network (and optionally a custom Blokli endpoint) when installing the `.deb` directly, set the environment
+variables with `sudo env` (a plain `sudo GNOSISVPN_NETWORK=... apt install` only passes the variable through if your
+sudoers policy keeps it, which is often disabled; `sudo env` always works):
 
 ```bash
-sudo GNOSISVPN_NETWORK=rotsee apt install ./gnosisvpn_*.deb
-sudo GNOSISVPN_NETWORK=rotsee GNOSISVPN_HOPR_BLOKLI_URL=https://blokli.example.com apt install ./gnosisvpn_*.deb
+sudo env GNOSISVPN_NETWORK=rotsee apt install ./gnosisvpn_*.deb
+sudo env GNOSISVPN_NETWORK=rotsee GNOSISVPN_HOPR_BLOKLI_URL=https://blokli.example.com apt install ./gnosisvpn_*.deb
 ```
 
 Note: re-installing the **same version** via `apt` does nothing — the package scripts don't re-run, so a
 `GNOSISVPN_NETWORK` passed this way is silently ignored. To change the network on an existing installation, re-run the
-installer script with `--network=<name>` (or use `sudo GNOSISVPN_NETWORK=<name> dpkg -i ./gnosisvpn_*.deb`).
+installer script with `--network=<name>` (or use `sudo env GNOSISVPN_NETWORK=<name> dpkg -i ./gnosisvpn_*.deb`).
 
 Installing the `.deb` directly also registers the APT source for the package's own channel (stable for release versions,
 snapshot for versions containing `+`), so subsequent `apt-get update && apt-get upgrade` picks up new releases without
@@ -101,9 +102,9 @@ sudo apt remove gnosisvpn
 Equivalent to the `--channel` flag; only meaningful for the installer script, not for direct `.deb` installs (a `.deb`'s
 channel is determined by its version, see above).
 
-**GNOSISVPN_NETWORK** Specifies the network configuration to use for GnosisVPN. Possible values include `jura`,
-`rotsee`, etc. The default is `jura` if not set. This variable determines which configuration file is symlinked to
-`/etc/gnosisvpn/config.toml` during installation.
+**GNOSISVPN_NETWORK** Specifies the network configuration to use for GnosisVPN. Supported values are `jura` and `rotsee`
+(the only network configs the package ships). The default is `jura` if not set. This variable determines which
+configuration file is symlinked to `/etc/gnosisvpn/config.toml` during installation.
 
 **GNOSISVPN_HOPR_BLOKLI_URL** Defines the URL for the HOPR Blokli service used by GnosisVPN. If not set, defaults to
 `https://blokli.<network>.hoprnet.link` for the selected network (`https://blokli.jura.hoprnet.link` when no network is

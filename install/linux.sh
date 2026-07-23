@@ -114,6 +114,16 @@ parse_args() {
         err "--network must be 'jura' or 'rotsee' (got: '${NETWORK}')"
         exit 1
     fi
+
+    # Forwarded verbatim to the package postinstall, which writes it into
+    # gnosisvpn-dynamic.env (loaded by the root service). Reject anything that
+    # isn't a single-line http(s) URL so a stray newline/space cannot inject
+    # extra environment entries; fail here for a clear message before any apt work.
+    if [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]] &&
+        [[ ! ${GNOSISVPN_HOPR_BLOKLI_URL} =~ ^https?://[^[:space:]]+$ ]]; then
+        err "GNOSISVPN_HOPR_BLOKLI_URL must be a single-line http(s) URL (got: '${GNOSISVPN_HOPR_BLOKLI_URL}')"
+        exit 1
+    fi
 }
 
 require_root() {

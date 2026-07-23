@@ -43,7 +43,33 @@ configure_filesystem_permissions() {
     # pre-existing/legacy value is preserved below.
     local network_name blokli_url
     network_name="${GNOSISVPN_NETWORK:-jura}"
-    blokli_url="${GNOSISVPN_HOPR_BLOKLI_URL:-https://blokli.${network_name}.hoprnet.link}"
+
+    # Validate the requested network maps to a shipped config before using it to
+    # (re)link config.toml or derive the default endpoint. A typo would
+    # otherwise create a dangling config.toml symlink and a bogus default URL.
+    if [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
+        echo "$LOG_PREFIX ERROR: Unknown network '${network_name}': /etc/gnosisvpn/config-${network_name}.toml not found" >&2
+        local available
+        available="$(cd /etc/gnosisvpn 2>/dev/null && ls config-*.toml 2>/dev/null |
+            sed 's/^config-//; s/\.toml$//' | paste -sd', ' - || true)"
+        echo "$LOG_PREFIX ERROR: Supported networks: ${available:-none}" >&2
+        exit 1
+    fi
+
+    # Default the Blokli endpoint from the network; honor an explicit override
+    # only after validating it. The value is written verbatim into
+    # gnosisvpn-dynamic.env, which the root systemd service loads via
+    # EnvironmentFile — reject anything that isn't a single-line http(s) URL so
+    # a stray newline or space cannot inject extra entries into the root env.
+    blokli_url="https://blokli.${network_name}.hoprnet.link"
+    if [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then
+        if [[ $GNOSISVPN_HOPR_BLOKLI_URL =~ ^https?://[^[:space:]]+$ ]]; then
+            blokli_url="$GNOSISVPN_HOPR_BLOKLI_URL"
+        else
+            echo "$LOG_PREFIX ERROR: GNOSISVPN_HOPR_BLOKLI_URL must be a single-line http(s) URL (got: '${GNOSISVPN_HOPR_BLOKLI_URL}')" >&2
+            exit 1
+        fi
+    fi
     echo "$LOG_PREFIX INFO: Setting up directory permissions..."
 
     # Fix ownership of configuration files (nfpm may have created them with numeric UID)
@@ -147,6 +173,17 @@ register_apt_repo() {
     # (date-based snapshots, +pr., +commit. builds) means the snapshot channel.
     local version channel component uris
     version="$(cat /etc/gnosisvpn/version.txt 2>/dev/null || echo "")"
+    if [[ -z $version ]]; then
+        # Without a version we cannot tell which channel this package belongs to.
+        # Don't guess (assuming stable could point a snapshot host at the wrong
+        # suite): keep any existing source and skip fresh registration.
+        if [[ -f $sources_path ]]; then
+            echo "$LOG_PREFIX WARNING: Cannot determine channel (missing/empty /etc/gnosisvpn/version.txt) — leaving $sources_path untouched"
+        else
+            echo "$LOG_PREFIX WARNING: Cannot determine channel (missing/empty /etc/gnosisvpn/version.txt) — skipping APT source registration"
+        fi
+        return 0
+    fi
     if [[ $version == *"+"* ]]; then
         channel="snapshot"
         component="snapshot"
@@ -159,6 +196,17 @@ register_apt_repo() {
         # Both mirrors publish the stable suite (matches install/linux.sh).
         uris="https://downloads.vpn.gnosis.eth.limo/linux/apt https://download.gnosisvpn.io/linux/apt"
     fi
+
+    # Install the signing key before the "leave as-is" paths below: if a user
+    # removed the keyring but kept the sources file, apt-get update would fail
+    # on a missing Signed-By key and no upgrade would ever restore it. install(1)
+    # is idempotent, so running it on every upgrade is safe.
+    if [[ ! -f $keyring_src ]]; then
+        echo "$LOG_PREFIX WARNING: Keyring not found at $keyring_src — skipping APT source registration"
+        return 0
+    fi
+    install -d -m 0755 /etc/apt/keyrings
+    install -m 0644 "$keyring_src" "$keyring_dst"
 
     if [[ -f $sources_path ]]; then
         # Keep the file when it already tracks this package's channel (also
@@ -177,24 +225,13 @@ register_apt_repo() {
             echo "$LOG_PREFIX INFO: APT source already tracks the '$channel' channel at $sources_path (leaving as-is)"
             return 0
         fi
-        if [[ -z $version ]]; then
-            echo "$LOG_PREFIX WARNING: Cannot determine this package's channel (missing /etc/gnosisvpn/version.txt) — leaving $sources_path untouched"
-            return 0
-        fi
         echo "$LOG_PREFIX INFO: APT source tracks '$existing_suites' but this package is from the '$channel' channel — rewriting $sources_path"
-    fi
-
-    if [[ ! -f $keyring_src ]]; then
-        echo "$LOG_PREFIX WARNING: Keyring not found at $keyring_src — skipping APT source registration"
-        return 0
     fi
 
     local arch
     arch="$(dpkg --print-architecture)"
 
     echo "$LOG_PREFIX INFO: Registering GnosisVPN APT source (channel: $channel, arch: $arch)"
-    install -d -m 0755 /etc/apt/keyrings
-    install -m 0644 "$keyring_src" "$keyring_dst"
     cat >"$sources_path" <<EOF
 Types: deb
 URIs: ${uris}
