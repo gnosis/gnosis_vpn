@@ -209,23 +209,38 @@ register_apt_repo() {
     install -m 0644 "$keyring_src" "$keyring_dst"
 
     if [[ -f $sources_path ]]; then
-        # Keep the file when it already tracks this package's channel (also
-        # preserves the installer-written stable file with both mirrors);
-        # rewrite it when the channels disagree so a manual cross-channel .deb
-        # install switches the update path along with the package.
-        local existing_suites
+        # Keep the file when it already tracks this package's channel with the
+        # expected mirrors (also preserves the installer-written stable file
+        # with both mirrors); rewrite it when the channel disagrees so a manual
+        # cross-channel .deb install switches the update path along with the
+        # package, or when the mirror list has drifted from canonical.
+        local existing_suites existing_uris
         existing_suites="$(awk 'tolower($1) == "suites:" { sub(/^[^:]*:[[:space:]]*/, ""); gsub(/[[:space:]\r]+$/, ""); print; exit }' \
+            "$sources_path" 2>/dev/null || true)"
+        existing_uris="$(awk 'tolower($1) == "uris:" { sub(/^[^:]*:[[:space:]]*/, ""); gsub(/[[:space:]\r]+$/, ""); print; exit }' \
             "$sources_path" 2>/dev/null || true)"
 
         if [[ -z $existing_suites ]]; then
             echo "$LOG_PREFIX WARNING: No parseable 'Suites:' line in $sources_path — leaving it untouched"
             return 0
         fi
-        if [[ $existing_suites == "$channel" ]]; then
-            echo "$LOG_PREFIX INFO: APT source already tracks the '$channel' channel at $sources_path (leaving as-is)"
+
+        # Compare URI sets order-independently so a stale mirror list (e.g. the
+        # IPFS mirror pinned to snapshot, which it doesn't publish) is healed
+        # even when the suite already matches.
+        local want_uris got_uris
+        want_uris="$(printf '%s\n' $uris | sort | tr '\n' ' ')"
+        got_uris="$(printf '%s\n' $existing_uris | sort | tr '\n' ' ')"
+
+        if [[ $existing_suites == "$channel" && $got_uris == "$want_uris" ]]; then
+            echo "$LOG_PREFIX INFO: APT source already tracks the '$channel' channel with the expected mirrors at $sources_path (leaving as-is)"
             return 0
         fi
-        echo "$LOG_PREFIX INFO: APT source tracks '$existing_suites' but this package is from the '$channel' channel — rewriting $sources_path"
+        if [[ $existing_suites == "$channel" ]]; then
+            echo "$LOG_PREFIX INFO: APT source tracks '$channel' but its mirror list is stale — rewriting $sources_path"
+        else
+            echo "$LOG_PREFIX INFO: APT source tracks '$existing_suites' but this package is from the '$channel' channel — rewriting $sources_path"
+        fi
     fi
 
     local arch
