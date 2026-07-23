@@ -27,13 +27,14 @@ NETWORK="${GNOSISVPN_NETWORK:-}"
 RESET_IDENTITY="${GNOSISVPN_RESET_IDENTITY:-false}"
 ARCH=""
 
-# HOPR identity of the worker; path layout matches gnosis_vpn-lib
-# (dirs.rs: <state home>/.config + hopr/identity.rs: gnosisvpn-hopr.{id,pass}).
+# Worker state; path layout matches gnosis_vpn-lib (dirs.rs: <state home>/.config
+# holds the HOPR identity gnosisvpn-hopr.{id,pass,safe} and the node db).
 STATE_HOME="/var/lib/gnosisvpn"
-IDENTITY_FILES=(
-    "${STATE_HOME}/.config/gnosisvpn-hopr.id"
-    "${STATE_HOME}/.config/gnosisvpn-hopr.pass"
-)
+CONFIG_DIR="${STATE_HOME}/.config"
+
+# Network/endpoint override written by the deb postinstall. Removed on identity
+# reset too, so a fresh identity comes up without the old node's endpoint.
+DYNAMIC_ENV="/etc/gnosisvpn/gnosisvpn-dynamic.env"
 
 log() { printf '\033[0;34m[gnosisvpn]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
@@ -339,16 +340,19 @@ reset_identity() {
         restart=1
     fi
 
-    local file removed=0
-    for file in "${IDENTITY_FILES[@]}"; do
-        if [[ -e $file ]]; then
-            log "Removing identity file: ${file}"
-            rm -f "$file"
-            removed=1
-        fi
-    done
-    if [[ $removed -eq 0 ]]; then
-        log "No previous identity found under ${STATE_HOME}/.config — nothing to remove."
+    # Back up the whole config dir (HOPR identity + safe + node db) instead of
+    # deleting it; the service recreates a fresh one on the next start.
+    if [[ -d $CONFIG_DIR ]]; then
+        local backup="${CONFIG_DIR}.$(date +%Y%m%d%H%M%S).bak"
+        log "Backing up worker config directory: ${CONFIG_DIR} -> ${backup}"
+        mv "$CONFIG_DIR" "$backup"
+    else
+        log "No worker config found at ${CONFIG_DIR} — nothing to back up."
+    fi
+
+    if [[ -e $DYNAMIC_ENV ]]; then
+        log "Removing network override: ${DYNAMIC_ENV}"
+        rm -f "$DYNAMIC_ENV"
     fi
 
     if [[ $restart -eq 1 ]]; then
