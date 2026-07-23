@@ -24,7 +24,16 @@ CHANNEL="${GNOSISVPN_CHANNEL:-stable}"
 # Empty means "leave the network alone": postinstall defaults to jura on a
 # fresh install and keeps the existing choice on re-runs.
 NETWORK="${GNOSISVPN_NETWORK:-}"
+RESET_IDENTITY="${GNOSISVPN_RESET_IDENTITY:-false}"
 ARCH=""
+
+# HOPR identity of the worker; path layout matches gnosis_vpn-lib
+# (dirs.rs: <state home>/.config + hopr/identity.rs: gnosisvpn-hopr.{id,pass}).
+STATE_HOME="/var/lib/gnosisvpn"
+IDENTITY_FILES=(
+    "${STATE_HOME}/.config/gnosisvpn-hopr.id"
+    "${STATE_HOME}/.config/gnosisvpn-hopr.pass"
+)
 
 log() { printf '\033[0;34m[gnosisvpn]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
@@ -34,7 +43,7 @@ usage() {
     cat <<EOF
 Install the Gnosis VPN APT repository and the gnosisvpn package.
 
-Usage: linux.sh [--channel=stable|snapshot] [--network=jura|rotsee] [--help]
+Usage: linux.sh [--channel=stable|snapshot] [--network=jura|rotsee] [--reset-identity] [--help]
 
 Options:
   --channel=<stable|snapshot>   APT channel to subscribe to (default: stable).
@@ -42,6 +51,9 @@ Options:
   --network=<jura|rotsee>       Network to configure (default: jura on first
                                 install; omitting keeps an existing choice).
                                 Also configurable via GNOSISVPN_NETWORK env var.
+  --reset-identity              Remove the existing HOPR identity so the
+                                service generates a fresh one on next start.
+                                Also configurable via GNOSISVPN_RESET_IDENTITY.
   -h, --help                    Show this help and exit.
 
 Supported distributions:
@@ -60,6 +72,8 @@ switch networks), or the installer will downgrade the package to stable.
 Environment variables:
   GNOSISVPN_CHANNEL            stable | snapshot (default: stable)
   GNOSISVPN_NETWORK            jura | rotsee (default: jura)
+  GNOSISVPN_RESET_IDENTITY     true | false (default: false); same as
+                               --reset-identity
   GNOSISVPN_HOPR_BLOKLI_URL    Custom Blokli endpoint; defaults to the one
                                matching the chosen network
                                (https://blokli.<network>.hoprnet.link)
@@ -93,6 +107,10 @@ parse_args() {
             NETWORK="$2"
             shift 2
             ;;
+        --reset-identity)
+            RESET_IDENTITY="true"
+            shift
+            ;;
         -h | --help)
             usage
             exit 0
@@ -112,6 +130,11 @@ parse_args() {
 
     if [[ -n $NETWORK && $NETWORK != "jura" && $NETWORK != "rotsee" ]]; then
         err "--network must be 'jura' or 'rotsee' (got: '${NETWORK}')"
+        exit 1
+    fi
+
+    if [[ $RESET_IDENTITY != "true" && $RESET_IDENTITY != "false" ]]; then
+        err "GNOSISVPN_RESET_IDENTITY must be 'true' or 'false' (got: '${RESET_IDENTITY}')"
         exit 1
     fi
 
@@ -301,6 +324,40 @@ apt_install() {
     env "${install_env[@]}" apt-get install "${apt_opts[@]}" "$package"
 }
 
+reset_identity() {
+    if [[ $RESET_IDENTITY != "true" ]]; then
+        return 0
+    fi
+
+    # Runs after apt_install so it also wipes an identity a fresh install's
+    # postinstall just generated. Stop the service first: a running worker
+    # keeps the old identity in memory and would go on using it.
+    local restart=0
+    if systemctl is-active --quiet gnosisvpn.service 2>/dev/null; then
+        log "Stopping gnosisvpn.service to reset the HOPR identity ..."
+        systemctl stop gnosisvpn.service
+        restart=1
+    fi
+
+    local file removed=0
+    for file in "${IDENTITY_FILES[@]}"; do
+        if [[ -e $file ]]; then
+            log "Removing identity file: ${file}"
+            rm -f "$file"
+            removed=1
+        fi
+    done
+    if [[ $removed -eq 0 ]]; then
+        log "No previous identity found under ${STATE_HOME}/.config — nothing to remove."
+    fi
+
+    if [[ $restart -eq 1 ]]; then
+        log "Starting gnosisvpn.service — a fresh identity will be generated ..."
+        systemctl start gnosisvpn.service ||
+            warn "Failed to start gnosisvpn.service. Check logs with: journalctl -u gnosisvpn.service"
+    fi
+}
+
 print_postinstall() {
     cat <<'EOF'
 
@@ -315,6 +372,7 @@ print_postinstall() {
 To upgrade later:    sudo apt-get update && sudo apt-get install --only-upgrade gnosisvpn
 To switch networks:  re-run this installer with --network=<jura|rotsee>
 To switch channels:  re-run this installer with --channel=<stable|snapshot>
+To reset identity:   re-run this installer with --reset-identity
 To uninstall:        sudo apt-get remove gnosisvpn
 EOF
 }
@@ -328,6 +386,7 @@ main() {
     install_keyring
     write_sources
     apt_install
+    reset_identity
     print_postinstall
 }
 

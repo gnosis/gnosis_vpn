@@ -268,6 +268,40 @@ reload_apparmor_wg_quick() {
         echo "$LOG_PREFIX WARNING: failed to reload wg-quick AppArmor profile"
 }
 
+# Remove the HOPR identity when explicitly requested (GNOSISVPN_RESET_IDENTITY=true,
+# e.g. `sudo env GNOSISVPN_RESET_IDENTITY=true apt install ./gnosisvpn_*.deb`) so the
+# service generates a fresh one on its next start. Runs before the service is
+# (re)started below; preinstall already stopped a running service, but stop again
+# best-effort in case something started it in between.
+reset_identity_if_requested() {
+    if [[ -z ${GNOSISVPN_RESET_IDENTITY:-} || ${GNOSISVPN_RESET_IDENTITY} == "false" ]]; then
+        return 0
+    fi
+    if [[ ${GNOSISVPN_RESET_IDENTITY} != "true" ]]; then
+        echo "$LOG_PREFIX ERROR: GNOSISVPN_RESET_IDENTITY must be 'true' or 'false' (got: '${GNOSISVPN_RESET_IDENTITY}')" >&2
+        exit 1
+    fi
+
+    if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet gnosisvpn.service 2>/dev/null; then
+        echo "$LOG_PREFIX INFO: Stopping gnosisvpn.service to reset the HOPR identity..."
+        systemctl stop gnosisvpn.service || true
+    fi
+
+    # Path layout matches gnosis_vpn-lib (dirs.rs: <state home>/.config +
+    # hopr/identity.rs: gnosisvpn-hopr.{id,pass}).
+    local file removed=0
+    for file in /var/lib/gnosisvpn/.config/gnosisvpn-hopr.id /var/lib/gnosisvpn/.config/gnosisvpn-hopr.pass; do
+        if [[ -e $file ]]; then
+            echo "$LOG_PREFIX INFO: Removing identity file: $file"
+            rm -f "$file"
+            removed=1
+        fi
+    done
+    if [[ $removed -eq 0 ]]; then
+        echo "$LOG_PREFIX INFO: No previous identity found under /var/lib/gnosisvpn/.config — nothing to remove"
+    fi
+}
+
 # Enable and start the systemd service
 enable_and_start_systemd_service() {
     echo "$LOG_PREFIX INFO: Setting up systemd service..."
@@ -401,6 +435,7 @@ main() {
     configure_filesystem_permissions
     register_apt_repo
     reload_apparmor_wg_quick
+    reset_identity_if_requested
     enable_and_start_systemd_service
     install_desktop_shortcut_for_user
 

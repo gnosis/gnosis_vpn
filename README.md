@@ -12,11 +12,34 @@ Install via the APT repository (recommended):
 curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash
 ```
 
-Snapshot (nightly) channel:
+The installer accepts options after `-s --`:
 
-```bash
-curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
-```
+- `--channel=<stable|snapshot>` — APT channel to subscribe to; `snapshot` is the nightly channel (default: `stable`).
+  Env var: `GNOSISVPN_CHANNEL`.
+
+  ```bash
+  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
+  ```
+
+- `--network=<jura|rotsee>` — network to configure (default: `jura` on first install; omitting keeps an existing
+  choice). Env var: `GNOSISVPN_NETWORK`.
+
+  ```bash
+  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=rotsee
+  ```
+
+- `--reset-identity` — remove the existing HOPR identity (`/var/lib/gnosisvpn/.config/gnosisvpn-hopr.id` and its
+  password file) so the service generates a fresh one on restart. Env var: `GNOSISVPN_RESET_IDENTITY=true`.
+
+  ```bash
+  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --reset-identity
+  ```
+
+- `-h`, `--help` — show the installer's help and exit.
+
+  ```bash
+  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --help
+  ```
 
 Snapshot installs and upgrades pull from `download.gnosisvpn.io` only — the IPFS mirror serves just the stable suite.
 
@@ -29,7 +52,7 @@ a snapshot installation, pass `--channel=snapshot` again when re-running, e.g. t
 
 The installer sets up the default network (`jura`) on first install and keeps an existing choice on re-runs. To pick a
 different network — or to switch an existing installation — pass `--network` (combinable with `--channel`; see
-[Linux Installation Environment Variables](#linux-installation-environment-variables)):
+[.deb Installation Environment Variables](#deb-installation-environment-variables)):
 
 ```bash
 curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=rotsee
@@ -81,9 +104,9 @@ sudo env GNOSISVPN_NETWORK=rotsee apt install ./gnosisvpn_*.deb
 sudo env GNOSISVPN_NETWORK=rotsee GNOSISVPN_HOPR_BLOKLI_URL=https://blokli.example.com apt install ./gnosisvpn_*.deb
 ```
 
-Note: re-installing the **same version** via `apt` does nothing — the package scripts don't re-run, so a
-`GNOSISVPN_NETWORK` passed this way is silently ignored. To change the network on an existing installation, re-run the
-installer script with `--network=<name>` (or use `sudo env GNOSISVPN_NETWORK=<name> dpkg -i ./gnosisvpn_*.deb`).
+Note: re-installing the **same version** via `apt` does nothing — the package scripts don't re-run, so environment
+variables passed this way are silently ignored. To change settings on an existing installation, re-run the installer
+script with the matching flag (or use `sudo env GNOSISVPN_...=<value> dpkg -i ./gnosisvpn_*.deb`).
 
 Installing the `.deb` directly also registers the APT source for the package's own channel (stable for release versions,
 snapshot for versions containing `+`), so subsequent `apt-get update && apt-get upgrade` picks up new releases without
@@ -96,22 +119,32 @@ Uninstall:
 sudo apt remove gnosisvpn
 ```
 
-### Linux Installation Environment Variables (.deb and install.sh)
+### .deb Installation Environment Variables
 
-**GNOSISVPN_NETWORK** Specifies the network configuration to use for GnosisVPN. Supported values are `jura` and `rotsee`
-(the only network configs the package ships). The default is `jura` if not set. This variable determines which
-configuration file is symlinked to `/etc/gnosisvpn/config.toml` during installation.
+Direct `.deb` installs have no flags — these environment variables configure the package scripts instead (set them with
+`sudo env`, see above). They are also honored by the installer script.
 
-**GNOSISVPN_HOPR_BLOKLI_URL** Defines the URL for the HOPR Blokli service used by GnosisVPN. If not set, defaults to
-`https://blokli.<network>.hoprnet.link` for the selected network (`https://blokli.jura.hoprnet.link` when no network is
-selected) — both when installing via the installer script and when installing the `.deb` directly. The installer honors
-this override on its own, with or without `--network`. The effective URL is written to
-`/etc/gnosisvpn/gnosisvpn-dynamic.env` (which overrides the packaged `/etc/gnosisvpn/gnosisvpn.env` conffile, kept empty
-so upgrades stay prompt-free) and used by the application for network operations.
+- `GNOSISVPN_NETWORK=<jura|rotsee>` — network configuration to use (default: `jura`); determines which configuration
+  file is symlinked to `/etc/gnosisvpn/config.toml` during installation.
 
-**GNOSISVPN_CHANNEL** Selects the APT channel the installer script subscribes to: `stable` (default) or `snapshot`.
-Equivalent to the `--channel` flag; only meaningful for the installer script, not for direct `.deb` installs (a `.deb`'s
-channel is determined by its version, see above).
+  ```bash
+  sudo env GNOSISVPN_NETWORK=rotsee apt install ./gnosisvpn_*.deb
+  ```
+
+- `GNOSISVPN_HOPR_BLOKLI_URL=<url>` — URL of the HOPR Blokli service (default: `https://blokli.<network>.hoprnet.link`
+  for the selected network). The effective URL is written to `/etc/gnosisvpn/gnosisvpn-dynamic.env` (which overrides the
+  packaged `/etc/gnosisvpn/gnosisvpn.env` conffile, kept empty so upgrades stay prompt-free).
+
+  ```bash
+  sudo env GNOSISVPN_HOPR_BLOKLI_URL=https://blokli.example.com apt install ./gnosisvpn_*.deb
+  ```
+
+- `GNOSISVPN_RESET_IDENTITY=true` — remove the existing HOPR identity (`/var/lib/gnosisvpn/.config/gnosisvpn-hopr.id`
+  and its password file) before the service starts, so a fresh identity is generated (default: `false`).
+
+  ```bash
+  sudo env GNOSISVPN_RESET_IDENTITY=true apt install ./gnosisvpn_*.deb
+  ```
 
 ## Reporting Issues
 
