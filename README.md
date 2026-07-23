@@ -96,11 +96,7 @@ Uninstall:
 sudo apt remove gnosisvpn
 ```
 
-### Linux Installation Environment Variables
-
-**GNOSISVPN_CHANNEL** Selects the APT channel the installer script subscribes to: `stable` (default) or `snapshot`.
-Equivalent to the `--channel` flag; only meaningful for the installer script, not for direct `.deb` installs (a `.deb`'s
-channel is determined by its version, see above).
+### Linux Installation Environment Variables (.deb and install.sh)
 
 **GNOSISVPN_NETWORK** Specifies the network configuration to use for GnosisVPN. Supported values are `jura` and `rotsee`
 (the only network configs the package ships). The default is `jura` if not set. This variable determines which
@@ -112,6 +108,10 @@ selected) — both when installing via the installer script and when installing 
 this override on its own, with or without `--network`. The effective URL is written to
 `/etc/gnosisvpn/gnosisvpn-dynamic.env` (which overrides the packaged `/etc/gnosisvpn/gnosisvpn.env` conffile, kept empty
 so upgrades stay prompt-free) and used by the application for network operations.
+
+**GNOSISVPN_CHANNEL** Selects the APT channel the installer script subscribes to: `stable` (default) or `snapshot`.
+Equivalent to the `--channel` flag; only meaningful for the installer script, not for direct `.deb` installs (a `.deb`'s
+channel is determined by its version, see above).
 
 ## Reporting Issues
 
