@@ -292,7 +292,18 @@ reset_identity_if_requested() {
     # home>/.config). The service recreates a fresh one on the next start.
     local config_dir=/var/lib/gnosisvpn/.config
     if [[ -d $config_dir ]]; then
-        local backup="${config_dir}.$(date +%Y%m%d%H%M%S).bak"
+        # Second-granularity timestamps can collide (two resets within the same
+        # second, or a leftover backup). Bump a numeric suffix until the path is
+        # free, so mv never merges into or fails on an existing dir (fatal under
+        # set -e).
+        local ts backup n
+        ts="$(date +%Y%m%d%H%M%S)"
+        backup="${config_dir}.${ts}.bak"
+        n=1
+        while [[ -e $backup ]]; do
+            backup="${config_dir}.${ts}.${n}.bak"
+            n=$((n + 1))
+        done
         echo "$LOG_PREFIX INFO: Backing up worker config directory: $config_dir -> $backup"
         mv "$config_dir" "$backup"
     else

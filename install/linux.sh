@@ -52,8 +52,11 @@ Options:
   --network=<jura|rotsee>       Network to configure (default: jura on first
                                 install; omitting keeps an existing choice).
                                 Also configurable via GNOSISVPN_NETWORK env var.
-  --reset-identity              Remove the existing HOPR identity so the
-                                service generates a fresh one on next start.
+  --reset-identity              Back up the worker config dir (/var/lib/gnosisvpn/
+                                .config: HOPR identity, safe, node db) to
+                                .config.<timestamp>.bak and remove the network
+                                override (gnosisvpn-dynamic.env), so the service
+                                generates a fresh identity on next start.
                                 Also configurable via GNOSISVPN_RESET_IDENTITY.
   -h, --help                    Show this help and exit.
 
@@ -343,7 +346,18 @@ reset_identity() {
     # Back up the whole config dir (HOPR identity + safe + node db) instead of
     # deleting it; the service recreates a fresh one on the next start.
     if [[ -d $CONFIG_DIR ]]; then
-        local backup="${CONFIG_DIR}.$(date +%Y%m%d%H%M%S).bak"
+        # Second-granularity timestamps can collide (two resets within the same
+        # second, or a leftover backup). Bump a numeric suffix until the path is
+        # free, so mv never merges into or fails on an existing dir (fatal under
+        # set -e).
+        local ts backup n
+        ts="$(date +%Y%m%d%H%M%S)"
+        backup="${CONFIG_DIR}.${ts}.bak"
+        n=1
+        while [[ -e $backup ]]; do
+            backup="${CONFIG_DIR}.${ts}.${n}.bak"
+            n=$((n + 1))
+        done
         log "Backing up worker config directory: ${CONFIG_DIR} -> ${backup}"
         mv "$CONFIG_DIR" "$backup"
     else
