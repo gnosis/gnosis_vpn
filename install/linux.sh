@@ -201,6 +201,12 @@ detect_distro() {
 
 ensure_prereqs() {
     log "Ensuring prerequisites: ca-certificates, curl"
+    # Drop any stale gnosisvpn source an older installer left behind: this first
+    # apt-get update runs before write_sources, so a broken prior config (e.g.
+    # the eth.limo mirror pinned to the snapshot suite it doesn't publish) would
+    # otherwise abort the run under set -e before we can repair it. write_sources
+    # recreates the correct source below.
+    rm -f "$SOURCES_PATH"
     apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl
 }
