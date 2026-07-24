@@ -160,6 +160,27 @@ EOF
     echo "$LOG_PREFIX SUCCESS: Directory permissions configured"
 }
 
+# TODO: remove the removal code by December 2026.
+# Migration only: installs configured before the mirror rename still list the
+# retired downloads.vpn.gnosis.eth.limo mirror; a dead mirror fails every
+# apt-get update, and register_apt_repo leaves the file untouched in some
+# cases (unknown channel, missing keyring, unparseable file), so strip the
+# retired URI here first.
+remove_legacy_apt_mirror() {
+    local legacy_uri="https://downloads.vpn.gnosis.eth.limo/linux/apt"
+    local sources_path="/etc/apt/sources.list.d/gnosisvpn.sources"
+    [[ -f $sources_path ]] || return 0
+    grep -qF "$legacy_uri" "$sources_path" || return 0
+    echo "$LOG_PREFIX INFO: Removing retired APT mirror $legacy_uri from $sources_path"
+    sed -i "/^[Uu][Rr][Ii][Ss]:/ s|[[:space:]]*${legacy_uri}||g" "$sources_path"
+    # A file that listed only the retired mirror now has an empty URIs: line,
+    # which apt rejects — drop it; register_apt_repo below recreates it.
+    if ! grep -Eq '^[Uu][Rr][Ii][Ss]:[[:space:]]*[^[:space:]]' "$sources_path"; then
+        echo "$LOG_PREFIX INFO: No mirrors left in $sources_path — removing it (re-registered below when possible)"
+        rm -f "$sources_path"
+    fi
+}
+
 register_apt_repo() {
     if ! command -v dpkg >/dev/null 2>&1 || ! command -v apt-get >/dev/null 2>&1; then
         return 0
@@ -194,7 +215,7 @@ register_apt_repo() {
         channel="stable"
         component="main"
         # Both mirrors publish the stable suite (matches install/linux.sh).
-        uris="https://downloads.vpn.gnosis.eth.limo/linux/apt https://download.gnosisvpn.io/linux/apt"
+        uris="https://download.vpn.gnosis.eth.limo/linux/apt https://download.gnosisvpn.io/linux/apt"
     fi
 
     # Install the signing key before the "leave as-is" paths below: if a user
@@ -465,6 +486,8 @@ install_desktop_shortcut_for_user() {
 main() {
     create_system_user_and_group
     configure_filesystem_permissions
+    # TODO: remove the removal code by December 2026 (see remove_legacy_apt_mirror).
+    remove_legacy_apt_mirror
     register_apt_repo
     reload_apparmor_wg_quick
     reset_identity_if_requested

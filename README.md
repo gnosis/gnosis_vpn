@@ -74,7 +74,7 @@ curl -fsSL https://download.gnosisvpn.io/linux/apt/gnosisvpn-archive-keyring.gpg
 # 2. Add the repository
 sudo tee /etc/apt/sources.list.d/gnosisvpn.sources >/dev/null <<EOF
 Types: deb
-URIs: https://downloads.vpn.gnosis.eth.limo/linux/apt https://download.gnosisvpn.io/linux/apt
+URIs: https://download.vpn.gnosis.eth.limo/linux/apt https://download.gnosisvpn.io/linux/apt
 Suites: stable
 Components: main
 Architectures: $(dpkg --print-architecture)
@@ -208,7 +208,7 @@ just all dmg aarch64-darwin true
 
 ### APT repository
 
-The **stable** APT repo is served over IPFS via the ENS gateway at `https://downloads.vpn.gnosis.eth.limo/linux/apt`
+The **stable** APT repo is served over IPFS via the ENS gateway at `https://download.vpn.gnosis.eth.limo/linux/apt`
 (see [IPFS deployment layout](#ipfs-deployment-layout)).
 
 The full repository — stable plus the nightly `snapshot` suite — is served from

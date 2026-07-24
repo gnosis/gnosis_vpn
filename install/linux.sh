@@ -15,7 +15,7 @@ set -Eeuo pipefail
 
 # APT repository mirrors. Both serve identical key-signed stable content;
 # only gnosisvpn.io also serves the snapshot suite.
-REPO_URL_PRIMARY="https://downloads.vpn.gnosis.eth.limo/linux/apt"
+REPO_URL_PRIMARY="https://download.vpn.gnosis.eth.limo/linux/apt"
 REPO_URL_BACKUP="https://download.gnosisvpn.io/linux/apt"
 KEYRING_PATH="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 SOURCES_PATH="/etc/apt/sources.list.d/gnosisvpn.sources"
