@@ -208,8 +208,8 @@ just all dmg aarch64-darwin true
 
 ### APT repository
 
-The **stable** APT repo is served over IPFS via the ENS gateway at `https://download.vpn.gnosis.eth.limo/linux/apt`
-(see [IPFS deployment layout](#ipfs-deployment-layout)).
+The **stable** APT repo is served over IPFS via the ENS gateway at `https://download.vpn.gnosis.eth.limo/linux/apt` (see
+[IPFS deployment layout](#ipfs-deployment-layout)).
 
 The full repository — stable plus the nightly `snapshot` suite — is served from
 `https://download.gnosisvpn.io/linux/apt`, built and signed by [`scripts/publish-apt.sh`](scripts/publish-apt.sh), which

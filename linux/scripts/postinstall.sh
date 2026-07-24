@@ -172,7 +172,9 @@ remove_legacy_apt_mirror() {
     [[ -f $sources_path ]] || return 0
     grep -qF "$legacy_uri" "$sources_path" || return 0
     echo "$LOG_PREFIX INFO: Removing retired APT mirror $legacy_uri from $sources_path"
-    sed -i "/^[Uu][Rr][Ii][Ss]:/ s|[[:space:]]*${legacy_uri}||g" "$sources_path"
+    # Escape the dots so sed matches the URI literally, not as a regex.
+    local legacy_uri_re="${legacy_uri//./\\.}"
+    sed -i "/^[Uu][Rr][Ii][Ss]:/ s|[[:space:]]*${legacy_uri_re}||g" "$sources_path"
     # A file that listed only the retired mirror now has an empty URIs: line,
     # which apt rejects — drop it; register_apt_repo below recreates it.
     if ! grep -Eq '^[Uu][Rr][Ii][Ss]:[[:space:]]*[^[:space:]]' "$sources_path"; then
