@@ -15,7 +15,7 @@ set -Eeuo pipefail
 
 # APT repository mirrors. Both serve identical key-signed stable content;
 # only gnosisvpn.io also serves the snapshot suite.
-REPO_URL_PRIMARY="https://downloads.vpn.gnosis.eth.limo/linux/apt"
+REPO_URL_PRIMARY="https://download.vpn.gnosis.eth.limo/linux/apt"
 REPO_URL_BACKUP="https://download.gnosisvpn.io/linux/apt"
 KEYRING_PATH="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 SOURCES_PATH="/etc/apt/sources.list.d/gnosisvpn.sources"
@@ -26,15 +26,6 @@ CHANNEL="${GNOSISVPN_CHANNEL:-stable}"
 NETWORK="${GNOSISVPN_NETWORK:-}"
 RESET_IDENTITY="${GNOSISVPN_RESET_IDENTITY:-false}"
 ARCH=""
-
-# Worker state; path layout matches gnosis_vpn-lib (dirs.rs: <state home>/.config
-# holds the HOPR identity gnosisvpn-hopr.{id,pass,safe} and the node db).
-STATE_HOME="/var/lib/gnosisvpn"
-CONFIG_DIR="${STATE_HOME}/.config"
-
-# Network/endpoint override written by the deb postinstall. Removed on identity
-# reset too, so a fresh identity comes up without the old node's endpoint.
-DYNAMIC_ENV="/etc/gnosisvpn/gnosisvpn-dynamic.env"
 
 log() { printf '\033[0;34m[gnosisvpn]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
@@ -201,6 +192,12 @@ detect_distro() {
 
 ensure_prereqs() {
     log "Ensuring prerequisites: ca-certificates, curl"
+    # Drop any stale gnosisvpn source an older installer left behind: this first
+    # apt-get update runs before write_sources, so a broken prior config (e.g.
+    # the eth.limo mirror pinned to the snapshot suite it doesn't publish) would
+    # otherwise abort the run under set -e before we can repair it. write_sources
+    # recreates the correct source below.
+    rm -f "$SOURCES_PATH"
     apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl
 }
@@ -226,6 +223,10 @@ install_keyring() {
 }
 
 write_sources() {
+    # Intentionally mirrors the deb postinstall's register_apt_repo: this is
+    # bootstrap that must run before apt can fetch the package, so it cannot be
+    # delegated to the postinstall (which only runs once the deb is installed).
+    #
     # Component name must match the Components: field in linux/apt/conf/distributions
     # for the channel being subscribed to (stable→main, snapshot→snapshot). Reprepro
     # derives the on-bucket pool path from that field, and apt fetches Packages from
@@ -300,11 +301,11 @@ apt_install() {
         # own, so pin the channel candidate.
         log "Installed gnosisvpn ${installed} is newer than the '${CHANNEL}' channel candidate ${candidate}; downgrading to match the channel."
         package="gnosisvpn=${candidate}"
-    elif [[ -n $NETWORK || -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then
+    elif [[ -n $NETWORK || -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} || $RESET_IDENTITY == "true" ]]; then
         # --reinstall forces the postinstall to run (to apply the network and/or
-        # Blokli URL override) even when the package is already at the candidate
-        # version. Not needed on the downgrade path: the version change runs it
-        # anyway.
+        # Blokli URL override, or to reset the identity) even when the package is
+        # already at the candidate version. Not needed on the downgrade path: the
+        # version change runs it anyway.
         apt_opts+=(--reinstall)
     fi
 
@@ -325,55 +326,17 @@ apt_install() {
         log "Using Blokli endpoint: ${GNOSISVPN_HOPR_BLOKLI_URL}"
         install_env+=(GNOSISVPN_HOPR_BLOKLI_URL="$GNOSISVPN_HOPR_BLOKLI_URL")
     fi
+    # Delegate the HOPR identity reset to the package postinstall
+    # (reset_identity_if_requested) rather than duplicating it here: it backs up
+    # /var/lib/gnosisvpn/.config and removes gnosisvpn-dynamic.env before the
+    # service starts, so a fresh identity is generated on start. --reinstall
+    # above ensures the postinstall runs even when already at the candidate
+    # version.
+    if [[ $RESET_IDENTITY == "true" ]]; then
+        log "Reset identity requested — the package postinstall will back up the current identity and generate a fresh one."
+        install_env+=(GNOSISVPN_RESET_IDENTITY=true)
+    fi
     env "${install_env[@]}" apt-get install "${apt_opts[@]}" "$package"
-}
-
-reset_identity() {
-    if [[ $RESET_IDENTITY != "true" ]]; then
-        return 0
-    fi
-
-    # Runs after apt_install so it also wipes an identity a fresh install's
-    # postinstall just generated. Stop the service first: a running worker
-    # keeps the old identity in memory and would go on using it.
-    local restart=0
-    if systemctl is-active --quiet gnosisvpn.service 2>/dev/null; then
-        log "Stopping gnosisvpn.service to reset the HOPR identity ..."
-        systemctl stop gnosisvpn.service
-        restart=1
-    fi
-
-    # Back up the whole config dir (HOPR identity + safe + node db) instead of
-    # deleting it; the service recreates a fresh one on the next start.
-    if [[ -d $CONFIG_DIR ]]; then
-        # Second-granularity timestamps can collide (two resets within the same
-        # second, or a leftover backup). Bump a numeric suffix until the path is
-        # free, so mv never merges into or fails on an existing dir (fatal under
-        # set -e).
-        local ts backup n
-        ts="$(date +%Y%m%d%H%M%S)"
-        backup="${CONFIG_DIR}.${ts}.bak"
-        n=1
-        while [[ -e $backup ]]; do
-            backup="${CONFIG_DIR}.${ts}.${n}.bak"
-            n=$((n + 1))
-        done
-        log "Backing up worker config directory: ${CONFIG_DIR} -> ${backup}"
-        mv "$CONFIG_DIR" "$backup"
-    else
-        log "No worker config found at ${CONFIG_DIR} — nothing to back up."
-    fi
-
-    if [[ -e $DYNAMIC_ENV ]]; then
-        log "Removing network override: ${DYNAMIC_ENV}"
-        rm -f "$DYNAMIC_ENV"
-    fi
-
-    if [[ $restart -eq 1 ]]; then
-        log "Starting gnosisvpn.service — a fresh identity will be generated ..."
-        systemctl start gnosisvpn.service ||
-            warn "Failed to start gnosisvpn.service. Check logs with: journalctl -u gnosisvpn.service"
-    fi
 }
 
 print_postinstall() {
@@ -404,7 +367,6 @@ main() {
     install_keyring
     write_sources
     apt_install
-    reset_identity
     print_postinstall
 }
 
