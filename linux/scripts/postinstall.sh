@@ -175,10 +175,14 @@ remove_legacy_apt_mirror() {
     # Escape the dots so sed matches the URI literally, not as a regex.
     local legacy_uri_re="${legacy_uri//./\\.}"
     sed -i "/^[Uu][Rr][Ii][Ss]:/ s|[[:space:]]*${legacy_uri_re}||g" "$sources_path"
-    # A file that listed only the retired mirror now has an empty URIs: line,
-    # which apt rejects — drop it; register_apt_repo below recreates it.
-    if ! grep -Eq '^[Uu][Rr][Ii][Ss]:[[:space:]]*[^[:space:]]' "$sources_path"; then
-        echo "$LOG_PREFIX INFO: No mirrors left in $sources_path — removing it (re-registered below when possible)"
+    # The sed only handles inline "URIs: <a> <b>" lists — the only layout our
+    # installers write. If the retired URI survived (hand-edited file folding
+    # URIs over deb822 continuation lines) or no inline mirror remains (apt
+    # rejects an empty URIs: field), drop the file; register_apt_repo below
+    # recreates it when possible.
+    if grep -qF "$legacy_uri" "$sources_path" ||
+        ! grep -Eq '^[Uu][Rr][Ii][Ss]:[[:space:]]*[^[:space:]]' "$sources_path"; then
+        echo "$LOG_PREFIX INFO: Retired mirror still present or no mirrors left in $sources_path — removing it (re-registered below when possible)"
         rm -f "$sources_path"
     fi
 }
