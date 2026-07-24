@@ -160,6 +160,33 @@ EOF
     echo "$LOG_PREFIX SUCCESS: Directory permissions configured"
 }
 
+# TODO: remove the removal code by December 2026.
+# Migration only: installs configured before the mirror rename still list the
+# retired downloads.vpn.gnosis.eth.limo mirror; a dead mirror fails every
+# apt-get update, and register_apt_repo leaves the file untouched in some
+# cases (unknown channel, missing keyring, unparseable file), so strip the
+# retired URI here first.
+remove_legacy_apt_mirror() {
+    local legacy_uri="https://downloads.vpn.gnosis.eth.limo/linux/apt"
+    local sources_path="/etc/apt/sources.list.d/gnosisvpn.sources"
+    [[ -f $sources_path ]] || return 0
+    grep -qF "$legacy_uri" "$sources_path" || return 0
+    echo "$LOG_PREFIX INFO: Removing retired APT mirror $legacy_uri from $sources_path"
+    # Escape the dots so sed matches the URI literally, not as a regex.
+    local legacy_uri_re="${legacy_uri//./\\.}"
+    sed -i "/^[Uu][Rr][Ii][Ss]:/ s|[[:space:]]*${legacy_uri_re}||g" "$sources_path"
+    # The sed only handles inline "URIs: <a> <b>" lists — the only layout our
+    # installers write. If the retired URI survived (hand-edited file folding
+    # URIs over deb822 continuation lines) or no inline mirror remains (apt
+    # rejects an empty URIs: field), drop the file; register_apt_repo below
+    # recreates it when possible.
+    if grep -qF "$legacy_uri" "$sources_path" ||
+        ! grep -Eq '^[Uu][Rr][Ii][Ss]:[[:space:]]*[^[:space:]]' "$sources_path"; then
+        echo "$LOG_PREFIX INFO: Retired mirror still present or no mirrors left in $sources_path — removing it (re-registered below when possible)"
+        rm -f "$sources_path"
+    fi
+}
+
 register_apt_repo() {
     if ! command -v dpkg >/dev/null 2>&1 || ! command -v apt-get >/dev/null 2>&1; then
         return 0
@@ -194,7 +221,7 @@ register_apt_repo() {
         channel="stable"
         component="main"
         # Both mirrors publish the stable suite (matches install/linux.sh).
-        uris="https://downloads.vpn.gnosis.eth.limo/linux/apt https://download.gnosisvpn.io/linux/apt"
+        uris="https://download.vpn.gnosis.eth.limo/linux/apt https://download.gnosisvpn.io/linux/apt"
     fi
 
     # Install the signing key before the "leave as-is" paths below: if a user
@@ -209,23 +236,38 @@ register_apt_repo() {
     install -m 0644 "$keyring_src" "$keyring_dst"
 
     if [[ -f $sources_path ]]; then
-        # Keep the file when it already tracks this package's channel (also
-        # preserves the installer-written stable file with both mirrors);
-        # rewrite it when the channels disagree so a manual cross-channel .deb
-        # install switches the update path along with the package.
-        local existing_suites
+        # Keep the file when it already tracks this package's channel with the
+        # expected mirrors (also preserves the installer-written stable file
+        # with both mirrors); rewrite it when the channel disagrees so a manual
+        # cross-channel .deb install switches the update path along with the
+        # package, or when the mirror list has drifted from canonical.
+        local existing_suites existing_uris
         existing_suites="$(awk 'tolower($1) == "suites:" { sub(/^[^:]*:[[:space:]]*/, ""); gsub(/[[:space:]\r]+$/, ""); print; exit }' \
+            "$sources_path" 2>/dev/null || true)"
+        existing_uris="$(awk 'tolower($1) == "uris:" { sub(/^[^:]*:[[:space:]]*/, ""); gsub(/[[:space:]\r]+$/, ""); print; exit }' \
             "$sources_path" 2>/dev/null || true)"
 
         if [[ -z $existing_suites ]]; then
             echo "$LOG_PREFIX WARNING: No parseable 'Suites:' line in $sources_path — leaving it untouched"
             return 0
         fi
-        if [[ $existing_suites == "$channel" ]]; then
-            echo "$LOG_PREFIX INFO: APT source already tracks the '$channel' channel at $sources_path (leaving as-is)"
+
+        # Compare URI sets order-independently so a stale mirror list (e.g. the
+        # IPFS mirror pinned to snapshot, which it doesn't publish) is healed
+        # even when the suite already matches.
+        local want_uris got_uris
+        want_uris="$(printf '%s\n' $uris | sort | tr '\n' ' ')"
+        got_uris="$(printf '%s\n' $existing_uris | sort | tr '\n' ' ')"
+
+        if [[ $existing_suites == "$channel" && $got_uris == "$want_uris" ]]; then
+            echo "$LOG_PREFIX INFO: APT source already tracks the '$channel' channel with the expected mirrors at $sources_path (leaving as-is)"
             return 0
         fi
-        echo "$LOG_PREFIX INFO: APT source tracks '$existing_suites' but this package is from the '$channel' channel — rewriting $sources_path"
+        if [[ $existing_suites == "$channel" ]]; then
+            echo "$LOG_PREFIX INFO: APT source tracks '$channel' but its mirror list is stale — rewriting $sources_path"
+        else
+            echo "$LOG_PREFIX INFO: APT source tracks '$existing_suites' but this package is from the '$channel' channel — rewriting $sources_path"
+        fi
     fi
 
     local arch
@@ -287,18 +329,35 @@ reset_identity_if_requested() {
         systemctl stop gnosisvpn.service || true
     fi
 
-    # Path layout matches gnosis_vpn-lib (dirs.rs: <state home>/.config +
-    # hopr/identity.rs: gnosisvpn-hopr.{id,pass}).
-    local file removed=0
-    for file in /var/lib/gnosisvpn/.config/gnosisvpn-hopr.id /var/lib/gnosisvpn/.config/gnosisvpn-hopr.pass; do
-        if [[ -e $file ]]; then
-            echo "$LOG_PREFIX INFO: Removing identity file: $file"
-            rm -f "$file"
-            removed=1
-        fi
-    done
-    if [[ $removed -eq 0 ]]; then
-        echo "$LOG_PREFIX INFO: No previous identity found under /var/lib/gnosisvpn/.config — nothing to remove"
+    # Back up the whole config dir (HOPR identity + safe + node db) instead of
+    # deleting it; path layout matches gnosis_vpn-lib (dirs.rs: <state
+    # home>/.config). The service recreates a fresh one on the next start.
+    local config_dir=/var/lib/gnosisvpn/.config
+    if [[ -d $config_dir ]]; then
+        # Second-granularity timestamps can collide (two resets within the same
+        # second, or a leftover backup). Bump a numeric suffix until the path is
+        # free, so mv never merges into or fails on an existing dir (fatal under
+        # set -e).
+        local ts backup n
+        ts="$(date +%Y%m%d%H%M%S)"
+        backup="${config_dir}.${ts}.bak"
+        n=1
+        while [[ -e $backup ]]; do
+            backup="${config_dir}.${ts}.${n}.bak"
+            n=$((n + 1))
+        done
+        echo "$LOG_PREFIX INFO: Backing up worker config directory: $config_dir -> $backup"
+        mv "$config_dir" "$backup"
+    else
+        echo "$LOG_PREFIX INFO: No worker config found at $config_dir — nothing to back up"
+    fi
+
+    # Also clear the network/endpoint override so the fresh identity comes up
+    # without the old node's endpoint.
+    local dynamic_env=/etc/gnosisvpn/gnosisvpn-dynamic.env
+    if [[ -e $dynamic_env ]]; then
+        echo "$LOG_PREFIX INFO: Removing network override: $dynamic_env"
+        rm -f "$dynamic_env"
     fi
 }
 
@@ -433,6 +492,8 @@ install_desktop_shortcut_for_user() {
 main() {
     create_system_user_and_group
     configure_filesystem_permissions
+    # TODO: remove the removal code by December 2026 (see remove_legacy_apt_mirror).
+    remove_legacy_apt_mirror
     register_apt_repo
     reload_apparmor_wg_quick
     reset_identity_if_requested
