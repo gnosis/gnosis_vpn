@@ -32,7 +32,7 @@ overrides:
       - libayatana-appindicator3-1
       - libglib2.0-bin
       # DNS resolver
-      - openresolv | resolvconf | systemd-resolved
+      - resolvconf | systemd-resolved
   rpm:
     depends:
       - systemd
