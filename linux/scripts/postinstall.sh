@@ -352,13 +352,12 @@ reset_identity_if_requested() {
         echo "$LOG_PREFIX INFO: No worker config found at $config_dir — nothing to back up"
     fi
 
-    # Also clear the network/endpoint override so the fresh identity comes up
-    # without the old node's endpoint.
-    local dynamic_env=/etc/gnosisvpn/gnosisvpn-dynamic.env
-    if [[ -e $dynamic_env ]]; then
-        echo "$LOG_PREFIX INFO: Removing network override: $dynamic_env"
-        rm -f "$dynamic_env"
-    fi
+    # Intentionally leave /etc/gnosisvpn/gnosisvpn-dynamic.env in place. It carries
+    # the network's Blokli endpoint (GNOSISVPN_HOPR_BLOKLI_URL), which is network-wide
+    # infrastructure and independent of the HOPR identity. The base conffile ships that
+    # var empty, so deleting the override here leaves the root service with an empty URL,
+    # which clap rejects (exit 2) on the next start. A network switch is handled by
+    # configure_filesystem_permissions via --network; identity reset must not touch it.
 }
 
 # Enable and start the systemd service
