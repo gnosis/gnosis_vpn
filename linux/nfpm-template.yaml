@@ -31,6 +31,8 @@ overrides:
       - libgtk-3-0t64 | libgtk-3-0
       - libayatana-appindicator3-1
       - libglib2.0-bin
+      # DNS resolver
+      - openresolv | resolvconf | systemd-resolved
   rpm:
     depends:
       - systemd
