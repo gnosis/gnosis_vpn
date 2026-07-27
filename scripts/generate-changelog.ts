@@ -5,6 +5,7 @@
 // This script generates comprehensive release notes by aggregating changes from:
 // - gnosis_vpn-client repository (merged PRs between dates)
 // - gnosis_vpn-app repository (merged PRs between dates)
+// - gnosis_vpn-toolkit repository (merged PRs between dates)
 // - gnosis_vpn Installer repository (merged PRs since last release)
 //
 // Example:
@@ -14,6 +15,7 @@
 //   GNOSISVPN_CLIENT_VERSION=0.56.1 \
 //   GNOSISVPN_PREVIOUS_APP_VERSION=0.5.0 \
 //   GNOSISVPN_APP_VERSION=0.6.1 \
+//   GNOSISVPN_PREVIOUS_TOOLKIT_VERSION=1.2.2 \
 //   GNOSISVPN_TOOLKIT_VERSION=1.2.3 \
 //   GNOSISVPN_CHANGELOG_FORMAT=zulip \
 //   GH_TOKEN=... \
@@ -301,53 +303,32 @@ function extractChangelogType(title: string): string {
 
 function zulipFormat(
   entries: ChangelogEntry[],
-  packageVersion: string | undefined,
-  clientVersion?: string,
-  appVersion?: string,
-  toolkitVersion?: string,
+  packageVersion: string,
+  clientVersion: string,
+  appVersion: string,
+  toolkitVersion: string,
 ): string {
   let content = "A new snapshot build is available for testing with the following new content:\n\n";
 
-  const versionLines: string[] = [];
-  if (packageVersion) {
-    versionLines.push(`**Snapshot version:** ${packageVersion}`);
-  }
-  const bundled: [string, string | undefined][] = [
-    ["Client", clientVersion],
-    ["App", appVersion],
-    ["Toolkit", toolkitVersion],
-  ];
-  const bundledParts = bundled
-    .filter(([, version]) => version)
-    .map(([label, version]) => `**${label} version:** ${version}`);
-  if (bundledParts.length > 0) {
-    versionLines.push(bundledParts.join(", "));
-  }
-  if (versionLines.length > 0) {
-    content += versionLines.join("\n") + "\n\n";
-  }
+  content += `**Snapshot version:** ${packageVersion}\n`;
+  content +=
+    `**Client version:** ${clientVersion}, **App version:** ${appVersion}, **Toolkit version:** ${toolkitVersion}\n\n`;
 
   for (const entry of entries) {
     content +=
       `- [#${entry.id}](https://github.com/${entry.repository}/pull/${entry.id}) [${entry.component}] ${entry.title} by ${entry.author}\n`;
   }
   content += "\nDownload links:";
-  if (packageVersion) {
-    // macOS .pkg filenames substitute '-' for '+' in the version slug for
-    // Artifact Registry compatibility (see build-binary.yaml::prepare_files).
-    const macFileSlug = packageVersion.replaceAll("+", "-");
-    // Debian .debs live in the snapshot APT pool under their versioned filenames
-    // (gnosisvpn_<version>_<arch>.deb); the version is the literal padded value
-    // emitted by the build (see linux/nfpm-template.yaml version_schema: none).
-    const debPool = "https://download.gnosisvpn.io/linux/apt/pool/snapshot/g/gnosisvpn";
-    content += ` [Mac](https://download.gnosisvpn.io/macos/latest/gnosisvpn_${macFileSlug}_arm64.pkg) |`;
-    content += ` [Debian x86_64](${debPool}/gnosisvpn_${packageVersion}_amd64.deb) |`;
-    content += ` [Debian aarch64](${debPool}/gnosisvpn_${packageVersion}_arm64.deb)\n`;
-  } else {
-    content += " Mac: see [macos-arm64.json manifest](https://download.gnosisvpn.io/manifests/macos-arm64.json)";
-    content +=
-      " | Debian/Ubuntu: `curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot`\n";
-  }
+  // macOS .pkg filenames substitute '-' for '+' in the version slug for
+  // Artifact Registry compatibility (see build-binary.yaml::prepare_files).
+  const macFileSlug = packageVersion.replaceAll("+", "-");
+  // Debian .debs live in the snapshot APT pool under their versioned filenames
+  // (gnosisvpn_<version>_<arch>.deb); the version is the literal padded value
+  // emitted by the build (see linux/nfpm-template.yaml version_schema: none).
+  const debPool = "https://download.gnosisvpn.io/linux/apt/pool/snapshot/g/gnosisvpn";
+  content += ` [Mac](https://download.gnosisvpn.io/macos/latest/gnosisvpn_${macFileSlug}_arm64.pkg) |`;
+  content += ` [Debian x86_64](${debPool}/gnosisvpn_${packageVersion}_amd64.deb) |`;
+  content += ` [Debian aarch64](${debPool}/gnosisvpn_${packageVersion}_arm64.deb)\n`;
   return content;
 }
 
@@ -357,8 +338,8 @@ function githubFormat(
   currentCliVersion: string,
   previousAppVersion: string,
   currentAppVersion: string,
-  previousToolkitVersion?: string,
-  currentToolkitVersion?: string,
+  previousToolkitVersion: string,
+  currentToolkitVersion: string,
 ): string {
   const sections: Record<string, string[]> = {
     "New Features": [],
@@ -401,8 +382,7 @@ function githubFormat(
 
   let content = "## What's Changed\n";
 
-  const toolkitUpdated = Boolean(currentToolkitVersion) &&
-    previousToolkitVersion !== currentToolkitVersion;
+  const toolkitUpdated = previousToolkitVersion !== currentToolkitVersion;
 
   if (
     previousCliVersion !== currentCliVersion ||
@@ -419,12 +399,8 @@ function githubFormat(
         `- **[GnosisVPN App](https://github.com/gnosis/gnosis_vpn-app)**: Updated from [v${previousAppVersion}](https://github.com/gnosis/gnosis_vpn-app/releases/tag/v${previousAppVersion}) to [v${currentAppVersion}](https://github.com/gnosis/gnosis_vpn-app/releases/tag/v${currentAppVersion})\n`;
     }
     if (toolkitUpdated) {
-      const toolkitTag =
-        `[v${currentToolkitVersion}](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/v${currentToolkitVersion})`;
-      const transition = previousToolkitVersion
-        ? `Updated from [v${previousToolkitVersion}](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/v${previousToolkitVersion}) to ${toolkitTag}`
-        : `Updated to ${toolkitTag}`;
-      content += `- **[GnosisVPN Toolkit](https://github.com/gnosis/gnosis_vpn-toolkit)**: ${transition}\n`;
+      content +=
+        `- **[GnosisVPN Toolkit](https://github.com/gnosis/gnosis_vpn-toolkit)**: Updated from [v${previousToolkitVersion}](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/v${previousToolkitVersion}) to [v${currentToolkitVersion}](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/v${currentToolkitVersion})\n`;
     }
     content += "\n";
   }
@@ -604,6 +580,18 @@ function readConfig(): Config {
     Deno.exit(1);
   }
 
+  const previousToolkitVersion = Deno.env.get("GNOSISVPN_PREVIOUS_TOOLKIT_VERSION");
+  if (!previousToolkitVersion) {
+    console.error("Error: GNOSISVPN_PREVIOUS_TOOLKIT_VERSION is required");
+    Deno.exit(1);
+  }
+
+  const currentToolkitVersion = Deno.env.get("GNOSISVPN_TOOLKIT_VERSION");
+  if (!currentToolkitVersion) {
+    console.error("Error: GNOSISVPN_TOOLKIT_VERSION is required");
+    Deno.exit(1);
+  }
+
   const format = Deno.env.get("GNOSISVPN_CHANGELOG_FORMAT") || "github";
   if (!["zulip", "github", "debian", "json", "rpm"].includes(format)) {
     console.error(`Error: Unsupported format: ${format}`);
@@ -635,6 +623,14 @@ function readConfig(): Config {
         branch: "main",
         previousVersion: previousAppVersion,
         currentVersion: currentAppVersion,
+        allowMissingRelease: false,
+      },
+      {
+        repo: "gnosis/gnosis_vpn-toolkit",
+        label: "Toolkit",
+        branch: "main",
+        previousVersion: previousToolkitVersion,
+        currentVersion: currentToolkitVersion,
         allowMissingRelease: false,
       },
     ],
@@ -679,14 +675,15 @@ async function main(): Promise<void> {
   const cliRepo = config.repositories.find((r) => r.label === "Client")!;
   const appRepo = config.repositories.find((r) => r.label === "App")!;
   const packageRepo = config.repositories.find((r) => r.label === "Installer")!;
+  const toolkitRepo = config.repositories.find((r) => r.label === "Toolkit")!;
   switch (config.format) {
     case "zulip":
       content = zulipFormat(
         allEntries,
-        Deno.env.get("GNOSISVPN_PACKAGE_VERSION"),
+        packageRepo.currentVersion,
         cliRepo.currentVersion,
         appRepo.currentVersion,
-        Deno.env.get("GNOSISVPN_TOOLKIT_VERSION"),
+        toolkitRepo.currentVersion,
       );
       break;
     case "github":
@@ -696,8 +693,8 @@ async function main(): Promise<void> {
         cliRepo.currentVersion,
         appRepo.previousVersion,
         appRepo.currentVersion,
-        Deno.env.get("GNOSISVPN_PREVIOUS_TOOLKIT_VERSION"),
-        Deno.env.get("GNOSISVPN_TOOLKIT_VERSION"),
+        toolkitRepo.previousVersion,
+        toolkitRepo.currentVersion,
       );
       break;
     case "debian":
@@ -902,16 +899,6 @@ Deno.test("zulipFormat formats snapshot entries and download links", () => {
   }
 });
 
-Deno.test("zulipFormat without packageVersion falls back to the manifest link", () => {
-  const output = zulipFormat([], undefined);
-  if (!output.includes("https://download.gnosisvpn.io/manifests/macos-arm64.json")) {
-    throw new Error("zulipFormat fallback should point at the macos-arm64.json manifest");
-  }
-  if (output.includes("gnosisvpn_undefined_arm64.pkg")) {
-    throw new Error("zulipFormat must not emit an undefined-versioned Mac URL");
-  }
-});
-
 // --- githubFormat ---
 
 Deno.test("githubFormat - produces expected markdown sections", () => {
@@ -989,12 +976,12 @@ Deno.test("githubFormat - produces expected markdown sections", () => {
   );
 });
 
-Deno.test("githubFormat - toolkit update without previous version", () => {
-  const result = githubFormat([], "1.0.0", "1.0.0", "1.0.0", "1.0.0", undefined, "1.4.2");
+Deno.test("githubFormat - toolkit-only update renders component updates", () => {
+  const result = githubFormat([], "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.2.3", "1.4.2");
   assertEquals(result.includes("component updates"), true);
   assertEquals(
     result.includes(
-      "- **[GnosisVPN Toolkit](https://github.com/gnosis/gnosis_vpn-toolkit)**: Updated to [v1.4.2](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/v1.4.2)",
+      "- **[GnosisVPN Toolkit](https://github.com/gnosis/gnosis_vpn-toolkit)**: Updated from [v1.2.3](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/v1.2.3) to [v1.4.2](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/v1.4.2)",
     ),
     true,
   );
@@ -1118,4 +1105,49 @@ Deno.test("rfc2822Date - formats with +0000 not GMT", () => {
   assertEquals(result.includes("+0000"), true);
   assertEquals(result.includes("GMT"), false);
   assertEquals(result.includes("Mon, 15 Jan 2024"), true);
+});
+
+// --- readConfig ---
+
+const BASE_CONFIG_ENV: Record<string, string> = {
+  GH_TOKEN: "test-token",
+  GNOSISVPN_PREVIOUS_PACKAGE_VERSION: "0.56.4",
+  GNOSISVPN_PACKAGE_VERSION: "0.56.5",
+  GNOSISVPN_PREVIOUS_CLIENT_VERSION: "0.54.4",
+  GNOSISVPN_CLIENT_VERSION: "0.56.1",
+  GNOSISVPN_PREVIOUS_APP_VERSION: "0.5.0",
+  GNOSISVPN_APP_VERSION: "0.6.1",
+  GNOSISVPN_PREVIOUS_TOOLKIT_VERSION: "1.2.2",
+  GNOSISVPN_TOOLKIT_VERSION: "1.2.3",
+};
+
+function withConfigEnv(env: Record<string, string>, fn: () => void): void {
+  const keys = [
+    ...Object.keys(BASE_CONFIG_ENV),
+    "GNOSISVPN_CHANGELOG_FORMAT",
+    "GNOSISVPN_PACKAGE_BRANCH",
+  ];
+  const saved = keys.map((key) => [key, Deno.env.get(key)] as const);
+  try {
+    for (const key of keys) Deno.env.delete(key);
+    for (const [key, value] of Object.entries({ ...BASE_CONFIG_ENV, ...env })) {
+      Deno.env.set(key, value);
+    }
+    fn();
+  } finally {
+    for (const [key, value] of saved) {
+      if (value === undefined) Deno.env.delete(key);
+      else Deno.env.set(key, value);
+    }
+  }
+}
+
+Deno.test("readConfig - includes toolkit repository", () => {
+  withConfigEnv({}, () => {
+    const toolkit = readConfig().repositories.find((r) => r.label === "Toolkit");
+    assertEquals(toolkit?.repo, "gnosis/gnosis_vpn-toolkit");
+    assertEquals(toolkit?.previousVersion, "1.2.2");
+    assertEquals(toolkit?.currentVersion, "1.2.3");
+    assertEquals(toolkit?.branch, "main");
+  });
 });
