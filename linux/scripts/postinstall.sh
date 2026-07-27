@@ -373,6 +373,10 @@ enable_and_start_systemd_service() {
     systemctl unmask gnosisvpn.service || true
     systemctl enable gnosisvpn.service || true
     echo "$LOG_PREFIX INFO: Starting gnosisvpn.service..."
+    # A prior crash-loop (e.g. the empty-Blokli-URL bug) trips the unit's start
+    # limit; without clearing it, this start is rejected with "Start request
+    # repeated too quickly" for up to StartLimitIntervalSec after the loop.
+    systemctl reset-failed gnosisvpn.service 2>/dev/null || true
     systemctl start gnosisvpn.service || true
 
     sleep 2
