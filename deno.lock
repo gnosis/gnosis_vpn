@@ -1,5 +1,13 @@
 {
   "version": "5",
+  "specifiers": {
+    "jsr:@std/yaml@*": "1.1.2"
+  },
+  "jsr": {
+    "@std/yaml@1.1.2": {
+      "integrity": "de612653c036749ba2044165e316f52412b0f0698afffb7ee80b5331d6d2abae"
+    }
+  },
   "remote": {
     "https://deno.land/std@0.224.0/assert/_constants.ts": "a271e8ef5a573f1df8e822a6eb9d09df064ad66a4390f21b3e31f820a38e0975",
     "https://deno.land/std@0.224.0/assert/assert.ts": "09d30564c09de846855b7b071e62b5974b001bb72a4b797958fe0660e7849834",

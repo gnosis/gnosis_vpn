@@ -123,9 +123,11 @@ jobs:
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
           GNOSISVPN_CLIENT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
           GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}
+          GNOSISVPN_TOOLKIT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_TOOLKIT_VERSION }}
           GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_PACKAGE_RELEASE_VERSION || vars.GNOSISVPN_PACKAGE_PR_VERSION }}
           GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_CLIENT_RELEASE_VERSION || vars.GNOSISVPN_CLIENT_PR_VERSION }}
           GNOSISVPN_PREVIOUS_APP_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_APP_RELEASE_VERSION || vars.GNOSISVPN_APP_PR_VERSION }}
+          GNOSISVPN_PREVIOUS_TOOLKIT_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_TOOLKIT_RELEASE_VERSION || vars.GNOSISVPN_TOOLKIT_PR_VERSION }}
           GNOSISVPN_GPG_PRIVATE_KEY_PATH: /tmp/gnosis_vpn_gpg_key.asc
           GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
           GNOSISVPN_CHANGELOG_FORMAT: debian
