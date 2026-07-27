@@ -45,9 +45,9 @@ Options:
                                 Also configurable via GNOSISVPN_NETWORK env var.
   --reset-identity              Back up the worker config dir (/var/lib/gnosisvpn/
                                 .config: HOPR identity, safe, node db) to
-                                .config.<timestamp>.bak and remove the network
-                                override (gnosisvpn-dynamic.env), so the service
-                                generates a fresh identity on next start.
+                                .config.<timestamp>.bak, so the service generates
+                                a fresh identity on next start. The network
+                                selection and Blokli endpoint are kept.
                                 Also configurable via GNOSISVPN_RESET_IDENTITY.
   -h, --help                    Show this help and exit.
 
@@ -328,10 +328,10 @@ apt_install() {
     fi
     # Delegate the HOPR identity reset to the package postinstall
     # (reset_identity_if_requested) rather than duplicating it here: it backs up
-    # /var/lib/gnosisvpn/.config and removes gnosisvpn-dynamic.env before the
-    # service starts, so a fresh identity is generated on start. --reinstall
-    # above ensures the postinstall runs even when already at the candidate
-    # version.
+    # /var/lib/gnosisvpn/.config before the service starts, so a fresh identity
+    # is generated on start (the network/endpoint override gnosisvpn-dynamic.env
+    # is left in place — see reset_identity_if_requested). --reinstall above
+    # ensures the postinstall runs even when already at the candidate version.
     if [[ $RESET_IDENTITY == "true" ]]; then
         log "Reset identity requested — the package postinstall will back up the current identity and generate a fresh one."
         install_env+=(GNOSISVPN_RESET_IDENTITY=true)
