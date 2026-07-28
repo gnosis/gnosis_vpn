@@ -164,7 +164,7 @@ jobs:
           package: gnosis_vpn
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
   mac:
-    runs-on: depot-macos-15
+    runs-on: macos-15
     name: Build Mac
     needs: setup
     permissions:
