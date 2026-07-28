@@ -106,7 +106,7 @@ jobs:
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
           install_sdk: true
       - name: Setup Nix
-        uses: hoprnet/hopr-workflows/actions/setup-nix@ade4bbd75f7204255c61d19c23f67d3da221e7d2 # setup-nix-v2.0.2
+        uses: hoprnet/hopr-workflows/actions/setup-nix@21a781128e2796400ae2f17c955dc602c8bc1400 # setup-nix-v2.1.0
         with:
           cachix_cache_name: gnosis-vpn
           cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
@@ -181,7 +181,7 @@ jobs:
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
           install_sdk: true
       - name: Setup Nix
-        uses: hoprnet/hopr-workflows/actions/setup-nix@ade4bbd75f7204255c61d19c23f67d3da221e7d2 # setup-nix-v2.0.2
+        uses: hoprnet/hopr-workflows/actions/setup-nix@21a781128e2796400ae2f17c955dc602c8bc1400 # setup-nix-v2.1.0
         with:
           cachix_cache_name: gnosis-vpn
           cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
