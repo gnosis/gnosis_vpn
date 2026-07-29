@@ -87,8 +87,7 @@ jobs:
           private-key: ${{ secrets.GH_APP_GNOSISVPN_BOT_PRIVATE_KEY }}
           owner: gnosis
       - name: Release version
-        # TODO: repin to release-version-v5.2.0 once hoprnet/hopr-workflows#mj/release-version-optional-bump is merged and tagged
-        uses: hoprnet/hopr-workflows/actions/release-version@be31911430635ed5bbba34b962bb1223e23f5b70 # mj/release-version-optional-bump
+        uses: hoprnet/hopr-workflows/actions/release-version@711c81d05909e2482d74289084502fb70fecc97b # release-version-v5.3.0
         with:
           source_branch: ${{ github.ref_name }}
           file: package.json
@@ -152,7 +151,7 @@ jobs:
           ref: ${{ github.ref_name }}
           token: ${{ steps.bot-token.outputs.token }}
       - name: Bump version
-        uses: hoprnet/hopr-workflows/actions/bump-version@64cb8ba34ff2e8caa43e366207d0cb1faa8d43d4 # bump-version-v2
+        uses: hoprnet/hopr-workflows/actions/bump-version@c9bedb08b91c847ad795173af5beaf2f3c37d1d4 # bump-version-v2.1.0
         with:
           file: package.json
           release_type: ${{ inputs.release_type }}
