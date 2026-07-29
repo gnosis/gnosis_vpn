@@ -149,13 +149,13 @@ download_linux_binaries() {
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
         echo "Downloading gnosis_vpn-client:${GNOSISVPN_CLIENT_VERSION}:${artifact}-${GNOSISVPN_ARCHITECTURE}"
-        gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
+        gcloud artifacts files download --project="${GCP_PROJECT}" --location="${GCP_LOCATION}" --repository="${GCP_REPOSITORY}" --destination="${BINARY_DIR}" \
             "gnosis_vpn-client:${GNOSISVPN_CLIENT_VERSION}:${artifact}-${GNOSISVPN_ARCHITECTURE}" --local-filename=${artifact}
         # Set execute permissions on downloaded binaries
         chmod +x "${BINARY_DIR}/${artifact}"
     done
     echo "Downloading gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}"
-    gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
+    gcloud artifacts files download --project="${GCP_PROJECT}" --location="${GCP_LOCATION}" --repository="${GCP_REPOSITORY}" --destination="${BINARY_DIR}" \
         "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" --local-filename="gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}"
 
     log_success "All binaries downloaded"
@@ -166,18 +166,18 @@ download_darwin_binaries() {
 
     for artifact in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl; do
         echo "Downloading gnosis_vpn-client:${GNOSISVPN_CLIENT_VERSION}:${artifact}-aarch64-darwin"
-        gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
+        gcloud artifacts files download --project="${GCP_PROJECT}" --location="${GCP_LOCATION}" --repository="${GCP_REPOSITORY}" --destination="${BINARY_DIR}" \
             "gnosis_vpn-client:${GNOSISVPN_CLIENT_VERSION}:${artifact}-aarch64-darwin" --local-filename=${artifact}
         chmod 755 "${BINARY_DIR}/${artifact}"
         echo "Downloaded binary: ${BINARY_DIR}/${artifact}"
     done
     echo "Downloading gnosis_vpn-toolkit:${GNOSISVPN_TOOLKIT_VERSION}:gnosis_vpn-update-aarch64-darwin"
-    gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
+    gcloud artifacts files download --project="${GCP_PROJECT}" --location="${GCP_LOCATION}" --repository="${GCP_REPOSITORY}" --destination="${BINARY_DIR}" \
         "gnosis_vpn-toolkit:${GNOSISVPN_TOOLKIT_VERSION}:gnosis_vpn-update-aarch64-darwin" --local-filename=gnosis_vpn-update
     chmod 755 "${BINARY_DIR}/gnosis_vpn-update"
     echo "Downloaded binary: ${BINARY_DIR}/gnosis_vpn-update"
     echo "Downloading gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-aarch64-darwin.dmg"
-    gcloud artifacts files download --project=gnosisvpn-production --location=europe-west3 --repository=rust-binaries --destination="${BINARY_DIR}" \
+    gcloud artifacts files download --project="${GCP_PROJECT}" --location="${GCP_LOCATION}" --repository="${GCP_REPOSITORY}" --destination="${BINARY_DIR}" \
         "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-aarch64-darwin.dmg" --local-filename=gnosis_vpn-app.dmg
     log_success "All downloads completed"
 
@@ -206,6 +206,13 @@ print_summary() {
 
 # Main
 main() {
+    # Registry tags may carry a leading "v" (or not) regardless of how the
+    # version was supplied; resolve each to the exact tag before download.
+    GNOSISVPN_CLIENT_VERSION="$(normalize_registry_version gnosis_vpn-client "${GNOSISVPN_CLIENT_VERSION}")"
+    GNOSISVPN_APP_VERSION="$(normalize_registry_version gnosis_vpn-app "${GNOSISVPN_APP_VERSION}")"
+    if [[ -n ${GNOSISVPN_TOOLKIT_VERSION} ]]; then
+        GNOSISVPN_TOOLKIT_VERSION="$(normalize_registry_version gnosis_vpn-toolkit "${GNOSISVPN_TOOLKIT_VERSION}")"
+    fi
     prepare_build_dir
     if [[ ${GNOSISVPN_ARCHITECTURE} =~ ^(x86_64-linux|aarch64-linux)$ ]]; then
         download_linux_binaries

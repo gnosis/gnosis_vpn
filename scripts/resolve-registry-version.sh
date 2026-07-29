@@ -15,15 +15,10 @@
 
 set -euo pipefail
 
-# Source common functions (log_* helpers)
+# Source common functions (log_* helpers, GCP_* registry coordinates)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "${SCRIPT_DIR}/common.sh"
-
-# Registry coordinates (must match download-binaries.sh)
-GCP_PROJECT="gnosisvpn-production"
-GCP_LOCATION="europe-west3"
-GCP_REPOSITORY="rust-binaries"
 
 usage() {
     log_error "Usage: $0 <package> <required-file>..."

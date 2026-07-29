@@ -464,12 +464,14 @@ build_distribution_package() {
         exit 1
     fi
 
-    # Generate welcome.html from template
+    # Generate welcome.html from template. ${VAR#v} guards against a double
+    # "v": component versions carry the exact registry tag, which may or may
+    # not be v-prefixed.
     if [[ -f "${distribution_dir}/welcome.html" ]]; then
-        sed -i "s/__GNOSISVPN_PACKAGE_VERSION__/v${GNOSISVPN_PACKAGE_VERSION}/g" "$distribution_dir/welcome.html"
-        sed -i "s/__GNOSISVPN_APP_VERSION__/v${GNOSISVPN_APP_VERSION}/g" "$distribution_dir/welcome.html"
-        sed -i "s/__GNOSISVPN_CLIENT_VERSION__/v${GNOSISVPN_CLIENT_VERSION}/g" "$distribution_dir/welcome.html"
-        sed -i "s/__GNOSISVPN_TOOLKIT_VERSION__/v${GNOSISVPN_TOOLKIT_VERSION}/g" "$distribution_dir/welcome.html"
+        sed -i "s/__GNOSISVPN_PACKAGE_VERSION__/v${GNOSISVPN_PACKAGE_VERSION#v}/g" "$distribution_dir/welcome.html"
+        sed -i "s/__GNOSISVPN_APP_VERSION__/v${GNOSISVPN_APP_VERSION#v}/g" "$distribution_dir/welcome.html"
+        sed -i "s/__GNOSISVPN_CLIENT_VERSION__/v${GNOSISVPN_CLIENT_VERSION#v}/g" "$distribution_dir/welcome.html"
+        sed -i "s/__GNOSISVPN_TOOLKIT_VERSION__/v${GNOSISVPN_TOOLKIT_VERSION#v}/g" "$distribution_dir/welcome.html"
     else
         log_warn "welcome.html not found, using default if available"
     fi
