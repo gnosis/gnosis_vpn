@@ -48,53 +48,6 @@ check_version_syntax() {
     return 0
 }
 
-# Resolve <version> of <package> to the exact registry version tag, adding or
-# removing a leading "v" if only that form exists in the registry. Checks
-# version existence only, not file completeness (resolve-registry-version.sh
-# does that). ONLY the resolved version is printed to stdout; all diagnostics
-# go to stderr, so callers can safely capture:  ver="$(normalize_registry_version ...)"
-normalize_registry_version() {
-    local package="$1" version="$2"
-    local alternate versions_raw versions_rc versions
-    if [[ $version == v* ]]; then
-        alternate="${version#v}"
-    else
-        alternate="v${version}"
-    fi
-
-    # Check the exit code explicitly so a real gcloud failure (auth, network)
-    # is surfaced rather than being reported as "version not found" — errexit
-    # does not propagate into $() substitutions. gcloud's own stderr (banner,
-    # error details) passes through to the caller's stderr.
-    set +e
-    versions_raw="$(gcloud artifacts versions list \
-        --project="${GCP_PROJECT}" --location="${GCP_LOCATION}" --repository="${GCP_REPOSITORY}" \
-        --package="${package}" --format="value(name)")"
-    versions_rc=$?
-    set -e
-    if [[ $versions_rc -ne 0 ]]; then
-        log_error "gcloud artifacts versions list failed for '${package}' (exit ${versions_rc}); see stderr above."
-        return 1
-    fi
-    # `name` may be a full resource path; its basename is the version tag.
-    # shellcheck disable=SC2001 # per-line basename needs sed, not ${var//}
-    versions="$(sed 's#.*/##' <<<"${versions_raw}")"
-    if [[ -z $versions ]]; then
-        log_error "No versions found for package '${package}' in ${GCP_REPOSITORY}."
-        return 1
-    fi
-
-    if grep -Fxq "${version}" <<<"${versions}"; then
-        echo "${version}"
-    elif grep -Fxq "${alternate}" <<<"${versions}"; then
-        log_warn "Registry has '${package}' version '${alternate}', not '${version}'; using '${alternate}'" >&2
-        echo "${alternate}"
-    else
-        log_error "Neither '${version}' nor '${alternate}' exists for package '${package}' in ${GCP_REPOSITORY}."
-        return 1
-    fi
-}
-
 # Get latest release from GitHub
 get_latest_release() {
     local repo_name="$1"

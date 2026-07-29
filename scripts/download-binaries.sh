@@ -206,13 +206,11 @@ print_summary() {
 
 # Main
 main() {
-    # Registry tags may carry a leading "v" (or not) regardless of how the
-    # version was supplied; resolve each to the exact tag before download.
-    GNOSISVPN_CLIENT_VERSION="$(normalize_registry_version gnosis_vpn-client "${GNOSISVPN_CLIENT_VERSION}")"
-    GNOSISVPN_APP_VERSION="$(normalize_registry_version gnosis_vpn-app "${GNOSISVPN_APP_VERSION}")"
-    if [[ -n ${GNOSISVPN_TOOLKIT_VERSION} ]]; then
-        GNOSISVPN_TOOLKIT_VERSION="$(normalize_registry_version gnosis_vpn-toolkit "${GNOSISVPN_TOOLKIT_VERSION}")"
-    fi
+    # Registry tags never carry a leading "v", but supplied versions may;
+    # strip it so the download coordinates match the registry tag exactly.
+    GNOSISVPN_CLIENT_VERSION="${GNOSISVPN_CLIENT_VERSION#v}"
+    GNOSISVPN_APP_VERSION="${GNOSISVPN_APP_VERSION#v}"
+    GNOSISVPN_TOOLKIT_VERSION="${GNOSISVPN_TOOLKIT_VERSION#v}"
     prepare_build_dir
     if [[ ${GNOSISVPN_ARCHITECTURE} =~ ^(x86_64-linux|aarch64-linux)$ ]]; then
         download_linux_binaries

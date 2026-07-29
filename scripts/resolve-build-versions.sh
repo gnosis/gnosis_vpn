@@ -83,14 +83,12 @@ main() {
     # e.g. "0.91.1+pr.638". It is used verbatim as the GCP artifact tag in
     # download-binaries.sh, in the snapshot skip comparison below, and in the
     # "+pr." branch of generate-changelog.ts, so a different encoding would
-    # break those. Explicit INPUT_* overrides and GitHub release tags may
-    # differ from the registry tag by a leading "v", so they go through
-    # normalize_registry_version (common.sh) to match whichever form the
-    # registry actually has.
+    # break those. Registry tags never carry a leading "v", but explicit
+    # INPUT_* overrides and GitHub release tags may, so strip it.
     local latest_client_pr_version="" latest_app_pr_version="" latest_toolkit_pr_version=""
     if [[ ${version_type} != "release" ]]; then
         if [[ -n ${INPUT_CLIENT_VERSION:-} ]]; then
-            latest_client_pr_version="$(normalize_registry_version gnosis_vpn-client "${INPUT_CLIENT_VERSION}")"
+            latest_client_pr_version="${INPUT_CLIENT_VERSION#v}"
         else
             latest_client_pr_version="$(
                 "${SCRIPT_DIR}/resolve-registry-version.sh" gnosis_vpn-client \
@@ -100,7 +98,7 @@ main() {
             )"
         fi
         if [[ -n ${INPUT_APP_VERSION:-} ]]; then
-            latest_app_pr_version="$(normalize_registry_version gnosis_vpn-app "${INPUT_APP_VERSION}")"
+            latest_app_pr_version="${INPUT_APP_VERSION#v}"
         else
             latest_app_pr_version="$(
                 "${SCRIPT_DIR}/resolve-registry-version.sh" gnosis_vpn-app \
@@ -108,7 +106,7 @@ main() {
             )"
         fi
         if [[ -n ${INPUT_TOOLKIT_VERSION:-} ]]; then
-            latest_toolkit_pr_version="$(normalize_registry_version gnosis_vpn-toolkit "${INPUT_TOOLKIT_VERSION}")"
+            latest_toolkit_pr_version="${INPUT_TOOLKIT_VERSION#v}"
         else
             latest_toolkit_pr_version="$(
                 "${SCRIPT_DIR}/resolve-registry-version.sh" gnosis_vpn-toolkit gnosis_vpn-update-aarch64-darwin
@@ -156,11 +154,10 @@ main() {
         app_version="${INPUT_APP_VERSION:-$(get_latest_release_version "gnosis_vpn-app")}"
         toolkit_version="${INPUT_TOOLKIT_VERSION:-$(get_latest_release_version "gnosis_vpn-toolkit")}"
         # GitHub tags and operator inputs may carry a "v" prefix while the
-        # registry tag does not (or vice versa); the download coordinates need
-        # a verbatim match.
-        client_version="$(normalize_registry_version gnosis_vpn-client "${client_version}")"
-        app_version="$(normalize_registry_version gnosis_vpn-app "${app_version}")"
-        toolkit_version="$(normalize_registry_version gnosis_vpn-toolkit "${toolkit_version}")"
+        # registry tag never does; the download coordinates need a verbatim match.
+        client_version="${client_version#v}"
+        app_version="${app_version#v}"
+        toolkit_version="${toolkit_version#v}"
         set_output "GNOSISVPN_PACKAGE_VERSION" "${package_version}"
         set_output "GNOSISVPN_CLIENT_VERSION" "${client_version}"
         set_output "GNOSISVPN_APP_VERSION" "${app_version}"

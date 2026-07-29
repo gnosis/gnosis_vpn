@@ -397,16 +397,25 @@ function githubFormat(
   if (cliUpdated || appUpdated || toolkitUpdated) {
     content += "\nThis release contains the following component updates:\n\n";
     if (cliUpdated) {
-      content +=
-        `- **[GnosisVPN Client](https://github.com/gnosis/gnosis_vpn-client)**: Updated from [${vTag(previousCliVersion)}](https://github.com/gnosis/gnosis_vpn-client/releases/tag/${vTag(previousCliVersion)}) to [${vTag(currentCliVersion)}](https://github.com/gnosis/gnosis_vpn-client/releases/tag/${vTag(currentCliVersion)})\n`;
+      content += `- **[GnosisVPN Client](https://github.com/gnosis/gnosis_vpn-client)**: Updated from [${
+        vTag(previousCliVersion)
+      }](https://github.com/gnosis/gnosis_vpn-client/releases/tag/${vTag(previousCliVersion)}) to [${
+        vTag(currentCliVersion)
+      }](https://github.com/gnosis/gnosis_vpn-client/releases/tag/${vTag(currentCliVersion)})\n`;
     }
     if (appUpdated) {
-      content +=
-        `- **[GnosisVPN App](https://github.com/gnosis/gnosis_vpn-app)**: Updated from [${vTag(previousAppVersion)}](https://github.com/gnosis/gnosis_vpn-app/releases/tag/${vTag(previousAppVersion)}) to [${vTag(currentAppVersion)}](https://github.com/gnosis/gnosis_vpn-app/releases/tag/${vTag(currentAppVersion)})\n`;
+      content += `- **[GnosisVPN App](https://github.com/gnosis/gnosis_vpn-app)**: Updated from [${
+        vTag(previousAppVersion)
+      }](https://github.com/gnosis/gnosis_vpn-app/releases/tag/${vTag(previousAppVersion)}) to [${
+        vTag(currentAppVersion)
+      }](https://github.com/gnosis/gnosis_vpn-app/releases/tag/${vTag(currentAppVersion)})\n`;
     }
     if (toolkitUpdated) {
-      content +=
-        `- **[GnosisVPN Toolkit](https://github.com/gnosis/gnosis_vpn-toolkit)**: Updated from [${vTag(previousToolkitVersion)}](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/${vTag(previousToolkitVersion)}) to [${vTag(currentToolkitVersion)}](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/${vTag(currentToolkitVersion)})\n`;
+      content += `- **[GnosisVPN Toolkit](https://github.com/gnosis/gnosis_vpn-toolkit)**: Updated from [${
+        vTag(previousToolkitVersion)
+      }](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/${vTag(previousToolkitVersion)}) to [${
+        vTag(currentToolkitVersion)
+      }](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/${vTag(currentToolkitVersion)})\n`;
     }
     content += "\n";
   }
