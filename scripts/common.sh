@@ -6,17 +6,13 @@
 export BUILD_DIR="${SCRIPT_DIR}/../build"
 export BINARY_DIR="${BUILD_DIR}/download"
 
-# GCP Artifact Registry coordinates for client/app/toolkit binaries
-export GCP_PROJECT="gnosisvpn-production"
-export GCP_LOCATION="europe-west3"
-export GCP_REPOSITORY="rust-binaries"
-
+# GCP Artifact Registry coordinates for client/app/toolkit binaries.
 # gcloud reads these instead of per-call --project/--location/--repository
 # flags. Process-scoped, unlike `gcloud config set`, which would persistently
 # rewrite the operator's global gcloud configuration.
-export CLOUDSDK_CORE_PROJECT="${GCP_PROJECT}"
-export CLOUDSDK_ARTIFACTS_LOCATION="${GCP_LOCATION}"
-export CLOUDSDK_ARTIFACTS_REPOSITORY="${GCP_REPOSITORY}"
+export CLOUDSDK_CORE_PROJECT="gnosisvpn-production"
+export CLOUDSDK_ARTIFACTS_LOCATION="europe-west3"
+export CLOUDSDK_ARTIFACTS_REPOSITORY="rust-binaries"
 
 # Colors for output
 RED='\033[0;31m'

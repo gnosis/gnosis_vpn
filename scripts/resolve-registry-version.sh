@@ -46,7 +46,7 @@ main() {
         sed 's#.*/##')"
 
     if [[ -z $versions ]]; then
-        log_error "No versions found for package '${package}' in ${GCP_REPOSITORY}."
+        log_error "No versions found for package '${package}' in ${CLOUDSDK_ARTIFACTS_REPOSITORY}."
         exit 1
     fi
 
