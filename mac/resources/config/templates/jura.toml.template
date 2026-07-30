@@ -9,11 +9,11 @@ address = "0xcD9D0E23cD999dFC0D1400D837F8e612DbbbDFAA"
 meta = { location = "London", flag = "GB" }
 
 [destinations.Netherlands]
-address = "0x00d7096439d1f731c73574adb7e4a9f3b7775326"
+address = "0x00d7096439d1f731c73574Adb7E4A9f3B7775326"
 meta = { location = "Amsterdam", flag = "NL" }
 
 [destinations.Brazil]
-address = "0x12b78461da59e8317c61bd249ea0dea2aa9527de"
+address = "0x12b78461da59E8317C61bD249EA0DEA2aA9527de"
 meta = { location = "Sao Paulo", flag = "BR" }
 
 [destinations.India]

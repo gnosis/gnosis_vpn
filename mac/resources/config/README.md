@@ -49,9 +49,8 @@ address = "0xExitNodeAddress"
 meta = { location = "City", flag = "XX" }
 ```
 
-The table key is a free-form destination id (the country name, by convention). `path` is optional
-and may only be `path = { hops = N }` with `N` in 0-3; when omitted it defaults to 1 hop, which is
-what both shipped configs rely on.
+The table key is a free-form destination id (the country name, by convention). `path` is optional and may only be
+`path = { hops = N }` with `N` in 0-3; when omitted it defaults to 1 hop, which is what both shipped configs rely on.
 
 The `meta` table accepts any string key-value pairs. Two keys are used by the UI:
 
