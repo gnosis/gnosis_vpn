@@ -42,7 +42,6 @@ main() {
     # its basename is the version tag.
     local versions
     versions="$(gcloud artifacts versions list \
-        --project="${GCP_PROJECT}" --location="${GCP_LOCATION}" --repository="${GCP_REPOSITORY}" \
         --package="${package}" --sort-by="~createTime" --format="value(name)" |
         sed 's#.*/##')"
 
@@ -63,7 +62,6 @@ main() {
         # silently treated as "version incomplete".
         set +e
         files_raw="$(gcloud artifacts files list \
-            --project="${GCP_PROJECT}" --location="${GCP_LOCATION}" --repository="${GCP_REPOSITORY}" \
             --package="${package}" --version="${version}" --format="value(name)" 2>&1)"
         files_rc=$?
         set -e

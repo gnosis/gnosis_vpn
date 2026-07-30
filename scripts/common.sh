@@ -11,6 +11,13 @@ export GCP_PROJECT="gnosisvpn-production"
 export GCP_LOCATION="europe-west3"
 export GCP_REPOSITORY="rust-binaries"
 
+# gcloud reads these instead of per-call --project/--location/--repository
+# flags. Process-scoped, unlike `gcloud config set`, which would persistently
+# rewrite the operator's global gcloud configuration.
+export CLOUDSDK_CORE_PROJECT="${GCP_PROJECT}"
+export CLOUDSDK_ARTIFACTS_LOCATION="${GCP_LOCATION}"
+export CLOUDSDK_ARTIFACTS_REPOSITORY="${GCP_REPOSITORY}"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
