@@ -87,11 +87,15 @@ jobs:
           private-key: ${{ secrets.GH_APP_GNOSISVPN_BOT_PRIVATE_KEY }}
           owner: gnosis
       - name: Release version
-        uses: hoprnet/hopr-workflows/actions/release-version@475421441ff5747c2233ebe58cdff355c8b40356 # release-version-v5.1.3
+        uses: hoprnet/hopr-workflows/actions/release-version@711c81d05909e2482d74289084502fb70fecc97b # release-version-v5.3.0
         with:
           source_branch: ${{ github.ref_name }}
           file: package.json
           release_type: ${{ inputs.release_type }}
+          # The version bump runs in the bump_version job only after publish_apt
+          # succeeded, so a failed release rolls back completely by deleting the
+          # release and tag (no leftover "ci: Bump to version" commit).
+          bump_version: 'false'
           cachix_cache_name: gnosis-vpn
           cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
           zulip_api_key: ${{ secrets.ZULIP_API_KEY }}
@@ -104,16 +108,6 @@ jobs:
           release_notes_file: ./build/changelog/changelog
           github_app_private_key: ${{ secrets.GH_APP_GNOSISVPN_BOT_PRIVATE_KEY }}
           github_app_client_id: ${{ secrets.GH_APP_GNOSISVPN_CLIENT_ID }}
-      - name: Bump Version
-        id: bump
-        shell: bash
-        run: |
-          gh variable set GNOSISVPN_PACKAGE_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}"
-          gh variable set GNOSISVPN_CLIENT_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}"
-          gh variable set GNOSISVPN_APP_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}"
-          gh variable set GNOSISVPN_TOOLKIT_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_TOOLKIT_VERSION }}"
-        env:
-          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
   publish_apt:
     # Runs after `release` so apt never advertises a version without a matching GitHub release.
     name: Publish APT (stable)
@@ -134,6 +128,43 @@ jobs:
     with:
       channel: stable
     secrets: inherit
+  bump_version:
+    # Runs only after publish_apt succeeded: until then nothing permanent touches
+    # the branch, so rollback only needs to delete the release and tag.
+    name: Bump version after successful release
+    runs-on: depot-ubuntu-22.04-4
+    needs:
+      - build_binary
+      - release
+      - publish_apt
+    steps:
+      - name: Generate GitHub App token
+        id: bot-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.GH_APP_GNOSISVPN_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_GNOSISVPN_BOT_PRIVATE_KEY }}
+          owner: gnosis
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.ref_name }}
+          token: ${{ steps.bot-token.outputs.token }}
+      - name: Bump version
+        uses: hoprnet/hopr-workflows/actions/bump-version@c9bedb08b91c847ad795173af5beaf2f3c37d1d4 # bump-version-v2.1.0
+        with:
+          file: package.json
+          release_type: ${{ inputs.release_type }}
+          github_token: ${{ steps.bot-token.outputs.token }}
+      - name: Update release version variables
+        shell: bash
+        run: |
+          gh variable set GNOSISVPN_PACKAGE_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}"
+          gh variable set GNOSISVPN_CLIENT_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}"
+          gh variable set GNOSISVPN_APP_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}"
+          gh variable set GNOSISVPN_TOOLKIT_RELEASE_VERSION --body "${{ needs.build_binary.outputs.GNOSISVPN_TOOLKIT_VERSION }}"
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
   rollback:
     name: Rollback release on failure
     runs-on: depot-ubuntu-22.04-4
