@@ -18,7 +18,8 @@ jobs:
     name: Update Manifests
     permissions:
       contents: read
-      actions: read
+      # write: the final step dispatches the Publish IPFS workflow.
+      actions: write
       id-token: write
     steps:
       - name: Checkout repository
@@ -68,3 +69,11 @@ jobs:
           process_gcloudignore: false
       - name: Set cache control
         run: gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://download.gnosisvpn.io/manifests/**"
+      - name: Trigger Publish IPFS
+        # Publish the download page only for stable releases — never for the
+        # nightly "Snapshot Build" path or manual manifest refreshes. Pass our
+        # run id so publish-ipfs picks up exactly this run's manifests artifact.
+        if: ${{ github.event.workflow_run.name == 'Close release' && github.event.workflow_run.conclusion == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run publish-ipfs.yaml --ref main -f propose_ens=true -f manifests_run_id=${{ github.run_id }}
