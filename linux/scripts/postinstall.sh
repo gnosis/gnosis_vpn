@@ -289,7 +289,7 @@ EOF
 
 # Reload the wg-quick AppArmor profile so it picks up our local drop-in
 # (/etc/apparmor.d/local/wg-quick), which grants read access to the GnosisVPN
-# WireGuard config under /var/lib/gnosisvpn/.cache/. No-op where the profile or
+# WireGuard config under /var/lib/gnosisvpn/. No-op where the profile or
 # AppArmor isn't present (RPM/Arch/older Ubuntu/AppArmor-disabled).
 reload_apparmor_wg_quick() {
     # Only relevant where the wg-quick AppArmor profile exists (e.g. Ubuntu 26.04+).
