@@ -36,7 +36,8 @@ TOML configuration templates for different network environments.
 
 **Available Networks:**
 
-- **jura**: Default production network
+- **jura**: Default production network (applied on fresh installs; updates keep the previously selected
+  network unless changed in the installer)
 - **rotsee**: Alternative production network
 
 **Template Structure:**

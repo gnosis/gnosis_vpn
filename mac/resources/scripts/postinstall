@@ -15,9 +15,14 @@
 #   $3: Mountpoint of the destination volume
 #   $4: Root directory "/" for the current system
 #
-# Environment variables from Distribution.xml choices:
-#   INSTALLER_CHOICE_NETWORK: "jura" or "rotsee"
-#   INSTALLER_CHOICE_LOGLEVEL: "debug" or "info"
+# Installer choices arrive as one-shot files under
+# /Library/Logs/GnosisVPN/installer/ written by the choice sub-packages and
+# are deleted here after being read (a stale file must never leak into a
+# future run):
+#   INSTALLER_CHOICE_NETWORK: "jura" or "rotsee", empty = not selected
+#   INSTALLER_CHOICE_LOGLEVEL: "debug" or "info", empty = not selected
+# An empty choice means: keep the existing setting on updates, apply the
+# default (jura / info) on fresh installs.
 
 set -euo pipefail
 
@@ -69,6 +74,15 @@ ROLLBACK_STEPS=()
 ROLLBACK_ENABLED=true
 PREV_CONFIG_FILE=""
 
+# Effective settings resolved in main() from installer choices, installation
+# type, and current system state (strict opt-out on updates).
+EFFECTIVE_NETWORK=""
+EFFECTIVE_LOGLEVEL=""
+NETWORK_SOURCE=""  # "selected" | "default" | "kept"
+LOGLEVEL_SOURCE="" # "selected" | "default" | "kept"
+APPLY_NETWORK_CONFIG=false
+DEPLOYED_PLIST="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
+
 # Read installer version baked into the scripts dir at build time. It is
 # deliberately not part of the payload: $VERSION_FILE must keep the previous
 # version until save_version_info writes it at the successful end of main.
@@ -86,24 +100,83 @@ load_installer_choices() {
     local network_choice_file="${choice_dir}/network_choice"
     local loglevel_choice_file="${choice_dir}/loglevel_choice"
 
-    INSTALLER_CHOICE_NETWORK="jura"
-    INSTALLER_CHOICE_LOGLEVEL="info"
+    # Empty means "no choice made in this installer run". Resolution against
+    # the installation type (fresh vs update) happens in main().
+    INSTALLER_CHOICE_NETWORK=""
+    INSTALLER_CHOICE_LOGLEVEL=""
 
     if [[ -f "$network_choice_file" ]]; then
         log_info "Loading network choice from $network_choice_file"
         # shellcheck disable=SC1090
         source "$network_choice_file"
+        # Consume-once: a stale file must never leak into a future run
+        rm -f "$network_choice_file"
     else
-        log_warn "Network choice file not found, defaulting to jura"
+        log_info "No network choice made in this run"
     fi
 
     if [[ -f "$loglevel_choice_file" ]]; then
         log_info "Loading log level choice from $loglevel_choice_file"
         # shellcheck disable=SC1090
         source "$loglevel_choice_file"
+        rm -f "$loglevel_choice_file"
     else
-        log_warn "Log level choice file not found, defaulting to info"
+        log_info "No log level choice made in this run"
     fi
+
+    # Unknown values degrade to "no choice" instead of reaching a sed/URL
+    if [[ -n "$INSTALLER_CHOICE_NETWORK" && ! "$INSTALLER_CHOICE_NETWORK" =~ ^(jura|rotsee)$ ]]; then
+        log_warn "Ignoring invalid network choice: $INSTALLER_CHOICE_NETWORK"
+        INSTALLER_CHOICE_NETWORK=""
+    fi
+    if [[ -n "$INSTALLER_CHOICE_LOGLEVEL" && ! "$INSTALLER_CHOICE_LOGLEVEL" =~ ^(info|debug)$ ]]; then
+        log_warn "Ignoring invalid log level choice: $INSTALLER_CHOICE_LOGLEVEL"
+        INSTALLER_CHOICE_LOGLEVEL=""
+    fi
+}
+
+# Network currently active on this system: config.toml symlink target,
+# else the blokli URL baked into the deployed plist, else jura.
+detect_current_network() {
+    local target
+    if [[ -L "$CONFIG_FILE" ]]; then
+        target=$(readlink "$CONFIG_FILE" 2>/dev/null || echo "")
+        target=$(basename "$target" .toml)
+        if [[ -n "$target" ]]; then
+            echo "$target"
+            return 0
+        fi
+    fi
+    if [[ -f "$DEPLOYED_PLIST" ]]; then
+        local url net
+        url=$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:GNOSISVPN_HOPR_BLOKLI_URL" "$DEPLOYED_PLIST" 2>/dev/null || echo "")
+        # https://blokli.<network>.hoprnet.link
+        net="${url#https://blokli.}"
+        net="${net%%.*}"
+        if [[ -n "$net" && "$net" != "$url" ]]; then
+            echo "$net"
+            return 0
+        fi
+    fi
+    echo "jura"
+}
+
+# Log level currently active, derived from RUST_LOG in the deployed plist.
+# The installer only ever writes two canonical RUST_LOG values, so the
+# presence of "debug" is a reliable discriminator.
+detect_current_loglevel() {
+    if [[ -f "$DEPLOYED_PLIST" ]]; then
+        local rust_log
+        rust_log=$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:RUST_LOG" "$DEPLOYED_PLIST" 2>/dev/null || echo "")
+        if [[ "$rust_log" == *debug* ]]; then
+            echo "debug"
+            return 0
+        elif [[ -n "$rust_log" ]]; then
+            echo "info"
+            return 0
+        fi
+    fi
+    echo "info"
 }
 
 # Rollback functions
@@ -430,39 +503,52 @@ install_launchd_service() {
     #     plist_path="${SCRIPT_DIR}/../config/system/${plist_name}"
     # fi
 
-    # Parameterize plist based on service mode
-    if [[ "$INSTALLER_CHOICE_LOGLEVEL" == "debug" ]]; then
-        log_info "Enabling debug logging"
-        sed -i '' '/<key>RUST_LOG<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>info,hopr_transport_session=debug,hopr_protocol_session=debug,hopr_protocol_start=debug,hopr_network_types=debug,gnosis_vpn_root=debug,gnosis_vpn_lib=debug</string>|;}' "$source_plist"
-        sed -i '' '/<key>RUST_BACKTRACE<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>full</string>|;}' "$source_plist"
-    # In case the plist will not get overwritten by the one from the installer, we want to ensure it has at least info logging
-    else
-        log_info "Setting info logging"
-        sed -i '' '/<key>RUST_LOG<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>info</string>|;}' "$source_plist"
-        sed -i '' '/<key>RUST_BACKTRACE<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>1</string>|;}' "$source_plist"
+    # Keep the deployed plist byte-for-byte only when this is an update where
+    # the user opted out of BOTH choice groups and a deployed plist exists.
+    # Any explicit choice, a fresh install, or a missing deployed plist means
+    # the packaged plist gets parameterized and installed. The raw choices are
+    # checked (not the effective values): choosing only one group still
+    # rewrites the plist, with the other group's setting detected from the
+    # current system.
+    local rewrite_plist=true
+    if [[ "$installation_type" == "update" &&
+        -z "$INSTALLER_CHOICE_NETWORK" &&
+        -z "$INSTALLER_CHOICE_LOGLEVEL" &&
+        -f "$plist_path" ]]; then
+        rewrite_plist=false
+        log_info "No installer choices made on update: keeping deployed plist untouched"
     fi
-    sed -i '' "s|__NETWORK_NAME__|${INSTALLER_CHOICE_NETWORK}|g" "$source_plist"
 
-    # Handle existing service (for updates/reinstalls)
-    local service_was_running=false
-    if [[ -f "$plist_path" ]]; then
-        log_info "Existing service found, preparing for update..."
-
-        # Check if service is currently running
-        if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
-            service_was_running=true
-            log_info "Service is currently running, will restart after update"
+    if [[ "$rewrite_plist" == true ]]; then
+        if [[ ! -f "$source_plist" ]]; then
+            log_error "Launchd plist file not found: $source_plist"
+            log_warn "Service will not start automatically at boot"
+            return 1
         fi
 
-        # Stop and unload existing service
+        # Parameterize plist based on service mode
+        if [[ "$EFFECTIVE_LOGLEVEL" == "debug" ]]; then
+            log_info "Enabling debug logging"
+            sed -i '' '/<key>RUST_LOG<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>info,hopr_transport_session=debug,hopr_protocol_session=debug,hopr_protocol_start=debug,hopr_network_types=debug,gnosis_vpn_root=debug,gnosis_vpn_lib=debug</string>|;}' "$source_plist"
+            sed -i '' '/<key>RUST_BACKTRACE<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>full</string>|;}' "$source_plist"
+        else
+            log_info "Setting info logging"
+            sed -i '' '/<key>RUST_LOG<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>info</string>|;}' "$source_plist"
+            sed -i '' '/<key>RUST_BACKTRACE<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>1</string>|;}' "$source_plist"
+        fi
+        sed -i '' "s|__NETWORK_NAME__|${EFFECTIVE_NETWORK}|g" "$source_plist"
+    fi
+
+    # Stop any loaded instance before replacing/re-bootstrapping. A restart is
+    # required even on the keep path: preinstall stopped the service and the
+    # binaries were just replaced.
+    if [[ -f "$plist_path" ]]; then
         log_info "Stopping existing service..."
         launchctl bootout system "$plist_path" 2>/dev/null || true
         sleep 2
-
     fi
 
-    # Install/update plist file
-    if [[ -f "$source_plist" ]]; then
+    if [[ "$rewrite_plist" == true ]]; then
         log_info "Installing launchd plist: $plist_path"
 
         # Configure plist with runtime values
@@ -470,81 +556,72 @@ install_launchd_service() {
             log_error "Failed to configure plist file"
             return 1
         fi
+    fi
 
-        # Validate plist syntax
-        if ! plutil -lint "$plist_path" >/dev/null 2>&1; then
-            log_error "Invalid plist syntax detected after configuration"
-            return 1
+    # Validate plist syntax (also sanity-checks a kept plist before bootstrap)
+    if ! plutil -lint "$plist_path" >/dev/null 2>&1; then
+        log_error "Invalid plist syntax detected: $plist_path"
+        return 1
+    fi
+
+    log_success "Plist validated successfully"
+
+    # Load and start the service
+    log_info "Loading Gnosis VPN service..."
+
+    # Try to bootstrap the service
+    local bootstrap_attempts=0
+    local max_attempts=3
+    local bootstrap_success=false
+
+    while [[ $bootstrap_attempts -lt $max_attempts ]]; do
+        if launchctl bootstrap system "$plist_path" 2>/dev/null; then
+            bootstrap_success=true
+            break
+        else
+            # Service might already be loaded, try to bootout first
+            if [[ $bootstrap_attempts -eq 0 ]]; then
+                log_info "Service may already be loaded, attempting to reload..."
+                launchctl bootout system "$plist_path" 2>/dev/null || true
+                sleep 1
+            fi
+            ((bootstrap_attempts++))
+            if [[ $bootstrap_attempts -lt $max_attempts ]]; then
+                sleep 2
+            fi
+        fi
+    done
+
+    if [[ "$bootstrap_success" == "true" ]]; then
+        log_success "Gnosis VPN service loaded successfully"
+
+        # Enable the service to start automatically
+        log_info "Enabling service for automatic startup..."
+        if launchctl enable system/com.gnosisvpn.gnosisvpnclient 2>/dev/null; then
+            log_success "Service enabled for automatic startup"
+        else
+            log_warn "Failed to enable service (it may already be enabled)"
         fi
 
-        log_success "Plist configured and validated successfully"
+        # Wait a moment and verify it's running
+        sleep 3
+        if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
+            log_success "Service is running successfully"
 
-        # Load and start the service
-        log_info "Loading Gnosis VPN service..."
-
-        # Try to bootstrap the service
-        local bootstrap_attempts=0
-        local max_attempts=3
-        local bootstrap_success=false
-
-        while [[ $bootstrap_attempts -lt $max_attempts ]]; do
-            if launchctl bootstrap system "$plist_path" 2>/dev/null; then
-                bootstrap_success=true
-                break
-            else
-                # Service might already be loaded, try to bootout first
-                if [[ $bootstrap_attempts -eq 0 ]]; then
-                    log_info "Service may already be loaded, attempting to reload..."
-                    launchctl bootout system "$plist_path" 2>/dev/null || true
-                    sleep 1
-                fi
-                ((bootstrap_attempts++))
-                if [[ $bootstrap_attempts -lt $max_attempts ]]; then
-                    sleep 2
-                fi
-            fi
-        done
-
-        if [[ "$bootstrap_success" == "true" ]]; then
-            log_success "Gnosis VPN service loaded successfully"
-
-            # Enable the service to start automatically
-            log_info "Enabling service for automatic startup..."
-            if launchctl enable system/com.gnosisvpn.gnosisvpnclient 2>/dev/null; then
-                log_success "Service enabled for automatic startup"
-            else
-                log_warn "Failed to enable service (it may already be enabled)"
-            fi
-
-            # Wait a moment and verify it's running
-            sleep 3
-            if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
-                log_success "Service is running successfully"
-
-                # Check if the binary exists and is executable
-                local binary_path="/usr/local/bin/gnosis_vpn-root"
-                if [[ ! -f "$binary_path" ]]; then
-                    log_warn "Binary not found: $binary_path - service may fail to start"
-                    log_info "Ensure binaries are properly installed before the service starts"
-                fi
-            else
-                log_warn "Service loaded but may not be running yet"
-                log_info "This is normal if binaries haven't been downloaded yet"
-                log_info "Check logs: tail -f $INSTALLED_LOG_DIR_PATH/gnosisvpn.log"
+            # Check if the binary exists and is executable
+            local binary_path="/usr/local/bin/gnosis_vpn-root"
+            if [[ ! -f "$binary_path" ]]; then
+                log_warn "Binary not found: $binary_path - service may fail to start"
+                log_info "Ensure binaries are properly installed before the service starts"
             fi
         else
-            log_error "Failed to load Gnosis VPN service after $max_attempts attempts"
-            exit 1
+            log_warn "Service loaded but may not be running yet"
+            log_info "This is normal if binaries haven't been downloaded yet"
+            log_info "Check logs: tail -f $INSTALLED_LOG_DIR_PATH/gnosisvpn.log"
         fi
     else
-        log_error "Launchd plist file not found: $source_plist"
-        log_warn "Service will not start automatically at boot"
-
-        # List possible locations for debugging
-        log_info "Searched locations:"
-        log_info "  - ${SCRIPT_DIR}/config/system/${plist_name}"
-        log_info "  - ${SCRIPT_DIR}/../config/system/${plist_name}"
-        return 1
+        log_error "Failed to load Gnosis VPN service after $max_attempts attempts"
+        exit 1
     fi
 }
 
@@ -816,7 +893,7 @@ create_config_symlink() {
     log_info "Creating configuration symlink..."
 
     # Target configuration file
-    local target_config="${CONFIG_DIR}/${INSTALLER_CHOICE_NETWORK}.toml"
+    local target_config="${CONFIG_DIR}/${EFFECTIVE_NETWORK}.toml"
 
     # Check if target configuration exists
     if [[ ! -f "$target_config" ]]; then
@@ -837,13 +914,13 @@ create_config_symlink() {
         local current_target_file="${CONFIG_DIR}/${current_target}"
 
         # Check if the symlink target actually exists and points to the correct network choice
-        if [[ -f "$current_target_file" && "$current_target" == "${INSTALLER_CHOICE_NETWORK}.toml" ]]; then
+        if [[ -f "$current_target_file" && "$current_target" == "${EFFECTIVE_NETWORK}.toml" ]]; then
             log_info "Configuration symlink already exists and is correct: config.toml -> $current_target"
             log_success "Preserving existing configuration symlink"
             return 0
         else
             if [[ -f "$current_target_file" ]]; then
-                log_info "Configuration symlink points to different network: $current_target (expected: ${INSTALLER_CHOICE_NETWORK}.toml)"
+                log_info "Configuration symlink points to different network: $current_target (expected: ${EFFECTIVE_NETWORK}.toml)"
                 log_info "Will update symlink to match selection"
             else
                 log_warn "Existing symlink points to missing file: $current_target"
@@ -880,7 +957,7 @@ create_config_symlink() {
     cd - >/dev/null
 
     log_success "Configuration symlink created: config.toml -> $relative_target"
-    log_info "Network: $INSTALLER_CHOICE_NETWORK"
+    log_info "Network: $EFFECTIVE_NETWORK"
 }
 
 copy_uninstall() {
@@ -1021,7 +1098,16 @@ print_summary() {
     log_info "Binary directory: $BIN_DIR"
     log_info "Configuration file: $CONFIG_FILE"
     log_info "Version file: $VERSION_FILE"
-    log_info "Network: $INSTALLER_CHOICE_NETWORK"
+    case "$NETWORK_SOURCE" in
+        selected) log_info "Network: $EFFECTIVE_NETWORK (selected in installer)" ;;
+        default) log_info "Network: $EFFECTIVE_NETWORK (default, fresh install)" ;;
+        kept) log_info "Network: unchanged (kept $EFFECTIVE_NETWORK)" ;;
+    esac
+    case "$LOGLEVEL_SOURCE" in
+        selected) log_info "Log level: $EFFECTIVE_LOGLEVEL (selected in installer)" ;;
+        default) log_info "Log level: $EFFECTIVE_LOGLEVEL (default, fresh install)" ;;
+        kept) log_info "Log level: unchanged (kept $EFFECTIVE_LOGLEVEL)" ;;
+    esac
     echo ""
     log_info "Installed binaries:"
     ls -lh "$BIN_DIR"/gnosis_vpn* 2>/dev/null || true
@@ -1303,14 +1389,52 @@ main() {
     log_info "Binary directory: $BIN_DIR"
     log_info "Configuration directory: $CONFIG_DIR"
     log_info "Configuration file: $CONFIG_FILE"
-    log_info "Network: $INSTALLER_CHOICE_NETWORK"
-    log_info "Log level: $INSTALLER_CHOICE_LOGLEVEL"
+    log_info "Network choice: ${INSTALLER_CHOICE_NETWORK:-<none>}"
+    log_info "Log level choice: ${INSTALLER_CHOICE_LOGLEVEL:-<none>}"
 
     # Determine installation type (fresh vs update)
     local installation_type
     installation_type=$(check_previous_installation)
 
     log_section "Installation Type: $installation_type"
+
+    # Resolve effective settings: an explicit choice wins; without one, fresh
+    # installs get the defaults while updates keep whatever is on the system.
+    if [[ -n "$INSTALLER_CHOICE_NETWORK" ]]; then
+        EFFECTIVE_NETWORK="$INSTALLER_CHOICE_NETWORK"
+        NETWORK_SOURCE="selected"
+    elif [[ "$installation_type" == "fresh" ]]; then
+        EFFECTIVE_NETWORK="jura"
+        NETWORK_SOURCE="default"
+    else
+        EFFECTIVE_NETWORK="$(detect_current_network)"
+        NETWORK_SOURCE="kept"
+    fi
+
+    if [[ -n "$INSTALLER_CHOICE_LOGLEVEL" ]]; then
+        EFFECTIVE_LOGLEVEL="$INSTALLER_CHOICE_LOGLEVEL"
+        LOGLEVEL_SOURCE="selected"
+    elif [[ "$installation_type" == "fresh" ]]; then
+        EFFECTIVE_LOGLEVEL="info"
+        LOGLEVEL_SOURCE="default"
+    else
+        EFFECTIVE_LOGLEVEL="$(detect_current_loglevel)"
+        LOGLEVEL_SOURCE="kept"
+    fi
+
+    log_info "Effective network: $EFFECTIVE_NETWORK ($NETWORK_SOURCE)"
+    log_info "Effective log level: $EFFECTIVE_LOGLEVEL ($LOGLEVEL_SOURCE)"
+
+    # Strict opt-out on update: leave /etc/gnosisvpn network content alone.
+    # Exception: a broken install (config.toml missing or dangling despite a
+    # previous installation) must be repaired or verify_installation fails.
+    APPLY_NETWORK_CONFIG=false
+    if [[ "$NETWORK_SOURCE" != "kept" ]]; then
+        APPLY_NETWORK_CONFIG=true
+    elif [[ ! -e "$CONFIG_FILE" ]]; then
+        log_warn "config.toml missing despite previous installation - repairing with network '${EFFECTIVE_NETWORK}'"
+        APPLY_NETWORK_CONFIG=true
+    fi
 
     backup_config "$installation_type"
     copy_uninstall
@@ -1324,8 +1448,12 @@ main() {
     update_binaries "$installation_type" "$TARGET_VOLUME"
 
     # Setup configuration files and create symlink
-    setup_configuration_files
-    create_config_symlink "$installation_type"
+    if [[ "$APPLY_NETWORK_CONFIG" == true ]]; then
+        setup_configuration_files
+        create_config_symlink "$installation_type"
+    else
+        log_info "Network not selected on update: leaving /etc/gnosisvpn untouched (kept ${EFFECTIVE_NETWORK})"
+    fi
 
     # Set proper permissions
     set_permissions

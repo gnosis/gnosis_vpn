@@ -12,7 +12,8 @@ user-friendly graphical interface for installing and configuring the Gnosis VPN 
 - **Version Tracking**: Tracks installation versions for better update management
 - **Automatic Backups**: Creates backups of binaries and configurations before updates
 - **WireGuard Integration**: Automatically detects and installs WireGuard tools if needed
-- **Network Selection**: Choose between Production (Gnosis Chain) or Jura as testnet
+- **Network Selection**: Choose between the Jura (default) and Rotsee HOPR networks; on updates, leaving both
+  unselected keeps the current network
 - **Configuration Generation**: Creates `config.toml` with selected network destinations
 - **macOS Integration**: Removes quarantine attributes and sets proper permissions
 - **Management Tools**: Includes utility for managing installations and backups
@@ -35,12 +36,18 @@ gnosis_vpn-manager [command]
 
 ## Configuration
 
-### Environment Variables
+### Installer Choices
 
-The installer scripts support these environment variables:
+The customize pane's choices reach the main postinstall as one-shot files under
+`/Library/Logs/GnosisVPN/installer/` (`network_choice`, `loglevel_choice`), written by the selected choice
+sub-packages and deleted by the main postinstall after being read:
 
-- `INSTALLER_CHOICE_NETWORK`: Network selection ("jura" or "rotsee", default: "jura")
-- `INSTALLER_CHOICE_LOGLEVEL`: Log level service mode ( "debug" or "info", default: "info")
+- `INSTALLER_CHOICE_NETWORK`: Network selection ("jura" or "rotsee")
+- `INSTALLER_CHOICE_LOGLEVEL`: Log level service mode ("debug" or "info")
+
+When a choice group is deselected entirely, no file is written and the postinstall preserves the existing
+setting: on updates the network config (`/etc/gnosisvpn`, `config.toml` symlink, launchd plist) and log level
+are left untouched; on fresh installs the defaults apply ("jura" / "info").
 
 ### Installation Locations
 

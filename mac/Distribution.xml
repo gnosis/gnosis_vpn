@@ -18,24 +18,35 @@
     <!-- Options -->
     <options customize="allow" require-scripts="false" hostArchitectures="x86_64,arm64"/>
 
-    <!-- JavaScript for mutual exclusion -->
+    <!-- JavaScript for radio-style mutual exclusion with opt-out -->
     <script><![CDATA[
-        function exclusiveEnabled(selfId, groupIds) {
-            if (!choices[selfId]) {
-                return true;
-            }
+        // Last stable selection state of each radio choice.
+        // MUST be kept in sync with the start_selected attributes below.
+        var radioPrev = {
+            'jura': true,
+            'rotsee': false,
+            'info': false,
+            'debug': true
+        };
 
-            if (choices[selfId].selected) {
-                return true;
+        // Radio semantics for a pair of sibling choices:
+        // - clicking one selects it and deselects the sibling (click-to-switch)
+        // - unchecking the selected one leaves both unchecked (opt-out)
+        // Order-independent: right after a click both siblings may read as
+        // selected; the one that was previously selected yields. Each call
+        // updates radioPrev only for its own id, so it works whichever
+        // sibling Installer re-evaluates first. Requires that both siblings
+        // can never be switched on in the same event - hence the group
+        // parent choices are enabled="false" (labels, not toggles).
+        function radioSelected(myId, siblingId) {
+            if (!choices[myId]) {
+                return radioPrev[myId];
             }
-
-            for (var i = 0; i < groupIds.length; i++) {
-                var other = groupIds[i];
-                if (other !== selfId && choices[other] && choices[other].selected) {
-                    return false;
-                }
-            }
-            return true;
+            var mySel = !!(choices[myId].selected);
+            var sibSel = !!(choices[siblingId] && choices[siblingId].selected);
+            var result = (mySel && sibSel) ? !radioPrev[myId] : mySel;
+            radioPrev[myId] = result;
+            return result;
         }
     ]]></script>
 
@@ -75,12 +86,15 @@
         <pkg-ref id="com.gnosisvpn.gnosisvpnclient"/>
     </choice>
 
-    <!-- Network selection choice (parent group) -->
+    <!-- Network selection choice (parent group).
+         enabled="false": the header is a label, not a toggle - clicking it
+         would flip both children on at once, which the radio logic in
+         radioSelected() cannot disambiguate. -->
     <choice id="network"
             title="HOPR Network"
             description="Select the HOPR network configuration for your VPN destinations"
             visible="true"
-            enabled="true">
+            enabled="false">
     </choice>
 
     <!-- Rotsee network sub-choice -->
@@ -89,6 +103,7 @@
             description="Connect to VPN nodes on the Rotsee network - US, UK, India"
             visible="true"
             start_selected="false"
+            selected="radioSelected('rotsee', 'jura')"
             enabled="true">
         <pkg-ref id="com.gnosisvpn.choice.network.rotsee"/>
     </choice>
@@ -98,17 +113,19 @@
             title="Jura (Recommended)"
             description="Connect to VPN nodes on the Jura network - US, UK, NL, Brazil, Australia, India, South Korea"
             visible="true"
-            enabled="exclusiveEnabled('jura', ['rotsee','jura'])"
-            start_selected="true">
+            enabled="true"
+            start_selected="true"
+            selected="radioSelected('jura', 'rotsee')">
         <pkg-ref id="com.gnosisvpn.choice.network.jura"/>
     </choice>
 
-    <!-- Service mode selection choice (parent group) -->
+    <!-- Service mode selection choice (parent group).
+         enabled="false" for the same reason as the network group header. -->
     <choice id="loglevel"
             title="Service Configuration"
             description="Select the service configuration mode"
             visible="true"
-            enabled="true">
+            enabled="false">
     </choice>
 
     <!-- Standard mode sub-choice -->
@@ -116,8 +133,9 @@
             title="Standard Mode"
             description="Install with standard logging configuration"
             visible="true"
-            enabled="exclusiveEnabled('info', ['debug','info'])"
-            start_selected="false">
+            enabled="true"
+            start_selected="false"
+            selected="radioSelected('info', 'debug')">
         <pkg-ref id="com.gnosisvpn.choice.loglevel.info"/>
     </choice>
 
@@ -127,7 +145,8 @@
             description="Install with debug logging enabled - useful for troubleshooting"
             visible="true"
             start_selected="true"
-            enabled="exclusiveEnabled('debug', ['debug','info'])">
+            enabled="true"
+            selected="radioSelected('debug', 'info')">
         <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"/>
     </choice>
 
