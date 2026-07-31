@@ -55,11 +55,18 @@ jobs:
           cachix_cache_name: gnosis-vpn
           cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
       - name: Display versions
+        env:
+          GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+          GNOSISVPN_CLIENT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}
+          GNOSISVPN_APP_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}
+          GNOSISVPN_TOOLKIT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_TOOLKIT_VERSION }}
+        # ${VAR#v} guards against a double "v": component versions carry the
+        # exact registry tag, which may or may not be v-prefixed.
         run: |
-          echo "- Package version: v${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "- Client version: v${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "- App version: v${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "- Toolkit version: v${{ needs.build_binary.outputs.GNOSISVPN_TOOLKIT_VERSION }}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "- Package version: v${GNOSISVPN_PACKAGE_VERSION#v}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "- Client version: v${GNOSISVPN_CLIENT_VERSION#v}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "- App version: v${GNOSISVPN_APP_VERSION#v}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "- Toolkit version: v${GNOSISVPN_TOOLKIT_VERSION#v}" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Generate Release Notes
         run: nix develop -c ./scripts/generate-changelog.ts
         env:

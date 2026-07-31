@@ -6,6 +6,14 @@
 export BUILD_DIR="${SCRIPT_DIR}/../build"
 export BINARY_DIR="${BUILD_DIR}/download"
 
+# GCP Artifact Registry coordinates for client/app/toolkit binaries.
+# gcloud reads these instead of per-call --project/--location/--repository
+# flags. Process-scoped, unlike `gcloud config set`, which would persistently
+# rewrite the operator's global gcloud configuration.
+export CLOUDSDK_CORE_PROJECT="gnosisvpn-production"
+export CLOUDSDK_ARTIFACTS_LOCATION="europe-west3"
+export CLOUDSDK_ARTIFACTS_REPOSITORY="rust-binaries"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -33,8 +41,8 @@ log_error() {
 # Validate version syntax
 check_version_syntax() {
     local version="$1"
-    # Matches: 1.2.3, 1.2.3+pr.123, 1.2.3+commit.abcdef, latest
-    local semver_regex='^[0-9]+\.[0-9]+\.[0-9]+(\+(pr|commit|build)(\.[0-9A-Za-z-]+)*)?$'
+    # Matches: 1.2.3, v1.2.3, 1.2.3+pr.123, 1.2.3+commit.abcdef, latest
+    local semver_regex='^v?[0-9]+\.[0-9]+\.[0-9]+(\+(pr|commit|build)(\.[0-9A-Za-z-]+)*)?$'
     if [[ ! $version =~ $semver_regex && $version != "latest" ]]; then
         log_error "Invalid version format: $version"
         log_error "Expected format: MAJOR.MINOR.PATCH(+pr.123|+commit.abcdef) or latest"
