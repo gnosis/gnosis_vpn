@@ -8,26 +8,22 @@ on:
         description: Propose the ENS contenthash update to the owning Safe
         type: boolean
         default: true
-  workflow_run:
-    workflows:
-      - Update Manifests
-    types:
-      - completed
-    branches:
-      - main
+      manifests_run_id:
+        description: 'Update Manifests run to take manifests from (default: latest successful run)'
+        required: false
+        type: string
+        default: ''
 jobs:
   prep-ipfs:
     runs-on: ubuntu-latest
-    # On the automatic (workflow_run) trigger, only proceed when the upstream Update Manifests run succeeded.
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: read
       actions: read
       id-token: write
     outputs:
       # Whether this run should propose the ENS contenthash update — true only
-      # when the pipeline originated from a manual "Close release" (see the
-      # "Resolve latest run IDs" step). Consumed by the propose-ens job.
+      # for stable releases (see the "Resolve latest run IDs" step). Consumed
+      # by the propose-ens job.
       from_release: ${{ steps.runs.outputs.from_release }}
     steps:
       - name: Checkout repository
@@ -68,39 +64,21 @@ jobs:
           # Binaries come from this repo's latest successful "Close release" run.
           release_run=$(GH_TOKEN="${{ github.token }}" gh run list --workflow release.yaml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
           echo "release_run=$release_run" >> "$GITHUB_OUTPUT"
-          # Manifests come from this repo's "Update Manifests" workflow, which runs
-          # after a release/snapshot. Take them from its latest successful run.
-          manifests_run=$(GH_TOKEN="${{ github.token }}" gh run list --workflow update-manifests.yaml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          # Manifests come from this repo's "Update Manifests" workflow: the run
+          # that dispatched us when given, its latest successful run otherwise.
+          manifests_run='${{ inputs.manifests_run_id }}'
+          if [ -z "$manifests_run" ]; then
+            manifests_run=$(GH_TOKEN="${{ github.token }}" gh run list --workflow update-manifests.yaml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          fi
           echo "manifests_run=$manifests_run" >> "$GITHUB_OUTPUT"
-          # Decide whether to propose the ENS contenthash update. ENS is proposed
-          # only for stable releases — i.e. when the pipeline originated from a
-          # manual "Close release" run — never for the automatic "Snapshot Build"
-          # path. publish-ipfs is triggered by "Update Manifests", which both
-          # upstreams feed, and the workflow_run payload names only that direct
-          # parent, not the grandparent. Both upstreams use concurrency groups and
-          # trigger Update Manifests immediately on completion, so we correlate by
-          # time: of {Close release, Snapshot Build}, whichever finished most
-          # recently before this Update Manifests run started is our origin.
+          # ENS is proposed only for stable releases: Update Manifests dispatches
+          # this workflow with propose_ens=true after a successful "Close release".
+          # repository_dispatch (website republish) never proposes.
           from_release=false
-          case "${{ github.event_name }}" in
-          workflow_dispatch)
-            # Manual publish-ipfs run: honor the propose_ens toggle directly.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             from_release='${{ inputs.propose_ens }}'
-            ;;
-          workflow_run)
-            um_started='${{ github.event.workflow_run.created_at }}'
-            rel=$(gh api "repos/${{ github.repository }}/actions/workflows/release.yaml/runs?per_page=30" \
-              --jq "[.workflow_runs[] | select(.conclusion==\"success\") | select(.updated_at <= \"$um_started\") | .updated_at] | max // \"\"")
-            snap=$(gh api "repos/${{ github.repository }}/actions/workflows/snapshot-build.yaml/runs?per_page=30" \
-              --jq "[.workflow_runs[] | select(.conclusion==\"success\") | select(.updated_at <= \"$um_started\") | .updated_at] | max // \"\"")
-            # ISO-8601 UTC timestamps sort lexicographically == chronologically.
-            if [[ -n $rel && $rel > $snap ]]; then
-              from_release=true
-            fi
-            ;;
-          esac
+          fi
           echo "from_release=$from_release" >> "$GITHUB_OUTPUT"
-          echo "Trigger origin resolved: from_release=$from_release (event=${{ github.event_name }})"
       - name: Download Website Artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
