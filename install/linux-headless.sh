@@ -29,7 +29,6 @@
 set -Eeuo pipefail
 
 REPO_URL_PRIMARY="https://download.vpn.gnosis.eth.limo/linux/apt"
-REPO_URL_BACKUP="https://download.gnosisvpn.io/linux/apt"
 KEYRING_PATH="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 SOURCES_PATH="/etc/apt/sources.list.d/gnosisvpn.sources"
 
@@ -249,40 +248,26 @@ ensure_prereqs() {
 install_keyring() {
     log "Installing repository signing key to ${KEYRING_PATH}"
     install -d -m 0755 /etc/apt/keyrings
-    local tmp url
-    tmp="$(mktemp)"
-    for url in "${REPO_URL_PRIMARY}/gnosisvpn-archive-keyring.gpg" \
-        "${REPO_URL_BACKUP}/gnosisvpn-archive-keyring.gpg"; do
-        if curl -fsSL "$url" -o "$tmp"; then
-            log "Downloaded signing key from ${url}"
-            install -m 0644 "$tmp" "$KEYRING_PATH"
-            rm -f "$tmp"
-            return
-        fi
-        warn "Failed to download keyring from ${url}; trying next source"
-    done
-    err "Failed to download keyring from all sources"
-    rm -f "$tmp"
-    exit 1
+    local url="${REPO_URL_PRIMARY}/gnosisvpn-archive-keyring.gpg"
+    if ! curl -fsSL "$url" -o "$KEYRING_PATH"; then
+        err "Failed to download keyring from ${url}"
+        exit 1
+    fi
+    chmod 0644 "$KEYRING_PATH"
+    log "Downloaded signing key from ${url}"
 }
 
 write_sources() {
-    # See install/linux.sh for why the component/URI pairing per channel matters.
-    local component uris
+    # See install/linux.sh for why the component per channel matters.
+    local component
     case "$CHANNEL" in
-    stable)
-        component="main"
-        uris="${REPO_URL_PRIMARY} ${REPO_URL_BACKUP}"
-        ;;
-    snapshot)
-        component="snapshot"
-        uris="${REPO_URL_BACKUP}"
-        ;;
+    stable) component="main" ;;
+    snapshot) component="snapshot" ;;
     esac
     log "Writing APT source to ${SOURCES_PATH} (channel: ${CHANNEL}, component: ${component}, arch: ${ARCH})"
     cat >"$SOURCES_PATH" <<EOF
 Types: deb
-URIs: ${uris}
+URIs: ${REPO_URL_PRIMARY}
 Suites: ${CHANNEL}
 Components: ${component}
 Architectures: ${ARCH}
