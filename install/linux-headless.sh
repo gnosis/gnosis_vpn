@@ -233,16 +233,19 @@ detect_distro() {
 }
 
 ensure_prereqs() {
-    log "Ensuring prerequisites: ca-certificates, curl, and non-GUI runtime dependencies"
+    log "Ensuring prerequisites: ca-certificates, curl, passwd, and non-GUI runtime dependencies"
     rm -f "$SOURCES_PATH"
     apt-get update
-    # ca-certificates/curl: fetch the signing key. The rest are gnosisvpn's real
-    # runtime deps (see linux/nfpm-template.yaml) minus everything gnosis_vpn-app
-    # needs (webkit2gtk, gtk3, libayatana-appindicator3-1, libglib2.0-bin).
+    # ca-certificates/curl: fetch the signing key. passwd: provides
+    # groupadd/useradd for create_system_user_and_group below — some minimal
+    # Debian derivatives (e.g. DAppNode's host OS) don't ship it by default.
+    # The rest are gnosisvpn's real runtime deps (see linux/nfpm-template.yaml)
+    # minus everything gnosis_vpn-app needs (webkit2gtk, gtk3,
+    # libayatana-appindicator3-1, libglib2.0-bin).
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        ca-certificates curl iptables logrotate wireguard \
+        ca-certificates curl passwd iptables logrotate wireguard \
         resolvconf || DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        ca-certificates curl iptables logrotate wireguard systemd-resolved
+        ca-certificates curl passwd iptables logrotate wireguard systemd-resolved
 }
 
 install_keyring() {
