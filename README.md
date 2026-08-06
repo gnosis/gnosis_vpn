@@ -121,6 +121,22 @@ Uninstall:
 sudo apt remove gnosisvpn
 ```
 
+### Headless / server-only (no GUI)
+
+The `gnosisvpn` package bundles the desktop tray app (`gnosis_vpn-app`) and its GUI dependencies (`libwebkit2gtk`,
+`gtk3`, `libayatana-appindicator3-1`) as hard dependencies, even though nothing starts the app automatically. For
+headless servers, [`install/linux-headless.sh`](./install/linux-headless.sh) installs only the service
+(`gnosis_vpn-root`, `gnosis_vpn-worker`, `gnosis_vpn-ctl`): it fetches the `.deb` with `apt-get download` (which ignores
+`Depends`) and copies over just the non-GUI files, so the GUI libraries are never installed.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gnosis/gnosis_vpn/main/install/linux-headless.sh | sudo bash
+```
+
+It accepts the same `--channel`, `--network`, and `--reset-identity` flags as the regular installer. Control the service
+with `gnosis_vpn-ctl`. Because this bypasses dpkg, the install isn't tracked by `apt` — re-run the script to upgrade,
+and don't run `apt install gnosisvpn` on the same host afterwards without first removing the files it placed.
+
 ### .deb Installation Environment Variables
 
 Direct `.deb` installs have no flags — these environment variables configure the package scripts instead (set them with
