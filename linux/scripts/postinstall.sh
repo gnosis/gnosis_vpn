@@ -61,7 +61,13 @@ configure_filesystem_permissions() {
     # gnosisvpn-dynamic.env, which the root systemd service loads via
     # EnvironmentFile — reject anything that isn't a single-line http(s) URL so
     # a stray newline or space cannot inject extra entries into the root env.
-    blokli_url="https://blokli.${network_name}.hoprnet.link"
+    #
+    # Network names are <prefix>-<env> (env is the segment after the last '-',
+    # e.g. jura-prod -> prefix=jura env=prod, piz-palu-dev -> prefix=piz-palu
+    # env=dev); the Blokli endpoint mirrors that split.
+    local network_prefix="${network_name%-*}"
+    local network_env="${network_name##*-}"
+    blokli_url="https://blokli-${network_prefix}.${network_env}.hoprnet.link"
     if [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then
         if [[ $GNOSISVPN_HOPR_BLOKLI_URL =~ ^https?://[^[:space:]]+$ ]]; then
             blokli_url="$GNOSISVPN_HOPR_BLOKLI_URL"

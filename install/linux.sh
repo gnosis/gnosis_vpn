@@ -74,7 +74,11 @@ Environment variables:
                                --reset-identity
   GNOSISVPN_HOPR_BLOKLI_URL    Custom Blokli endpoint; defaults to the one
                                matching the chosen network
-                               (https://blokli.<network>.hoprnet.link)
+                               (https://blokli-<prefix>.<env>.hoprnet.link,
+                               where <prefix>/<env> split the network name
+                               at its last '-', e.g. jura-prod ->
+                               blokli-jura.prod, piz-palu-dev ->
+                               blokli-piz-palu.dev)
 EOF
 }
 
@@ -323,7 +327,12 @@ apt_install() {
     # GNOSISVPN_HOPR_BLOKLI_URL is honored on its own, with or without a network.
     local install_env=(DEBIAN_FRONTEND=noninteractive)
     if [[ -n $NETWORK ]]; then
-        local blokli_url="${GNOSISVPN_HOPR_BLOKLI_URL:-https://blokli.${NETWORK}.hoprnet.link}"
+        # Network names are <prefix>-<env> (env is the segment after the last
+        # '-', e.g. jura-prod -> prefix=jura env=prod, piz-palu-dev ->
+        # prefix=piz-palu env=dev); the Blokli endpoint mirrors that split.
+        local network_prefix="${NETWORK%-*}"
+        local network_env="${NETWORK##*-}"
+        local blokli_url="${GNOSISVPN_HOPR_BLOKLI_URL:-https://blokli-${network_prefix}.${network_env}.hoprnet.link}"
         log "Selecting network: ${NETWORK} (Blokli endpoint: ${blokli_url})"
         install_env+=(GNOSISVPN_NETWORK="$NETWORK" GNOSISVPN_HOPR_BLOKLI_URL="$blokli_url")
     elif [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then

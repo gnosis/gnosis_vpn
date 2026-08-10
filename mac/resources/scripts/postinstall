@@ -441,7 +441,12 @@ install_launchd_service() {
         sed -i '' '/<key>RUST_LOG<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>info</string>|;}' "$source_plist"
         sed -i '' '/<key>RUST_BACKTRACE<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>1</string>|;}' "$source_plist"
     fi
-    sed -i '' "s|__NETWORK_NAME__|${INSTALLER_CHOICE_NETWORK}|g" "$source_plist"
+    # Network names are <prefix>-<env> (env is the segment after the last
+    # '-', e.g. jura-prod -> prefix=jura env=prod, piz-palu-dev ->
+    # prefix=piz-palu env=dev); the Blokli endpoint mirrors that split.
+    local network_prefix="${INSTALLER_CHOICE_NETWORK%-*}"
+    local network_env="${INSTALLER_CHOICE_NETWORK##*-}"
+    sed -i '' "s|__NETWORK_PREFIX__|${network_prefix}|g; s|__NETWORK_ENV__|${network_env}|g" "$source_plist"
 
     # Handle existing service (for updates/reinstalls)
     local service_was_running=false

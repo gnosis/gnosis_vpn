@@ -103,7 +103,7 @@ sudoers policy keeps it, which is often disabled; `sudo env` always works):
 
 ```bash
 sudo env GNOSISVPN_NETWORK=jura-dev apt install ./gnosisvpn_*.deb
-sudo env GNOSISVPN_NETWORK=jura-dev GNOSISVPN_HOPR_BLOKLI_URL=https://blokli.example.com apt install ./gnosisvpn_*.deb
+sudo env GNOSISVPN_NETWORK=jura-dev GNOSISVPN_HOPR_BLOKLI_URL=https://blokli-jura.dev.hoprnet.link apt install ./gnosisvpn_*.deb
 ```
 
 Note: re-installing the **same version** via `apt` does nothing — the package scripts don't re-run, so environment
@@ -133,7 +133,7 @@ Direct `.deb` installs have no flags — these environment variables configure t
   sudo env GNOSISVPN_NETWORK=jura-dev apt install ./gnosisvpn_*.deb
   ```
 
-- `GNOSISVPN_HOPR_BLOKLI_URL=<url>` — URL of the HOPR Blokli service (default: `https://blokli.<network>.hoprnet.link`
+- `GNOSISVPN_HOPR_BLOKLI_URL=<url>` — URL of the HOPR Blokli service (default: `https://blokli-jura.prod.hoprnet.link`
   for the selected network). The effective URL is written to `/etc/gnosisvpn/gnosisvpn-dynamic.env` (which overrides the
   packaged `/etc/gnosisvpn/gnosisvpn.env` conffile, kept empty so upgrades stay prompt-free).
 
