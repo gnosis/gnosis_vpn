@@ -96,6 +96,12 @@ function validateIso8601Date(dateString: string): boolean {
   return true;
 }
 
+// Component versions carry the exact registry tag, which may or may not be
+// v-prefixed; this normalizes to the v-prefixed form without doubling the "v".
+function vTag(version: string): string {
+  return `${version}`.startsWith("v") ? `${version}` : `v${version}`;
+}
+
 // --- GitHub API Client ---
 
 async function ghApiCall(
@@ -211,7 +217,7 @@ async function getVersionDate(
     date = commit.commit.committer.date;
   } else if (/^v?\d+\.\d+\.\d+$/.test(`${version}`)) {
     log("DEBUG", `Getting version date from release tag`);
-    const tag = `${version}`.startsWith("v") ? `${version}` : `v${version}`;
+    const tag = vTag(`${version}`);
     const release = (await ghApiCall(config, repo, `/releases/tags/${tag}`, allowMissingRelease)) as
       | GitHubRelease
       | null;
@@ -382,25 +388,34 @@ function githubFormat(
 
   let content = "## What's Changed\n";
 
-  const toolkitUpdated = previousToolkitVersion !== currentToolkitVersion;
+  // Compare and render via vTag so a pure "v"-prefix format change in the
+  // stored previous-version variables doesn't report a component update.
+  const cliUpdated = vTag(previousCliVersion) !== vTag(currentCliVersion);
+  const appUpdated = vTag(previousAppVersion) !== vTag(currentAppVersion);
+  const toolkitUpdated = vTag(previousToolkitVersion) !== vTag(currentToolkitVersion);
 
-  if (
-    previousCliVersion !== currentCliVersion ||
-    previousAppVersion !== currentAppVersion ||
-    toolkitUpdated
-  ) {
+  if (cliUpdated || appUpdated || toolkitUpdated) {
     content += "\nThis release contains the following component updates:\n\n";
-    if (previousCliVersion !== currentCliVersion) {
-      content +=
-        `- **[GnosisVPN Client](https://github.com/gnosis/gnosis_vpn-client)**: Updated from [v${previousCliVersion}](https://github.com/gnosis/gnosis_vpn-client/releases/tag/v${previousCliVersion}) to [v${currentCliVersion}](https://github.com/gnosis/gnosis_vpn-client/releases/tag/v${currentCliVersion})\n`;
+    if (cliUpdated) {
+      content += `- **[GnosisVPN Client](https://github.com/gnosis/gnosis_vpn-client)**: Updated from [${
+        vTag(previousCliVersion)
+      }](https://github.com/gnosis/gnosis_vpn-client/releases/tag/${vTag(previousCliVersion)}) to [${
+        vTag(currentCliVersion)
+      }](https://github.com/gnosis/gnosis_vpn-client/releases/tag/${vTag(currentCliVersion)})\n`;
     }
-    if (previousAppVersion !== currentAppVersion) {
-      content +=
-        `- **[GnosisVPN App](https://github.com/gnosis/gnosis_vpn-app)**: Updated from [v${previousAppVersion}](https://github.com/gnosis/gnosis_vpn-app/releases/tag/v${previousAppVersion}) to [v${currentAppVersion}](https://github.com/gnosis/gnosis_vpn-app/releases/tag/v${currentAppVersion})\n`;
+    if (appUpdated) {
+      content += `- **[GnosisVPN App](https://github.com/gnosis/gnosis_vpn-app)**: Updated from [${
+        vTag(previousAppVersion)
+      }](https://github.com/gnosis/gnosis_vpn-app/releases/tag/${vTag(previousAppVersion)}) to [${
+        vTag(currentAppVersion)
+      }](https://github.com/gnosis/gnosis_vpn-app/releases/tag/${vTag(currentAppVersion)})\n`;
     }
     if (toolkitUpdated) {
-      content +=
-        `- **[GnosisVPN Toolkit](https://github.com/gnosis/gnosis_vpn-toolkit)**: Updated from [v${previousToolkitVersion}](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/v${previousToolkitVersion}) to [v${currentToolkitVersion}](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/v${currentToolkitVersion})\n`;
+      content += `- **[GnosisVPN Toolkit](https://github.com/gnosis/gnosis_vpn-toolkit)**: Updated from [${
+        vTag(previousToolkitVersion)
+      }](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/${vTag(previousToolkitVersion)}) to [${
+        vTag(currentToolkitVersion)
+      }](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/${vTag(currentToolkitVersion)})\n`;
     }
     content += "\n";
   }
@@ -993,6 +1008,22 @@ Deno.test("githubFormat - no component updates when versions match", () => {
   ];
   const result = githubFormat(entries, "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.4.2", "1.4.2");
   assertEquals(result.includes("component updates"), false);
+});
+
+Deno.test("githubFormat - v-prefix format flip is not a component update", () => {
+  const result = githubFormat([], "1.0.0", "v1.0.0", "v1.0.0", "1.0.0", "1.4.2", "v1.4.2");
+  assertEquals(result.includes("component updates"), false);
+});
+
+Deno.test("githubFormat - v-prefixed versions render a single v", () => {
+  const result = githubFormat([], "1.0.0", "1.0.0", "1.0.0", "1.0.0", "v1.2.3", "v1.4.2");
+  assertEquals(
+    result.includes(
+      "- **[GnosisVPN Toolkit](https://github.com/gnosis/gnosis_vpn-toolkit)**: Updated from [v1.2.3](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/v1.2.3) to [v1.4.2](https://github.com/gnosis/gnosis_vpn-toolkit/releases/tag/v1.4.2)",
+    ),
+    true,
+  );
+  assertEquals(result.includes("vv"), false);
 });
 
 // --- debianFormat ---

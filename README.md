@@ -308,6 +308,9 @@ deadlock.
 The diagram below shows every GitHub Actions workflow, what triggers each one (automatic vs. manual), and how they chain
 together across the **snapshot** and **stable** channels. `Build`, `Publish APT`, and `Prune Bucket` are reusable
 workflows (`workflow_call`) invoked as ordered steps by the channel pipelines; `Prune Bucket` can also be run manually.
+On the stable channel the version bump (`package.json` + release version variables) is deferred until `Publish APT`
+succeeds — until then nothing permanent touches the branch, so a failed release rolls back by just deleting the GitHub
+release and tag.
 
 ```mermaid
 flowchart TD
@@ -332,6 +335,7 @@ flowchart TD
       direction TB
       SBUILD["<b>Build</b> (release)<br/>build .deb + macOS .pkg<br/>macOS .pkg → bucket"] --> SGH["GitHub release<br/>(gates stable APT)"]
       SGH --> SAPT["<b>Publish APT</b> (stable)"]
+      SAPT --> SBUMP["<b>Bump version</b><br/>package.json + release version vars<br/>(only after APT succeeds)"]
       SAPT --> SPRUNE["<b>Prune Bucket</b> (stable)<br/>purge old APT + macOS versions"]
     end
 
