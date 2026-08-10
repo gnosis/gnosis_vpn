@@ -10,8 +10,10 @@ config/
 ├── system/               # System configuration files
 │   └── com.gnosisvpn.gnosisvpnclient.plist  # LaunchD service configuration
 └── templates/           # Configuration templates
-    ├── jura.toml.template     # Jura network configuration template
-    └── rotsee.toml.template   # Rotsee network configuration template
+    ├── jura-prod.toml.template          # Jura Prod network configuration template
+    ├── jura-dev.toml.template           # Jura Dev network configuration template
+    ├── piz-palu-dev.toml.template       # Piz Palu Dev network configuration template
+    └── piz-palu-staging.toml.template   # Piz Palu Staging network configuration template
 ```
 
 ## System Configuration Files
@@ -36,8 +38,10 @@ TOML configuration templates for different network environments.
 
 **Available Networks:**
 
-- **jura**: Default production network
-- **rotsee**: Alternative production network
+- **jura-prod**: Default production network
+- **jura-dev**: Development network
+- **piz-palu-dev**: Piz Palu development network
+- **piz-palu-staging**: Piz Palu staging network
 
 **Template Structure:**
 

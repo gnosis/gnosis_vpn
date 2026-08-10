@@ -21,11 +21,11 @@ The installer accepts options after `-s --`:
   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
   ```
 
-- `--network=<jura|rotsee>` — network to configure (default: `jura` on first install; omitting keeps an existing
-  choice). Env var: `GNOSISVPN_NETWORK`.
+- `--network=<jura-prod|jura-dev|piz-palu-dev|piz-palu-staging>` — network to configure (default: `jura-prod` on first
+  install; omitting keeps an existing choice). Env var: `GNOSISVPN_NETWORK`.
 
   ```bash
-  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=rotsee
+  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=jura-dev
   ```
 
 - `--reset-identity` — back up the worker's config directory (`/var/lib/gnosisvpn/.config/`, holding the HOPR identity,
@@ -52,12 +52,12 @@ a snapshot installation, pass `--channel=snapshot` again when re-running, e.g. t
 `.deb` from the other channel (`sudo apt install ./gnosisvpn_*.deb`) re-points
 `/etc/apt/sources.list.d/gnosisvpn.sources` at that package's channel; run `sudo apt-get update` afterwards.
 
-The installer sets up the default network (`jura`) on first install and keeps an existing choice on re-runs. To pick a
-different network — or to switch an existing installation — pass `--network` (combinable with `--channel`; see
+The installer sets up the default network (`jura-prod`) on first install and keeps an existing choice on re-runs. To
+pick a different network — or to switch an existing installation — pass `--network` (combinable with `--channel`; see
 [.deb Installation Environment Variables](#deb-installation-environment-variables)):
 
 ```bash
-curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=rotsee
+curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=jura-dev
 ```
 
 Manual repo setup (equivalent to what the installer does for the stable channel — it lists both mirrors, the IPFS/ENS
@@ -102,8 +102,8 @@ variables with `sudo env` (a plain `sudo GNOSISVPN_NETWORK=... apt install` only
 sudoers policy keeps it, which is often disabled; `sudo env` always works):
 
 ```bash
-sudo env GNOSISVPN_NETWORK=rotsee apt install ./gnosisvpn_*.deb
-sudo env GNOSISVPN_NETWORK=rotsee GNOSISVPN_HOPR_BLOKLI_URL=https://blokli.example.com apt install ./gnosisvpn_*.deb
+sudo env GNOSISVPN_NETWORK=jura-dev apt install ./gnosisvpn_*.deb
+sudo env GNOSISVPN_NETWORK=jura-dev GNOSISVPN_HOPR_BLOKLI_URL=https://blokli.example.com apt install ./gnosisvpn_*.deb
 ```
 
 Note: re-installing the **same version** via `apt` does nothing — the package scripts don't re-run, so environment
@@ -126,11 +126,11 @@ sudo apt remove gnosisvpn
 Direct `.deb` installs have no flags — these environment variables configure the package scripts instead (set them with
 `sudo env`, see above). They are also honored by the installer script.
 
-- `GNOSISVPN_NETWORK=<jura|rotsee>` — network configuration to use (default: `jura`); determines which configuration
-  file is symlinked to `/etc/gnosisvpn/config.toml` during installation.
+- `GNOSISVPN_NETWORK=<jura-prod|jura-dev|piz-palu-dev|piz-palu-staging>` — network configuration to use (default:
+  `jura-prod`); determines which configuration file is symlinked to `/etc/gnosisvpn/config.toml` during installation.
 
   ```bash
-  sudo env GNOSISVPN_NETWORK=rotsee apt install ./gnosisvpn_*.deb
+  sudo env GNOSISVPN_NETWORK=jura-dev apt install ./gnosisvpn_*.deb
   ```
 
 - `GNOSISVPN_HOPR_BLOKLI_URL=<url>` — URL of the HOPR Blokli service (default: `https://blokli.<network>.hoprnet.link`

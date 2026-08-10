@@ -90,13 +90,23 @@ contents:
     type: config
     file_info:
       mode: 0644
-  - src: ./linux/resources/config-jura.toml
-    dst: /etc/gnosisvpn/config-jura.toml
+  - src: ./linux/resources/config-jura-prod.toml
+    dst: /etc/gnosisvpn/config-jura-prod.toml
     type: config
     file_info:
       mode: 0644
-  - src: ./linux/resources/config-rotsee.toml
-    dst: /etc/gnosisvpn/config-rotsee.toml
+  - src: ./linux/resources/config-jura-dev.toml
+    dst: /etc/gnosisvpn/config-jura-dev.toml
+    type: config
+    file_info:
+      mode: 0644
+  - src: ./linux/resources/config-piz-palu-dev.toml
+    dst: /etc/gnosisvpn/config-piz-palu-dev.toml
+    type: config
+    file_info:
+      mode: 0644
+  - src: ./linux/resources/config-piz-palu-staging.toml
+    dst: /etc/gnosisvpn/config-piz-palu-staging.toml
     type: config
     file_info:
       mode: 0644

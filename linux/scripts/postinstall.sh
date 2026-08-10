@@ -39,10 +39,10 @@ create_system_user_and_group() {
 # Configure ownership and permissions for directories and binaries
 configure_filesystem_permissions() {
     # Blokli endpoint precedence: explicit GNOSISVPN_HOPR_BLOKLI_URL, else
-    # derived from the selected network (jura when none selected), else a
+    # derived from the selected network (jura-prod when none selected), else a
     # pre-existing/legacy value is preserved below.
     local network_name blokli_url
-    network_name="${GNOSISVPN_NETWORK:-jura}"
+    network_name="${GNOSISVPN_NETWORK:-jura-prod}"
 
     # Validate the requested network maps to a shipped config before using it to
     # (re)link config.toml or derive the default endpoint. A typo would
