@@ -21,7 +21,7 @@ The installer accepts options after `-s --`:
   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
   ```
 
-- `--network=<jura-prod|jura-dev|piz-palu-dev|piz-palu-staging>` — network to configure (default: `jura-prod` on first
+- `--network=<jura-prod|jura-dev|piz-palu-dev>` — network to configure (default: `jura-prod` on first
   install; omitting keeps an existing choice). Env var: `GNOSISVPN_NETWORK`.
 
   ```bash
@@ -126,15 +126,14 @@ sudo apt remove gnosisvpn
 Direct `.deb` installs have no flags — these environment variables configure the package scripts instead (set them with
 `sudo env`, see above). They are also honored by the installer script.
 
-- `GNOSISVPN_NETWORK=<jura-prod|jura-dev|piz-palu-dev|piz-palu-staging>` — network configuration to use (default:
+- `GNOSISVPN_NETWORK=<jura-prod|jura-dev|piz-palu-dev>` — network configuration to use (default:
   `jura-prod`); determines which configuration file is symlinked to `/etc/gnosisvpn/config.toml` during installation.
 
   ```bash
   sudo env GNOSISVPN_NETWORK=jura-dev apt install ./gnosisvpn_*.deb
   ```
 
-- `GNOSISVPN_HOPR_BLOKLI_URL=<url>` — URL of the HOPR Blokli service (default: `https://blokli-jura.prod.hoprnet.link`
-  for the selected network). The effective URL is written to `/etc/gnosisvpn/gnosisvpn-dynamic.env` (which overrides the
+- `GNOSISVPN_HOPR_BLOKLI_URL=<url>` — URL of the HOPR Blokli service. The effective URL is written to `/etc/gnosisvpn/gnosisvpn-dynamic.env` (which overrides the
   packaged `/etc/gnosisvpn/gnosisvpn.env` conffile, kept empty so upgrades stay prompt-free).
 
   ```bash

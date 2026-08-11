@@ -16,7 +16,7 @@
 #   $4: Root directory "/" for the current system
 #
 # Environment variables from Distribution.xml choices:
-#   INSTALLER_CHOICE_NETWORK: "jura-prod", "jura-dev", "piz-palu-dev", or "piz-palu-staging"
+#   INSTALLER_CHOICE_NETWORK: "jura-prod", "jura-dev", "piz-palu-dev"
 #   INSTALLER_CHOICE_LOGLEVEL: "debug" or "info"
 
 set -euo pipefail

@@ -105,11 +105,6 @@ contents:
     type: config
     file_info:
       mode: 0644
-  - src: ./linux/resources/config-piz-palu-staging.toml
-    dst: /etc/gnosisvpn/config-piz-palu-staging.toml
-    type: config
-    file_info:
-      mode: 0644
   - src: ./linux/resources/logrotate.conf
     dst: /etc/logrotate.d/gnosisvpn
     type: config

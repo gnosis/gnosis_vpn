@@ -38,7 +38,6 @@ CHOICE_PACKAGES=(
     "network:jura-prod"
     "network:jura-dev"
     "network:piz-palu-dev"
-    "network:piz-palu-staging"
     "loglevel:info"
     "loglevel:debug"
 )

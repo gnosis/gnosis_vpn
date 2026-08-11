@@ -11,7 +11,6 @@
     <pkg-ref id="com.gnosisvpn.choice.network.jura-dev"/>
     <pkg-ref id="com.gnosisvpn.choice.network.jura-prod"/>
     <pkg-ref id="com.gnosisvpn.choice.network.piz-palu-dev"/>
-    <pkg-ref id="com.gnosisvpn.choice.network.piz-palu-staging"/>
     <pkg-ref id="com.gnosisvpn.choice.loglevel.info"/>
     <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"/>
     <!-- The default package needs to be last to run its postinstall as last -->
@@ -60,7 +59,6 @@
             <line choice="jura-prod"/>
             <line choice="jura-dev"/>
             <line choice="piz-palu-dev"/>
-            <line choice="piz-palu-staging"/>
         </line>
         <line choice="loglevel">
             <line choice="info"/>
@@ -92,7 +90,7 @@
             title="Jura Prod (Recommended)"
             description="Connect to VPN nodes on the Jura Prod network - US, UK, NL, Brazil, Australia, India, South Korea"
             visible="true"
-            enabled="exclusiveEnabled('jura-prod', ['jura-prod','jura-dev','piz-palu-dev','piz-palu-staging'])"
+            enabled="exclusiveEnabled('jura-prod', ['jura-prod','jura-dev','piz-palu-dev'])"
             start_selected="true">
         <pkg-ref id="com.gnosisvpn.choice.network.jura-prod"/>
     </choice>
@@ -103,7 +101,7 @@
             description="Connect to VPN nodes on the Jura Dev network - US, UK, India"
             visible="true"
             start_selected="false"
-            enabled="exclusiveEnabled('jura-dev', ['jura-prod','jura-dev','piz-palu-dev','piz-palu-staging'])">
+            enabled="exclusiveEnabled('jura-dev', ['jura-prod','jura-dev','piz-palu-dev'])">
         <pkg-ref id="com.gnosisvpn.choice.network.jura-dev"/>
     </choice>
 
@@ -113,18 +111,8 @@
             description="Connect to VPN nodes on the Piz Palu Dev network"
             visible="true"
             start_selected="false"
-            enabled="exclusiveEnabled('piz-palu-dev', ['jura-prod','jura-dev','piz-palu-dev','piz-palu-staging'])">
+            enabled="exclusiveEnabled('piz-palu-dev', ['jura-prod','jura-dev','piz-palu-dev'])">
         <pkg-ref id="com.gnosisvpn.choice.network.piz-palu-dev"/>
-    </choice>
-
-    <!-- Piz Palu Staging network sub-choice -->
-    <choice id="piz-palu-staging"
-            title="Piz Palu Staging"
-            description="Connect to VPN nodes on the Piz Palu Staging network"
-            visible="true"
-            start_selected="false"
-            enabled="exclusiveEnabled('piz-palu-staging', ['jura-prod','jura-dev','piz-palu-dev','piz-palu-staging'])">
-        <pkg-ref id="com.gnosisvpn.choice.network.piz-palu-staging"/>
     </choice>
 
     <!-- Service mode selection choice (parent group) -->
@@ -186,14 +174,6 @@
              installKBytes="0"
              onConclusion="none">
         #choice-network-piz-palu-dev.pkg
-    </pkg-ref>
-
-    <pkg-ref id="com.gnosisvpn.choice.network.piz-palu-staging"
-             version="0"
-             auth="root"
-             installKBytes="0"
-             onConclusion="none">
-        #choice-network-piz-palu-staging.pkg
     </pkg-ref>
 
     <pkg-ref id="com.gnosisvpn.choice.loglevel.info"

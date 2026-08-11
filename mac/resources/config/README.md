@@ -13,7 +13,6 @@ config/
     ├── jura-prod.toml.template          # Jura Prod network configuration template
     ├── jura-dev.toml.template           # Jura Dev network configuration template
     ├── piz-palu-dev.toml.template       # Piz Palu Dev network configuration template
-    └── piz-palu-staging.toml.template   # Piz Palu Staging network configuration template
 ```
 
 ## System Configuration Files
@@ -41,7 +40,6 @@ TOML configuration templates for different network environments.
 - **jura-prod**: Default production network
 - **jura-dev**: Development network
 - **piz-palu-dev**: Piz Palu development network
-- **piz-palu-staging**: Piz Palu staging network
 
 **Template Structure:**
 
