@@ -235,45 +235,6 @@ prepare_build_dir() {
         fi
     done
 
-    # Copy artifacts needed by the application
-    if [[ -d "$RESOURCES_DIR/artifacts/" ]]; then
-        mkdir -p "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/"
-
-        for wg_binary in wg wireguard-go wg-quick; do
-            if [[ -f "$RESOURCES_DIR/artifacts/${wg_binary}" ]]; then
-                cp "$RESOURCES_DIR/artifacts/${wg_binary}" "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/${wg_binary}"
-                chmod 755 "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/${wg_binary}"
-                log_success "Copied artifact binary: ${wg_binary}"
-            else
-                log_error "Missing artifact binary: ${wg_binary}"
-                exit 1
-            fi
-        done
-
-        # Signing of the binaries by the `Developer ID Application` certificate
-        if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then
-            security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}"
-            security default-keychain -s "${KEYCHAIN_NAME}"
-            security set-keychain-settings -lut 21600 "${KEYCHAIN_NAME}"
-            security unlock-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}"
-            security list-keychains -d user -s "${KEYCHAIN_NAME}" login.keychain
-            security import "${GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH}" -k "${KEYCHAIN_NAME}" -P "${GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD}" -T /usr/bin/codesign
-            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}" 2>/dev/null >/dev/null
-            CERT_ID=$(security find-identity -v -p codesigning "${KEYCHAIN_NAME}" | awk -F'"' '{print $2}' | tr -d '\n')
-
-            # sign the wg binary
-            codesign --sign "${CERT_ID}" --options runtime --timestamp "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wg"
-            codesign --verify --deep --strict --verbose=4 "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wg"
-            log_success "'wg' binary signed successfully"
-
-            # sign the wireguard-go binary
-            codesign --sign "${CERT_ID}" --options runtime --timestamp "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wireguard-go"
-            codesign --verify --deep --strict --verbose=4 "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wireguard-go"
-            log_success "'wireguard-go' binary signed successfully"
-        fi
-        log_success "Artifacts copied"
-    fi
-
     log_success "Build directory prepared"
 }
 

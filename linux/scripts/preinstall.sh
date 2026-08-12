@@ -33,13 +33,5 @@ if [[ -f /etc/gnosisvpn/config.toml ]]; then
     cp -a /etc/gnosisvpn/config.toml "$backup_path" || true
 fi
 
-# Verify kernel module support for WireGuard (dependency installs package, not kernel module)
-if ! modinfo wireguard >/dev/null 2>&1; then
-    echo "$LOG_PREFIX WARNING: WireGuard kernel module not found"
-    echo "$LOG_PREFIX WARNING: You may need to install linux-headers and reboot"
-    echo "$LOG_PREFIX WARNING: Or ensure wireguard-dkms is installed"
-    # This is a warning, not a fatal error - user might fix it later
-fi
-
 echo "$LOG_PREFIX INFO: Pre-installation checks completed successfully"
 exit 0
