@@ -33,5 +33,14 @@ if [[ -f /etc/gnosisvpn/config.toml ]]; then
     cp -a /etc/gnosisvpn/config.toml "$backup_path" || true
 fi
 
+# Userspace WireGuard needs the TUN device to create its network interface.
+# Present on virtually all systems, but absent on some minimal/container hosts.
+if [[ ! -c /dev/net/tun ]]; then
+    echo "$LOG_PREFIX WARNING: TUN device /dev/net/tun not found"
+    echo "$LOG_PREFIX WARNING: GnosisVPN needs it to create its network interface"
+    echo "$LOG_PREFIX WARNING: Load the module with 'sudo modprobe tun' (and ensure it is available after reboot)"
+    # This is a warning, not a fatal error - user might fix it later
+fi
+
 echo "$LOG_PREFIX INFO: Pre-installation checks completed successfully"
 exit 0
