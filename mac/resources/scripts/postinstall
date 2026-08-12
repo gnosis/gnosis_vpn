@@ -894,10 +894,15 @@ copy_uninstall() {
 # TODO: remove this cleanup by December 2026.
 # Migration only: installs from before the userspace WireGuard migration copied
 # wg/wg-quick/wireguard-go to $BIN_DIR; nothing ships or reads them anymore.
+# Skip symlinks: on Intel Macs, Homebrew's wireguard-tools/wireguard-go formulas
+# symlink into /usr/local/bin, and `-f` follows symlinks, so an unguarded check
+# would delete the user's Homebrew-managed WireGuard alongside our old vendored copy.
 remove_legacy_wireguard_binaries() {
     local binary
     for binary in wg wg-quick wireguard-go; do
-        if [[ -f "$BIN_DIR/$binary" ]]; then
+        if [[ -L "$BIN_DIR/$binary" ]]; then
+            log_info "Skipping $BIN_DIR/$binary: symlink, likely managed by Homebrew or another tool"
+        elif [[ -f "$BIN_DIR/$binary" ]]; then
             rm -f "$BIN_DIR/$binary"
             log_success "Removed legacy binary: $BIN_DIR/$binary"
         fi
