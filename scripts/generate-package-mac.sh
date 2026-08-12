@@ -458,11 +458,22 @@ build_distribution_package() {
 
 }
 
+# Create and configure the dedicated keychain used to hold the installer signing certificate
+create_signing_keychain() {
+    log_info "Creating signing keychain..."
+    security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}"
+    security default-keychain -s "${KEYCHAIN_NAME}"
+    security set-keychain-settings -lut 21600 "${KEYCHAIN_NAME}"
+    security unlock-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}"
+    security list-keychains -d user -s "${KEYCHAIN_NAME}" login.keychain
+    log_success "Signing keychain created: ${KEYCHAIN_NAME}"
+}
+
 # Sign package
 sign_platform_package() {
     if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then
         log_info "Signing package for distribution..."
-        security unlock-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}"
+        create_signing_keychain
         security import "${GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH}" -k "${KEYCHAIN_NAME}" -P "${GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD}" -T /usr/bin/productsign -T /usr/bin/xcrun
         security set-key-partition-list -S apple-tool:,apple:,productsign:,xcrun: -s -k "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}" 2>/dev/null >/dev/null
         local signing_identity
