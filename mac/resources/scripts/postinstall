@@ -891,12 +891,30 @@ copy_uninstall() {
     log_success "Uninstall script copied to $INSTALLED_LIB_DIR_PATH/uninstall.sh"
 }
 
+# TODO: remove this cleanup by December 2026.
+# Migration only: installs from before the userspace WireGuard migration copied
+# wg/wg-quick/wireguard-go to $BIN_DIR; nothing ships or reads them anymore.
+# Skip symlinks: on Intel Macs, Homebrew's wireguard-tools/wireguard-go formulas
+# symlink into /usr/local/bin, and `-f` follows symlinks, so an unguarded check
+# would delete the user's Homebrew-managed WireGuard alongside our old vendored copy.
+remove_legacy_wireguard_binaries() {
+    local binary
+    for binary in wg wg-quick wireguard-go; do
+        if [[ -L "$BIN_DIR/$binary" ]]; then
+            log_info "Skipping $BIN_DIR/$binary: symlink, likely managed by Homebrew or another tool"
+        elif [[ -f "$BIN_DIR/$binary" ]]; then
+            rm -f "$BIN_DIR/$binary"
+            log_success "Removed legacy binary: $BIN_DIR/$binary"
+        fi
+    done
+}
+
 # Update binaries incrementally (only if changed)
 update_binaries() {
     local installation_type="$1"
 
     log_info "Updating binaries..."
-    binaries_array=(gnosis_vpn-root:root:wheel:750 gnosis_vpn-worker:root:gnosisvpn:750 gnosis_vpn-ctl:gnosisvpn:gnosisvpn:755 gnosis_vpn-update:root:wheel:755 wg:root:wheel:755 wireguard-go:root:wheel:755 wg-quick:root:wheel:755)
+    binaries_array=(gnosis_vpn-root:root:wheel:750 gnosis_vpn-worker:root:gnosisvpn:750 gnosis_vpn-ctl:gnosisvpn:gnosisvpn:755 gnosis_vpn-update:root:wheel:755)
 
     # For fresh installations, just copy all binaries
     if [[ "$installation_type" == "fresh" ]]; then
@@ -931,6 +949,8 @@ update_binaries() {
         else
             log_info "All binaries are up to date"
         fi
+
+        remove_legacy_wireguard_binaries
     fi
     # Install management script
     setup_management_script

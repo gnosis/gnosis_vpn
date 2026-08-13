@@ -11,7 +11,6 @@ user-friendly graphical interface for installing and configuring the Gnosis VPN 
 - **Configuration Preservation**: Maintains user settings during updates when possible
 - **Version Tracking**: Tracks installation versions for better update management
 - **Automatic Backups**: Creates backups of binaries and configurations before updates
-- **WireGuard Integration**: Automatically detects and installs WireGuard tools if needed
 - **Network Selection**: Choose between Production (Gnosis Chain) or Jura as testnet
 - **Configuration Generation**: Creates `config.toml` with selected network destinations
 - **macOS Integration**: Removes quarantine attributes and sets proper permissions
