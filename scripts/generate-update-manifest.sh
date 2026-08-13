@@ -31,7 +31,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/config.sh"
 
 GCS_BASE_URL="https://download.gnosisvpn.io"
-IPFS_BASE_URL="https://downloads.vpn.gnosis.eth"
+IPFS_BASE_URL="download.vpn.gnosis.eth"
 
 # ---------------------------------------------------------------------------
 # Helpers

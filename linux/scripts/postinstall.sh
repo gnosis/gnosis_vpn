@@ -293,29 +293,6 @@ EOF
     echo "$LOG_PREFIX INFO: Run 'sudo apt-get update' to refresh the package cache"
 }
 
-# Reload the wg-quick AppArmor profile so it picks up our local drop-in
-# (/etc/apparmor.d/local/wg-quick), which grants read access to the GnosisVPN
-# WireGuard config under /var/lib/gnosisvpn/. No-op where the profile or
-# AppArmor isn't present (RPM/Arch/older Ubuntu/AppArmor-disabled).
-reload_apparmor_wg_quick() {
-    # Only relevant where the wg-quick AppArmor profile exists (e.g. Ubuntu 26.04+).
-    if [[ ! -e /etc/apparmor.d/wg-quick ]]; then
-        echo "$LOG_PREFIX INFO: no wg-quick AppArmor profile present, skipping reload"
-        return 0
-    fi
-    if ! command -v apparmor_parser >/dev/null 2>&1; then
-        return 0
-    fi
-    # Skip if AppArmor isn't actually enabled in the kernel.
-    if [[ -r /sys/module/apparmor/parameters/enabled ]] &&
-        [[ "$(cat /sys/module/apparmor/parameters/enabled)" != "Y" ]]; then
-        return 0
-    fi
-    echo "$LOG_PREFIX INFO: reloading wg-quick AppArmor profile to allow GnosisVPN config..."
-    apparmor_parser -r -T -W /etc/apparmor.d/wg-quick ||
-        echo "$LOG_PREFIX WARNING: failed to reload wg-quick AppArmor profile"
-}
-
 # Remove the HOPR identity when explicitly requested (GNOSISVPN_RESET_IDENTITY=true,
 # e.g. `sudo env GNOSISVPN_RESET_IDENTITY=true apt install ./gnosisvpn_*.deb`) so the
 # service generates a fresh one on its next start. Runs before the service is
@@ -504,7 +481,6 @@ main() {
     # TODO: remove the removal code by December 2026 (see remove_legacy_apt_mirror).
     remove_legacy_apt_mirror
     register_apt_repo
-    reload_apparmor_wg_quick
     reset_identity_if_requested
     enable_and_start_systemd_service
     install_desktop_shortcut_for_user

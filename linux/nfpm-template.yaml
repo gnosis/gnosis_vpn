@@ -23,7 +23,6 @@ overrides:
       - systemd
       - iptables
       - logrotate
-      - wireguard
       - ca-certificates
       - libwebkit2gtk-4.1-0
       # Ubuntu 24.04+ renamed libgtk-3-0 to libgtk-3-0t64 (64-bit time_t
@@ -38,7 +37,6 @@ overrides:
       - systemd
       - iptables
       - logrotate
-      - wireguard
       - ca-certificates
       - webkit2gtk4.1
       - gtk3
@@ -130,16 +128,6 @@ contents:
       group: root
   - src: ./linux/resources/lintian-overrides
     dst: /usr/share/lintian/overrides/gnosisvpn
-    file_info:
-      mode: 0644
-      owner: root
-      group: root
-  # AppArmor local drop-in: grants the wg-quick profile (Ubuntu 26.04+) read
-  # access to our managed WireGuard config. Plain content (no type: config) so
-  # it is removed cleanly on uninstall; postinstall/postuninstall reparse the
-  # wg-quick profile to pick up / drop this local include.
-  - src: ./linux/resources/apparmor-local-wg-quick
-    dst: /etc/apparmor.d/local/wg-quick
     file_info:
       mode: 0644
       owner: root

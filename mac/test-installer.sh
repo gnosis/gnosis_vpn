@@ -89,7 +89,7 @@ test_build_structure() {
     run_test "Packages directory exists" "[[ -d '${BUILD_DIR}/packages' ]]"
 
     # Binaries presence
-    local binaries=("gnosis_vpn-root" "gnosis_vpn-worker" "gnosis_vpn-ctl" "gnosis_vpn-update" "wg" "wg-quick" "wireguard-go")
+    local binaries=("gnosis_vpn-root" "gnosis_vpn-worker" "gnosis_vpn-ctl" "gnosis_vpn-update")
     for bin in "${binaries[@]}"; do
         run_test "Binary '$bin' exists" "[[ -f '$rootfs/usr/local/bin/$bin' ]]"
         run_test "Binary '$bin' is executable" "[[ -x '$rootfs/usr/local/bin/$bin' ]]"
@@ -152,21 +152,6 @@ test_signing() {
 
     # Check package signature
     run_test "Package signature verification" "pkgutil --check-signature '$pkg' >/dev/null"
-
-    # Check binary signatures (if we can on this platform)
-    if command -v codesign >/dev/null; then
-        local rootfs="${BUILD_DIR}/app-contents/rootfs"
-        local bins_to_check=("wg" "wireguard-go")
-
-        for bin in "${bins_to_check[@]}"; do
-            local bin_path="$rootfs/usr/local/bin/$bin"
-            if [[ -f $bin_path ]]; then
-                run_test "Binary signature '$bin'" "codesign --verify --deep --strict '$bin_path' >/dev/null"
-            fi
-        done
-    else
-        log_test "Skipping binary signature check (codesign not found)"
-    fi
 }
 
 # 2. File Content & Syntax Validation (Cleaned up)
