@@ -27,7 +27,7 @@ jobs:
       PACKAGE_VERSION: ${{ inputs.package_version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install apt tooling
         run: sudo apt-get update && sudo apt-get install -y reprepro gnupg gpg-agent
       - name: Download package artifacts
@@ -43,7 +43,7 @@ jobs:
           printf '%s' "${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}" > /tmp/gnosis_vpn_gpg_key.asc
           chmod 600 /tmp/gnosis_vpn_gpg_key.asc
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@ade4bbd75f7204255c61d19c23f67d3da221e7d2 # setup-gcp-v4
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@7263182fc9a2bab22cc5a029929940914eb9748d # setup-gcp-v4
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
