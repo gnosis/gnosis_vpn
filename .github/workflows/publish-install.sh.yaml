@@ -27,9 +27,8 @@ jobs:
           install_sdk: true
       - name: Generate checksum
         run: |
-          cp install/linux.sh install.sh
-          (shasum -a 256 install.sh) >install/linux.sh.sha256
-          rm install.sh
+          checksum=$(sha256sum install/linux.sh | cut -d' ' -f1)
+          printf '%s  install.sh\n' "$checksum" >install/linux.sh.sha256
       - name: Upload install.sh
         run: |
           gsutil -h "Content-Type:text/x-shellscript; charset=utf-8" \
