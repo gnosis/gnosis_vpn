@@ -25,8 +25,17 @@ jobs:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
           install_sdk: true
+      - name: Generate checksum
+        run: |
+          checksum=$(sha256sum install/linux.sh | cut -d' ' -f1)
+          printf '%s  install.sh\n' "$checksum" >install/linux.sh.sha256
       - name: Upload install.sh
         run: |
           gsutil -h "Content-Type:text/x-shellscript; charset=utf-8" \
                  -h "Cache-Control:public, max-age=300" \
                  cp install/linux.sh gs://download.gnosisvpn.io/linux/install.sh
+      - name: Upload install.sh.sha256
+        run: |
+          gsutil -h "Content-Type:text/plain; charset=utf-8" \
+                 -h "Cache-Control:public, max-age=300" \
+                 cp install/linux.sh.sha256 gs://download.gnosisvpn.io/linux/install.sh.sha256
