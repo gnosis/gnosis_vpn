@@ -27,7 +27,7 @@ jobs:
       from_release: ${{ steps.runs.outputs.from_release }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Generate GitHub App token
         id: bot-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -155,7 +155,7 @@ jobs:
             exit 1
           fi
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@ade4bbd75f7204255c61d19c23f67d3da221e7d2 # setup-gcp-v4
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@7263182fc9a2bab22cc5a029929940914eb9748d # setup-gcp-v4
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
@@ -213,7 +213,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Propose ENS contenthash update
-        uses: hoprnet/hopr-workflows/actions/propose-ens-contenthash@ade4bbd75f7204255c61d19c23f67d3da221e7d2 # propose-ens-contenthash-v1
+        uses: hoprnet/hopr-workflows/actions/propose-ens-contenthash@5b0f0e6c7e3a02e30a33b9f5150fb5b118676e58 # propose-ens-contenthash-v1
         with:
           cid: ${{ needs.deploy-ipfs.outputs.ipfs_hash }}
           ens_name: ${{ vars.ENS_NAME }}
