@@ -101,6 +101,59 @@ jobs:
           path: ./merged-build/manifests/
           run-id: ${{ steps.runs.outputs.manifests_run }}
           github-token: ${{ github.token }}
+      - name: Substitute website placeholders
+        run: |
+          set -euo pipefail
+          manifests=./merged-build/manifests
+          website=./merged-build/website
+
+          # jq -e fails on missing/null values; set -e then aborts the step.
+          version=$(jq -er '.channels.stable.version' "$manifests/macos-arm64.ipfs.json")
+          url_mac_arm=$(jq -er '.channels.stable.download_url' "$manifests/macos-arm64.ipfs.json")
+          url_linux_amd64=$(jq -er '.channels.stable.download_url' "$manifests/linux-amd64.ipfs.json")
+          url_linux_arm64=$(jq -er '.channels.stable.download_url' "$manifests/linux-arm64.ipfs.json")
+
+          # All three manifests must agree on the stable version.
+          for m in linux-amd64 linux-arm64; do
+            v=$(jq -er '.channels.stable.version' "$manifests/$m.ipfs.json")
+            [ "$v" = "$version" ] || { echo "::error::Version mismatch: $m has $v, macos-arm64 has $version"; exit 1; }
+          done
+
+          # Binaries ship in the same IPFS build, so links are origin-relative:
+          # strip the ENS host prefix (IPFS_BASE_URL in scripts/generate-update-manifest.sh).
+          url_mac_arm=${url_mac_arm#download.vpn.gnosis.eth/}
+          url_linux_amd64=${url_linux_amd64#download.vpn.gnosis.eth/}
+          url_linux_arm64=${url_linux_arm64#download.vpn.gnosis.eth/}
+
+          # Values land inside JS template literals in the bundle and inside a
+          # sed replacement — restrict to characters safe for both.
+          for val in "$version" "$url_mac_arm" "$url_linux_amd64" "$url_linux_arm64"; do
+            [[ "$val" =~ ^[A-Za-z0-9./_+-]+$ ]] || { echo "::error::Unsafe or empty manifest value: '$val'"; exit 1; }
+          done
+
+          # Tolerate a website artifact that predates the placeholders
+          # (publish-timing skew between the two repos): warn and skip.
+          files=$(grep -rl -e '<VERSION>' -e '<URL_MAC_ARM>' -e '<URL_LINUX_AMD64>' -e '<URL_LINUX_ARM64>' "$website" || true)
+          if [ -z "$files" ]; then
+            echo "::warning::No placeholder tokens found in the website build — skipping substitution."
+            exit 0
+          fi
+
+          echo "$files" | while read -r f; do
+            sed -i \
+              -e "s|<VERSION>|$version|g" \
+              -e "s|<URL_MAC_ARM>|$url_mac_arm|g" \
+              -e "s|<URL_LINUX_AMD64>|$url_linux_amd64|g" \
+              -e "s|<URL_LINUX_ARM64>|$url_linux_arm64|g" \
+              "$f"
+            echo "Substituted placeholders in $f"
+          done
+
+          # No token may survive.
+          if grep -rn -e '<VERSION>' -e '<URL_MAC_ARM>' -e '<URL_LINUX_AMD64>' -e '<URL_LINUX_ARM64>' "$website"; then
+            echo "::error::Placeholder tokens remain after substitution."
+            exit 1
+          fi
       - name: Setup GCP
         uses: hoprnet/hopr-workflows/actions/setup-gcp@7263182fc9a2bab22cc5a029929940914eb9748d # setup-gcp-v4
         with:
@@ -130,6 +183,8 @@ jobs:
           cp -r ./merged-build/manifests/* ./ipfs/manifests/
           cp ./gnosisvpn-public-key.asc ./ipfs/keys/
           cp ./install/linux.sh ./ipfs/linux/install.sh
+          checksum=$(sha256sum ./install/linux.sh | cut -d' ' -f1)
+          printf '%s  install.sh\n' "$checksum" >./ipfs/linux/install.sh.sha256
 
           ls -la ./ipfs/
           ls -la ./ipfs/macos/stable/
