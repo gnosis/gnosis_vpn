@@ -27,3 +27,16 @@ meta = { location = "Sydney", flag = "AU" }
 [destinations."South Korea"]
 address = "0xd8efe2ebe14c8cc193d5a9f5afd81276549fad67"
 meta = { location = "Seoul", flag = "KR" }
+
+[connection.surb_balancing.ping]
+max_surb_upstream = "12000 Kb/s"
+
+[connection.surb_balancing.main]
+max_surb_upstream = "12000 Kb/s"
+
+[strategy]
+channel_capacity = "512 MiB"
+topup_capacity = "384 MiB"
+lower_capacity_threshold = "128 MiB"
+min_safe_capacity_required = "384 MiB"
+sizing_mode = "deterministic"
