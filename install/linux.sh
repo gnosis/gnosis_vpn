@@ -5,7 +5,7 @@
 # Usage:
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
-#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=rotsee
+#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=jura-dev
 #
 # Configures /etc/apt/sources.list.d/gnosisvpn.sources to pull signed packages
 # from the Gnosis VPN APT repository, installs the public keyring, runs
@@ -21,8 +21,8 @@ KEYRING_PATH="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 SOURCES_PATH="/etc/apt/sources.list.d/gnosisvpn.sources"
 
 CHANNEL="${GNOSISVPN_CHANNEL:-stable}"
-# Empty means "leave the network alone": postinstall defaults to jura on a
-# fresh install and keeps the existing choice on re-runs.
+# Empty means "leave the network alone": postinstall defaults to jura-prod on
+# a fresh install and keeps the existing choice on re-runs.
 NETWORK="${GNOSISVPN_NETWORK:-}"
 RESET_IDENTITY="${GNOSISVPN_RESET_IDENTITY:-false}"
 ARCH=""
@@ -35,14 +35,16 @@ usage() {
     cat <<EOF
 Install the Gnosis VPN APT repository and the gnosisvpn package.
 
-Usage: linux.sh [--channel=stable|snapshot] [--network=jura|rotsee] [--reset-identity] [--help]
+Usage: linux.sh [--channel=stable|snapshot] [--network=jura-prod|jura-dev|piz-palu-dev] [--reset-identity] [--help]
 
 Options:
   --channel=<stable|snapshot>   APT channel to subscribe to (default: stable).
                                 Also configurable via GNOSISVPN_CHANNEL env var.
-  --network=<jura|rotsee>       Network to configure (default: jura on first
-                                install; omitting keeps an existing choice).
-                                Also configurable via GNOSISVPN_NETWORK env var.
+  --network=<jura-prod|jura-dev|piz-palu-dev>
+                                Network to configure (default: jura-prod on
+                                first install; omitting keeps an existing
+                                choice). Also configurable via GNOSISVPN_NETWORK
+                                env var.
   --reset-identity              Back up the worker config dir (/var/lib/gnosisvpn/
                                 .config: HOPR identity, safe, node db) to
                                 .config.<timestamp>.bak, so the service generates
@@ -66,12 +68,12 @@ switch networks), or the installer will downgrade the package to stable.
 
 Environment variables:
   GNOSISVPN_CHANNEL            stable | snapshot (default: stable)
-  GNOSISVPN_NETWORK            jura | rotsee (default: jura)
+  GNOSISVPN_NETWORK            jura-prod | jura-dev | piz-palu-dev (default: jura-prod)
   GNOSISVPN_RESET_IDENTITY     true | false (default: false); same as
                                --reset-identity
   GNOSISVPN_HOPR_BLOKLI_URL    Custom Blokli endpoint; defaults to the one
                                matching the chosen network
-                               (https://blokli.<network>.hoprnet.link)
+                               (https://blokli-<prefix>.<env>.hoprnet.link
 EOF
 }
 
@@ -96,7 +98,7 @@ parse_args() {
             ;;
         --network)
             if [[ -z ${2:-} ]]; then
-                err "--network requires a value (jura | rotsee)"
+                err "--network requires a value (jura-prod | jura-dev | piz-palu-dev)"
                 exit 1
             fi
             NETWORK="$2"
@@ -123,8 +125,9 @@ parse_args() {
         exit 1
     fi
 
-    if [[ -n $NETWORK && $NETWORK != "jura" && $NETWORK != "rotsee" ]]; then
-        err "--network must be 'jura' or 'rotsee' (got: '${NETWORK}')"
+    if [[ -n $NETWORK && $NETWORK != "jura-prod" && $NETWORK != "jura-dev" &&
+        $NETWORK != "piz-palu-dev" ]]; then
+        err "--network must be one of 'jura-prod', 'jura-dev', 'piz-palu-dev' (got: '${NETWORK}')"
         exit 1
     fi
 
@@ -312,14 +315,19 @@ apt_install() {
     log "Installing ${package} ..."
     # Forward explicit overrides to the package's postinstall through these env
     # vars; without them the postinstall keeps an existing network and Blokli
-    # endpoint (defaulting to jura on a fresh install). A network choice fills
-    # in a matching Blokli endpoint default: recent postinstalls derive that
-    # themselves, but keep forwarding the derived URL for already-published
-    # debs whose postinstall defaults to jura; an explicit
+    # endpoint (defaulting to jura-prod on a fresh install). A network choice
+    # fills in a matching Blokli endpoint default: recent postinstalls derive
+    # that themselves, but keep forwarding the derived URL for already-published
+    # debs whose postinstall defaults to jura-prod; an explicit
     # GNOSISVPN_HOPR_BLOKLI_URL is honored on its own, with or without a network.
     local install_env=(DEBIAN_FRONTEND=noninteractive)
     if [[ -n $NETWORK ]]; then
-        local blokli_url="${GNOSISVPN_HOPR_BLOKLI_URL:-https://blokli.${NETWORK}.hoprnet.link}"
+        # Network names are <prefix>-<env> (env is the segment after the last
+        # '-', e.g. jura-prod -> prefix=jura env=prod, piz-palu-dev ->
+        # prefix=piz-palu env=dev); the Blokli endpoint mirrors that split.
+        local network_prefix="${NETWORK%-*}"
+        local network_env="${NETWORK##*-}"
+        local blokli_url="${GNOSISVPN_HOPR_BLOKLI_URL:-https://blokli-${network_prefix}.${network_env}.hoprnet.link}"
         log "Selecting network: ${NETWORK} (Blokli endpoint: ${blokli_url})"
         install_env+=(GNOSISVPN_NETWORK="$NETWORK" GNOSISVPN_HOPR_BLOKLI_URL="$blokli_url")
     elif [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then
@@ -351,7 +359,7 @@ print_postinstall() {
     Details:  https://github.com/hoprnet/gnosis_vpn/blob/main/SECURITY.md
 
 To upgrade later:    sudo apt-get update && sudo apt-get install --only-upgrade gnosisvpn
-To switch networks:  re-run this installer with --network=<jura|rotsee>
+To switch networks:  re-run this installer with --network=<jura-prod|jura-dev|piz-palu-dev>
 To switch channels:  re-run this installer with --channel=<stable|snapshot>
 To reset identity:   re-run this installer with --reset-identity
 To uninstall:        sudo apt-get remove gnosisvpn

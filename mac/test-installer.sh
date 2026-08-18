@@ -96,7 +96,7 @@ test_build_structure() {
     done
 
     # Configuration templates
-    local templates=("jura.toml.template" "rotsee.toml.template")
+    local templates=("jura-prod.toml.template" "jura-dev.toml.template" "piz-palu-dev.toml.template")
     for tmpl in "${templates[@]}"; do
         run_test "Template '$tmpl' exists" "[[ -f '$rootfs/etc/gnosisvpn/templates/$tmpl' ]]"
     done

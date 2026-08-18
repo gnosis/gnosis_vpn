@@ -16,7 +16,7 @@
 #   $4: Root directory "/" for the current system
 #
 # Environment variables from Distribution.xml choices:
-#   INSTALLER_CHOICE_NETWORK: "jura" or "rotsee"
+#   INSTALLER_CHOICE_NETWORK: "jura-prod", "jura-dev", "piz-palu-dev"
 #   INSTALLER_CHOICE_LOGLEVEL: "debug" or "info"
 
 set -euo pipefail
@@ -86,7 +86,7 @@ load_installer_choices() {
     local network_choice_file="${choice_dir}/network_choice"
     local loglevel_choice_file="${choice_dir}/loglevel_choice"
 
-    INSTALLER_CHOICE_NETWORK="jura"
+    INSTALLER_CHOICE_NETWORK="jura-prod"
     INSTALLER_CHOICE_LOGLEVEL="info"
 
     if [[ -f "$network_choice_file" ]]; then
@@ -94,7 +94,7 @@ load_installer_choices() {
         # shellcheck disable=SC1090
         source "$network_choice_file"
     else
-        log_warn "Network choice file not found, defaulting to jura"
+        log_warn "Network choice file not found, defaulting to jura-prod"
     fi
 
     if [[ -f "$loglevel_choice_file" ]]; then
@@ -441,7 +441,12 @@ install_launchd_service() {
         sed -i '' '/<key>RUST_LOG<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>info</string>|;}' "$source_plist"
         sed -i '' '/<key>RUST_BACKTRACE<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>1</string>|;}' "$source_plist"
     fi
-    sed -i '' "s|__NETWORK_NAME__|${INSTALLER_CHOICE_NETWORK}|g" "$source_plist"
+    # Network names are <prefix>-<env> (env is the segment after the last
+    # '-', e.g. jura-prod -> prefix=jura env=prod, piz-palu-dev ->
+    # prefix=piz-palu env=dev); the Blokli endpoint mirrors that split.
+    local network_prefix="${INSTALLER_CHOICE_NETWORK%-*}"
+    local network_env="${INSTALLER_CHOICE_NETWORK##*-}"
+    sed -i '' "s|__NETWORK_PREFIX__|${network_prefix}|g; s|__NETWORK_ENV__|${network_env}|g" "$source_plist"
 
     # Handle existing service (for updates/reinstalls)
     local service_was_running=false
@@ -821,8 +826,8 @@ create_config_symlink() {
     # Check if target configuration exists
     if [[ ! -f "$target_config" ]]; then
         log_warn "Configuration file not found: $target_config"
-        log_info "Falling back to jura.toml"
-        target_config="${CONFIG_DIR}/jura.toml"
+        log_info "Falling back to jura-prod.toml"
+        target_config="${CONFIG_DIR}/jura-prod.toml"
 
         if [[ ! -f "$target_config" ]]; then
             log_error "Default configuration file not found: $target_config"
