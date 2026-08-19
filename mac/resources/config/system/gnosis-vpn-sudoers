@@ -14,7 +14,7 @@
 %gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl list com.gnosisvpn.gnosisvpnclient
 
 # Allow gnosisvpn group members to run the self-updater, spawned by the app as:
-#   sudo -n /usr/local/bin/gnosis_vpn-update update --channel <channel> [--force]
+#   sudo -n /usr/local/bin/gnosis_vpn-update update --channel <stable|snapshot> [--force]
 # Argument forms are enumerated exactly; extend in lockstep with the app's invocation.
 %gnosisvpn ALL=(root) NOPASSWD: /usr/local/bin/gnosis_vpn-update update --channel stable
 %gnosisvpn ALL=(root) NOPASSWD: /usr/local/bin/gnosis_vpn-update update --channel stable --force
