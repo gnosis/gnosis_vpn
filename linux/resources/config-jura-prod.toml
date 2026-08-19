@@ -35,8 +35,8 @@ max_surb_upstream = "12000 Kb/s"
 max_surb_upstream = "12000 Kb/s"
 
 [strategy]
-channel_capacity = "512 MiB"
-topup_capacity = "384 MiB"
+channel_capacity = "480 MiB"
+topup_capacity = "480 MiB"
 lower_capacity_threshold = "128 MiB"
 min_safe_capacity_required = "384 MiB"
 sizing_mode = "deterministic"
