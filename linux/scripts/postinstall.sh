@@ -36,6 +36,52 @@ create_system_user_and_group() {
     fi
 }
 
+# TODO: remove the migration code by December 2027.
+# Migration only: 0.92.0 and earlier shipped config-jura.toml / config-rotsee.toml
+# (and snapshots briefly shipped config-piz-palu-staging.toml). Those files were
+# renamed away, but dpkg keeps obsolete conffiles on disk until purge and the
+# plain-upgrade guard in configure_filesystem_permissions only relinks
+# config.toml on a fresh install — so an upgraded host silently keeps loading a
+# config this package no longer maintains (nothing dangles, nothing errors).
+# Maps a retired network name to its successor so the user's choice survives the
+# rename; echoes nothing for a name we do not recognise.
+retired_network_successor() {
+    case "$1" in
+    jura) echo "jura-prod" ;;
+    rotsee) echo "jura-dev" ;;
+    piz-palu-staging) echo "piz-palu-dev" ;;
+    *) echo "" ;;
+    esac
+}
+
+# TODO: remove the removal code by December 2027.
+# Migration only: deregister the conffiles retired by the network rename. dpkg
+# does not drop a conffile that a newer version stopped shipping (it may have
+# been dropped by accident), so they linger in `dpkg status` and stay on disk,
+# which is exactly what lets a stale config.toml symlink keep resolving.
+#
+# prior-version is intentionally empty ("tried on every upgrade", see
+# dpkg-maintscript-helper(1)): the package mixes release versions (0.93.x) with
+# date-based snapshot versions (%Y.%m.%d+build.%H%M%S), and dpkg compares
+# 2026 > 0, so no single prior-version covers both directions. These names are
+# permanently retired and rm_conffile is a no-op once the file is neither
+# registered nor present, so an unconditional attempt is safe.
+#
+# The same call has to appear in preinstall/postinstall/postuninstall, which is
+# how the helper coordinates the steps.
+remove_retired_conffiles() {
+    # DPKG_MAINTSCRIPT_NAME is set only by dpkg, and is what the helper
+    # dispatches on. Testing it (not just the binary) keeps this a no-op when
+    # rpm/pacman runs the script on a host that also happens to have dpkg,
+    # where the maintainer script arguments mean something else entirely.
+    [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] || return 0
+    command -v dpkg-maintscript-helper >/dev/null 2>&1 || return 0
+    local conffile
+    for conffile in config-jura.toml config-rotsee.toml config-piz-palu-staging.toml; do
+        dpkg-maintscript-helper rm_conffile "/etc/gnosisvpn/$conffile" "" gnosisvpn -- "$@"
+    done
+}
+
 # Configure ownership and permissions for directories and binaries
 configure_filesystem_permissions() {
     # Blokli endpoint precedence: explicit GNOSISVPN_HOPR_BLOKLI_URL, else
@@ -43,6 +89,19 @@ configure_filesystem_permissions() {
     # pre-existing/legacy value is preserved below.
     local network_name blokli_url
     network_name="${GNOSISVPN_NETWORK:-jura-prod}"
+
+    # An explicitly requested network may still use a pre-rename name (old docs,
+    # a pinned install script). Translate it instead of aborting below, but only
+    # when nothing ships under that name, so a future network reusing a retired
+    # name would win over the mapping.
+    if [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
+        local requested_successor
+        requested_successor="$(retired_network_successor "$network_name")"
+        if [[ -n $requested_successor && -f /etc/gnosisvpn/config-${requested_successor}.toml ]]; then
+            echo "$LOG_PREFIX INFO: Network '${network_name}' was renamed to '${requested_successor}' — using '${requested_successor}'"
+            network_name="$requested_successor"
+        fi
+    fi
 
     # Validate the requested network maps to a shipped config before using it to
     # (re)link config.toml or derive the default endpoint. A typo would
@@ -100,10 +159,54 @@ configure_filesystem_permissions() {
     chown -R gnosisvpn:gnosisvpn /var/lib/gnosisvpn
     chmod -R 775 /var/lib/gnosisvpn
 
-    # Create symlink for current network config. Only (re)link on first
-    # install or when GNOSISVPN_NETWORK is explicitly set, so a plain upgrade
-    # does not reset a user's network choice back to the default.
-    if [[ -n ${GNOSISVPN_NETWORK:-} || ! -e /etc/gnosisvpn/config.toml ]]; then
+    # Create symlink for current network config. An explicit GNOSISVPN_NETWORK
+    # always wins; otherwise a plain upgrade keeps the user's network choice,
+    # except when the existing link points at a config this package no longer
+    # ships — that is repaired below.
+    #
+    # The symlink branch must be tested before the "missing" one: -e follows
+    # symlinks, so a link whose retired target remove_retired_conffiles just
+    # moved aside looks absent, and relinking it straight to the default would
+    # silently drop a non-default choice (rotsee) and leave the Blokli endpoint
+    # pointing at the pre-rename host.
+    local migrated_from="" migrated_blokli_url=""
+    if [[ -n ${GNOSISVPN_NETWORK:-} ]]; then
+        ln -sf /etc/gnosisvpn/config-"$network_name".toml /etc/gnosisvpn/config.toml
+    elif [[ -L /etc/gnosisvpn/config.toml ]]; then
+        # Only touch a symlink: a config.toml the admin replaced with a real
+        # file is their own, not ours to repoint. Plain readlink (not -f) so the
+        # name is still recoverable when the target is already gone.
+        local current_network current_successor
+        current_network="$(basename "$(readlink /etc/gnosisvpn/config.toml)")"
+        current_network="${current_network#config-}"
+        current_network="${current_network%.toml}"
+        current_successor="$(retired_network_successor "$current_network")"
+        # Unknown name whose target is gone (dangling link, or a config dropped
+        # without a mapping): fall back to the resolved default rather than
+        # leaving the daemon on an unmaintained config. A target that is still
+        # shipped is left alone.
+        if [[ -z $current_successor && ! -f /etc/gnosisvpn/config-${current_network}.toml ]]; then
+            current_successor="$network_name"
+        fi
+        if [[ -n $current_successor && $current_successor != "$current_network" ]]; then
+            if [[ -f /etc/gnosisvpn/config-${current_successor}.toml ]]; then
+                echo "$LOG_PREFIX INFO: Re-pointing /etc/gnosisvpn/config.toml: config-${current_network}.toml (no longer shipped) -> config-${current_successor}.toml"
+                ln -sf /etc/gnosisvpn/config-"$current_successor".toml /etc/gnosisvpn/config.toml
+                migrated_from="$current_network"
+                network_name="$current_successor"
+                # The Blokli endpoint follows the network. Recomputed with the
+                # same <prefix>-<env> split used above; applied further down only
+                # if the stored value is still the one we derived pre-rename.
+                if [[ -z ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then
+                    migrated_blokli_url="https://blokli-${current_successor%-*}.${current_successor##*-}.hoprnet.link"
+                fi
+            else
+                # Don't trade a stale-but-readable config for a dangling symlink.
+                echo "$LOG_PREFIX WARNING: /etc/gnosisvpn/config.toml points at config-${current_network}.toml, which this package does not ship, but its replacement config-${current_successor}.toml is missing — leaving the link untouched" >&2
+            fi
+        fi
+    elif [[ ! -e /etc/gnosisvpn/config.toml ]]; then
+        # Fresh install.
         ln -sf /etc/gnosisvpn/config-"$network_name".toml /etc/gnosisvpn/config.toml
     fi
 
@@ -124,10 +227,33 @@ configure_filesystem_permissions() {
         blokli_url="$legacy_url"
     fi
 
+    # A retired network was re-pointed above: move the endpoint along with it,
+    # otherwise the host runs the new config against a pre-rename Blokli host.
+    # Only rewrite when the stored value is still the one the pre-rename
+    # postinstall (and pre-rename install/linux.sh) derived — anything else is an
+    # operator choice and must survive. Wins over the legacy_url carry-over
+    # above, which would otherwise restore the same retired endpoint.
+    if [[ -n $migrated_blokli_url ]]; then
+        local stored_url=""
+        if [[ -f $dynamic_env ]]; then
+            stored_url="$(grep -m1 '^GNOSISVPN_HOPR_BLOKLI_URL=' "$dynamic_env" || true)"
+            stored_url="${stored_url#GNOSISVPN_HOPR_BLOKLI_URL=}"
+        fi
+        if [[ -z $stored_url || $stored_url == "https://blokli.${migrated_from}.hoprnet.link" ]]; then
+            echo "$LOG_PREFIX INFO: Moving Blokli endpoint with the network: ${stored_url:-<unset>} -> ${migrated_blokli_url}"
+            blokli_url="$migrated_blokli_url"
+        else
+            # Custom endpoint: keep it, and don't let it trigger a rewrite below.
+            echo "$LOG_PREFIX INFO: Keeping custom Blokli endpoint ${stored_url} after re-pointing config.toml"
+            migrated_blokli_url=""
+        fi
+    fi
+
     # Only (re)write on first install or when explicitly overridden, so
     # upgrades keep the user's choice. An explicit network counts as an
-    # override: switching networks moves the Blokli endpoint along with it.
-    if [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} || -n ${GNOSISVPN_NETWORK:-} || ! -f $dynamic_env ]]; then
+    # override: switching networks moves the Blokli endpoint along with it, as
+    # does repairing a config.toml that pointed at a retired network.
+    if [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} || -n ${GNOSISVPN_NETWORK:-} || -n $migrated_blokli_url || ! -f $dynamic_env ]]; then
         cat >"$dynamic_env" <<EOF
 # Generated by GnosisVPN postinstall — do not edit.
 # Values here override /etc/gnosisvpn/gnosisvpn.env.
@@ -477,6 +603,10 @@ install_desktop_shortcut_for_user() {
 # Main execution
 main() {
     create_system_user_and_group
+    # TODO: remove the removal code by December 2027 (see remove_retired_conffiles).
+    # Before configure_filesystem_permissions, so the retired configs are gone
+    # when it enumerates the shipped ones.
+    remove_retired_conffiles "$@"
     configure_filesystem_permissions
     # TODO: remove the removal code by December 2026 (see remove_legacy_apt_mirror).
     remove_legacy_apt_mirror
@@ -488,5 +618,6 @@ main() {
     echo "$LOG_PREFIX SUCCESS: Post-installation completed successfully"
 }
 
-# Run main function
-main
+# Run main function. Arguments are forwarded because dpkg-maintscript-helper
+# needs the maintainer script parameters (see remove_retired_conffiles).
+main "$@"

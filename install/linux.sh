@@ -125,6 +125,21 @@ parse_args() {
         exit 1
     fi
 
+    # TODO: remove the renaming code by December 2027.
+    # Migration only: accept the pre-rename network names still referenced by
+    # older docs and pinned installer invocations instead of failing outright.
+    # Mirrors retired_network_successor() in linux/scripts/postinstall.sh.
+    local retired_network="$NETWORK"
+    case "$NETWORK" in
+    jura) NETWORK="jura-prod" ;;
+    rotsee) NETWORK="jura-dev" ;;
+    piz-palu-staging) NETWORK="piz-palu-dev" ;;
+    *) ;;
+    esac
+    if [[ $NETWORK != "$retired_network" ]]; then
+        log "Network '${retired_network}' was renamed to '${NETWORK}' — using '${NETWORK}'"
+    fi
+
     if [[ -n $NETWORK && $NETWORK != "jura-prod" && $NETWORK != "jura-dev" &&
         $NETWORK != "piz-palu-dev" ]]; then
         err "--network must be one of 'jura-prod', 'jura-dev', 'piz-palu-dev' (got: '${NETWORK}')"
