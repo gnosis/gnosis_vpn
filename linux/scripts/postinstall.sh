@@ -36,17 +36,43 @@ create_system_user_and_group() {
     fi
 }
 
+# TODO: remove by December 2027.
+retired_network_successor() {
+    case "$1" in
+    jura) echo "jura-prod" ;;
+    rotsee) echo "jura-dev" ;;
+    piz-palu-staging) echo "piz-palu-dev" ;;
+    esac
+}
+
+# TODO: remove by December 2027.
+# rm_conffile must appear in pre/post/postun to coordinate the dpkg helper; DPKG_MAINTSCRIPT_NAME gates non-dpkg hosts.
+remove_retired_conffiles() {
+    # env var also gates rpm/pacman hosts that happen to have dpkg installed
+    [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] && command -v dpkg-maintscript-helper >/dev/null 2>&1 || return 0
+    local conffile
+    for conffile in config-jura.toml config-rotsee.toml config-piz-palu-staging.toml; do
+        dpkg-maintscript-helper rm_conffile "/etc/gnosisvpn/$conffile" "" gnosisvpn -- "$@"
+    done
+}
+
 # Configure ownership and permissions for directories and binaries
 configure_filesystem_permissions() {
-    # Blokli endpoint precedence: explicit GNOSISVPN_HOPR_BLOKLI_URL, else
-    # derived from the selected network (jura-prod when none selected), else a
-    # pre-existing/legacy value is preserved below.
+    # Precedence: explicit GNOSISVPN_HOPR_BLOKLI_URL > derived from network > pre-existing/legacy value.
     local network_name blokli_url
     network_name="${GNOSISVPN_NETWORK:-jura-prod}"
 
-    # Validate the requested network maps to a shipped config before using it to
-    # (re)link config.toml or derive the default endpoint. A typo would
-    # otherwise create a dangling config.toml symlink and a bogus default URL.
+    # Accept retired names from old docs/pinned scripts without aborting.
+    if [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
+        local successor
+        successor="$(retired_network_successor "$network_name")"
+        if [[ -n $successor && -f /etc/gnosisvpn/config-${successor}.toml ]]; then
+            echo "$LOG_PREFIX INFO: Network '${network_name}' was renamed to '${successor}' — using '${successor}'"
+            network_name="$successor"
+        fi
+    fi
+
+    # Guard against a dangling config.toml or bogus default URL from a typo.
     if [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
         echo "$LOG_PREFIX ERROR: Unknown network '${network_name}': /etc/gnosisvpn/config-${network_name}.toml not found" >&2
         local available
@@ -56,15 +82,7 @@ configure_filesystem_permissions() {
         exit 1
     fi
 
-    # Default the Blokli endpoint from the network; honor an explicit override
-    # only after validating it. The value is written verbatim into
-    # gnosisvpn-dynamic.env, which the root systemd service loads via
-    # EnvironmentFile — reject anything that isn't a single-line http(s) URL so
-    # a stray newline or space cannot inject extra entries into the root env.
-    #
-    # Network names are <prefix>-<env> (env is the segment after the last '-',
-    # e.g. jura-prod -> prefix=jura env=prod, piz-palu-dev -> prefix=piz-palu
-    # env=dev); the Blokli endpoint mirrors that split.
+    # Network name is <prefix>-<env>; endpoint mirrors that split. Reject non-http(s) URLs to prevent env injection via EnvironmentFile.
     local network_prefix="${network_name%-*}"
     local network_env="${network_name##*-}"
     blokli_url="https://blokli-${network_prefix}.${network_env}.hoprnet.link"
@@ -78,43 +96,63 @@ configure_filesystem_permissions() {
     fi
     echo "$LOG_PREFIX INFO: Setting up directory permissions..."
 
-    # Fix ownership of configuration files (nfpm may have created them with numeric UID)
+    # nfpm may have created config dir with numeric UID; fix it here.
     if [[ ! -d /etc/gnosisvpn ]]; then
         mkdir -p /etc/gnosisvpn
     fi
-    # Directory is root-owned so the unprivileged 'gnosisvpn' worker cannot
-    # replace files loaded by the root service (e.g. gnosisvpn-dynamic.env).
-    # 'gnosisvpn' group + 755 keeps read/traverse for the worker.
+    # root-owned so the unprivileged worker cannot replace files loaded by the root service
     chown root:gnosisvpn /etc/gnosisvpn
     chmod 755 /etc/gnosisvpn
     chown gnosisvpn:gnosisvpn /etc/gnosisvpn/*.toml 2>/dev/null || true
     chmod 644 /etc/gnosisvpn/*.toml 2>/dev/null || true
 
-    # Ensure log directory exists with correct permissions
     mkdir -p /var/log/gnosisvpn
     chown -R gnosisvpn:gnosisvpn /var/log/gnosisvpn
     chmod -R 755 /var/log/gnosisvpn
 
-    # Ensure state directory exists with correct permissions
     mkdir -p /var/lib/gnosisvpn
     chown -R gnosisvpn:gnosisvpn /var/lib/gnosisvpn
     chmod -R 775 /var/lib/gnosisvpn
 
-    # Create symlink for current network config. Only (re)link on first
-    # install or when GNOSISVPN_NETWORK is explicitly set, so a plain upgrade
-    # does not reset a user's network choice back to the default.
-    if [[ -n ${GNOSISVPN_NETWORK:-} || ! -e /etc/gnosisvpn/config.toml ]]; then
+    # Explicit GNOSISVPN_NETWORK wins; plain upgrade keeps the user's choice unless the link targets a retired config.
+    local migrated_from="" migrated_blokli_url=""
+    if [[ -n ${GNOSISVPN_NETWORK:-} ]]; then
+        ln -sf /etc/gnosisvpn/config-"$network_name".toml /etc/gnosisvpn/config.toml
+    # Check -L before -e: a dangling link (retired target just deregistered) must migrate, not be reset to default.
+    elif [[ -L /etc/gnosisvpn/config.toml ]]; then
+        # Repoint only symlinks; an admin-placed regular file is left alone.
+        local current successor
+        current="$(basename "$(readlink /etc/gnosisvpn/config.toml)")"
+        current="${current#config-}"
+        current="${current%.toml}"
+        successor="$(retired_network_successor "$current")"
+        # Unknown retired name with missing target: fall back to the resolved default.
+        if [[ -z $successor && ! -f /etc/gnosisvpn/config-${current}.toml ]]; then
+            successor="$network_name"
+        fi
+        if [[ -n $successor && $successor != "$current" ]]; then
+            if [[ -f /etc/gnosisvpn/config-${successor}.toml ]]; then
+                echo "$LOG_PREFIX INFO: Re-pointing /etc/gnosisvpn/config.toml: config-${current}.toml (no longer shipped) -> config-${successor}.toml"
+                ln -sf /etc/gnosisvpn/config-"$successor".toml /etc/gnosisvpn/config.toml
+                migrated_from="$current"
+                network_name="$successor"
+                # Endpoint follows the network; skip if user overrode the URL.
+                if [[ -z ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then
+                    migrated_blokli_url="https://blokli-${successor%-*}.${successor##*-}.hoprnet.link"
+                fi
+            else
+                # Better a stale-but-readable config than a dangling symlink.
+                echo "$LOG_PREFIX WARNING: config.toml points at unshipped config-${current}.toml and its replacement config-${successor}.toml is missing — leaving the link untouched" >&2
+            fi
+        fi
+    elif [[ ! -e /etc/gnosisvpn/config.toml ]]; then
         ln -sf /etc/gnosisvpn/config-"$network_name".toml /etc/gnosisvpn/config.toml
     fi
 
-    # Write dynamic env overrides to a script-generated file instead of editing
-    # gnosisvpn.env: that's a dpkg conffile, and modifying it here triggers an
-    # interactive conffile prompt on upgrades (fatal for `curl | sudo bash`).
+    # Overrides go here, not in the dpkg conffile gnosisvpn.env (editing it triggers interactive upgrade prompts).
     local dynamic_env=/etc/gnosisvpn/gnosisvpn-dynamic.env
 
-    # Migration: older postinstalls sed-ed the Blokli URL directly into the
-    # gnosisvpn.env conffile. Carry that value over (unless a URL or network
-    # is explicitly chosen) so an upgrade keeps the user's endpoint.
+    # Carry a URL previously sed-ed into gnosisvpn.env by older postinstalls.
     local legacy_url=""
     if [[ -f /etc/gnosisvpn/gnosisvpn.env ]]; then
         legacy_url="$(grep -m1 '^GNOSISVPN_HOPR_BLOKLI_URL=.' /etc/gnosisvpn/gnosisvpn.env || true)"
@@ -124,10 +162,25 @@ configure_filesystem_permissions() {
         blokli_url="$legacy_url"
     fi
 
-    # Only (re)write on first install or when explicitly overridden, so
-    # upgrades keep the user's choice. An explicit network counts as an
-    # override: switching networks moves the Blokli endpoint along with it.
-    if [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} || -n ${GNOSISVPN_NETWORK:-} || ! -f $dynamic_env ]]; then
+    # Move the endpoint with the network unless the operator chose a custom URL.
+    if [[ -n $migrated_blokli_url ]]; then
+        local stored_url="" migrated_from_url
+        migrated_from_url="https://blokli-${migrated_from%-*}.${migrated_from##*-}.hoprnet.link"
+        if [[ -f $dynamic_env ]]; then
+            stored_url="$(grep -m1 '^GNOSISVPN_HOPR_BLOKLI_URL=' "$dynamic_env" || true)"
+            stored_url="${stored_url#GNOSISVPN_HOPR_BLOKLI_URL=}"
+        fi
+        if [[ -z $stored_url || $stored_url == "$migrated_from_url" ]]; then
+            echo "$LOG_PREFIX INFO: Moving Blokli endpoint with the network: ${stored_url:-<unset>} -> ${migrated_blokli_url}"
+            blokli_url="$migrated_blokli_url"
+        else
+            echo "$LOG_PREFIX INFO: Keeping custom Blokli endpoint ${stored_url}"
+            migrated_blokli_url=""
+        fi
+    fi
+
+    # Only (re)write on first install or when network/URL changed.
+    if [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} || -n ${GNOSISVPN_NETWORK:-} || -n $migrated_blokli_url || ! -f $dynamic_env ]]; then
         cat >"$dynamic_env" <<EOF
 # Generated by GnosisVPN postinstall — do not edit.
 # Values here override /etc/gnosisvpn/gnosisvpn.env.
@@ -135,24 +188,18 @@ GNOSISVPN_HOPR_BLOKLI_URL=$blokli_url
 EOF
     fi
 
-    # Root-owned: this file is loaded by the root systemd service via
-    # EnvironmentFile, so it must not be writable by the unprivileged
-    # 'gnosisvpn' user (would allow env injection, e.g. LD_PRELOAD, into the
-    # root service). 644 lets the service read it. Applied unconditionally so an
-    # upgrade also hardens a pre-existing file, not only a freshly written one.
+    # 644 root:root — unprivileged worker must not write this EnvironmentFile (would allow env injection into root service).
     if [[ -f $dynamic_env ]]; then
         chmod 644 "$dynamic_env"
         chown root:root "$dynamic_env"
     fi
 
-    # Restore the packaged (empty) value in the conffile so it matches dpkg's
-    # recorded checksum again and future upgrades stay prompt-free. No-op on
-    # clean installs. The dynamic env file above carries the effective URL.
+    # Restore empty value so gnosisvpn.env matches dpkg's recorded checksum (avoids upgrade prompts).
     if [[ -f /etc/gnosisvpn/gnosisvpn.env ]]; then
         sed -i 's|^GNOSISVPN_HOPR_BLOKLI_URL=.\+$|GNOSISVPN_HOPR_BLOKLI_URL=|' /etc/gnosisvpn/gnosisvpn.env
     fi
 
-    # Fix binary ownership and permissions. Cannot be done in nfpm as the user may not exist yet.
+    # nfpm installs binaries before the user exists; fix ownership here.
     if [[ -f /usr/bin/gnosis_vpn-worker ]]; then
         chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-worker
     fi
@@ -167,25 +214,18 @@ EOF
 }
 
 # TODO: remove the removal code by December 2026.
-# Migration only: installs configured before the mirror rename still list the
-# retired downloads.vpn.gnosis.eth.limo mirror; a dead mirror fails every
-# apt-get update, and register_apt_repo leaves the file untouched in some
-# cases (unknown channel, missing keyring, unparseable file), so strip the
-# retired URI here first.
+# TODO: remove by December 2026.
+# Strip the retired mirror before register_apt_repo; a dead mirror fails every apt-get update.
 remove_legacy_apt_mirror() {
     local legacy_uri="https://downloads.vpn.gnosis.eth.limo/linux/apt"
     local sources_path="/etc/apt/sources.list.d/gnosisvpn.sources"
     [[ -f $sources_path ]] || return 0
     grep -qF "$legacy_uri" "$sources_path" || return 0
     echo "$LOG_PREFIX INFO: Removing retired APT mirror $legacy_uri from $sources_path"
-    # Escape the dots so sed matches the URI literally, not as a regex.
+    # Escape dots so sed matches the URI literally.
     local legacy_uri_re="${legacy_uri//./\\.}"
     sed -i "/^[Uu][Rr][Ii][Ss]:/ s|[[:space:]]*${legacy_uri_re}||g" "$sources_path"
-    # The sed only handles inline "URIs: <a> <b>" lists — the only layout our
-    # installers write. If the retired URI survived (hand-edited file folding
-    # URIs over deb822 continuation lines) or no inline mirror remains (apt
-    # rejects an empty URIs: field), drop the file; register_apt_repo below
-    # recreates it when possible.
+    # Drop the file if the URI survived (continuation-line layout) or the URIs: field is now empty.
     if grep -qF "$legacy_uri" "$sources_path" ||
         ! grep -Eq '^[Uu][Rr][Ii][Ss]:[[:space:]]*[^[:space:]]' "$sources_path"; then
         echo "$LOG_PREFIX INFO: Retired mirror still present or no mirrors left in $sources_path — removing it (re-registered below when possible)"
@@ -202,14 +242,11 @@ register_apt_repo() {
     local keyring_src="/usr/share/gnosisvpn/gnosisvpn-archive-keyring.gpg"
     local keyring_dst="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 
-    # Channel matches the .deb the user just installed. Any "+" in the version
-    # (date-based snapshots, +pr., +commit. builds) means the snapshot channel.
+    # Any "+" in version means snapshot channel.
     local version channel component uris
     version="$(cat /etc/gnosisvpn/version.txt 2>/dev/null || echo "")"
     if [[ -z $version ]]; then
-        # Without a version we cannot tell which channel this package belongs to.
-        # Don't guess (assuming stable could point a snapshot host at the wrong
-        # suite): keep any existing source and skip fresh registration.
+        # Can't tell the channel without a version; don't guess (stable would point a snapshot host at the wrong suite).
         if [[ -f $sources_path ]]; then
             echo "$LOG_PREFIX WARNING: Cannot determine channel (missing/empty /etc/gnosisvpn/version.txt) — leaving $sources_path untouched"
         else
@@ -220,20 +257,15 @@ register_apt_repo() {
     if [[ $version == *"+"* ]]; then
         channel="snapshot"
         component="snapshot"
-        # Only gnosisvpn.io publishes dists/snapshot/; listing the IPFS mirror
-        # here would hard-fail every apt-get update.
+        # Only gnosisvpn.io publishes dists/snapshot/.
         uris="https://download.gnosisvpn.io/linux/apt"
     else
         channel="stable"
         component="main"
-        # Both mirrors publish the stable suite (matches install/linux.sh).
         uris="https://download.vpn.gnosis.eth.limo/linux/apt https://download.gnosisvpn.io/linux/apt"
     fi
 
-    # Install the signing key before the "leave as-is" paths below: if a user
-    # removed the keyring but kept the sources file, apt-get update would fail
-    # on a missing Signed-By key and no upgrade would ever restore it. install(1)
-    # is idempotent, so running it on every upgrade is safe.
+    # Always restore the keyring so a user who deleted it gets it back on the next upgrade.
     if [[ ! -f $keyring_src ]]; then
         echo "$LOG_PREFIX WARNING: Keyring not found at $keyring_src — skipping APT source registration"
         return 0
@@ -242,11 +274,7 @@ register_apt_repo() {
     install -m 0644 "$keyring_src" "$keyring_dst"
 
     if [[ -f $sources_path ]]; then
-        # Keep the file when it already tracks this package's channel with the
-        # expected mirrors (also preserves the installer-written stable file
-        # with both mirrors); rewrite it when the channel disagrees so a manual
-        # cross-channel .deb install switches the update path along with the
-        # package, or when the mirror list has drifted from canonical.
+        # Rewrite when channel or mirrors drifted; keep when already canonical.
         local existing_suites existing_uris
         existing_suites="$(awk 'tolower($1) == "suites:" { sub(/^[^:]*:[[:space:]]*/, ""); gsub(/[[:space:]\r]+$/, ""); print; exit }' \
             "$sources_path" 2>/dev/null || true)"
@@ -258,9 +286,7 @@ register_apt_repo() {
             return 0
         fi
 
-        # Compare URI sets order-independently so a stale mirror list (e.g. the
-        # IPFS mirror pinned to snapshot, which it doesn't publish) is healed
-        # even when the suite already matches.
+        # Compare order-independently so a stale mirror list is healed even when the suite matches.
         local want_uris got_uris
         want_uris="$(printf '%s\n' $uris | sort | tr '\n' ' ')"
         got_uris="$(printf '%s\n' $existing_uris | sort | tr '\n' ' ')"
@@ -293,11 +319,7 @@ EOF
     echo "$LOG_PREFIX INFO: Run 'sudo apt-get update' to refresh the package cache"
 }
 
-# Remove the HOPR identity when explicitly requested (GNOSISVPN_RESET_IDENTITY=true,
-# e.g. `sudo env GNOSISVPN_RESET_IDENTITY=true apt install ./gnosisvpn_*.deb`) so the
-# service generates a fresh one on its next start. Runs before the service is
-# (re)started below; preinstall already stopped a running service, but stop again
-# best-effort in case something started it in between.
+# Backs up the worker config dir so the service gets a fresh identity on next start.
 reset_identity_if_requested() {
     if [[ -z ${GNOSISVPN_RESET_IDENTITY:-} || ${GNOSISVPN_RESET_IDENTITY} == "false" ]]; then
         return 0
@@ -312,15 +334,10 @@ reset_identity_if_requested() {
         systemctl stop gnosisvpn.service || true
     fi
 
-    # Back up the whole config dir (HOPR identity + safe + node db) instead of
-    # deleting it; path layout matches gnosis_vpn-lib (dirs.rs: <state
-    # home>/.config). The service recreates a fresh one on the next start.
+    # Back up rather than delete; service recreates it on next start.
     local config_dir=/var/lib/gnosisvpn/.config
     if [[ -d $config_dir ]]; then
-        # Second-granularity timestamps can collide (two resets within the same
-        # second, or a leftover backup). Bump a numeric suffix until the path is
-        # free, so mv never merges into or fails on an existing dir (fatal under
-        # set -e).
+        # Bump numeric suffix to avoid colliding with a same-second backup (fatal under set -e).
         local ts backup n
         ts="$(date +%Y%m%d%H%M%S)"
         backup="${config_dir}.${ts}.bak"
@@ -335,30 +352,21 @@ reset_identity_if_requested() {
         echo "$LOG_PREFIX INFO: No worker config found at $config_dir — nothing to back up"
     fi
 
-    # Intentionally leave /etc/gnosisvpn/gnosisvpn-dynamic.env in place. It carries
-    # the network's Blokli endpoint (GNOSISVPN_HOPR_BLOKLI_URL), which is network-wide
-    # infrastructure and independent of the HOPR identity. The base conffile ships that
-    # var empty, so deleting the override here leaves the root service with an empty URL,
-    # which clap rejects (exit 2) on the next start. A network switch is handled by
-    # configure_filesystem_permissions via --network; identity reset must not touch it.
+    # Leave gnosisvpn-dynamic.env intact; it holds GNOSISVPN_HOPR_BLOKLI_URL — deleting it would leave the service with an empty URL (clap rejects that).
 }
 
 # Enable and start the systemd service
 enable_and_start_systemd_service() {
     echo "$LOG_PREFIX INFO: Setting up systemd service..."
 
-    # Reload systemd to pick up the service file
     systemctl daemon-reload || true
 
     # Enable and start service
     echo "$LOG_PREFIX INFO: Enabling gnosisvpn.service..."
-    # Unmask first to ensure we can enable it
     systemctl unmask gnosisvpn.service || true
     systemctl enable gnosisvpn.service || true
     echo "$LOG_PREFIX INFO: Starting gnosisvpn.service..."
-    # A prior crash-loop (e.g. the empty-Blokli-URL bug) trips the unit's start
-    # limit; without clearing it, this start is rejected with "Start request
-    # repeated too quickly" for up to StartLimitIntervalSec after the loop.
+    # Clear start-limit counter; a prior crash-loop would otherwise reject the start for StartLimitIntervalSec.
     systemctl reset-failed gnosisvpn.service 2>/dev/null || true
     systemctl start gnosisvpn.service || true
 
@@ -375,17 +383,13 @@ enable_and_start_systemd_service() {
 
 # Create desktop shortcut for a user
 install_desktop_shortcut_for_user() {
-    # Get the user who ran sudo (or current user if run directly)
     local target_user="${SUDO_USER:-}"
 
-    # If no SUDO_USER, try current USER
     if [ -z "$target_user" ] || [ "$target_user" = "root" ]; then
         target_user="${USER:-}"
     fi
 
-    # Still nothing: likely a PackageKit install (App Center / GNOME Software
-    # double-click), which runs as root with no sudo context. Fall back to the
-    # owner of the active graphical session, best-effort.
+    # Fall back to the active graphical session owner (PackageKit installs run as root with no SUDO_USER).
     if [ -z "$target_user" ] || [ "$target_user" = "root" ]; then
         if command -v loginctl >/dev/null 2>&1; then
             target_user="$(loginctl list-sessions --no-legend 2>/dev/null |
@@ -393,16 +397,12 @@ install_desktop_shortcut_for_user() {
         fi
     fi
 
-    # Skip if still no user identified or if root
     if [ -z "$target_user" ] || [ "$target_user" = "root" ]; then
         echo "$LOG_PREFIX INFO: No desktop user identified, skipping desktop shortcut"
         return
     fi
 
-    # Get the user's home directory. The loginctl fallback above can yield a
-    # user not present in passwd; keep the lookup non-fatal (|| true) so the
-    # empty-home check below handles it instead of aborting postinstall under
-    # `set -e`/`pipefail`.
+    # loginctl may yield a user absent from passwd; keep non-fatal so set -e doesn't abort postinstall.
     local user_home
     user_home=$(getent passwd "$target_user" | cut -d: -f6) || true
 
@@ -413,7 +413,6 @@ install_desktop_shortcut_for_user() {
 
     local desktop_dir="$user_home/Desktop"
 
-    # Check if Desktop directory exists
     if [ ! -d "$desktop_dir" ]; then
         echo "$LOG_PREFIX INFO: Desktop directory not found for $target_user, skipping shortcut"
         return
@@ -477,6 +476,8 @@ install_desktop_shortcut_for_user() {
 # Main execution
 main() {
     create_system_user_and_group
+    # TODO: remove the removal code by December 2027 (see remove_retired_conffiles).
+    remove_retired_conffiles "$@"
     configure_filesystem_permissions
     # TODO: remove the removal code by December 2026 (see remove_legacy_apt_mirror).
     remove_legacy_apt_mirror
@@ -488,5 +489,5 @@ main() {
     echo "$LOG_PREFIX SUCCESS: Post-installation completed successfully"
 }
 
-# Run main function
-main
+# Args forwarded for dpkg-maintscript-helper (see remove_retired_conffiles).
+main "$@"

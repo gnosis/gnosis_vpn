@@ -21,8 +21,7 @@ KEYRING_PATH="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 SOURCES_PATH="/etc/apt/sources.list.d/gnosisvpn.sources"
 
 CHANNEL="${GNOSISVPN_CHANNEL:-stable}"
-# Empty means "leave the network alone": postinstall defaults to jura-prod on
-# a fresh install and keeps the existing choice on re-runs.
+# Empty = leave the network alone (postinstall defaults to jura-prod on fresh install, keeps existing choice on re-runs).
 NETWORK="${GNOSISVPN_NETWORK:-}"
 RESET_IDENTITY="${GNOSISVPN_RESET_IDENTITY:-false}"
 ARCH=""
@@ -125,6 +124,15 @@ parse_args() {
         exit 1
     fi
 
+    # TODO: remove by December 2027. Accept pre-rename network names.
+    local old_network="$NETWORK"
+    case "$NETWORK" in
+    jura) NETWORK="jura-prod" ;;
+    rotsee) NETWORK="jura-dev" ;;
+    piz-palu-staging) NETWORK="piz-palu-dev" ;;
+    esac
+    [[ $NETWORK == "$old_network" ]] || log "Network '${old_network}' was renamed to '${NETWORK}' — using '${NETWORK}'"
+
     if [[ -n $NETWORK && $NETWORK != "jura-prod" && $NETWORK != "jura-dev" &&
         $NETWORK != "piz-palu-dev" ]]; then
         err "--network must be one of 'jura-prod', 'jura-dev', 'piz-palu-dev' (got: '${NETWORK}')"
@@ -136,10 +144,7 @@ parse_args() {
         exit 1
     fi
 
-    # Forwarded verbatim to the package postinstall, which writes it into
-    # gnosisvpn-dynamic.env (loaded by the root service). Reject anything that
-    # isn't a single-line http(s) URL so a stray newline/space cannot inject
-    # extra environment entries; fail here for a clear message before any apt work.
+    # Reject non-http(s) URLs early; postinstall writes the value verbatim into the root EnvironmentFile.
     if [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]] &&
         [[ ! ${GNOSISVPN_HOPR_BLOKLI_URL} =~ ^https?://[^[:space:]]+$ ]]; then
         err "GNOSISVPN_HOPR_BLOKLI_URL must be a single-line http(s) URL (got: '${GNOSISVPN_HOPR_BLOKLI_URL}')"
@@ -195,11 +200,7 @@ detect_distro() {
 
 ensure_prereqs() {
     log "Ensuring prerequisites: ca-certificates, curl"
-    # Drop any stale gnosisvpn source an older installer left behind: this first
-    # apt-get update runs before write_sources, so a broken prior config (e.g.
-    # the eth.limo mirror pinned to the snapshot suite it doesn't publish) would
-    # otherwise abort the run under set -e before we can repair it. write_sources
-    # recreates the correct source below.
+    # Drop a stale source before the first apt-get update so a broken prior config doesn't abort the run.
     rm -f "$SOURCES_PATH"
     apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl
@@ -226,30 +227,17 @@ install_keyring() {
 }
 
 write_sources() {
-    # Intentionally mirrors the deb postinstall's register_apt_repo: this is
-    # bootstrap that must run before apt can fetch the package, so it cannot be
-    # delegated to the postinstall (which only runs once the deb is installed).
-    #
-    # Component name must match the Components: field in linux/apt/conf/distributions
-    # for the channel being subscribed to (stable→main, snapshot→snapshot). Reprepro
-    # derives the on-bucket pool path from that field, and apt fetches Packages from
-    # dists/<suite>/<component>/binary-<arch>/.
-    #
-    # Multiple space-separated URIs are separate sources, not fallbacks: apt must
-    # resolve the Release file of every listed source or `apt-get update` fails
-    # hard. So each channel lists only the mirrors that publish its suite.
+    # Mirrors register_apt_repo in the deb postinstall (can't delegate to it — this runs before the package is installed).
+    # Component must match linux/apt/conf/distributions; only mirrors that publish the suite are listed (unlisted suite → apt-get update fails).
     local component uris
     case "$CHANNEL" in
     stable)
         component="main"
-        # Both mirrors publish the stable suite; listing both gives apt a
-        # second source to download identical signed packages from.
         uris="${REPO_URL_PRIMARY} ${REPO_URL_BACKUP}"
         ;;
     snapshot)
         component="snapshot"
-        # Only the gnosisvpn.io mirror publishes the snapshot suite; the IPFS
-        # mirror has no dists/snapshot/ and would break every apt-get update.
+        # Only gnosisvpn.io publishes the snapshot suite.
         uris="${REPO_URL_BACKUP}"
         ;;
     esac
@@ -269,10 +257,7 @@ apt_install() {
     log "Refreshing APT cache ..."
     apt-get update
 
-    # Channel candidate, queried against an empty dpkg status file: apt never
-    # reports a candidate below the installed version (downgrades need pins
-    # > 1000), which would mask the stable candidate after a snapshot→stable
-    # switch. LC_ALL=C keeps the "Candidate:" label unlocalized.
+    # Query against an empty dpkg status file so apt reports the true channel candidate, not the installed version (which would hide downgrades).
     local candidate installed
     candidate="$(LC_ALL=C apt-cache -o Dir::State::status=/dev/null policy gnosisvpn 2>/dev/null |
         sed -n 's/^ *Candidate: *//p' || true)"
@@ -282,49 +267,31 @@ apt_install() {
         exit 1
     fi
 
-    # Installed version; empty when not installed (config-files-only remnants
-    # of a removed package count as not installed).
+    # Config-files-only remnants of a removed package count as not installed.
     installed="$(dpkg-query -W -f='${db:Status-Status} ${Version}' gnosisvpn 2>/dev/null || true)"
     case "$installed" in
     "installed "*) installed="${installed#installed }" ;;
     *) installed="" ;;
     esac
 
-    # DEBIAN_FRONTEND silences debconf but not dpkg conffile prompts, which abort
-    # under `curl | sudo bash` (no stdin). --force-confdef/--force-confold answer
-    # them non-interactively (keep the existing file unless dpkg has a safe
-    # default); conffile prompts are most likely during channel downgrades.
-    # --allow-downgrades: apt refuses -y downgrades without it, which would
-    # abort a snapshot→stable channel switch; harmless otherwise since apt
-    # only downgrades when pointed at a lower version explicitly.
+    # --force-confdef/confold: answer dpkg conffile prompts non-interactively (stdin absent in curl|bash).
+    # --allow-downgrades: required for snapshot→stable channel switch; harmless otherwise.
     local apt_opts=(-y --allow-downgrades -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
     local package="gnosisvpn"
     if [[ -n $installed ]] && dpkg --compare-versions "$installed" gt "$candidate"; then
-        # Channel switch (e.g. snapshot→stable): apt never downgrades on its
-        # own, so pin the channel candidate.
+        # Channel downgrade: pin the candidate so apt doesn't skip it.
         log "Installed gnosisvpn ${installed} is newer than the '${CHANNEL}' channel candidate ${candidate}; downgrading to match the channel."
         package="gnosisvpn=${candidate}"
     elif [[ -n $NETWORK || -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} || $RESET_IDENTITY == "true" ]]; then
-        # --reinstall forces the postinstall to run (to apply the network and/or
-        # Blokli URL override, or to reset the identity) even when the package is
-        # already at the candidate version. Not needed on the downgrade path: the
-        # version change runs it anyway.
+        # --reinstall forces postinstall to run (apply network/URL/identity override) when version is unchanged.
         apt_opts+=(--reinstall)
     fi
 
     log "Installing ${package} ..."
-    # Forward explicit overrides to the package's postinstall through these env
-    # vars; without them the postinstall keeps an existing network and Blokli
-    # endpoint (defaulting to jura-prod on a fresh install). A network choice
-    # fills in a matching Blokli endpoint default: recent postinstalls derive
-    # that themselves, but keep forwarding the derived URL for already-published
-    # debs whose postinstall defaults to jura-prod; an explicit
-    # GNOSISVPN_HOPR_BLOKLI_URL is honored on its own, with or without a network.
+    # Forward env vars to postinstall; without them it keeps the existing network/URL (defaulting to jura-prod on fresh install).
     local install_env=(DEBIAN_FRONTEND=noninteractive)
     if [[ -n $NETWORK ]]; then
-        # Network names are <prefix>-<env> (env is the segment after the last
-        # '-', e.g. jura-prod -> prefix=jura env=prod, piz-palu-dev ->
-        # prefix=piz-palu env=dev); the Blokli endpoint mirrors that split.
+        # Derive the endpoint for older postinstalls that don't compute it themselves.
         local network_prefix="${NETWORK%-*}"
         local network_env="${NETWORK##*-}"
         local blokli_url="${GNOSISVPN_HOPR_BLOKLI_URL:-https://blokli-${network_prefix}.${network_env}.hoprnet.link}"
@@ -334,12 +301,7 @@ apt_install() {
         log "Using Blokli endpoint: ${GNOSISVPN_HOPR_BLOKLI_URL}"
         install_env+=(GNOSISVPN_HOPR_BLOKLI_URL="$GNOSISVPN_HOPR_BLOKLI_URL")
     fi
-    # Delegate the HOPR identity reset to the package postinstall
-    # (reset_identity_if_requested) rather than duplicating it here: it backs up
-    # /var/lib/gnosisvpn/.config before the service starts, so a fresh identity
-    # is generated on start (the network/endpoint override gnosisvpn-dynamic.env
-    # is left in place — see reset_identity_if_requested). --reinstall above
-    # ensures the postinstall runs even when already at the candidate version.
+    # Delegate identity reset to postinstall (reset_identity_if_requested) so it runs before the service starts.
     if [[ $RESET_IDENTITY == "true" ]]; then
         log "Reset identity requested — the package postinstall will back up the current identity and generate a fresh one."
         install_env+=(GNOSISVPN_RESET_IDENTITY=true)

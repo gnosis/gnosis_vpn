@@ -27,6 +27,14 @@ elif command -v pacman >/dev/null 2>&1; then
     PKG_MANAGER="arch"
 fi
 
+# TODO: remove by December 2027.
+# Completes the rm_conffile handshake started in preinstall.sh; DPKG_MAINTSCRIPT_NAME gates non-dpkg hosts.
+if [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] && command -v dpkg-maintscript-helper >/dev/null 2>&1; then
+    for conffile in config-jura.toml config-rotsee.toml config-piz-palu-staging.toml; do
+        dpkg-maintscript-helper rm_conffile "/etc/gnosisvpn/$conffile" "" gnosisvpn -- "$@"
+    done
+fi
+
 # Reload systemd after service file removal
 echo "$LOG_PREFIX INFO: Reloading systemd daemon..."
 deb-systemd-helper daemon-reload || true
@@ -78,10 +86,7 @@ fi
 if [[ $IS_PURGE == "true" ]]; then
     echo "$LOG_PREFIX INFO: Performing complete removal (purge)..."
 
-    # Remove logrotate configuration. Purge only: it is a dpkg conffile, and
-    # deleting it on plain remove makes dpkg record the deletion as
-    # intentional, so it would never be restored on reinstall. dpkg purge
-    # removes it itself on deb; this covers rpm/arch.
+    # logrotate.d is a dpkg conffile — only delete on purge to avoid dpkg treating the removal as intentional.
     if [[ -f /etc/logrotate.d/gnosisvpn ]]; then
         echo "$LOG_PREFIX INFO: Removing logrotate configuration"
         rm -f /etc/logrotate.d/gnosisvpn
