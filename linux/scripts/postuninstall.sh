@@ -28,15 +28,8 @@ elif command -v pacman >/dev/null 2>&1; then
 fi
 
 # TODO: remove the removal code by December 2027.
-# Migration only: completes the rm_conffile handshake started in preinstall.sh
-# for the conffiles retired by the network rename (see the comment there). The
-# same call has to appear in all three scripts; this is the step that drops the
-# saved copy on purge and restores it on a failed upgrade.
-#
-# DPKG_MAINTSCRIPT_NAME is set only by dpkg, and is what the helper dispatches
-# on. Testing it (not just the binary) keeps this a no-op when rpm/pacman runs
-# the script on a host that also happens to have dpkg, where the maintainer
-# script arguments mean something else entirely.
+# Completes the rm_conffile handshake started in preinstall.sh: drops the saved
+# copy on purge, restores it on a failed upgrade. Env var gates non-dpkg hosts.
 if [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] && command -v dpkg-maintscript-helper >/dev/null 2>&1; then
     for conffile in config-jura.toml config-rotsee.toml config-piz-palu-staging.toml; do
         dpkg-maintscript-helper rm_conffile "/etc/gnosisvpn/$conffile" "" gnosisvpn -- "$@"
