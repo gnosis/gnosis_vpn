@@ -7,9 +7,7 @@
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=snapshot
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --network=jura-dev
 #
-# Prompts for sudo up front when not already root. For headless/non-interactive
-# use (no controlling terminal for the sudo password prompt), pipe into
-# `sudo bash` instead.
+# Prompts for sudo when not already root; use `sudo bash` instead for headless/non-interactive installs (no TTY for the password prompt).
 #
 # Configures /etc/apt/sources.list.d/gnosisvpn.sources to pull signed packages
 # from the Gnosis VPN APT repository, installs the public keyring, runs
@@ -174,8 +172,7 @@ ensure_sudo() {
     fi
     SUDO="sudo"
 
-    # Keep the sudo timestamp alive so a hardened box with a short timestamp_timeout
-    # doesn't force a second prompt mid-install on a slow mirror.
+    # Refreshes the sudo timestamp so a slow apt-get run doesn't force a second password prompt.
     while true; do
         sudo -n true || true
         sleep 60
