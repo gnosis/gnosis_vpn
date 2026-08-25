@@ -9,6 +9,15 @@ This repository collects the binary artifacts that compose the Gnosis VPN projec
 Install via the APT repository (recommended):
 
 ```bash
+curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash
+```
+
+The script prompts for `sudo` itself when it needs to add the APT repository, install the package, or manage the systemd
+service — once, up front, then caches it for the rest of the run. For non-interactive/headless use (no controlling
+terminal for a sudo password prompt, e.g. CI or provisioning) or when already running as root, pipe into `sudo bash`
+instead:
+
+```bash
 curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash
 ```
 
@@ -18,14 +27,14 @@ The installer accepts options after `-s --`:
   Env var: `GNOSISVPN_CHANNEL`.
 
   ```bash
-  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
+  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=snapshot
   ```
 
 - `--network=<jura-prod|jura-dev|piz-palu-dev>` — network to configure (default: `jura-prod` on first install; omitting
   keeps an existing choice). Env var: `GNOSISVPN_NETWORK`.
 
   ```bash
-  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=jura-dev
+  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --network=jura-dev
   ```
 
 - `--reset-identity` — back up the worker's config directory (`/var/lib/gnosisvpn/.config/`, holding the HOPR identity,
@@ -34,13 +43,13 @@ The installer accepts options after `-s --`:
   `GNOSISVPN_RESET_IDENTITY=true`.
 
   ```bash
-  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --reset-identity
+  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --reset-identity
   ```
 
 - `-h`, `--help` — show the installer's help and exit.
 
   ```bash
-  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --help
+  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --help
   ```
 
 Snapshot installs and upgrades pull from `download.gnosisvpn.io` only — the IPFS mirror serves just the stable suite.
@@ -57,7 +66,7 @@ pick a different network — or to switch an existing installation — pass `--n
 [.deb Installation Environment Variables](#deb-installation-environment-variables)):
 
 ```bash
-curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=jura-dev
+curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --network=jura-dev
 ```
 
 Manual repo setup (equivalent to what the installer does for the stable channel — it lists both mirrors, the IPFS/ENS

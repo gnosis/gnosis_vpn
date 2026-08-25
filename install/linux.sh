@@ -3,9 +3,11 @@
 # Gnosis VPN APT repository installer (Debian / Ubuntu).
 #
 # Usage:
-#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash
-#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
-#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=jura-dev
+#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash
+#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=snapshot
+#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --network=jura-dev
+#
+# Prompts for sudo when not already root; use `sudo bash` instead for headless/non-interactive installs (no TTY for the password prompt).
 #
 # Configures /etc/apt/sources.list.d/gnosisvpn.sources to pull signed packages
 # from the Gnosis VPN APT repository, installs the public keyring, runs
@@ -152,11 +154,31 @@ parse_args() {
     fi
 }
 
-require_root() {
-    if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
-        err "This script must run as root. Try: curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash"
+ensure_sudo() {
+    if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+        SUDO=""
+        return
+    fi
+
+    if ! command -v sudo >/dev/null 2>&1; then
+        err "sudo not found. Re-run as root, or install sudo first."
         exit 1
     fi
+
+    log "GnosisVPN needs sudo to add its APT repository, install the gnosisvpn package, and manage its systemd service."
+    if ! sudo -v; then
+        err "Could not obtain sudo access. If this is a non-interactive/headless environment (no terminal for the sudo password prompt), re-run with: curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash"
+        exit 1
+    fi
+    SUDO="sudo"
+
+    # Refreshes the sudo timestamp so a slow apt-get run doesn't force a second password prompt.
+    while true; do
+        sudo -n true || true
+        sleep 60
+    done 2>/dev/null &
+    KEEPALIVE_PID=$!
+    trap 'kill "$KEEPALIVE_PID" 2>/dev/null' EXIT
 }
 
 detect_arch() {
@@ -201,21 +223,21 @@ detect_distro() {
 ensure_prereqs() {
     log "Ensuring prerequisites: ca-certificates, curl"
     # Drop a stale source before the first apt-get update so a broken prior config doesn't abort the run.
-    rm -f "$SOURCES_PATH"
-    apt-get update
-    DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl
+    ${SUDO} rm -f "$SOURCES_PATH"
+    ${SUDO} apt-get update
+    ${SUDO} env DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl
 }
 
 install_keyring() {
     log "Installing repository signing key to ${KEYRING_PATH}"
-    install -d -m 0755 /etc/apt/keyrings
+    ${SUDO} install -d -m 0755 /etc/apt/keyrings
     local tmp url
     tmp="$(mktemp)"
     for url in "${REPO_URL_PRIMARY}/gnosisvpn-archive-keyring.gpg" \
         "${REPO_URL_BACKUP}/gnosisvpn-archive-keyring.gpg"; do
         if curl -fsSL "$url" -o "$tmp"; then
             log "Downloaded signing key from ${url}"
-            install -m 0644 "$tmp" "$KEYRING_PATH"
+            ${SUDO} install -m 0644 "$tmp" "$KEYRING_PATH"
             rm -f "$tmp"
             return
         fi
@@ -242,7 +264,7 @@ write_sources() {
         ;;
     esac
     log "Writing APT source to ${SOURCES_PATH} (channel: ${CHANNEL}, component: ${component}, arch: ${ARCH})"
-    cat >"$SOURCES_PATH" <<EOF
+    cat <<EOF | ${SUDO} tee "$SOURCES_PATH" >/dev/null
 Types: deb
 URIs: ${uris}
 Suites: ${CHANNEL}
@@ -250,12 +272,12 @@ Components: ${component}
 Architectures: ${ARCH}
 Signed-By: ${KEYRING_PATH}
 EOF
-    chmod 0644 "$SOURCES_PATH"
+    ${SUDO} chmod 0644 "$SOURCES_PATH"
 }
 
 apt_install() {
     log "Refreshing APT cache ..."
-    apt-get update
+    ${SUDO} apt-get update
 
     # Query against an empty dpkg status file so apt reports the true channel candidate, not the installed version (which would hide downgrades).
     local candidate installed
@@ -306,7 +328,7 @@ apt_install() {
         log "Reset identity requested — the package postinstall will back up the current identity and generate a fresh one."
         install_env+=(GNOSISVPN_RESET_IDENTITY=true)
     fi
-    env "${install_env[@]}" apt-get install "${apt_opts[@]}" "$package"
+    ${SUDO} env "${install_env[@]}" apt-get install "${apt_opts[@]}" "$package"
 }
 
 print_postinstall() {
@@ -330,7 +352,7 @@ EOF
 
 main() {
     parse_args "$@"
-    require_root
+    ensure_sudo
     detect_arch
     detect_distro
     ensure_prereqs
