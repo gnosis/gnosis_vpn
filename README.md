@@ -12,10 +12,10 @@ Install via the APT repository (recommended):
 curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash
 ```
 
-The script prompts for `sudo` itself when it needs to add the APT repository, install the package, or manage the
-systemd service — once, up front, then caches it for the rest of the run. For non-interactive/headless use (no
-controlling terminal for a sudo password prompt, e.g. CI or provisioning) or when already running as root, pipe into
-`sudo bash` instead:
+The script prompts for `sudo` itself when it needs to add the APT repository, install the package, or manage the systemd
+service — once, up front, then caches it for the rest of the run. For non-interactive/headless use (no controlling
+terminal for a sudo password prompt, e.g. CI or provisioning) or when already running as root, pipe into `sudo bash`
+instead:
 
 ```bash
 curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash
