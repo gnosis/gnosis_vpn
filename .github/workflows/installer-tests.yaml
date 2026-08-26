@@ -1,0 +1,178 @@
+name: Installer Tests Linux
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'install/**'
+      - 'linux/**'
+      - 'test/installer/**'
+      - '.github/workflows/installer-tests.yaml'
+      - '.github/workflows/build-binary.yaml'
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: installer-tests-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    name: Build deb
+    uses: ./.github/workflows/build-binary.yaml
+    with:
+      # 'commit' builds the PR head (uses the pull_request event's head sha);
+      # 'pr' (newest merged-PR version) is the side-effect-free fallback for a
+      # manual dispatch. Neither publishes to any production repo.
+      version_type: ${{ github.event_name == 'pull_request' && 'commit' || 'pr' }}
+    secrets: inherit
+  test:
+    name: ${{ matrix.scenario }}
+    needs: build
+    runs-on: depot-ubuntu-22.04-4
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep in sync with the SCENARIOS list in test/installer/lib/report.sh.
+        scenario:
+          - deb-default
+          - deb-network-rotsee
+          - deb-blokli-custom
+          - deb-reset-identity
+          - sh-default
+          - sh-channel-stable
+          - sh-channel-snapshot
+          - sh-network-jura
+          - sh-network-rotsee
+          - sh-reset-identity
+          - sh-blokli-env
+    env:
+      PKG_VERSION: ${{ needs.build.outputs.GNOSISVPN_PACKAGE_VERSION }}
+      DEBIAN_FRONTEND: noninteractive
+      NEEDRESTART_MODE: a
+      NEEDRESTART_SUSPEND: '1'
+      # Whether the VPN worker stays up on a headless CI runner is
+      # environment-dependent; record (don't fail on) an inactive service until
+      # the real behavior on this runner is confirmed, then drop this to make
+      # `systemctl is-active` a hard assertion.
+      GVPN_TEST_TOLERATE_INACTIVE: '1'
+      GVPN_RESULT_FILE: ${{ github.workspace }}/results/${{ matrix.scenario }}.json
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Download built package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: gnosisvpn_${{ env.PKG_VERSION }}_amd64.deb
+          path: ./debs
+      - name: Prepare (results dir + locate package)
+        run: |
+          mkdir -p results
+          shopt -s nullglob
+          debs=("$GITHUB_WORKSPACE"/debs/gnosisvpn_*_amd64.deb)
+          deb="${debs[0]:-}"
+          [[ -n $deb && -f $deb ]] || { echo "no amd64 .deb found under ./debs" >&2; exit 1; }
+          echo "GVPN_DEB=$deb" >>"$GITHUB_ENV"
+      - name: Set up local APT repo
+        run: sudo -E bash test/installer/lib/local-repo.sh "$GVPN_DEB"
+      - name: Run scenario ${{ matrix.scenario }}
+        run: sudo -E bash test/installer/run-scenario.sh "${{ matrix.scenario }}"
+      - name: Upload scenario result
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: result-${{ matrix.scenario }}
+          path: results/${{ matrix.scenario }}.json
+          if-no-files-found: warn
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          echo "== systemctl status ==" && sudo systemctl status gnosisvpn.service --no-pager || true
+          echo "== journal ==" && sudo journalctl -u gnosisvpn.service -n 120 --no-pager || true
+          echo "== apt policy ==" && apt-cache policy gnosisvpn || true
+          echo "== sources ==" && cat /etc/apt/sources.list.d/gnosisvpn.sources 2>/dev/null || true
+          echo "== /etc/gnosisvpn ==" && ls -la /etc/gnosisvpn 2>/dev/null || true
+          echo "== repo http log ==" && sudo tail -n 40 /var/log/gvpn-repo-http.log 2>/dev/null || true
+  transition:
+    name: ${{ matrix.cell }}
+    needs: build
+    runs-on: depot-ubuntu-22.04-4
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every ordered (from → to) pair over {stable,snapshot}×{jura,rotsee}.
+        # Keep in sync with STATES in test/installer/lib/report.sh.
+        cell:
+          - switch-sj-to-sj
+          - switch-sj-to-sr
+          - switch-sj-to-nj
+          - switch-sj-to-nr
+          - switch-sr-to-sj
+          - switch-sr-to-sr
+          - switch-sr-to-nj
+          - switch-sr-to-nr
+          - switch-nj-to-sj
+          - switch-nj-to-sr
+          - switch-nj-to-nj
+          - switch-nj-to-nr
+          - switch-nr-to-sj
+          - switch-nr-to-sr
+          - switch-nr-to-nj
+          - switch-nr-to-nr
+    env:
+      PKG_VERSION: ${{ needs.build.outputs.GNOSISVPN_PACKAGE_VERSION }}
+      DEBIAN_FRONTEND: noninteractive
+      NEEDRESTART_MODE: a
+      NEEDRESTART_SUSPEND: '1'
+      GVPN_TEST_TOLERATE_INACTIVE: '1'
+      GVPN_RESULT_FILE: ${{ github.workspace }}/results/${{ matrix.cell }}.json
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Download built package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: gnosisvpn_${{ env.PKG_VERSION }}_amd64.deb
+          path: ./debs
+      - name: Prepare (results dir + locate package)
+        run: |
+          mkdir -p results
+          shopt -s nullglob
+          debs=("$GITHUB_WORKSPACE"/debs/gnosisvpn_*_amd64.deb)
+          deb="${debs[0]:-}"
+          [[ -n $deb && -f $deb ]] || { echo "no amd64 .deb found under ./debs" >&2; exit 1; }
+          echo "GVPN_DEB=$deb" >>"$GITHUB_ENV"
+      - name: Set up local APT repo
+        run: sudo -E bash test/installer/lib/local-repo.sh "$GVPN_DEB"
+      - name: Run transition ${{ matrix.cell }}
+        run: sudo -E bash test/installer/run-transition.sh "${{ matrix.cell }}"
+      - name: Upload cell result
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: result-${{ matrix.cell }}
+          path: results/${{ matrix.cell }}.json
+          if-no-files-found: warn
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          echo "== systemctl status ==" && sudo systemctl status gnosisvpn.service --no-pager || true
+          echo "== journal ==" && sudo journalctl -u gnosisvpn.service -n 120 --no-pager || true
+          echo "== apt policy ==" && apt-cache policy gnosisvpn || true
+          echo "== sources ==" && cat /etc/apt/sources.list.d/gnosisvpn.sources 2>/dev/null || true
+          echo "== repo http log ==" && sudo tail -n 40 /var/log/gvpn-repo-http.log 2>/dev/null || true
+  report:
+    name: Results table
+    needs: [build, test, transition]
+    if: always()
+    runs-on: depot-ubuntu-22.04-4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Download all scenario results
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: result-*
+          merge-multiple: true
+          path: ./results
+      - name: Render results table
+        run: bash test/installer/lib/report.sh ./results
