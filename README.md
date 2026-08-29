@@ -179,7 +179,7 @@ The team will review all discussions and promote confirmed bugs or planned featu
 ### Requirements
 
 - [Nix](https://nixos.org) (recommended) - Provides all build dependencies
-- macOS 11.0 or later for mac packages
+- macOS 15.0 (Sequoia) or later on Apple Silicon for mac packages
 - Xcode Command Line Tools installed: `$ xcode-select --install` for mac packages
 
 ### Quick Start

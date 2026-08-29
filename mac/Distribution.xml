@@ -4,6 +4,7 @@
     <allowed-os-versions>
         <os-version min="__MIN_OS_MACOS__"/>
     </allowed-os-versions>
+    <installation-check script="installationCheck()"/>
     <organization>com.gnosisvpn</organization>
     <domains enable_anywhere="true"/>
 
@@ -17,10 +18,39 @@
     <pkg-ref id="com.gnosisvpn.gnosisvpnclient"/>
 
     <!-- Options -->
+    <!-- x86_64 stays in hostArchitectures on purpose: Intel Macs must be able to open the
+         installer so installationCheck() can show the accurate "Apple Silicon required"
+         dialog instead of Apple's misleading "incompatible with this version of macOS". -->
     <options customize="allow" require-scripts="false" hostArchitectures="x86_64,arm64"/>
 
-    <!-- JavaScript for mutual exclusion -->
+    <!-- JavaScript for system requirement checks and mutual exclusion -->
     <script><![CDATA[
+        function installationCheck() {
+            // Architecture first: telling an Intel user on an old macOS to update
+            // the OS would not help them.
+            // hw.optional.arm64 == 1 on Apple Silicon (incl. under Rosetta translation);
+            // absent/0 on Intel — more reliable than hw.machine.
+            var isAppleSilicon = false;
+            try {
+                isAppleSilicon = system.sysctl('hw.optional.arm64') == 1;
+            } catch (e) {}
+            if (!isAppleSilicon) {
+                my.result.title = 'Apple Silicon Required';
+                my.result.message = 'Gnosis VPN requires a Mac with Apple Silicon (M1 or later). Intel-based Macs are not supported.';
+                my.result.type = 'Fatal';
+                return false;
+            }
+
+            if (system.compareVersions(system.version.ProductVersion, '__MIN_OS_MACOS__') < 0) {
+                my.result.title = 'macOS __MIN_OS_MACOS__ or Later Required';
+                my.result.message = 'Gnosis VPN requires macOS __MIN_OS_MACOS__ (Sequoia) or later. You are running macOS ' + system.version.ProductVersion + '. Please update macOS in System Settings > Software Update.';
+                my.result.type = 'Fatal';
+                return false;
+            }
+
+            return true;
+        }
+
         function exclusiveEnabled(selfId, groupIds) {
             if (!choices[selfId]) {
                 return true;
