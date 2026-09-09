@@ -8,10 +8,7 @@
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=experimental
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --network=jura-dev
 #
-# Two installer lines are published. The stable and snapshot channels ship the
-# jura-prod and jura-dev networks; the experimental channel ships piz-palu-dev
-# and is built against the newer client/app generation. A network is only
-# selectable on the channel that ships it.
+# Stable and snapshot ship the jura networks, experimental ships piz-palu-dev; a network is only selectable on the channel that ships it.
 #
 # Prompts for sudo when not already root; use `sudo bash` instead for headless/non-interactive installs (no TTY for the password prompt).
 #
@@ -38,9 +35,7 @@ log() { printf '\033[0;34m[gnosisvpn]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 err() { printf '\033[0;31m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 
-# Networks each channel ships; the first entry is that channel's default.
-# Mirrors NETWORKS_STANDARD / NETWORKS_EXPERIMENTAL in scripts/config.sh — keep
-# the two in sync.
+# Networks per channel (first = default); mirrors NETWORKS_* in scripts/config.sh, keep in sync.
 channel_networks() {
     case "$1" in
     experimental) echo "piz-palu-dev" ;;
@@ -194,10 +189,7 @@ parse_args() {
         exit 1
     fi
 
-    # A single-network line always forwards its selection, so that a switch onto
-    # it re-points config.toml even on a postinstall that only checks whether the
-    # config file exists — the other line's config survives the switch as an
-    # obsolete conffile.
+    # A single-network line always forwards its selection, so a switch onto it re-points config.toml on older postinstalls too.
     if [[ $CHANNEL == "experimental" && -z $NETWORK ]]; then
         NETWORK="${CHANNEL_NETWORKS[0]}"
     fi
@@ -362,12 +354,7 @@ apt_install() {
     *) installed="" ;;
     esac
 
-    # A channel switch also switches installer lines. The previous line's config
-    # stays behind as an obsolete conffile, so a postinstall that only checks
-    # whether the file exists would keep config.toml pointing at a network this
-    # channel does not ship (and whose exit nodes its client cannot use). Newer
-    # postinstalls detect this themselves, but install.sh is published ahead of
-    # the packages, so decide it here and forward the selection explicitly.
+    # A channel switch leaves the old line's config behind as an obsolete conffile; install.sh ships ahead of the postinstalls that detect that.
     if [[ -z $NETWORK && -L /etc/gnosisvpn/config.toml ]]; then
         local current_network
         current_network="$(basename "$(readlink /etc/gnosisvpn/config.toml)")"

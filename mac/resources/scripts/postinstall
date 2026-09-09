@@ -16,9 +16,7 @@
 #   $4: Root directory "/" for the current system
 #
 # Environment variables from Distribution.xml choices:
-#   INSTALLER_CHOICE_NETWORK: one of the networks in ${SCRIPT_DIR}/networks
-#                             (stable/snapshot: "jura-prod", "jura-dev";
-#                              experimental: "piz-palu-dev")
+#   INSTALLER_CHOICE_NETWORK: one of the networks listed in ${SCRIPT_DIR}/networks
 #   INSTALLER_CHOICE_LOGLEVEL: "debug" or "info"
 
 set -euo pipefail
@@ -83,12 +81,7 @@ if [[ -z "$INSTALLER_VERSION" ]]; then
     exit 1
 fi
 
-# Networks this installer ships (space-separated, first = default), baked next to
-# version.txt by generate-package-mac.sh. Two installer lines exist —
-# stable/snapshot ship the jura networks, experimental ships piz-palu-dev — so
-# state left by the other line (a stale choice file, templates already extracted)
-# must be validated against this list. Packages built before the file existed
-# fall back to the historical default.
+# Networks this installer ships (first = default), baked by generate-package-mac.sh; older packages fall back to the historical default.
 SHIPPED_NETWORKS=()
 if [[ -r "${SCRIPT_DIR}/networks" ]]; then
     read -r -a SHIPPED_NETWORKS <"${SCRIPT_DIR}/networks" || true
@@ -123,9 +116,7 @@ load_installer_choices() {
         log_warn "Network choice file not found, defaulting to ${DEFAULT_NETWORK}"
     fi
 
-    # The choice file persists between installs, so it can name a network from
-    # the other installer line (the user switched lines and deselected every
-    # network). Never point config.toml at a network this package does not ship.
+    # The choice file persists between installs, so it can name a network from the other line.
     if ! is_shipped_network "$INSTALLER_CHOICE_NETWORK"; then
         log_warn "Network choice '${INSTALLER_CHOICE_NETWORK}' is not shipped by this installer (${SHIPPED_NETWORKS[*]}) — using ${DEFAULT_NETWORK}"
         INSTALLER_CHOICE_NETWORK="$DEFAULT_NETWORK"
@@ -824,11 +815,7 @@ setup_configuration_files() {
     # Ensure config directory exists
     mkdir -p "$CONFIG_DIR"
 
-    # The payload only ever adds files, so templates from the other installer
-    # line survive a channel switch and would be re-materialized as
-    # /etc/gnosisvpn/<network>.toml below. Drop them first. The already-copied
-    # <network>.toml of the other line is deliberately left in place: it is what
-    # create_config_symlink captures into $PREV_CONFIG_FILE for rollback.
+    # The payload only adds files, so drop the other line's templates before they are re-materialized below.
     local stale_template stale_network
     for stale_template in "${TEMPLATE_DIR_INSTALLED}"/*.template; do
         [[ -f "$stale_template" ]] || continue

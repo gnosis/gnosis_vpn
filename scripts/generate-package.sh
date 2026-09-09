@@ -19,11 +19,7 @@ source "${SCRIPT_DIR}/common.sh"
 # shellcheck source=config.sh
 source "${SCRIPT_DIR}/config.sh"
 
-# Which networks this package ships, and which channel it is published to.
-# CI exports both (see build-binary.yaml); a local build without them gets the
-# set implied by GNOSISVPN_CHANNEL, defaulting to the standard line.
-# Resolved here, before the platform script is sourced in parse_args, because
-# generate-package-mac.sh builds its choice-package list at source time.
+# Networks and channel of this build, resolved before the platform script is sourced because it needs them at source time.
 : "${GNOSISVPN_CHANNEL:=}"
 case "${GNOSISVPN_CHANNEL}" in
 experimental) : "${GNOSISVPN_NETWORKS:=${NETWORKS_EXPERIMENTAL}}" ;;
@@ -123,11 +119,7 @@ parse_args() {
     log_success "Command-line arguments parsed successfully"
 }
 
-# Which channel a version string implies. This MUST stay in lockstep with
-# register_apt_repo in linux/scripts/postinstall.sh (and the macOS updater's
-# equivalent): the installed package picks its APT suite by re-deriving the
-# channel from its own version. The ".experimental" suffix is tested first
-# because experimental versions are snapshot-shaped (+build.<time>) underneath.
+# Channel implied by a version string; MUST match register_apt_repo in linux/scripts/postinstall.sh (".experimental" first).
 channel_from_version() {
     case "$1" in
     *.experimental | *.experimental.*) echo "experimental" ;;
@@ -136,10 +128,7 @@ channel_from_version() {
     esac
 }
 
-# A package whose version implies a different channel than the one being built
-# would register the wrong APT suite after install (e.g. a "stable" build from a
-# +build. version registers snapshot, and would then be upgraded off the
-# snapshot suite). Refuse the mismatch at build time.
+# A version implying another channel would register the wrong APT suite after install; refuse it at build time.
 validate_channel_version() {
     # pr and commit builds are never published, so they carry no channel.
     [[ -n ${GNOSISVPN_CHANNEL} ]] || return 0

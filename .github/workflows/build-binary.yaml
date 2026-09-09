@@ -57,8 +57,7 @@ jobs:
       GNOSISVPN_TOOLKIT_VERSION: ${{ steps.setup.outputs.GNOSISVPN_TOOLKIT_VERSION }}
       GNOSISVPN_NETWORKS: ${{ steps.setup.outputs.GNOSISVPN_NETWORKS }}
       GNOSISVPN_CHANNEL: ${{ steps.setup.outputs.GNOSISVPN_CHANNEL }}
-      # Resolved per line by the script, so the build jobs and the skip check
-      # agree on the changelog range.
+      # Resolved per line so the build jobs and the skip check share one changelog range.
       GNOSISVPN_PACKAGE_PREVIOUS_VERSION: ${{ steps.setup.outputs.GNOSISVPN_PACKAGE_PREVIOUS_VERSION }}
       GNOSISVPN_CLIENT_PREVIOUS_VERSION: ${{ steps.setup.outputs.GNOSISVPN_CLIENT_PREVIOUS_VERSION }}
       GNOSISVPN_APP_PREVIOUS_VERSION: ${{ steps.setup.outputs.GNOSISVPN_APP_PREVIOUS_VERSION }}
@@ -81,12 +80,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION_TYPE: ${{ inputs.version_type }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          # Each installer line tracks its own "previously built" versions. All
-          # candidates are handed over and the script picks by VERSION_TYPE: an
-          # Actions ternary cannot yield an empty string, so `cond && vars.EMPTY
-          # || other` would silently substitute the standard line's versions on
-          # the experimental line. Passing them separately keeps an unseeded
-          # experimental variable meaning "no previous build".
+          # All candidates are passed and the script picks by VERSION_TYPE: an Actions ternary cannot yield an empty string.
           GNOSISVPN_PACKAGE_PREVIOUS_VERSION_PR: ${{ vars.GNOSISVPN_PACKAGE_PR_VERSION }}
           GNOSISVPN_CLIENT_PREVIOUS_VERSION_PR: ${{ vars.GNOSISVPN_CLIENT_PR_VERSION }}
           GNOSISVPN_APP_PREVIOUS_VERSION_PR: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
@@ -151,12 +145,10 @@ jobs:
           GNOSISVPN_CLIENT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
           GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}
           GNOSISVPN_TOOLKIT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_TOOLKIT_VERSION }}
-          # Networks this line ships and the channel it publishes to; consumed by
-          # generate-package.sh and generate-changelog.ts.
+          # Networks and channel of this line; consumed by generate-package.sh and generate-changelog.ts.
           GNOSISVPN_NETWORKS: ${{ needs.setup.outputs.GNOSISVPN_NETWORKS }}
           GNOSISVPN_CHANNEL: ${{ needs.setup.outputs.GNOSISVPN_CHANNEL }}
-          # Picked per line by resolve-build-versions.sh in the setup job, so the
-          # changelog range matches the line being built.
+          # Picked per line by resolve-build-versions.sh so the changelog range matches this line.
           GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_PREVIOUS_VERSION }}
           GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLIENT_PREVIOUS_VERSION }}
           GNOSISVPN_PREVIOUS_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_PREVIOUS_VERSION }}
@@ -232,8 +224,7 @@ jobs:
           GNOSISVPN_CLIENT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
           GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}
           GNOSISVPN_TOOLKIT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_TOOLKIT_VERSION }}
-          # Networks this line ships and the channel it publishes to; consumed by
-          # generate-package.sh (choice packages, Distribution.xml, baked list).
+          # Networks and channel of this line; consumed by generate-package.sh.
           GNOSISVPN_NETWORKS: ${{ needs.setup.outputs.GNOSISVPN_NETWORKS }}
           GNOSISVPN_CHANNEL: ${{ needs.setup.outputs.GNOSISVPN_CHANNEL }}
           GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD: ${{ secrets.GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD }}
@@ -244,8 +235,7 @@ jobs:
       - name: Resolve package name and channel
         id: prepare_files
         run: |
-          # Bucket directory per channel; "latest" is the on-disk name of the
-          # snapshot directory. Mirrors build_gcs_url() in generate-update-manifest.sh.
+          # Bucket dir per channel ("latest" is snapshot); mirrors build_gcs_url() in generate-update-manifest.sh.
           case "${{ inputs.version_type }}" in
             release)      channel="stable" ;;
             experimental) channel="experimental" ;;
@@ -315,9 +305,7 @@ jobs:
             "gs://download.gnosisvpn.io/macos/${{ steps.prepare_files.outputs.channel }}/"
   ## TODO Publish into IPFS as well
   publish_apt:
-    # The nightly lines publish straight from the build; stable publishing is
-    # gated on the GitHub release and therefore driven by release.yaml instead.
-    # For both nightly lines the version_type name equals the APT suite name.
+    # Nightly lines publish from the build (version_type == APT suite name); stable goes via release.yaml.
     name: Publish APT (${{ inputs.version_type }})
     needs:
       - setup

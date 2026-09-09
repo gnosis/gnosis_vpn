@@ -135,8 +135,7 @@ generate_nfpm_config() {
     mkdir -p "${BUILD_DIR}/resources"
     echo "${GNOSISVPN_PACKAGE_VERSION}" >"${BUILD_DIR}/resources/version.txt"
     log_success "Generated version file: ${BUILD_DIR}/resources/version.txt"
-    # Bake the shipped network list so postinstall.sh can pick a default and
-    # re-point config.toml without hardcoding network names.
+    # Bake the shipped network list so postinstall.sh needs no hardcoded names.
     echo "${GNOSISVPN_NETWORKS}" >"${BUILD_DIR}/resources/networks"
     log_success "Generated networks file: ${GNOSISVPN_NETWORKS}"
     # Dearmor the public key so the postinstall can register the APT source

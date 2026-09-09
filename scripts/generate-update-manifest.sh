@@ -17,10 +17,7 @@
 #   macOS  snapshot      → download.gnosisvpn.io/macos/latest/
 #   macOS  experimental  → download.gnosisvpn.io/macos/experimental/
 #
-# stable and snapshot are mandatory. experimental is omitted (with a warning)
-# until experimental-build.yaml has published once and set the repository
-# variables it is resolved from. Experimental is never published to IPFS, so it
-# never appears in the .ipfs.json manifests.
+# stable and snapshot are mandatory; experimental is omitted with a warning until it has published once, and never reaches IPFS.
 #
 # Required environment variables:
 #   GH_TOKEN  GitHub token with read access to releases
@@ -57,10 +54,7 @@ require_env() {
 
 validate_version() {
     local version="$1"
-    # Mirrors check_version_syntax in scripts/common.sh — covers stable (x.y.z),
-    # date-based snapshot builds (YYYY.MM.DD+build.HHMMSS), experimental builds
-    # (YYYY.MM.DD+build.HHMMSS.experimental — the trailing group takes the extra
-    # channel marker), and PR/commit builds.
+    # Mirrors check_version_syntax in scripts/common.sh; covers stable, snapshot, experimental and PR/commit versions.
     local semver_regex='^[0-9]+\.[0-9]+\.[0-9]+(\+(pr|commit|build)(\.[0-9A-Za-z-]+)*)?$'
     [[ $version =~ $semver_regex ]] ||
         die "Version '$version' does not match expected format: x.y.z or x.y.z+(pr|commit|build).<meta>"
@@ -103,12 +97,7 @@ get_snapshot_run_info() {
     echo "$version $published_at"
 }
 
-# Returns "version published_at" for the latest experimental build, or nothing
-# (with a warning, exit 0) while the repository variables do not exist yet —
-# experimental is optional until experimental-build.yaml has published once.
-# NOTE: this deliberately does not use die(). errexit is not inherited by a
-# command substitution, so a die() in here would only kill the subshell and the
-# caller would silently continue with empty fields. Real gh failures return 1.
+# Returns "version published_at" for the latest experimental build, or nothing while unset; returns rather than die()s, which a command substitution would swallow.
 get_experimental_run_info() {
     local name out rc
     local values=()
@@ -146,14 +135,7 @@ PLATFORMS=(
     "macos-arm64|macos|${MIN_OS_MACOS}"
 )
 
-# Build the GCS download URL for a given platform / channel / version.
-# Linux .deb filenames embed the canonical version directly
-# (gnosisvpn_<version>_<arch>.deb) and live in their channel's APT pool.
-# macOS .pkg filenames substitute '-' for '+' in the version slug for
-# Artifact Registry compatibility (see build-binary.yaml::prepare_files) and
-# live in /macos/<channel-dir>/. Both mappings are enumerated per channel: an
-# unknown channel must fail loudly rather than default into another channel's
-# path and publish a manifest pointing at the wrong artifact.
+# Build the GCS download URL per platform / channel / version; macOS .pkg slugs substitute '-' for '+' (see build-binary.yaml::prepare_files).
 build_gcs_url() {
     local manifest_name="$1"
     local channel="$2"
@@ -205,9 +187,7 @@ mkdir -p "$OUTPUT_DIR"
 
 # ---------------------------------------------------------------------------
 # Step 1: resolve each channel.
-#   CHANNEL_DATA stores "ref version published_at" where:
-#     ref = git tag (stable, used for release notes) or "-" (snapshot,
-#           experimental)
+#   CHANNEL_DATA stores "ref version published_at"; ref is a git tag (stable) or "-" (snapshot, experimental).
 # ---------------------------------------------------------------------------
 declare -A CHANNEL_DATA
 
@@ -295,8 +275,7 @@ for entry in "${PLATFORMS[@]}"; do
             ARTIFACT_SIG=""
         fi
 
-        # Only stable has a GitHub release to take notes from; snapshot and
-        # experimental builds carry empty release notes.
+        # Only stable has a GitHub release to take notes from.
         if [[ $channel == "stable" ]]; then
             RELEASE_NOTES=$(gh release view "$ref" --repo "$REPO" --json body --jq '.body' 2>/dev/null || echo "")
         else
@@ -329,8 +308,7 @@ for entry in "${PLATFORMS[@]}"; do
             jq --arg ch "$channel" --argjson entry "$CHANNEL_ENTRY" \
                 '. + {($ch): $entry}')
 
-        # IPFS hosts stable binaries only, so the IPFS manifest carries the
-        # stable channel exclusively — snapshot and experimental are skipped here.
+        # IPFS hosts stable binaries only, so its manifest carries that channel exclusively.
         if [[ $channel == "stable" ]]; then
             # Same entry, only download_url repointed at the IPFS host.
             CHANNEL_ENTRY_IPFS=$(echo "$CHANNEL_ENTRY" |

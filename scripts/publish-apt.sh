@@ -3,19 +3,7 @@
 # Build and publish a signed APT repository to gs://download.gnosisvpn.io/linux/apt
 # using reprepro.
 #
-# Three channels are supported:
-#   stable        - append-only pool, all historical releases kept under
-#                   pool/main/g/gnosisvpn/ (Components: main).
-#   snapshot      - append-only pool, all historical snapshots kept under
-#                   pool/snapshot/g/gnosisvpn/ (Components: snapshot). Filenames
-#                   are version-pinned so old .debs stay reachable for in-flight
-#                   installs. A separate retention pass is expected to prune old
-#                   snapshots periodically.
-#   experimental  - append-only pool under pool/experimental/g/gnosisvpn/
-#                   (Components: experimental), same retention model as snapshot.
-#                   Serves the installer line built against the newer client/app
-#                   generation and is published to download.gnosisvpn.io only
-#                   (never mirrored to IPFS).
+# Channels: stable (Components: main), snapshot and experimental; all pools are append-only and version-pinned, pruned separately.
 #
 # Repository metadata (Packages, Release, InRelease, Release.gpg) is produced
 # by reprepro from linux/apt/conf/distributions. Reprepro drives gpg via
@@ -215,8 +203,7 @@ parse_args() {
 #   stable        Components: main          → pool/main/g/gnosisvpn/
 #   snapshot      Components: snapshot      → pool/snapshot/g/gnosisvpn/
 #   experimental  Components: experimental  → pool/experimental/g/gnosisvpn/
-# An unknown channel must fail loudly: returning an empty path here would make
-# the caller rsync and publish against the bucket root.
+# An unknown channel must fail loudly: an empty path would publish against the bucket root.
 pool_subpath_for_channel() {
     case "$1" in
     stable) echo "pool/main/g/gnosisvpn" ;;

@@ -1,8 +1,4 @@
-# Nightly build of the experimental installer line: the piz-palu-dev network
-# built against client/app versions at or above COMPONENT_VERSION_BOUNDARY.
-# Mirrors snapshot-build.yaml, which does the same for the standard line. Kept as
-# a separate top-level workflow because update-manifests.yaml triggers on the
-# workflow NAME and because cron events cannot carry inputs.
+# Nightly experimental-line build; mirrors snapshot-build.yaml, kept separate because update-manifests.yaml triggers on workflow NAME.
 name: Experimental Build
 on:
   workflow_dispatch:
@@ -25,7 +21,7 @@ on:
   repository_dispatch:
     types: [experimental_build]
   schedule:
-    - cron: '0 2 * * *' # Runs every day at 2 AM UTC, an hour after the snapshot nightly so the two do not queue on build-binary.yaml's concurrency group. Scheduled workflows can be delayed by up to 3 hours, so the actual execution time may vary.
+    - cron: '0 2 * * *' # Daily at 2 AM UTC, an hour after the snapshot nightly; may be delayed by up to 3 hours.
 permissions:
   contents: read
   id-token: write
@@ -119,11 +115,7 @@ jobs:
             gh variable set GNOSISVPN_TOOLKIT_EXPERIMENTAL_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_TOOLKIT_VERSION}"
           fi
       - name: Publish experimental manifest variables
-        # This job only runs when artifacts were actually built
-        # (SNAPSHOT_TRIGGERED == 'true'), so these variables always reflect the
-        # most recent real experimental build — never a no-op skipped run.
-        # generate-update-manifest.sh reads them to fill in the experimental
-        # channel, and tolerates their absence before the first publish.
+        # Only runs on a real build, so these always name the latest non-skipped one; the manifest generator tolerates their absence.
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           GNOSISVPN_EXPERIMENTAL_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}

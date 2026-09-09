@@ -88,14 +88,9 @@ contents:
     type: config
     file_info:
       mode: 0644
-  # Network configs shipped by this build: one `type: config` entry per network
-  # in GNOSISVPN_NETWORKS, rendered by generate-package-linux.sh. After a channel
-  # switch the other line's configs stay on disk as obsolete conffiles;
-  # postinstall.sh re-points config.toml using /usr/share/gnosisvpn/networks.
+  # One `type: config` entry per network in GNOSISVPN_NETWORKS, rendered by generate-package-linux.sh.
 __GNOSIS_VPN_NETWORK_CONFIGS__
-  # Networks this package ships (one line, space-separated, first = default),
-  # read by postinstall.sh. Deliberately NOT a conffile: every upgrade and
-  # channel switch must replace it.
+  # Networks this package ships (space-separated, first = default); NOT a conffile, every upgrade must replace it.
   - src: ./build/resources/networks
     dst: /usr/share/gnosisvpn/networks
     file_info:

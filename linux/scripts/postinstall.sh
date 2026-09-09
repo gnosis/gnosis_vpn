@@ -5,11 +5,7 @@
 # Creates system user/group and configures the service after files are installed.
 # Compatible with: deb (apt/dpkg), rpm (yum/dnf), archlinux (pacman)
 #
-# The networks this package ships are baked into /usr/share/gnosisvpn/networks
-# (first entry = default). Two installer lines exist — stable/snapshot ship the
-# jura networks, experimental ships piz-palu-dev — so a channel switch leaves the
-# other line's configs behind as obsolete conffiles. Anything selecting or
-# validating a network must therefore consult that list, not the files on disk.
+# Networks shipped are baked into /usr/share/gnosisvpn/networks (first = default); consult that, not the files on disk.
 #
 
 set -euo pipefail
@@ -62,10 +58,7 @@ remove_retired_conffiles() {
     done
 }
 
-# Networks shipped by this package (space-separated, first = default), baked at
-# build time by generate-package-linux.sh. Packages built before this file
-# existed, and non-deb hosts that never received it, fall back to the historical
-# default so an upgrade cannot lose its network selection.
+# Networks shipped by this package (first = default), baked by generate-package-linux.sh; older packages fall back to the historical default.
 SHIPPED_NETWORKS=()
 load_shipped_networks() {
     if [[ -r /usr/share/gnosisvpn/networks ]]; then
@@ -91,8 +84,7 @@ configure_filesystem_permissions() {
     local network_name blokli_url default_network="${SHIPPED_NETWORKS[0]}"
     network_name="${GNOSISVPN_NETWORK:-$default_network}"
 
-    # Accept retired names from old docs/pinned scripts without aborting, but
-    # only when the successor is one this package ships.
+    # Accept retired names, but only when the successor is one this package ships.
     if ! is_shipped_network "$network_name"; then
         local successor
         successor="$(retired_network_successor "$network_name")"
@@ -102,10 +94,7 @@ configure_filesystem_permissions() {
         fi
     fi
 
-    # Guard against a typo, or a network belonging to the other installer line
-    # whose config is still on disk as an obsolete conffile. The supported list
-    # comes from the baked list, not from `ls config-*.toml`, which would also
-    # offer those leftovers.
+    # Checked against the baked list, not `ls config-*.toml`, which would also offer the other line's leftover conffiles.
     if ! is_shipped_network "$network_name" || [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
         echo "$LOG_PREFIX ERROR: Network '${network_name}' is not shipped by this package" >&2
         echo "$LOG_PREFIX ERROR: Supported networks: ${SHIPPED_NETWORKS[*]}" >&2
@@ -156,13 +145,11 @@ configure_filesystem_permissions() {
         current="${current#config-}"
         current="${current%.toml}"
         successor="$(retired_network_successor "$current")"
-        # A rename whose new name this line does not ship is no use here; fall
-        # through to the default below instead.
+        # A rename to a network this line does not ship is no use; fall through to the default.
         if [[ -n $successor ]] && ! is_shipped_network "$successor"; then
             successor=""
         fi
-        # Not shipped by this package (the other line's obsolete conffile, or an
-        # unknown name) or the target is gone: fall back to the resolved default.
+        # Not shipped by this package, or the target is gone: fall back to the resolved default.
         if [[ -z $successor ]] &&
             { ! is_shipped_network "$current" || [[ ! -f /etc/gnosisvpn/config-${current}.toml ]]; }; then
             successor="$network_name"
@@ -279,9 +266,7 @@ register_apt_repo() {
     local keyring_src="/usr/share/gnosisvpn/gnosisvpn-archive-keyring.gpg"
     local keyring_dst="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 
-    # The channel is encoded in the version string. Experimental versions are
-    # snapshot-shaped (+build.<time>) with a trailing ".experimental" marker, so
-    # that suffix MUST be tested before the generic "+" case.
+    # The channel is encoded in the version; ".experimental" is snapshot-shaped underneath, so it MUST be tested first.
     local version channel component uris
     version="$(cat /etc/gnosisvpn/version.txt 2>/dev/null || echo "")"
     if [[ -z $version ]]; then

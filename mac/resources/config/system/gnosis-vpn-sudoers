@@ -16,8 +16,7 @@
 # Allow gnosisvpn group members to run the self-updater, spawned by the app as:
 #   sudo -n /usr/local/bin/gnosis_vpn-update update --channel <stable|snapshot|experimental> [--force]
 # Argument forms are enumerated exactly; extend in lockstep with the app's invocation.
-# The experimental entries are here ahead of the toolkit and app learning the
-# channel, so a host installed from the experimental line is ready for it.
+# The experimental entries land ahead of the toolkit and app learning the channel.
 %gnosisvpn ALL=(root) NOPASSWD: /usr/local/bin/gnosis_vpn-update update --channel stable
 %gnosisvpn ALL=(root) NOPASSWD: /usr/local/bin/gnosis_vpn-update update --channel stable --force
 %gnosisvpn ALL=(root) NOPASSWD: /usr/local/bin/gnosis_vpn-update update --channel snapshot

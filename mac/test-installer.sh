@@ -5,10 +5,7 @@
 # This script validates the installer build artifacts and structure.
 # It assumes "just all dmg aarch64-darwin" (or equivalent) has been executed.
 #
-# Set GNOSISVPN_NETWORKS to the network set the build under test shipped, so the
-# expected templates and choice packages match. It defaults to the standard
-# installer line; to check an experimental build run:
-#   GNOSISVPN_NETWORKS=piz-palu-dev mac/test-installer.sh
+# Set GNOSISVPN_NETWORKS to the set the build shipped (defaults to the standard line), e.g. GNOSISVPN_NETWORKS=piz-palu-dev.
 #
 
 set -euo pipefail
@@ -209,8 +206,7 @@ test_file_syntax() {
         log_test "Skipping xmllint check (not found)"
     fi
 
-    # The rendered copy productbuild consumed: every placeholder expanded, and
-    # the network choices limited to the shipped set.
+    # The rendered copy productbuild consumed: placeholders expanded, choices limited to the shipped set.
     local dist_xml_built="${BUILD_DIR}/Distribution.xml"
     if [[ -f $dist_xml_built ]]; then
         if command -v xmllint >/dev/null; then

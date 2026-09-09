@@ -5,21 +5,13 @@
 #
 # Used by the setup job of .github/workflows/build-binary.yaml. Behaviour
 # depends on VERSION_TYPE:
-#   snapshot     - date-based package version; newest complete registry versions
-#                  for client/app/toolkit; sets SKIP_BUILDING=true when nothing
-#                  changed since the previous snapshot
-#   experimental - date-based package version carrying the ".experimental"
-#                  marker; same skip behaviour as snapshot
-#   commit       - latest merged-PR package version pinned to the PR head commit
-#   pr           - package version of the latest merged gnosis_vpn PR
-#   release      - package version from package.json on GITHUB_REF; latest
-#                  eligible GitHub releases for client/app/toolkit
+#   snapshot     - date-based version, newest registry versions, skips when nothing changed
+#   experimental - as snapshot, with a ".experimental" marker
+#   commit       - latest merged-PR version pinned to the PR head commit
+#   pr           - version of the latest merged gnosis_vpn PR
+#   release      - version from package.json on GITHUB_REF, latest eligible releases
 #
-# Two installer lines are served from the same repo and differ in which
-# client/app versions they may use (COMPONENT_VERSION_BOUNDARY in config.sh):
-#   experimental                        -> component core >= boundary
-#   snapshot / commit / pr / release    -> component core <  boundary
-# The toolkit is NOT split: both lines take its newest complete version.
+# The lines differ in client/app versions (COMPONENT_VERSION_BOUNDARY): experimental >= boundary, the rest below it.
 #
 # Environment:
 #   VERSION_TYPE                       (required) snapshot | experimental | commit | pr | release
@@ -29,25 +21,13 @@
 #   INPUT_CLIENT_VERSION               explicit client version override
 #   INPUT_APP_VERSION                  explicit app version override
 #   INPUT_TOOLKIT_VERSION              explicit toolkit version override
-#   GNOSISVPN_PACKAGE_PREVIOUS_VERSION previously built versions, used for the
-#   GNOSISVPN_CLIENT_PREVIOUS_VERSION  snapshot/experimental skip check and, via
-#   GNOSISVPN_APP_PREVIOUS_VERSION     the outputs below, for the changelog range
-#   GNOSISVPN_TOOLKIT_PREVIOUS_VERSION
-#   GNOSISVPN_<C>_PREVIOUS_VERSION_PR           per-line candidates; when the one
-#   GNOSISVPN_<C>_PREVIOUS_VERSION_RELEASE      matching VERSION_TYPE is SET it
-#   GNOSISVPN_<C>_PREVIOUS_VERSION_EXPERIMENTAL wins, even when empty. The
-#                                      workflow passes all three because GitHub
-#                                      Actions expressions cannot yield an empty
-#                                      string from a ternary (see
-#                                      select_previous_version below)
+#   GNOSISVPN_<C>_PREVIOUS_VERSION     previously built version, for the skip check and changelog range
+#   GNOSISVPN_<C>_PREVIOUS_VERSION_{PR,RELEASE,EXPERIMENTAL} per-line candidates; the one matching VERSION_TYPE wins when set
 #   PR_HEAD_SHA                        PR head commit sha (VERSION_TYPE=commit)
 #   GITHUB_REPOSITORY, GITHUB_REF      set by GitHub Actions (VERSION_TYPE=release)
 #
 # Outputs written to GITHUB_OUTPUT:
-#   LATEST_GNOSISVPN_PACKAGE_PR_VERSION, GNOSISVPN_PACKAGE_VERSION,
-#   GNOSISVPN_CLIENT_VERSION, GNOSISVPN_APP_VERSION,
-#   GNOSISVPN_TOOLKIT_VERSION, GNOSISVPN_NETWORKS, GNOSISVPN_CHANNEL,
-#   SKIP_BUILDING, and the four resolved GNOSISVPN_*_PREVIOUS_VERSION values
+#   the resolved package/client/app/toolkit versions plus GNOSISVPN_NETWORKS, GNOSISVPN_CHANNEL and SKIP_BUILDING
 #
 
 set -euo pipefail
@@ -86,9 +66,7 @@ get_latest_release_version() {
     gh api "repos/gnosis/${repo}/releases/latest" --jq '.tag_name' | sed 's/^v//'
 }
 
-# Newest published (non-draft, non-prerelease) GitHub release of gnosis/<repo>
-# whose numeric version core is below <boundary>. Same newest-first ordering as
-# releases/latest (created_at descending), just filtered to one installer line.
+# Newest non-draft, non-prerelease release of gnosis/<repo> with a version core below <boundary>.
 get_latest_release_version_below() {
     local repo=$1 boundary=$2 line tag
     while IFS= read -r line; do
@@ -105,16 +83,7 @@ get_latest_release_version_below() {
     return 1
 }
 
-# Pick this line's "previously built" version for one component.
-#
-# Each installer line tracks its own previous versions, and the caller cannot do
-# the picking: a GitHub Actions ternary cannot produce an empty string, because
-# `cond && vars.EMPTY || other` sees the empty value as falsy and falls through
-# to `other`. On the experimental line that silently substituted the standard
-# line's versions, which would diff the changelog across the wrong range. So the
-# workflow passes every candidate and the choice happens here, where an unset
-# variable and an empty one can be told apart: a SET-but-empty candidate means
-# "no previous build on this line" and is honoured as such.
+# Pick this line's "previously built" version; done here, not in the workflow, so SET-but-empty means "no previous build".
 select_previous_version() {
     local component="$1" suffix specific plain
     case "${version_type}" in
@@ -138,8 +107,7 @@ main() {
         exit 1
     fi
 
-    # Resolve this line's previous versions before anything reads them, and
-    # publish them so the build jobs use the same values for the changelog.
+    # Resolved before anything reads them, and published so the build jobs share one changelog range.
     GNOSISVPN_PACKAGE_PREVIOUS_VERSION="$(select_previous_version PACKAGE)"
     GNOSISVPN_CLIENT_PREVIOUS_VERSION="$(select_previous_version CLIENT)"
     GNOSISVPN_APP_PREVIOUS_VERSION="$(select_previous_version APP)"
@@ -157,9 +125,7 @@ main() {
         component_filter=(--below-version "${COMPONENT_VERSION_BOUNDARY}")
     fi
 
-    # An explicit operator override always wins, but warn when it belongs to the
-    # other line — that combination builds a package the network configs of this
-    # line were not validated against.
+    # An explicit override always wins, but warn when it belongs to the other line.
     warn_if_outside_boundary() {
         local package="$1" version="$2"
         version_core_is_numeric "$version" || return 0
@@ -172,9 +138,7 @@ main() {
         fi
     }
 
-    # Exit 2 from the resolver means "no version inside this line's window". For
-    # the nightly lines that is a legitimate skip (e.g. no client/app at or above
-    # the boundary has been published yet); everywhere else it is a hard failure.
+    # Resolver exit 2 means "nothing inside this line's window": a legitimate skip for the nightlies, fatal elsewhere.
     local components_out_of_window=false
     handle_resolve_rc() {
         local package="$1" rc="$2"
@@ -265,10 +229,7 @@ main() {
         set_output "GNOSISVPN_TOOLKIT_VERSION" "${latest_toolkit_pr_version}"
         ;;
     experimental)
-        # Snapshot-shaped date version with a trailing ".experimental" marker.
-        # Everything that infers a channel from a version string must test this
-        # suffix BEFORE the generic "+" (snapshot) case — the metadata type is
-        # deliberately still "build" so the version grammar is unchanged.
+        # Snapshot-shaped, plus a ".experimental" marker that channel inference must test BEFORE the generic "+" case.
         set_output "GNOSISVPN_PACKAGE_VERSION" "$(date +%Y.%m.%d+build.%H%M%S.experimental)"
         set_output "GNOSISVPN_CLIENT_VERSION" "${latest_client_pr_version}"
         set_output "GNOSISVPN_APP_VERSION" "${latest_app_pr_version}"
@@ -297,9 +258,7 @@ main() {
         package_version=$(gh api \
             "repos/${GITHUB_REPOSITORY}/contents/package.json?ref=${GITHUB_REF}" \
             --jq '.content' | base64 --decode | jq -r '.version')
-        # Stable releases belong to the standard line, so the newest release
-        # below the boundary is used rather than releases/latest. errexit does
-        # not propagate out of a command substitution, hence the emptiness check.
+        # Stable is the standard line, so use the newest release below the boundary; errexit does not escape a subshell.
         client_version="${INPUT_CLIENT_VERSION:-$(get_latest_release_version_below "gnosis_vpn-client" "${COMPONENT_VERSION_BOUNDARY}")}"
         [[ -n ${client_version} ]] || exit 1
         app_version="${INPUT_APP_VERSION:-$(get_latest_release_version_below "gnosis_vpn-app" "${COMPONENT_VERSION_BOUNDARY}")}"
@@ -324,9 +283,7 @@ main() {
         ;;
     esac
 
-    # Line-specific packaging inputs: which networks the package ships and which
-    # channel it is published to. Consumed by generate-package.sh (network configs,
-    # baked network list) and generate-changelog.ts (download links).
+    # Networks and channel of this line; consumed by generate-package.sh and generate-changelog.ts.
     local networks channel
     case "${version_type}" in
     experimental)

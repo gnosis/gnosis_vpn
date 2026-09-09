@@ -7,11 +7,7 @@
 # newest-first by upload time, and prints the first version whose files include
 # every required file. Exits non-zero if no version is complete.
 #
-# The optional --min-version / --below-version window restricts candidates to a
-# range of numeric version cores (the MAJOR.MINOR.PATCH before any "+metadata").
-# It is how the two installer lines pick their components: the standard line
-# takes --below-version 0.100.0, the experimental line --min-version 0.100.0.
-# Versions whose core is not plain x.y.z are skipped while a window is active.
+# The optional --min-version / --below-version window restricts candidates by numeric core; it is how the two lines pick components.
 #
 # All diagnostics go to stderr; ONLY the resolved version is printed to stdout,
 # so callers can safely capture it with:  ver="$(resolve-registry-version.sh ...)"
@@ -21,8 +17,7 @@
 # Exit codes:
 #   0  a complete version was found (printed to stdout)
 #   1  a real failure: bad usage, gcloud error, or no complete version at all
-#   2  no version has a core inside the requested window (callers may treat this
-#      as "nothing published for this line yet" and skip a build)
+#   2  no version has a core inside the requested window (callers may skip the build)
 #
 
 set -euo pipefail
@@ -116,8 +111,7 @@ main() {
     while IFS= read -r version; do
         [[ -z $version ]] && continue
 
-        # Apply the version window BEFORE listing files: skipping here saves one
-        # registry API call per rejected version.
+        # Window applied before listing files: saves one registry call per rejected version.
         if [[ -n $MIN_VERSION || -n $BELOW_VERSION ]]; then
             if ! version_core_is_numeric "$version"; then
                 log_info "Skipping ${package} ${version}: version core is not plain x.y.z" >&2
@@ -180,9 +174,7 @@ main() {
         log_info "Skipping ${package} ${version}: missing ${#missing[@]} file(s): ${missing[*]}" >&2
     done <<<"$versions"
 
-    # No candidate at all inside the window is a different situation from "some
-    # candidates existed but none was complete": the caller may legitimately skip
-    # a build for a line whose components have not been published yet.
+    # Nothing in the window is not the same as "candidates existed but none was complete", so report it separately.
     if [[ $in_window -eq 0 ]]; then
         log_error "No version of '${package}' has a core inside the window ${window}."
         exit 2

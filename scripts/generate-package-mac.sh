@@ -33,10 +33,7 @@ PKG_NAME_INSTALLER="gnosisvpn_${PKG_VERSION_SLUG}_${PKG_ARCH}.pkg"
 COMPONENT_PKG="GnosisVPN.pkg"
 
 # Choice packages configuration
-# Format: "type:value" - package name and identifier are derived automatically.
-# The network entries follow GNOSISVPN_NETWORKS (resolved by generate-package.sh
-# before this file is sourced), so each installer line only offers the networks
-# it actually ships.
+# Format: "type:value" - name and identifier are derived automatically; network entries follow GNOSISVPN_NETWORKS.
 CHOICE_PACKAGES=()
 for _network in ${GNOSISVPN_NETWORKS}; do
     CHOICE_PACKAGES+=("network:${_network}")
@@ -222,16 +219,12 @@ prepare_build_dir() {
     chmod 0644 "${BUILD_DIR}/scripts/version.txt"
     log_success "Version baked into installer scripts: ${GNOSISVPN_PACKAGE_VERSION}"
 
-    # Bake the shipped network list alongside version.txt so the postinstall can
-    # pick a default, reject a stale choice from the other line, and drop
-    # templates it no longer ships.
+    # Bake the shipped network list next to version.txt for the postinstall.
     echo "${GNOSISVPN_NETWORKS}" >"${BUILD_DIR}/scripts/networks"
     chmod 0644 "${BUILD_DIR}/scripts/networks"
     log_success "Networks baked into installer scripts: ${GNOSISVPN_NETWORKS}"
 
-    # Copy the config templates of the shipped networks into the payload. The
-    # build directory is reused across local builds, so clear any template left
-    # by a build of the other line first.
+    # Copy the shipped networks' templates into the payload, clearing any left by a build of the other line.
     local templates_dst="${BUILD_DIR}/app-contents/rootfs/etc/gnosisvpn/templates"
     rm -f "${templates_dst}"/*.template
     local network
@@ -433,10 +426,7 @@ EOF
     done
 }
 
-# Installer copy per network. A case table rather than an associative array:
-# macOS ships /bin/bash 3.2, which has neither `declare -A` nor `${var,,}`.
-# These values are inlined into XML attributes as-is, so keep them free of
-# & < > and double quotes.
+# Installer copy per network. A case table because macOS bash 3.2 has no `declare -A`; inlined into XML, so no & < > or quotes.
 network_title() {
     case "$1" in
     jura-prod) echo "Jura Prod" ;;
@@ -455,16 +445,7 @@ network_description() {
     esac
 }
 
-# Render mac/Distribution.xml: expand the __NETWORK_*__ placeholders from
-# GNOSISVPN_NETWORKS (first network pre-selected; "(Recommended)" only when more
-# than one is offered) plus __MIN_OS_MACOS__.
-#
-# The fragments are written to files and spliced in with awk rather than with
-# bash parameter expansion. ${var//pat/"$repl"} is NOT portable for this:
-# macOS /bin/bash is 3.2, which inserts a quoted replacement literally —
-# including the quotes — so `min="__MIN_OS_MACOS__"` became `min=""15.0""` and
-# productbuild rejected the file. Dropping the quotes is not a fix either, since
-# bash >= 5.2 (patsub_replacement) then expands an unquoted "&" to the match.
+# Render mac/Distribution.xml. Spliced with awk, not ${var//pat/"$repl"}: macOS bash 3.2 inserts the quotes literally.
 render_distribution_xml() {
     local src="$1" dst="$2"
     local sq="'"
@@ -474,13 +455,10 @@ render_distribution_xml() {
         log_error "GNOSISVPN_NETWORKS is empty — cannot render ${src}"
         exit 1
     fi
-    # Names are interpolated into XML attributes and package identifiers below.
-    # generate-package.sh already validates them, but this function is also
-    # called directly (tests, ad-hoc renders), so do not trust the caller.
+    # Re-validated because this function is also called directly by tests and ad-hoc renders.
     validate_network_names "${GNOSISVPN_NETWORKS}" || exit 1
 
-    # Mutual-exclusion group passed to the exclusiveEnabled() helper in the XML,
-    # e.g. 'jura-prod','jura-dev'
+    # Mutual-exclusion group for the XML's exclusiveEnabled() helper, e.g. 'jura-prod','jura-dev'.
     local group="" network
     for network in "${networks[@]}"; do
         group="${group:+${group},}${sq}${network}${sq}"
@@ -533,10 +511,7 @@ EOF
         idx=$((idx + 1))
     done
 
-    # A placeholder occupies its whole line, so each is replaced by streaming the
-    # matching fragment file. __MIN_OS_MACOS__ is inline in an attribute and is
-    # substituted textually; MIN_OS_MACOS is a plain version so it carries no
-    # awk-significant "&".
+    # Each whole-line placeholder streams its fragment file; __MIN_OS_MACOS__ is inline and carries no awk-significant "&".
     awk \
         -v ids="$frag_ids" \
         -v lines="$frag_lines" \

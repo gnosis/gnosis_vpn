@@ -43,8 +43,7 @@ jobs:
           repository: gnosis/gnosis_vpn
           event-type: snapshot_build
   experimental-build:
-    # Independent of snapshot-build: a PR may carry both labels, and the two
-    # nightlies have separate concurrency groups.
+    # Independent of snapshot-build: a PR may carry both labels.
     name: Experimental build
     if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'experimental-build')
     runs-on: depot-ubuntu-22.04-4

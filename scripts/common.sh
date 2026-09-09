@@ -41,10 +41,7 @@ log_error() {
 # Validate version syntax
 check_version_syntax() {
     local version="$1"
-    # Matches: 1.2.3, v1.2.3, 1.2.3+pr.123, 1.2.3+commit.abcdef, latest,
-    # snapshot builds 2026.09.09+build.020000 and experimental builds
-    # 2026.09.09+build.020000.experimental (the trailing group allows the extra
-    # dot-separated channel marker, so no separate alternation is needed).
+    # Matches 1.2.3, v1.2.3, +pr.123, +commit.abcdef, +build.020000[.experimental] and latest.
     local semver_regex='^v?[0-9]+\.[0-9]+\.[0-9]+(\+(pr|commit|build)(\.[0-9A-Za-z-]+)*)?$'
     if [[ ! $version =~ $semver_regex && $version != "latest" ]]; then
         log_error "Invalid version format: $version"
@@ -54,10 +51,7 @@ check_version_syntax() {
     return 0
 }
 
-# Validate network names. They are used as filenames, as macOS installer choice
-# package identifiers, and interpolated into Distribution.xml attribute values
-# and nfpm YAML, so restrict them to a conservative shape rather than trusting
-# whatever GNOSISVPN_NETWORKS was set to. Callers pass the space-separated list.
+# Validate a space-separated network list: the names become filenames, choice-package ids and XML/YAML values.
 validate_network_names() {
     local networks="$1" network ok=0
     if [[ -z ${networks// /} ]]; then
@@ -74,25 +68,18 @@ validate_network_names() {
     return $ok
 }
 
-# --- Version core helpers -----------------------------------------------------
-# The "core" of a version is the numeric MAJOR.MINOR.PATCH before any "+build
-# metadata", with a leading "v" stripped:
-#   version_core "v0.96.1+pr.772" -> 0.96.1
-# Used to place client/app versions on one side of COMPONENT_VERSION_BOUNDARY.
+# Numeric MAJOR.MINOR.PATCH before any "+metadata", leading "v" stripped: "v0.96.1+pr.772" -> 0.96.1.
 version_core() {
     local v="${1#v}"
     printf '%s\n' "${v%%+*}"
 }
 
-# True when the core is exactly three numeric components — the comparators below
-# do arithmetic on the parts, so callers must gate on this first.
+# True when the core is exactly three numeric components; the comparators below require it.
 version_core_is_numeric() {
     [[ "$(version_core "$1")" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
 }
 
-# Prints -1 / 0 / 1 comparing the numeric cores of A and B. Pure bash (no
-# sort -V, no associative arrays) so it also works on macOS /bin/bash 3.2.
-# 10#$x forces base 10: a zero-padded part like "09" is not octal.
+# Prints -1 / 0 / 1 comparing numeric cores. Pure bash for macOS 3.2; 10# forces base 10 so "09" is not octal.
 version_core_cmp() {
     local a b a1 a2 a3 b1 b2 b3 rest pair x y
     a="$(version_core "$1")"

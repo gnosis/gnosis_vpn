@@ -4,9 +4,7 @@
 # across both the APT pool and the macOS directory of the channel.
 #
 # Callers run this ONLY after a successful publish:
-#   - build-binary.yaml: snapshot and experimental channels, need that line's
-#                        Linux build, macOS build, and APT publish to have
-#                        succeeded.
+#   - build-binary.yaml: snapshot and experimental, after that line's builds and APT publish.
 #   - release.yaml:      stable channel, needs the build and the stable APT
 #                        publish to have succeeded.
 name: Prune Bucket

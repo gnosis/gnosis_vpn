@@ -4,11 +4,7 @@
 # --keep versions (by `sort -V`). Each pruned version loses all its objects:
 # the .deb / .pkg plus its .asc / .sha256 sidecars.
 #
-# Caller: .github/workflows/prune-bucket.yaml runs this twice per channel (APT
-# pool + macOS dir) after a successful publish — build-binary.yaml for snapshot
-# and experimental, release.yaml for stable. Each channel has its own prefix, so
-# channels are never sorted against each other. Retention counts come from
-# scripts/config.sh.
+# Caller: prune-bucket.yaml, twice per channel (APT pool + macOS dir) after a successful publish; each channel has its own prefix.
 #
 # Best-effort: a failed deletion warns but exits 0, so cleanup never turns a
 # successful publish red. Only call AFTER publishing — versions sort ascending

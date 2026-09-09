@@ -7,8 +7,7 @@
     <organization>com.gnosisvpn</organization>
     <domains enable_anywhere="true"/>
 
-    <!-- Package metadata. The network entries are rendered from
-         GNOSISVPN_NETWORKS by generate-package-mac.sh::render_distribution_xml -->
+    <!-- Package metadata; network entries rendered by generate-package-mac.sh::render_distribution_xml -->
 __NETWORK_PKG_REF_IDS__
     <pkg-ref id="com.gnosisvpn.choice.loglevel.info"/>
     <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"/>
@@ -82,9 +81,7 @@ __NETWORK_CHOICE_LINES__
             enabled="true">
     </choice>
 
-    <!-- Network sub-choices: rendered from GNOSISVPN_NETWORKS by
-         generate-package-mac.sh::render_distribution_xml. The first network is
-         pre-selected and the choices are mutually exclusive. -->
+    <!-- Network sub-choices, mutually exclusive with the first pre-selected; rendered by render_distribution_xml -->
 __NETWORK_CHOICES__
 
     <!-- Service mode selection choice (parent group) -->

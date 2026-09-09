@@ -46,11 +46,7 @@ export interface Config {
 /** Release channel a build is published to. */
 export type Channel = "stable" | "snapshot" | "experimental";
 
-/**
- * Where each channel's artifacts live under download.gnosisvpn.io. Keep in sync
- * with build_gcs_url() in scripts/generate-update-manifest.sh and with
- * pool_subpath_for_channel() in scripts/publish-apt.sh.
- */
+/** Artifact paths per channel; keep in sync with build_gcs_url() and pool_subpath_for_channel(). */
 export const CHANNEL_PATHS: Record<Channel, { debPool: string; macDir: string }> = {
   stable: { debPool: "pool/main", macDir: "stable" },
   snapshot: { debPool: "pool/snapshot", macDir: "latest" },
@@ -345,10 +341,7 @@ export function zulipFormat(
   // macOS .pkg filenames substitute '-' for '+' in the version slug for
   // Artifact Registry compatibility (see build-binary.yaml::prepare_files).
   const macFileSlug = packageVersion.replaceAll("+", "-");
-  // Debian .debs live in their channel's APT pool under their versioned
-  // filenames (gnosisvpn_<version>_<arch>.deb); the version is the literal
-  // padded value emitted by the build (see linux/nfpm-template.yaml
-  // version_schema: none).
+  // .debs live in their channel's pool under gnosisvpn_<version>_<arch>.deb, with the build's literal version.
   const paths = CHANNEL_PATHS[channel];
   const debPool = `https://download.gnosisvpn.io/linux/apt/${paths.debPool}/g/gnosisvpn`;
   content += ` [Mac](https://download.gnosisvpn.io/macos/${paths.macDir}/gnosisvpn_${macFileSlug}_arm64.pkg) |`;
@@ -633,9 +626,7 @@ export function readConfig(): Config {
     Deno.exit(1);
   }
 
-  // Which channel this build is published to, used for the download links.
-  // pr/commit builds pass an empty value; they are never published, so the
-  // snapshot paths are a harmless default.
+  // Channel for the download links; pr/commit builds pass an empty value and are never published.
   const channel = Deno.env.get("GNOSISVPN_CHANNEL") || "snapshot";
   if (!["stable", "snapshot", "experimental"].includes(channel)) {
     console.error(`Error: Unsupported channel: ${channel}`);
