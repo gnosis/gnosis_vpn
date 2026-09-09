@@ -458,9 +458,15 @@ network_description() {
 # Render mac/Distribution.xml: expand the __NETWORK_*__ placeholders from
 # GNOSISVPN_NETWORKS (first network pre-selected; "(Recommended)" only when more
 # than one is offered) plus __MIN_OS_MACOS__.
+#
+# The fragments are written to files and spliced in with awk rather than with
+# bash parameter expansion. ${var//pat/"$repl"} is NOT portable for this:
+# macOS /bin/bash is 3.2, which inserts a quoted replacement literally —
+# including the quotes — so `min="__MIN_OS_MACOS__"` became `min=""15.0""` and
+# productbuild rejected the file. Dropping the quotes is not a fix either, since
+# bash >= 5.2 (patsub_replacement) then expands an unquoted "&" to the match.
 render_distribution_xml() {
     local src="$1" dst="$2"
-    local nl=$'\n'
     local sq="'"
     local networks=()
     read -r -a networks <<<"${GNOSISVPN_NETWORKS}"
@@ -468,6 +474,10 @@ render_distribution_xml() {
         log_error "GNOSISVPN_NETWORKS is empty — cannot render ${src}"
         exit 1
     fi
+    # Names are interpolated into XML attributes and package identifiers below.
+    # generate-package.sh already validates them, but this function is also
+    # called directly (tests, ad-hoc renders), so do not trust the caller.
+    validate_network_names "${GNOSISVPN_NETWORKS}" || exit 1
 
     # Mutual-exclusion group passed to the exclusiveEnabled() helper in the XML,
     # e.g. 'jura-prod','jura-dev'
@@ -476,7 +486,16 @@ render_distribution_xml() {
         group="${group:+${group},}${sq}${network}${sq}"
     done
 
-    local pkg_ref_ids="" choice_lines="" choices="" pkg_refs="" idx=0 title selected
+    local frag_dir
+    frag_dir="$(mktemp -d -t gnosis-dist-frag.XXXXXX)"
+    local frag_ids="${frag_dir}/ids" frag_lines="${frag_dir}/lines"
+    local frag_choices="${frag_dir}/choices" frag_refs="${frag_dir}/refs"
+    : >"$frag_ids"
+    : >"$frag_lines"
+    : >"$frag_choices"
+    : >"$frag_refs"
+
+    local idx=0 title selected
     for network in "${networks[@]}"; do
         title="$(network_title "$network")"
         selected="false"
@@ -484,36 +503,58 @@ render_distribution_xml() {
             selected="true"
             [[ ${#networks[@]} -eq 1 ]] || title="${title} (Recommended)"
         fi
-        pkg_ref_ids+="    <pkg-ref id=\"com.gnosisvpn.choice.network.${network}\"/>${nl}"
-        choice_lines+="            <line choice=\"${network}\"/>${nl}"
-        choices+="    <choice id=\"${network}\"
-            title=\"${title}\"
-            description=\"$(network_description "$network")\"
-            visible=\"true\"
-            enabled=\"exclusiveEnabled(${sq}${network}${sq}, [${group}])\"
-            start_selected=\"${selected}\">
-        <pkg-ref id=\"com.gnosisvpn.choice.network.${network}\"/>
-    </choice>${nl}${nl}"
-        pkg_refs+="    <pkg-ref id=\"com.gnosisvpn.choice.network.${network}\"
-             version=\"0\"
-             auth=\"root\"
-             installKBytes=\"0\"
-             onConclusion=\"none\">
+
+        printf '    <pkg-ref id="com.gnosisvpn.choice.network.%s"/>\n' "$network" >>"$frag_ids"
+        printf '            <line choice="%s"/>\n' "$network" >>"$frag_lines"
+
+        # Blank line between blocks, matching the hand-written layout.
+        [[ $idx -eq 0 ]] || printf '\n' >>"$frag_choices"
+        cat >>"$frag_choices" <<EOF
+    <choice id="${network}"
+            title="${title}"
+            description="$(network_description "$network")"
+            visible="true"
+            enabled="exclusiveEnabled(${sq}${network}${sq}, [${group}])"
+            start_selected="${selected}">
+        <pkg-ref id="com.gnosisvpn.choice.network.${network}"/>
+    </choice>
+EOF
+
+        [[ $idx -eq 0 ]] || printf '\n' >>"$frag_refs"
+        cat >>"$frag_refs" <<EOF
+    <pkg-ref id="com.gnosisvpn.choice.network.${network}"
+             version="0"
+             auth="root"
+             installKBytes="0"
+             onConclusion="none">
         #choice-network-${network}.pkg
-    </pkg-ref>${nl}${nl}"
+    </pkg-ref>
+EOF
         idx=$((idx + 1))
     done
 
-    local xml
-    xml="$(<"$src")"
-    # The replacements are quoted: with bash >= 5.2 patsub_replacement an
-    # unquoted "&" in a replacement would expand to the matched text.
-    xml="${xml//__NETWORK_PKG_REF_IDS__/"${pkg_ref_ids%"$nl"}"}"
-    xml="${xml//__NETWORK_CHOICE_LINES__/"${choice_lines%"$nl"}"}"
-    xml="${xml//__NETWORK_CHOICES__/"${choices%"$nl$nl"}"}"
-    xml="${xml//__NETWORK_PKG_REFS__/"${pkg_refs%"$nl$nl"}"}"
-    xml="${xml//__MIN_OS_MACOS__/"${MIN_OS_MACOS}"}"
-    printf '%s\n' "$xml" >"$dst"
+    # A placeholder occupies its whole line, so each is replaced by streaming the
+    # matching fragment file. __MIN_OS_MACOS__ is inline in an attribute and is
+    # substituted textually; MIN_OS_MACOS is a plain version so it carries no
+    # awk-significant "&".
+    awk \
+        -v ids="$frag_ids" \
+        -v lines="$frag_lines" \
+        -v choices="$frag_choices" \
+        -v refs="$frag_refs" \
+        -v minos="$MIN_OS_MACOS" '
+        function dump(path) {
+            while ((getline fragment_line < path) > 0) print fragment_line
+            close(path)
+        }
+        /__NETWORK_PKG_REF_IDS__/  { dump(ids);     next }
+        /__NETWORK_CHOICE_LINES__/ { dump(lines);   next }
+        /__NETWORK_CHOICES__/      { dump(choices); next }
+        /__NETWORK_PKG_REFS__/     { dump(refs);    next }
+        { gsub(/__MIN_OS_MACOS__/, minos); print }
+    ' "$src" >"$dst"
+
+    rm -rf "$frag_dir"
 
     if grep -q '__[A-Z][A-Z_]*__' "$dst"; then
         log_error "Unrendered placeholder left in ${dst}:"

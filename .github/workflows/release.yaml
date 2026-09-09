@@ -12,12 +12,12 @@ on:
           - minor
           - major
       client_version:
-        description: 'Client version to release (default: newest gnosis_vpn-client GitHub release below COMPONENT_VERSION_BOUNDARY)'
+        description: 'Client version to release (default: latest gnosis_vpn-client GitHub release)'
         required: false
         type: string
         default: ''
       app_version:
-        description: 'App version to release (default: newest gnosis_vpn-app GitHub release below COMPONENT_VERSION_BOUNDARY)'
+        description: 'App version to release (default: latest gnosis_vpn-app GitHub release)'
         required: false
         type: string
         default: ''

@@ -54,6 +54,26 @@ check_version_syntax() {
     return 0
 }
 
+# Validate network names. They are used as filenames, as macOS installer choice
+# package identifiers, and interpolated into Distribution.xml attribute values
+# and nfpm YAML, so restrict them to a conservative shape rather than trusting
+# whatever GNOSISVPN_NETWORKS was set to. Callers pass the space-separated list.
+validate_network_names() {
+    local networks="$1" network ok=0
+    if [[ -z ${networks// /} ]]; then
+        log_error "No networks given (GNOSISVPN_NETWORKS is empty)"
+        return 1
+    fi
+    for network in $networks; do
+        if [[ ! $network =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]; then
+            log_error "Invalid network name: '${network}'"
+            log_error "Network names must be lowercase alphanumerics and hyphens, e.g. 'piz-palu-dev'"
+            ok=1
+        fi
+    done
+    return $ok
+}
+
 # --- Version core helpers -----------------------------------------------------
 # The "core" of a version is the numeric MAJOR.MINOR.PATCH before any "+build
 # metadata", with a leading "v" stripped:

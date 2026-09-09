@@ -29,6 +29,7 @@ case "${GNOSISVPN_CHANNEL}" in
 experimental) : "${GNOSISVPN_NETWORKS:=${NETWORKS_EXPERIMENTAL}}" ;;
 *) : "${GNOSISVPN_NETWORKS:=${NETWORKS_STANDARD}}" ;;
 esac
+validate_network_names "${GNOSISVPN_NETWORKS}" || exit 1
 export GNOSISVPN_CHANNEL GNOSISVPN_NETWORKS
 
 # shellcheck disable=SC2317
@@ -122,33 +123,37 @@ parse_args() {
     log_success "Command-line arguments parsed successfully"
 }
 
-# The channel a package belongs to is inferred from its version string after
-# installation (linux/scripts/postinstall.sh::register_apt_repo picks the APT
-# suite that way, and the macOS updater does the same), so a package whose
-# version does not match its channel would register the wrong suite. Refuse the
-# mismatch at build time instead.
-validate_channel_version() {
-    case "${GNOSISVPN_CHANNEL}" in
-    experimental)
-        case "${GNOSISVPN_PACKAGE_VERSION}" in
-        *.experimental | *.experimental.*) ;;
-        *)
-            log_error "GNOSISVPN_CHANNEL=experimental requires a version ending in '.experimental'"
-            log_error "Expected YYYY.MM.DD+build.HHMMSS.experimental, got: ${GNOSISVPN_PACKAGE_VERSION}"
-            exit 1
-            ;;
-        esac
-        ;;
-    stable | snapshot)
-        case "${GNOSISVPN_PACKAGE_VERSION}" in
-        *.experimental | *.experimental.*)
-            log_error "GNOSISVPN_CHANNEL=${GNOSISVPN_CHANNEL} must not be built from an experimental version"
-            log_error "Got: ${GNOSISVPN_PACKAGE_VERSION}"
-            exit 1
-            ;;
-        esac
-        ;;
+# Which channel a version string implies. This MUST stay in lockstep with
+# register_apt_repo in linux/scripts/postinstall.sh (and the macOS updater's
+# equivalent): the installed package picks its APT suite by re-deriving the
+# channel from its own version. The ".experimental" suffix is tested first
+# because experimental versions are snapshot-shaped (+build.<time>) underneath.
+channel_from_version() {
+    case "$1" in
+    *.experimental | *.experimental.*) echo "experimental" ;;
+    *"+"*) echo "snapshot" ;;
+    *) echo "stable" ;;
     esac
+}
+
+# A package whose version implies a different channel than the one being built
+# would register the wrong APT suite after install (e.g. a "stable" build from a
+# +build. version registers snapshot, and would then be upgraded off the
+# snapshot suite). Refuse the mismatch at build time.
+validate_channel_version() {
+    # pr and commit builds are never published, so they carry no channel.
+    [[ -n ${GNOSISVPN_CHANNEL} ]] || return 0
+
+    local inferred
+    inferred="$(channel_from_version "${GNOSISVPN_PACKAGE_VERSION}")"
+    if [[ ${inferred} != "${GNOSISVPN_CHANNEL}" ]]; then
+        log_error "Version does not match the channel being built"
+        log_error "  GNOSISVPN_CHANNEL:         ${GNOSISVPN_CHANNEL}"
+        log_error "  GNOSISVPN_PACKAGE_VERSION: ${GNOSISVPN_PACKAGE_VERSION}"
+        log_error "  channel implied by version: ${inferred}"
+        log_error "Expected shapes: stable x.y.z | snapshot YYYY.MM.DD+build.HHMMSS | experimental YYYY.MM.DD+build.HHMMSS.experimental"
+        exit 1
+    fi
 }
 
 print_banner() {

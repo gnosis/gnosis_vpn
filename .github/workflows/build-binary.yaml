@@ -7,12 +7,12 @@ on:
         required: true
         type: string
       client_version:
-        description: 'Client version to build against; defaults to the newest version in the registry that has binaries for all architectures and sits on this line''s side of COMPONENT_VERSION_BOUNDARY (below it for snapshot/commit/pr/release, at or above it for experimental); for version_type=release, the newest client release below the boundary'
+        description: 'Client version to build against; defaults to the newest version in the registry that has binaries for all architectures (or the latest client release when version_type=release)'
         required: false
         type: string
         default: ''
       app_version:
-        description: 'App version to build against; defaults to the newest version in the registry that has binaries for all architectures and sits on this line''s side of COMPONENT_VERSION_BOUNDARY (below it for snapshot/commit/pr/release, at or above it for experimental); for version_type=release, the newest app release below the boundary'
+        description: 'App version to build against; defaults to the newest version in the registry that has binaries for all architectures (or the latest app release when version_type=release)'
         required: false
         type: string
         default: ''
@@ -57,6 +57,12 @@ jobs:
       GNOSISVPN_TOOLKIT_VERSION: ${{ steps.setup.outputs.GNOSISVPN_TOOLKIT_VERSION }}
       GNOSISVPN_NETWORKS: ${{ steps.setup.outputs.GNOSISVPN_NETWORKS }}
       GNOSISVPN_CHANNEL: ${{ steps.setup.outputs.GNOSISVPN_CHANNEL }}
+      # Resolved per line by the script, so the build jobs and the skip check
+      # agree on the changelog range.
+      GNOSISVPN_PACKAGE_PREVIOUS_VERSION: ${{ steps.setup.outputs.GNOSISVPN_PACKAGE_PREVIOUS_VERSION }}
+      GNOSISVPN_CLIENT_PREVIOUS_VERSION: ${{ steps.setup.outputs.GNOSISVPN_CLIENT_PREVIOUS_VERSION }}
+      GNOSISVPN_APP_PREVIOUS_VERSION: ${{ steps.setup.outputs.GNOSISVPN_APP_PREVIOUS_VERSION }}
+      GNOSISVPN_TOOLKIT_PREVIOUS_VERSION: ${{ steps.setup.outputs.GNOSISVPN_TOOLKIT_PREVIOUS_VERSION }}
       SKIP_BUILDING: ${{ steps.setup.outputs.SKIP_BUILDING }}
     steps:
       - name: Checkout repository
@@ -75,15 +81,24 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION_TYPE: ${{ inputs.version_type }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          # The experimental line tracks its own "previously built" versions so its
-          # skip check is not confused by the standard line's nightly. CAUTION: an
-          # EMPTY experimental variable is falsy, so the ternary silently falls back
-          # to the snapshot value — all four must be seeded before the first
-          # experimental run.
-          GNOSISVPN_PACKAGE_PREVIOUS_VERSION: ${{ inputs.version_type == 'experimental' && vars.GNOSISVPN_PACKAGE_EXPERIMENTAL_PR_VERSION || vars.GNOSISVPN_PACKAGE_PR_VERSION }}
-          GNOSISVPN_CLIENT_PREVIOUS_VERSION: ${{ inputs.version_type == 'experimental' && vars.GNOSISVPN_CLIENT_EXPERIMENTAL_PR_VERSION || vars.GNOSISVPN_CLIENT_PR_VERSION }}
-          GNOSISVPN_APP_PREVIOUS_VERSION: ${{ inputs.version_type == 'experimental' && vars.GNOSISVPN_APP_EXPERIMENTAL_PR_VERSION || vars.GNOSISVPN_APP_PR_VERSION }}
-          GNOSISVPN_TOOLKIT_PREVIOUS_VERSION: ${{ inputs.version_type == 'experimental' && vars.GNOSISVPN_TOOLKIT_EXPERIMENTAL_PR_VERSION || vars.GNOSISVPN_TOOLKIT_PR_VERSION }}
+          # Each installer line tracks its own "previously built" versions. All
+          # candidates are handed over and the script picks by VERSION_TYPE: an
+          # Actions ternary cannot yield an empty string, so `cond && vars.EMPTY
+          # || other` would silently substitute the standard line's versions on
+          # the experimental line. Passing them separately keeps an unseeded
+          # experimental variable meaning "no previous build".
+          GNOSISVPN_PACKAGE_PREVIOUS_VERSION_PR: ${{ vars.GNOSISVPN_PACKAGE_PR_VERSION }}
+          GNOSISVPN_CLIENT_PREVIOUS_VERSION_PR: ${{ vars.GNOSISVPN_CLIENT_PR_VERSION }}
+          GNOSISVPN_APP_PREVIOUS_VERSION_PR: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
+          GNOSISVPN_TOOLKIT_PREVIOUS_VERSION_PR: ${{ vars.GNOSISVPN_TOOLKIT_PR_VERSION }}
+          GNOSISVPN_PACKAGE_PREVIOUS_VERSION_RELEASE: ${{ vars.GNOSISVPN_PACKAGE_RELEASE_VERSION }}
+          GNOSISVPN_CLIENT_PREVIOUS_VERSION_RELEASE: ${{ vars.GNOSISVPN_CLIENT_RELEASE_VERSION }}
+          GNOSISVPN_APP_PREVIOUS_VERSION_RELEASE: ${{ vars.GNOSISVPN_APP_RELEASE_VERSION }}
+          GNOSISVPN_TOOLKIT_PREVIOUS_VERSION_RELEASE: ${{ vars.GNOSISVPN_TOOLKIT_RELEASE_VERSION }}
+          GNOSISVPN_PACKAGE_PREVIOUS_VERSION_EXPERIMENTAL: ${{ vars.GNOSISVPN_PACKAGE_EXPERIMENTAL_PR_VERSION }}
+          GNOSISVPN_CLIENT_PREVIOUS_VERSION_EXPERIMENTAL: ${{ vars.GNOSISVPN_CLIENT_EXPERIMENTAL_PR_VERSION }}
+          GNOSISVPN_APP_PREVIOUS_VERSION_EXPERIMENTAL: ${{ vars.GNOSISVPN_APP_EXPERIMENTAL_PR_VERSION }}
+          GNOSISVPN_TOOLKIT_PREVIOUS_VERSION_EXPERIMENTAL: ${{ vars.GNOSISVPN_TOOLKIT_EXPERIMENTAL_PR_VERSION }}
           INPUT_CLIENT_VERSION: ${{ inputs.client_version }}
           INPUT_APP_VERSION: ${{ inputs.app_version }}
           INPUT_TOOLKIT_VERSION: ${{ inputs.toolkit_version }}
@@ -140,12 +155,12 @@ jobs:
           # generate-package.sh and generate-changelog.ts.
           GNOSISVPN_NETWORKS: ${{ needs.setup.outputs.GNOSISVPN_NETWORKS }}
           GNOSISVPN_CHANNEL: ${{ needs.setup.outputs.GNOSISVPN_CHANNEL }}
-          # See the caution in the setup job: an empty experimental variable makes
-          # this ternary fall through to the snapshot value.
-          GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_PACKAGE_RELEASE_VERSION || inputs.version_type == 'experimental' && vars.GNOSISVPN_PACKAGE_EXPERIMENTAL_PR_VERSION || vars.GNOSISVPN_PACKAGE_PR_VERSION }}
-          GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_CLIENT_RELEASE_VERSION || inputs.version_type == 'experimental' && vars.GNOSISVPN_CLIENT_EXPERIMENTAL_PR_VERSION || vars.GNOSISVPN_CLIENT_PR_VERSION }}
-          GNOSISVPN_PREVIOUS_APP_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_APP_RELEASE_VERSION || inputs.version_type == 'experimental' && vars.GNOSISVPN_APP_EXPERIMENTAL_PR_VERSION || vars.GNOSISVPN_APP_PR_VERSION }}
-          GNOSISVPN_PREVIOUS_TOOLKIT_VERSION: ${{ inputs.version_type == 'release' && vars.GNOSISVPN_TOOLKIT_RELEASE_VERSION || inputs.version_type == 'experimental' && vars.GNOSISVPN_TOOLKIT_EXPERIMENTAL_PR_VERSION || vars.GNOSISVPN_TOOLKIT_PR_VERSION }}
+          # Picked per line by resolve-build-versions.sh in the setup job, so the
+          # changelog range matches the line being built.
+          GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_PREVIOUS_VERSION }}
+          GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLIENT_PREVIOUS_VERSION }}
+          GNOSISVPN_PREVIOUS_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_PREVIOUS_VERSION }}
+          GNOSISVPN_PREVIOUS_TOOLKIT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_TOOLKIT_PREVIOUS_VERSION }}
           GNOSISVPN_GPG_PRIVATE_KEY_PATH: /tmp/gnosis_vpn_gpg_key.asc
           GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
           GNOSISVPN_CHANGELOG_FORMAT: debian

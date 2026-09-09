@@ -29,10 +29,17 @@
 #   INPUT_CLIENT_VERSION               explicit client version override
 #   INPUT_APP_VERSION                  explicit app version override
 #   INPUT_TOOLKIT_VERSION              explicit toolkit version override
-#   GNOSISVPN_PACKAGE_PREVIOUS_VERSION previously built versions, used for
-#   GNOSISVPN_CLIENT_PREVIOUS_VERSION  the snapshot/experimental skip check
-#   GNOSISVPN_APP_PREVIOUS_VERSION
+#   GNOSISVPN_PACKAGE_PREVIOUS_VERSION previously built versions, used for the
+#   GNOSISVPN_CLIENT_PREVIOUS_VERSION  snapshot/experimental skip check and, via
+#   GNOSISVPN_APP_PREVIOUS_VERSION     the outputs below, for the changelog range
 #   GNOSISVPN_TOOLKIT_PREVIOUS_VERSION
+#   GNOSISVPN_<C>_PREVIOUS_VERSION_PR           per-line candidates; when the one
+#   GNOSISVPN_<C>_PREVIOUS_VERSION_RELEASE      matching VERSION_TYPE is SET it
+#   GNOSISVPN_<C>_PREVIOUS_VERSION_EXPERIMENTAL wins, even when empty. The
+#                                      workflow passes all three because GitHub
+#                                      Actions expressions cannot yield an empty
+#                                      string from a ternary (see
+#                                      select_previous_version below)
 #   PR_HEAD_SHA                        PR head commit sha (VERSION_TYPE=commit)
 #   GITHUB_REPOSITORY, GITHUB_REF      set by GitHub Actions (VERSION_TYPE=release)
 #
@@ -40,7 +47,7 @@
 #   LATEST_GNOSISVPN_PACKAGE_PR_VERSION, GNOSISVPN_PACKAGE_VERSION,
 #   GNOSISVPN_CLIENT_VERSION, GNOSISVPN_APP_VERSION,
 #   GNOSISVPN_TOOLKIT_VERSION, GNOSISVPN_NETWORKS, GNOSISVPN_CHANNEL,
-#   SKIP_BUILDING
+#   SKIP_BUILDING, and the four resolved GNOSISVPN_*_PREVIOUS_VERSION values
 #
 
 set -euo pipefail
@@ -98,12 +105,49 @@ get_latest_release_version_below() {
     return 1
 }
 
+# Pick this line's "previously built" version for one component.
+#
+# Each installer line tracks its own previous versions, and the caller cannot do
+# the picking: a GitHub Actions ternary cannot produce an empty string, because
+# `cond && vars.EMPTY || other` sees the empty value as falsy and falls through
+# to `other`. On the experimental line that silently substituted the standard
+# line's versions, which would diff the changelog across the wrong range. So the
+# workflow passes every candidate and the choice happens here, where an unset
+# variable and an empty one can be told apart: a SET-but-empty candidate means
+# "no previous build on this line" and is honoured as such.
+select_previous_version() {
+    local component="$1" suffix specific plain
+    case "${version_type}" in
+    release) suffix="RELEASE" ;;
+    experimental) suffix="EXPERIMENTAL" ;;
+    *) suffix="PR" ;;
+    esac
+    specific="GNOSISVPN_${component}_PREVIOUS_VERSION_${suffix}"
+    plain="GNOSISVPN_${component}_PREVIOUS_VERSION"
+    if [[ -n ${!specific+set} ]]; then
+        printf '%s\n' "${!specific}"
+    else
+        printf '%s\n' "${!plain:-}"
+    fi
+}
+
 main() {
     local version_type="${VERSION_TYPE:-}"
     if [[ -z ${version_type} ]]; then
         log_error "VERSION_TYPE is not set. Expected snapshot, experimental, commit, pr, or release."
         exit 1
     fi
+
+    # Resolve this line's previous versions before anything reads them, and
+    # publish them so the build jobs use the same values for the changelog.
+    GNOSISVPN_PACKAGE_PREVIOUS_VERSION="$(select_previous_version PACKAGE)"
+    GNOSISVPN_CLIENT_PREVIOUS_VERSION="$(select_previous_version CLIENT)"
+    GNOSISVPN_APP_PREVIOUS_VERSION="$(select_previous_version APP)"
+    GNOSISVPN_TOOLKIT_PREVIOUS_VERSION="$(select_previous_version TOOLKIT)"
+    set_output "GNOSISVPN_PACKAGE_PREVIOUS_VERSION" "${GNOSISVPN_PACKAGE_PREVIOUS_VERSION}"
+    set_output "GNOSISVPN_CLIENT_PREVIOUS_VERSION" "${GNOSISVPN_CLIENT_PREVIOUS_VERSION}"
+    set_output "GNOSISVPN_APP_PREVIOUS_VERSION" "${GNOSISVPN_APP_PREVIOUS_VERSION}"
+    set_output "GNOSISVPN_TOOLKIT_PREVIOUS_VERSION" "${GNOSISVPN_TOOLKIT_PREVIOUS_VERSION}"
 
     # Which side of COMPONENT_VERSION_BOUNDARY this line's client/app must sit on.
     local component_filter=()
