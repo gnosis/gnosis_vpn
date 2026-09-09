@@ -56,11 +56,61 @@ remove_retired_conffiles() {
     done
 }
 
+# Networks are discovered from the installed conffiles rather than a hardcoded list.
+available_networks() {
+    (cd /etc/gnosisvpn 2>/dev/null && ls config-*.toml 2>/dev/null |
+        sed 's/^config-//; s/\.toml$//' | paste -sd, - | sed 's/,/, /g') || true
+}
+
 # Configure ownership and permissions for directories and binaries
 configure_filesystem_permissions() {
+    echo "$LOG_PREFIX INFO: Setting up directory permissions..."
+
+    # Created before network discovery so a wiped /etc/gnosisvpn reports missing configs, not an unknown network.
+    mkdir -p /etc/gnosisvpn
+    # root-owned so the unprivileged worker cannot replace files loaded by the root service
+    chown root:gnosisvpn /etc/gnosisvpn
+    chmod 755 /etc/gnosisvpn
+    chown gnosisvpn:gnosisvpn /etc/gnosisvpn/*.toml 2>/dev/null || true
+    chmod 644 /etc/gnosisvpn/*.toml 2>/dev/null || true
+
+    mkdir -p /var/log/gnosisvpn
+    chown -R gnosisvpn:gnosisvpn /var/log/gnosisvpn
+    chmod -R 755 /var/log/gnosisvpn
+
+    mkdir -p /var/lib/gnosisvpn
+    chown -R gnosisvpn:gnosisvpn /var/lib/gnosisvpn
+    chmod -R 775 /var/lib/gnosisvpn
+
+    # nfpm installs binaries before the user exists; fix ownership here.
+    if [[ -f /usr/bin/gnosis_vpn-worker ]]; then
+        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-worker
+    fi
+    if [[ -f /usr/bin/gnosis_vpn-ctl ]]; then
+        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-ctl
+    fi
+    if [[ -f /usr/bin/gnosis_vpn-app ]]; then
+        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-app
+    fi
+
+    echo "$LOG_PREFIX SUCCESS: Directory permissions configured"
+}
+
+# Point /etc/gnosisvpn/config.toml at the selected network and write its Blokli endpoint.
+configure_network_selection() {
     # Precedence: explicit GNOSISVPN_HOPR_BLOKLI_URL > derived from network > pre-existing/legacy value.
-    local network_name blokli_url
-    network_name="${GNOSISVPN_NETWORK:-jura-prod}"
+    local requested network_name blokli_url available
+    requested="${GNOSISVPN_NETWORK:-}"
+    network_name="${requested:-jura-prod}"
+    available="$(available_networks)"
+
+    # dpkg never restores conffiles deleted outside of it, so failing here would brick every later apt run.
+    if [[ -z $available ]]; then
+        echo "$LOG_PREFIX ERROR: No network configuration in /etc/gnosisvpn (all config-*.toml are missing)" >&2
+        echo "$LOG_PREFIX ERROR: Restore them with: sudo dpkg -i --force-confmiss /path/to/gnosisvpn_*.deb" >&2
+        echo "$LOG_PREFIX WARNING: Skipping network setup — the service cannot start until the files are back" >&2
+        return 0
+    fi
 
     # Accept retired names from old docs/pinned scripts without aborting.
     if [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
@@ -75,11 +125,13 @@ configure_filesystem_permissions() {
     # Guard against a dangling config.toml or bogus default URL from a typo.
     if [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
         echo "$LOG_PREFIX ERROR: Unknown network '${network_name}': /etc/gnosisvpn/config-${network_name}.toml not found" >&2
-        local available
-        available="$(cd /etc/gnosisvpn 2>/dev/null && ls config-*.toml 2>/dev/null |
-            sed 's/^config-//; s/\.toml$//' | paste -sd', ' - || true)"
-        echo "$LOG_PREFIX ERROR: Supported networks: ${available:-none}" >&2
-        exit 1
+        echo "$LOG_PREFIX ERROR: Supported networks: ${available}" >&2
+        # A typo in GNOSISVPN_NETWORK is fatal so it gets corrected; a build not shipping the default must still configure.
+        if [[ -n $requested ]]; then
+            exit 1
+        fi
+        echo "$LOG_PREFIX WARNING: Skipping network setup — re-install with GNOSISVPN_NETWORK set to one of the above" >&2
+        return 0
     fi
 
     # Network name is <prefix>-<env>; endpoint mirrors that split. Reject non-http(s) URLs to prevent env injection via EnvironmentFile.
@@ -94,25 +146,6 @@ configure_filesystem_permissions() {
             exit 1
         fi
     fi
-    echo "$LOG_PREFIX INFO: Setting up directory permissions..."
-
-    # nfpm may have created config dir with numeric UID; fix it here.
-    if [[ ! -d /etc/gnosisvpn ]]; then
-        mkdir -p /etc/gnosisvpn
-    fi
-    # root-owned so the unprivileged worker cannot replace files loaded by the root service
-    chown root:gnosisvpn /etc/gnosisvpn
-    chmod 755 /etc/gnosisvpn
-    chown gnosisvpn:gnosisvpn /etc/gnosisvpn/*.toml 2>/dev/null || true
-    chmod 644 /etc/gnosisvpn/*.toml 2>/dev/null || true
-
-    mkdir -p /var/log/gnosisvpn
-    chown -R gnosisvpn:gnosisvpn /var/log/gnosisvpn
-    chmod -R 755 /var/log/gnosisvpn
-
-    mkdir -p /var/lib/gnosisvpn
-    chown -R gnosisvpn:gnosisvpn /var/lib/gnosisvpn
-    chmod -R 775 /var/lib/gnosisvpn
 
     # Explicit GNOSISVPN_NETWORK wins; plain upgrade keeps the user's choice unless the link targets a retired config.
     local migrated_from="" migrated_blokli_url=""
@@ -199,18 +232,7 @@ EOF
         sed -i 's|^GNOSISVPN_HOPR_BLOKLI_URL=.\+$|GNOSISVPN_HOPR_BLOKLI_URL=|' /etc/gnosisvpn/gnosisvpn.env
     fi
 
-    # nfpm installs binaries before the user exists; fix ownership here.
-    if [[ -f /usr/bin/gnosis_vpn-worker ]]; then
-        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-worker
-    fi
-    if [[ -f /usr/bin/gnosis_vpn-ctl ]]; then
-        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-ctl
-    fi
-    if [[ -f /usr/bin/gnosis_vpn-app ]]; then
-        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-app
-    fi
-
-    echo "$LOG_PREFIX SUCCESS: Directory permissions configured"
+    echo "$LOG_PREFIX SUCCESS: Network '${network_name}' configured"
 }
 
 # TODO: remove the removal code by December 2026.
@@ -479,6 +501,7 @@ main() {
     # TODO: remove the removal code by December 2027 (see remove_retired_conffiles).
     remove_retired_conffiles "$@"
     configure_filesystem_permissions
+    configure_network_selection
     # TODO: remove the removal code by December 2026 (see remove_legacy_apt_mirror).
     remove_legacy_apt_mirror
     register_apt_repo
