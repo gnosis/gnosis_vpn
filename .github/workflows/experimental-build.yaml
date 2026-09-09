@@ -1,0 +1,134 @@
+# Nightly build of the experimental installer line: the piz-palu-dev network
+# built against client/app versions at or above COMPONENT_VERSION_BOUNDARY.
+# Mirrors snapshot-build.yaml, which does the same for the standard line. Kept as
+# a separate top-level workflow because update-manifests.yaml triggers on the
+# workflow NAME and because cron events cannot carry inputs.
+name: Experimental Build
+on:
+  workflow_dispatch:
+    inputs:
+      client_version:
+        description: 'Client version to build against (default: newest registry version >= COMPONENT_VERSION_BOUNDARY with binaries for all architectures)'
+        required: false
+        type: string
+        default: ''
+      app_version:
+        description: 'App version to build against (default: newest registry version >= COMPONENT_VERSION_BOUNDARY with binaries for all architectures)'
+        required: false
+        type: string
+        default: ''
+      toolkit_version:
+        description: 'Toolkit version to build against (default: newest registry version with the darwin binary)'
+        required: false
+        type: string
+        default: ''
+  repository_dispatch:
+    types: [experimental_build]
+  schedule:
+    - cron: '0 2 * * *' # Runs every day at 2 AM UTC, an hour after the snapshot nightly so the two do not queue on build-binary.yaml's concurrency group. Scheduled workflows can be delayed by up to 3 hours, so the actual execution time may vary.
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: experimental-build
+  cancel-in-progress: false
+jobs:
+  build_binary:
+    name: Build
+    uses: ./.github/workflows/build-binary.yaml
+    with:
+      version_type: experimental
+      client_version: ${{ inputs.client_version }}
+      app_version: ${{ inputs.app_version }}
+      toolkit_version: ${{ inputs.toolkit_version }}
+    secrets: inherit
+  update_experimental:
+    name: Update experimental
+    runs-on: depot-ubuntu-22.04-4
+    if: needs.build_binary.outputs.SNAPSHOT_TRIGGERED == 'true'
+    needs:
+      - build_binary
+    env:
+      GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
+      GNOSISVPN_CLIENT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}
+      GNOSISVPN_APP_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}
+      GNOSISVPN_TOOLKIT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_TOOLKIT_VERSION }}
+      GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ vars.GNOSISVPN_PACKAGE_EXPERIMENTAL_PR_VERSION }}
+      GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ vars.GNOSISVPN_CLIENT_EXPERIMENTAL_PR_VERSION }}
+      GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_APP_EXPERIMENTAL_PR_VERSION }}
+      GNOSISVPN_PREVIOUS_TOOLKIT_VERSION: ${{ vars.GNOSISVPN_TOOLKIT_EXPERIMENTAL_PR_VERSION }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Nix
+        uses: hoprnet/hopr-workflows/actions/setup-nix@21a781128e2796400ae2f17c955dc602c8bc1400 # setup-nix-v2.1.0
+        with:
+          cachix_cache_name: gnosis-vpn
+          cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: Generate Changelog
+        run: nix develop -c ./scripts/generate-changelog.ts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GNOSISVPN_CHANGELOG_FORMAT: zulip
+          # Points the download links at the experimental pool / bucket dir.
+          GNOSISVPN_CHANNEL: experimental
+          GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+      - name: Prepare notification message
+        run: |
+          # Store content in environment variable for the Zulip action
+          {
+            echo "NOTIFICATION_CONTENT<<EOF"
+            cat build/changelog/changelog
+            echo "EOF"
+          } >> $GITHUB_ENV
+      - name: Notify release
+        uses: zulip/github-actions-zulip/send-message@f675f2b4eb2a95fae974215476dcb7ad8dfeff6b # v2.0.2
+        with:
+          api-key: ${{ secrets.GNOSIS_VPN_ZULIP_API_KEY }}
+          email: ${{ secrets.GNOSIS_VPN_ZULIP_EMAIL }}
+          organization-url: "https://hopr.zulipchat.com"
+          type: "stream"
+          to: "GnosisVPN"
+          topic: "Experimental Builds"
+          content: ${{ env.NOTIFICATION_CONTENT }}
+      - name: Generate GitHub App token
+        id: bot-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.GH_APP_GNOSISVPN_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_GNOSISVPN_BOT_PRIVATE_KEY }}
+          owner: gnosis
+      - name: Update latest merged PR variables
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          if [[ "${GNOSISVPN_PACKAGE_VERSION}" != "${GNOSISVPN_PREVIOUS_PACKAGE_VERSION}" ]]; then
+            echo "New merged PR found for gnosis_vpn: ${GNOSISVPN_PACKAGE_VERSION}"
+            gh variable set GNOSISVPN_PACKAGE_EXPERIMENTAL_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_PACKAGE_VERSION}"
+          fi
+          if [[ "${GNOSISVPN_CLIENT_VERSION}" != "${GNOSISVPN_PREVIOUS_CLIENT_VERSION}" ]]; then
+            echo "New merged PR found for gnosis_vpn-client: ${GNOSISVPN_CLIENT_VERSION}"
+            gh variable set GNOSISVPN_CLIENT_EXPERIMENTAL_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_CLIENT_VERSION}"
+          fi
+          if [[ "${GNOSISVPN_APP_VERSION}" != "${GNOSISVPN_PREVIOUS_APP_VERSION}" ]]; then
+            echo "New merged PR found for gnosis_vpn-app: ${GNOSISVPN_APP_VERSION}"
+            gh variable set GNOSISVPN_APP_EXPERIMENTAL_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_APP_VERSION}"
+          fi
+          if [[ "${GNOSISVPN_TOOLKIT_VERSION}" != "${GNOSISVPN_PREVIOUS_TOOLKIT_VERSION}" ]]; then
+            echo "New merged PR found for gnosis_vpn-toolkit: ${GNOSISVPN_TOOLKIT_VERSION}"
+            gh variable set GNOSISVPN_TOOLKIT_EXPERIMENTAL_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_TOOLKIT_VERSION}"
+          fi
+      - name: Publish experimental manifest variables
+        # This job only runs when artifacts were actually built
+        # (SNAPSHOT_TRIGGERED == 'true'), so these variables always reflect the
+        # most recent real experimental build — never a no-op skipped run.
+        # generate-update-manifest.sh reads them to fill in the experimental
+        # channel, and tolerates their absence before the first publish.
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          GNOSISVPN_EXPERIMENTAL_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+        run: |
+          published_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "Publishing experimental version ${GNOSISVPN_EXPERIMENTAL_VERSION} (published_at ${published_at})"
+          gh variable set GNOSISVPN_EXPERIMENTAL_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_EXPERIMENTAL_VERSION}"
+          gh variable set GNOSISVPN_EXPERIMENTAL_DATE --repo ${{ github.repository }} --body "${published_at}"

@@ -5,7 +5,13 @@
 # Usage:
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=snapshot
+#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=experimental
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --network=jura-dev
+#
+# Two installer lines are published. The stable and snapshot channels ship the
+# jura-prod and jura-dev networks; the experimental channel ships piz-palu-dev
+# and is built against the newer client/app generation. A network is only
+# selectable on the channel that ships it.
 #
 # Prompts for sudo when not already root; use `sudo bash` instead for headless/non-interactive installs (no TTY for the password prompt).
 #
@@ -16,7 +22,7 @@
 set -Eeuo pipefail
 
 # APT repository mirrors. Both serve identical key-signed stable content;
-# only gnosisvpn.io also serves the snapshot suite.
+# only gnosisvpn.io also serves the snapshot and experimental suites.
 REPO_URL_PRIMARY="https://download.vpn.gnosis.eth.limo/linux/apt"
 REPO_URL_BACKUP="https://download.gnosisvpn.io/linux/apt"
 KEYRING_PATH="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
@@ -32,20 +38,55 @@ log() { printf '\033[0;34m[gnosisvpn]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 err() { printf '\033[0;31m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 
+# Networks each channel ships; the first entry is that channel's default.
+# Mirrors NETWORKS_STANDARD / NETWORKS_EXPERIMENTAL in scripts/config.sh — keep
+# the two in sync.
+channel_networks() {
+    case "$1" in
+    experimental) echo "piz-palu-dev" ;;
+    *) echo "jura-prod jura-dev" ;;
+    esac
+}
+
+# TODO: remove by December 2027. Map pre-rename network names.
+canonical_network() {
+    case "$1" in
+    jura) echo "jura-prod" ;;
+    rotsee) echo "jura-dev" ;;
+    piz-palu-staging) echo "piz-palu-dev" ;;
+    *) echo "$1" ;;
+    esac
+}
+
+in_list() {
+    local needle="$1" item
+    shift
+    for item in "$@"; do
+        [[ $item == "$needle" ]] && return 0
+    done
+    return 1
+}
+
+# Networks the selected channel ships; filled in by parse_args.
+CHANNEL_NETWORKS=()
+
 usage() {
     cat <<EOF
 Install the Gnosis VPN APT repository and the gnosisvpn package.
 
-Usage: linux.sh [--channel=stable|snapshot] [--network=jura-prod|jura-dev|piz-palu-dev] [--reset-identity] [--help]
+Usage: linux.sh [--channel=stable|snapshot|experimental] [--network=<name>] [--reset-identity] [--help]
 
 Options:
-  --channel=<stable|snapshot>   APT channel to subscribe to (default: stable).
+  --channel=<stable|snapshot|experimental>
+                                APT channel to subscribe to (default: stable).
                                 Also configurable via GNOSISVPN_CHANNEL env var.
-  --network=<jura-prod|jura-dev|piz-palu-dev>
-                                Network to configure (default: jura-prod on
-                                first install; omitting keeps an existing
-                                choice). Also configurable via GNOSISVPN_NETWORK
-                                env var.
+  --network=<name>              Network to configure. Which networks are
+                                available depends on the channel:
+                                  stable, snapshot  jura-prod (default), jura-dev
+                                  experimental      piz-palu-dev (default)
+                                On stable and snapshot, omitting this keeps an
+                                existing choice. Also configurable via
+                                GNOSISVPN_NETWORK env var.
   --reset-identity              Back up the worker config dir (/var/lib/gnosisvpn/
                                 .config: HOPR identity, safe, node db) to
                                 .config.<timestamp>.bak, so the service generates
@@ -60,16 +101,21 @@ Supported distributions:
 
 After install, the gnosisvpn service should be running. To switch networks
 later, re-run this installer with --network=<name>; to switch channels, re-run
-with --channel=<stable|snapshot> (switching back to stable downgrades the
-package to the newest stable release).
+with --channel=<stable|snapshot|experimental> (switching to a channel whose
+newest package is older than the installed one performs a pinned downgrade).
 
-Caution: a re-run without --channel selects the default (stable). On a
-snapshot installation, pass --channel=snapshot again when re-running (e.g. to
-switch networks), or the installer will downgrade the package to stable.
+Switching channels also switches installer lines, so the configured network may
+change: when the current network is not shipped by the target channel, the
+channel default is selected instead.
+
+Caution: a re-run without --channel selects the default (stable). On a snapshot
+or experimental installation, pass that channel again when re-running (e.g. to
+switch networks), or the installer will move the package to stable.
 
 Environment variables:
-  GNOSISVPN_CHANNEL            stable | snapshot (default: stable)
-  GNOSISVPN_NETWORK            jura-prod | jura-dev | piz-palu-dev (default: jura-prod)
+  GNOSISVPN_CHANNEL            stable | snapshot | experimental (default: stable)
+  GNOSISVPN_NETWORK            a network shipped by the selected channel
+                               (default: that channel's first network)
   GNOSISVPN_RESET_IDENTITY     true | false (default: false); same as
                                --reset-identity
   GNOSISVPN_HOPR_BLOKLI_URL    Custom Blokli endpoint; defaults to the one
@@ -87,7 +133,7 @@ parse_args() {
             ;;
         --channel)
             if [[ -z ${2:-} ]]; then
-                err "--channel requires a value (stable | snapshot)"
+                err "--channel requires a value (stable | snapshot | experimental)"
                 exit 1
             fi
             CHANNEL="$2"
@@ -99,7 +145,7 @@ parse_args() {
             ;;
         --network)
             if [[ -z ${2:-} ]]; then
-                err "--network requires a value (jura-prod | jura-dev | piz-palu-dev)"
+                err "--network requires a value (see --help for the networks each channel ships)"
                 exit 1
             fi
             NETWORK="$2"
@@ -121,24 +167,39 @@ parse_args() {
         esac
     done
 
-    if [[ $CHANNEL != "stable" && $CHANNEL != "snapshot" ]]; then
-        err "--channel must be 'stable' or 'snapshot' (got: '${CHANNEL}')"
+    case "$CHANNEL" in
+    stable | snapshot | experimental) ;;
+    *)
+        err "--channel must be 'stable', 'snapshot' or 'experimental' (got: '${CHANNEL}')"
         exit 1
-    fi
+        ;;
+    esac
 
     # TODO: remove by December 2027. Accept pre-rename network names.
     local old_network="$NETWORK"
-    case "$NETWORK" in
-    jura) NETWORK="jura-prod" ;;
-    rotsee) NETWORK="jura-dev" ;;
-    piz-palu-staging) NETWORK="piz-palu-dev" ;;
-    esac
+    NETWORK="$(canonical_network "$NETWORK")"
     [[ $NETWORK == "$old_network" ]] || log "Network '${old_network}' was renamed to '${NETWORK}' — using '${NETWORK}'"
 
-    if [[ -n $NETWORK && $NETWORK != "jura-prod" && $NETWORK != "jura-dev" &&
-        $NETWORK != "piz-palu-dev" ]]; then
-        err "--network must be one of 'jura-prod', 'jura-dev', 'piz-palu-dev' (got: '${NETWORK}')"
+    read -r -a CHANNEL_NETWORKS <<<"$(channel_networks "$CHANNEL")"
+    if [[ -n $NETWORK ]] && ! in_list "$NETWORK" "${CHANNEL_NETWORKS[@]}"; then
+        err "--network must be one of '${CHANNEL_NETWORKS[*]}' on the '${CHANNEL}' channel (got: '${NETWORK}')"
+        # Point at the channel that does ship it, when there is one.
+        local standard_networks=()
+        read -r -a standard_networks <<<"$(channel_networks stable)"
+        if in_list "$NETWORK" "${standard_networks[@]}"; then
+            err "'${NETWORK}' ships on the stable and snapshot channels"
+        elif in_list "$NETWORK" "$(channel_networks experimental)"; then
+            err "'${NETWORK}' ships on the experimental channel only: add --channel=experimental"
+        fi
         exit 1
+    fi
+
+    # A single-network line always forwards its selection, so that a switch onto
+    # it re-points config.toml even on a postinstall that only checks whether the
+    # config file exists — the other line's config survives the switch as an
+    # obsolete conffile.
+    if [[ $CHANNEL == "experimental" && -z $NETWORK ]]; then
+        NETWORK="${CHANNEL_NETWORKS[0]}"
     fi
 
     if [[ $RESET_IDENTITY != "true" && $RESET_IDENTITY != "false" ]]; then
@@ -262,6 +323,11 @@ write_sources() {
         # Only gnosisvpn.io publishes the snapshot suite.
         uris="${REPO_URL_BACKUP}"
         ;;
+    experimental)
+        component="experimental"
+        # Only gnosisvpn.io publishes the experimental suite.
+        uris="${REPO_URL_BACKUP}"
+        ;;
     esac
     log "Writing APT source to ${SOURCES_PATH} (channel: ${CHANNEL}, component: ${component}, arch: ${ARCH})"
     cat <<EOF | ${SUDO} tee "$SOURCES_PATH" >/dev/null
@@ -296,8 +362,25 @@ apt_install() {
     *) installed="" ;;
     esac
 
+    # A channel switch also switches installer lines. The previous line's config
+    # stays behind as an obsolete conffile, so a postinstall that only checks
+    # whether the file exists would keep config.toml pointing at a network this
+    # channel does not ship (and whose exit nodes its client cannot use). Newer
+    # postinstalls detect this themselves, but install.sh is published ahead of
+    # the packages, so decide it here and forward the selection explicitly.
+    if [[ -z $NETWORK && -L /etc/gnosisvpn/config.toml ]]; then
+        local current_network
+        current_network="$(basename "$(readlink /etc/gnosisvpn/config.toml)")"
+        current_network="${current_network#config-}"
+        current_network="${current_network%.toml}"
+        if ! in_list "$(canonical_network "$current_network")" "${CHANNEL_NETWORKS[@]}"; then
+            NETWORK="${CHANNEL_NETWORKS[0]}"
+            log "Current network '${current_network}' is not shipped on the '${CHANNEL}' channel; selecting ${NETWORK} (pass --network to choose another)."
+        fi
+    fi
+
     # --force-confdef/confold: answer dpkg conffile prompts non-interactively (stdin absent in curl|bash).
-    # --allow-downgrades: required for snapshot→stable channel switch; harmless otherwise.
+    # --allow-downgrades: required for channel switches that move to an older package; harmless otherwise.
     local apt_opts=(-y --allow-downgrades -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
     local package="gnosisvpn"
     if [[ -n $installed ]] && dpkg --compare-versions "$installed" gt "$candidate"; then
@@ -343,8 +426,9 @@ print_postinstall() {
     Details:  https://github.com/hoprnet/gnosis_vpn/blob/main/SECURITY.md
 
 To upgrade later:    sudo apt-get update && sudo apt-get install --only-upgrade gnosisvpn
-To switch networks:  re-run this installer with --network=<jura-prod|jura-dev|piz-palu-dev>
-To switch channels:  re-run this installer with --channel=<stable|snapshot>
+To switch networks:  re-run this installer with --network=<name> (see --help for
+                     the networks each channel ships)
+To switch channels:  re-run this installer with --channel=<stable|snapshot|experimental>
 To reset identity:   re-run this installer with --reset-identity
 To uninstall:        sudo apt-get remove gnosisvpn
 EOF

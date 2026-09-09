@@ -5,6 +5,11 @@
 # This script validates the installer build artifacts and structure.
 # It assumes "just all dmg aarch64-darwin" (or equivalent) has been executed.
 #
+# Set GNOSISVPN_NETWORKS to the network set the build under test shipped, so the
+# expected templates and choice packages match. It defaults to the standard
+# installer line; to check an experimental build run:
+#   GNOSISVPN_NETWORKS=piz-palu-dev mac/test-installer.sh
+#
 
 set -euo pipefail
 
@@ -19,6 +24,13 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="${PROJECT_ROOT}/build"
+
+# Networks the build under test is expected to ship (first = default).
+# shellcheck source=../scripts/config.sh
+source "${PROJECT_ROOT}/scripts/config.sh"
+: "${GNOSISVPN_NETWORKS:=${NETWORKS_STANDARD}}"
+NETWORKS=()
+read -r -a NETWORKS <<<"${GNOSISVPN_NETWORKS}"
 
 # Test counters
 TESTS_RUN=0
@@ -95,11 +107,30 @@ test_build_structure() {
         run_test "Binary '$bin' is executable" "[[ -x '$rootfs/usr/local/bin/$bin' ]]"
     done
 
-    # Configuration templates
-    local templates=("jura-prod.toml.template" "jura-dev.toml.template" "piz-palu-dev.toml.template")
-    for tmpl in "${templates[@]}"; do
-        run_test "Template '$tmpl' exists" "[[ -f '$rootfs/etc/gnosisvpn/templates/$tmpl' ]]"
+    # Configuration templates and choice packages: exactly the shipped networks.
+    local network
+    for network in "${NETWORKS[@]}"; do
+        run_test "Template '${network}.toml.template' exists" \
+            "[[ -f '$rootfs/etc/gnosisvpn/templates/${network}.toml.template' ]]"
+        run_test "Choice package for network '${network}' exists" \
+            "[[ -f '${BUILD_DIR}/packages/choice-network-${network}.pkg' ]]"
     done
+
+    # No template from the other installer line leaked into the payload.
+    local tmpl tmpl_network unexpected=""
+    for tmpl in "$rootfs"/etc/gnosisvpn/templates/*.template; do
+        [[ -f $tmpl ]] || continue
+        tmpl_network="$(basename "$tmpl" .toml.template)"
+        if [[ " ${NETWORKS[*]} " != *" ${tmpl_network} "* ]]; then
+            unexpected="${unexpected} ${tmpl_network}"
+        fi
+    done
+    run_test "No templates outside '${GNOSISVPN_NETWORKS}' in payload" "[[ -z '${unexpected}' ]]"
+
+    # Baked network list matches what the build was asked to ship.
+    run_test "Baked networks file exists" "[[ -f '${BUILD_DIR}/scripts/networks' ]]"
+    run_test "Baked networks file says '${GNOSISVPN_NETWORKS}'" \
+        "[[ \"\$(cat '${BUILD_DIR}/scripts/networks' 2>/dev/null)\" == '${GNOSISVPN_NETWORKS}' ]]"
 
     # Scripts
     local scripts=("postinstall" "preinstall" "uninstall.sh" "logging.sh")
@@ -176,6 +207,27 @@ test_file_syntax() {
         run_test "Distribution XML syntax valid" "xmllint --noout '$dist_xml'"
     else
         log_test "Skipping xmllint check (not found)"
+    fi
+
+    # The rendered copy productbuild consumed: every placeholder expanded, and
+    # the network choices limited to the shipped set.
+    local dist_xml_built="${BUILD_DIR}/Distribution.xml"
+    if [[ -f $dist_xml_built ]]; then
+        if command -v xmllint >/dev/null; then
+            run_test "Rendered Distribution XML syntax valid" "xmllint --noout '$dist_xml_built'"
+        fi
+        run_test "Rendered Distribution XML has no unexpanded placeholders" \
+            "! grep -q '__[A-Z][A-Z_]*__' '$dist_xml_built'"
+        local network
+        for network in "${NETWORKS[@]}"; do
+            run_test "Rendered Distribution XML offers network '${network}'" \
+                "grep -q 'choice-network-${network}.pkg' '$dist_xml_built'"
+        done
+        # One pre-selected network plus one pre-selected log level.
+        run_test "Rendered Distribution XML pre-selects exactly two choices" \
+            "[[ \"\$(grep -c 'start_selected=\"true\"' '$dist_xml_built')\" == '2' ]]"
+    else
+        log_test "Skipping rendered Distribution.xml checks (build/Distribution.xml not found)"
     fi
 
     # HTML Validation

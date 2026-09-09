@@ -41,15 +41,63 @@ log_error() {
 # Validate version syntax
 check_version_syntax() {
     local version="$1"
-    # Matches: 1.2.3, v1.2.3, 1.2.3+pr.123, 1.2.3+commit.abcdef, latest
+    # Matches: 1.2.3, v1.2.3, 1.2.3+pr.123, 1.2.3+commit.abcdef, latest,
+    # snapshot builds 2026.09.09+build.020000 and experimental builds
+    # 2026.09.09+build.020000.experimental (the trailing group allows the extra
+    # dot-separated channel marker, so no separate alternation is needed).
     local semver_regex='^v?[0-9]+\.[0-9]+\.[0-9]+(\+(pr|commit|build)(\.[0-9A-Za-z-]+)*)?$'
     if [[ ! $version =~ $semver_regex && $version != "latest" ]]; then
         log_error "Invalid version format: $version"
-        log_error "Expected format: MAJOR.MINOR.PATCH(+pr.123|+commit.abcdef) or latest"
+        log_error "Expected format: MAJOR.MINOR.PATCH(+pr.123|+commit.abcdef|+build.020000[.experimental]) or latest"
         return 1
     fi
     return 0
 }
+
+# --- Version core helpers -----------------------------------------------------
+# The "core" of a version is the numeric MAJOR.MINOR.PATCH before any "+build
+# metadata", with a leading "v" stripped:
+#   version_core "v0.96.1+pr.772" -> 0.96.1
+# Used to place client/app versions on one side of COMPONENT_VERSION_BOUNDARY.
+version_core() {
+    local v="${1#v}"
+    printf '%s\n' "${v%%+*}"
+}
+
+# True when the core is exactly three numeric components — the comparators below
+# do arithmetic on the parts, so callers must gate on this first.
+version_core_is_numeric() {
+    [[ "$(version_core "$1")" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+}
+
+# Prints -1 / 0 / 1 comparing the numeric cores of A and B. Pure bash (no
+# sort -V, no associative arrays) so it also works on macOS /bin/bash 3.2.
+# 10#$x forces base 10: a zero-padded part like "09" is not octal.
+version_core_cmp() {
+    local a b a1 a2 a3 b1 b2 b3 rest pair x y
+    a="$(version_core "$1")"
+    b="$(version_core "$2")"
+    IFS=. read -r a1 a2 a3 rest <<<"$a"
+    IFS=. read -r b1 b2 b3 rest <<<"$b"
+    for pair in "${a1:-0}:${b1:-0}" "${a2:-0}:${b2:-0}" "${a3:-0}:${b3:-0}"; do
+        x="${pair%%:*}"
+        y="${pair##*:}"
+        if ((10#$x < 10#$y)); then
+            echo -1
+            return 0
+        fi
+        if ((10#$x > 10#$y)); then
+            echo 1
+            return 0
+        fi
+    done
+    echo 0
+}
+
+# A <  B
+version_core_lt() { [[ "$(version_core_cmp "$1" "$2")" == "-1" ]]; }
+# A >= B
+version_core_ge() { ! version_core_lt "$1" "$2"; }
 
 # Get latest release from GitHub
 get_latest_release() {

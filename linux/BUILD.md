@@ -61,7 +61,38 @@ linux/
 └── resources/             # Static resources (configs, templates)
 ```
 
+## Build-time environment
+
+Two installer lines are built from this repo, and two environment variables select which one a build belongs to. CI sets
+both (see `build-binary.yaml`); a local build without them gets the standard line.
+
+| Variable             | Values                                         | Effect                                                             |
+| -------------------- | ---------------------------------------------- | ------------------------------------------------------------------ |
+| `GNOSISVPN_CHANNEL`  | `stable`, `snapshot`, `experimental`, unset    | Selects the default network set and is checked against the version |
+| `GNOSISVPN_NETWORKS` | space-separated network names, first = default | Which `config-<network>.toml` conffiles the package ships          |
+
+`GNOSISVPN_NETWORKS` defaults to `NETWORKS_STANDARD` (or `NETWORKS_EXPERIMENTAL` when the channel is `experimental`)
+from `scripts/config.sh`, and is baked into the package as `/usr/share/gnosisvpn/networks` so the postinstall can pick a
+default and re-point `/etc/gnosisvpn/config.toml` after a channel switch.
+
+The build refuses a channel/version mismatch, because the installed package infers its APT suite from its own version
+string: an `experimental` build needs a version ending in `.experimental`, and `stable`/`snapshot` builds must not have
+one.
+
+```bash
+# Experimental line (ships piz-palu-dev only)
+GNOSISVPN_CHANNEL=experimental \
+  GNOSISVPN_PACKAGE_VERSION="$(date -u +%Y.%m.%d+build.%H%M%S.experimental)" \
+  just package deb x86_64-linux
+
+# Standard line (ships jura-prod and jura-dev)
+just package deb x86_64-linux
+```
+
 ## Distribution Channels
+
+The APT repository serves three suites — `stable`, `snapshot` and `experimental` — each with its own component and pool.
+See the APT repository section of the top-level `README.md`.
 
 ### GitHub Releases (Current)
 

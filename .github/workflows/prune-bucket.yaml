@@ -4,8 +4,9 @@
 # across both the APT pool and the macOS directory of the channel.
 #
 # Callers run this ONLY after a successful publish:
-#   - build-binary.yaml: snapshot channel, needs the snapshot Linux build, macOS
-#                        build, and APT publish to have succeeded.
+#   - build-binary.yaml: snapshot and experimental channels, need that line's
+#                        Linux build, macOS build, and APT publish to have
+#                        succeeded.
 #   - release.yaml:      stable channel, needs the build and the stable APT
 #                        publish to have succeeded.
 name: Prune Bucket
@@ -13,18 +14,19 @@ on:
   workflow_call:
     inputs:
       channel:
-        description: 'Channel to prune (stable or snapshot)'
+        description: 'Channel to prune (stable, snapshot or experimental)'
         required: true
         type: string
   workflow_dispatch:
     inputs:
       channel:
-        description: 'Channel to prune (stable or snapshot)'
+        description: 'Channel to prune (stable, snapshot or experimental)'
         required: true
         type: choice
         options:
           - stable
           - snapshot
+          - experimental
 jobs:
   prune:
     runs-on: depot-ubuntu-22.04-4
@@ -54,13 +56,18 @@ jobs:
               macos_dir="latest"
               keep="$RETAIN_SNAPSHOT"
               ;;
+            experimental)
+              apt_pool="pool/experimental/g/gnosisvpn"
+              macos_dir="experimental"
+              keep="$RETAIN_EXPERIMENTAL"
+              ;;
             stable)
               apt_pool="pool/main/g/gnosisvpn"
               macos_dir="stable"
               keep="$RETAIN_STABLE"
               ;;
             *)
-              echo "Invalid channel: '$channel' (expected stable or snapshot)" >&2
+              echo "Invalid channel: '$channel' (expected stable, snapshot or experimental)" >&2
               exit 1
               ;;
           esac

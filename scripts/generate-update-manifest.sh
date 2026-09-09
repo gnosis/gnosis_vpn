@@ -10,10 +10,17 @@
 #   4. Writes the manifest JSON to OUTPUT_DIR.
 #
 # Channel → GCS path mapping:
-#   Linux  stable    → download.gnosisvpn.io/linux/apt/pool/main/g/gnosisvpn/
-#   Linux  snapshot  → download.gnosisvpn.io/linux/apt/pool/snapshot/g/gnosisvpn/
-#   macOS  stable    → download.gnosisvpn.io/macos/stable/
-#   macOS  snapshot  → download.gnosisvpn.io/macos/latest/
+#   Linux  stable        → download.gnosisvpn.io/linux/apt/pool/main/g/gnosisvpn/
+#   Linux  snapshot      → download.gnosisvpn.io/linux/apt/pool/snapshot/g/gnosisvpn/
+#   Linux  experimental  → download.gnosisvpn.io/linux/apt/pool/experimental/g/gnosisvpn/
+#   macOS  stable        → download.gnosisvpn.io/macos/stable/
+#   macOS  snapshot      → download.gnosisvpn.io/macos/latest/
+#   macOS  experimental  → download.gnosisvpn.io/macos/experimental/
+#
+# stable and snapshot are mandatory. experimental is omitted (with a warning)
+# until experimental-build.yaml has published once and set the repository
+# variables it is resolved from. Experimental is never published to IPFS, so it
+# never appears in the .ipfs.json manifests.
 #
 # Required environment variables:
 #   GH_TOKEN  GitHub token with read access to releases
@@ -51,7 +58,9 @@ require_env() {
 validate_version() {
     local version="$1"
     # Mirrors check_version_syntax in scripts/common.sh — covers stable (x.y.z),
-    # date-based snapshot builds (YYYY.MM.DD+build.HHMMSS), and PR/commit builds.
+    # date-based snapshot builds (YYYY.MM.DD+build.HHMMSS), experimental builds
+    # (YYYY.MM.DD+build.HHMMSS.experimental — the trailing group takes the extra
+    # channel marker), and PR/commit builds.
     local semver_regex='^[0-9]+\.[0-9]+\.[0-9]+(\+(pr|commit|build)(\.[0-9A-Za-z-]+)*)?$'
     [[ $version =~ $semver_regex ]] ||
         die "Version '$version' does not match expected format: x.y.z or x.y.z+(pr|commit|build).<meta>"
@@ -94,6 +103,37 @@ get_snapshot_run_info() {
     echo "$version $published_at"
 }
 
+# Returns "version published_at" for the latest experimental build, or nothing
+# (with a warning, exit 0) while the repository variables do not exist yet —
+# experimental is optional until experimental-build.yaml has published once.
+# NOTE: this deliberately does not use die(). errexit is not inherited by a
+# command substitution, so a die() in here would only kill the subshell and the
+# caller would silently continue with empty fields. Real gh failures return 1.
+get_experimental_run_info() {
+    local name out rc
+    local values=()
+    for name in GNOSISVPN_EXPERIMENTAL_VERSION GNOSISVPN_EXPERIMENTAL_DATE; do
+        rc=0
+        out=$(gh variable get "$name" --repo "$REPO" 2>&1) || rc=$?
+        if [[ $rc -ne 0 ]]; then
+            if grep -qi 'not found' <<<"$out"; then
+                echo "WARN: repository variable ${name} is not set — skipping the experimental channel." >&2
+                return 0
+            fi
+            echo "ERROR: gh variable get ${name} failed (exit ${rc}): ${out}" >&2
+            return 1
+        fi
+        if [[ -z $out ]]; then
+            echo "WARN: repository variable ${name} is empty — skipping the experimental channel." >&2
+            return 0
+        fi
+        values+=("$out")
+    done
+    validate_version "${values[0]}"
+
+    echo "${values[0]} ${values[1]}"
+}
+
 # ---------------------------------------------------------------------------
 # Platform table: "manifest_name|os_family|default_min_os"
 # Per-platform GCS URLs are built by build_gcs_url() below from manifest_name,
@@ -108,11 +148,12 @@ PLATFORMS=(
 
 # Build the GCS download URL for a given platform / channel / version.
 # Linux .deb filenames embed the canonical version directly
-# (gnosisvpn_<version>_<arch>.deb) and live in the APT pool
-# (pool/main/g/gnosisvpn for stable, pool/snapshot/g/gnosisvpn for snapshot).
+# (gnosisvpn_<version>_<arch>.deb) and live in their channel's APT pool.
 # macOS .pkg filenames substitute '-' for '+' in the version slug for
 # Artifact Registry compatibility (see build-binary.yaml::prepare_files) and
-# live in /macos/<channel-dir>/ where channel-dir is "stable" or "latest".
+# live in /macos/<channel-dir>/. Both mappings are enumerated per channel: an
+# unknown channel must fail loudly rather than default into another channel's
+# path and publish a manifest pointing at the wrong artifact.
 build_gcs_url() {
     local manifest_name="$1"
     local channel="$2"
@@ -122,20 +163,22 @@ build_gcs_url() {
     case "$manifest_name" in
     linux-*)
         arch="${manifest_name#linux-}"
-        if [[ $channel == "stable" ]]; then
-            pool_dir="pool/main"
-        else
-            pool_dir="pool/snapshot"
-        fi
+        case "$channel" in
+        stable) pool_dir="pool/main" ;;
+        snapshot) pool_dir="pool/snapshot" ;;
+        experimental) pool_dir="pool/experimental" ;;
+        *) die "Unknown channel: ${channel}" ;;
+        esac
         echo "${GCS_BASE_URL}/linux/apt/${pool_dir}/g/gnosisvpn/gnosisvpn_${version}_${arch}.deb"
         ;;
     macos-*)
         arch="${manifest_name#macos-}"
-        if [[ $channel == "stable" ]]; then
-            chan_dir="stable"
-        else
-            chan_dir="latest"
-        fi
+        case "$channel" in
+        stable) chan_dir="stable" ;;
+        snapshot) chan_dir="latest" ;;
+        experimental) chan_dir="experimental" ;;
+        *) die "Unknown channel: ${channel}" ;;
+        esac
         fs_version="${version//+/-}"
         echo "${GCS_BASE_URL}/macos/${chan_dir}/gnosisvpn_${fs_version}_${arch}.pkg"
         ;;
@@ -152,6 +195,7 @@ build_gcs_url() {
 REPO="gnosis/gnosis_vpn"
 require_env GH_TOKEN >/dev/null
 
+# Mandatory channels; "experimental" is appended below when it resolves.
 CHANNELS="stable snapshot"
 OUTPUT_DIR="${OUTPUT_DIR:-./build/manifests}"
 
@@ -162,7 +206,8 @@ mkdir -p "$OUTPUT_DIR"
 # ---------------------------------------------------------------------------
 # Step 1: resolve each channel.
 #   CHANNEL_DATA stores "ref version published_at" where:
-#     ref = git tag (stable, used for release notes) or "-" (snapshot)
+#     ref = git tag (stable, used for release notes) or "-" (snapshot,
+#           experimental)
 # ---------------------------------------------------------------------------
 declare -A CHANNEL_DATA
 
@@ -175,6 +220,19 @@ echo "Resolving snapshot channel ..."
 read -r version published_at <<<"$(get_snapshot_run_info)"
 CHANNEL_DATA["snapshot"]="- $version $published_at"
 echo "  -> ($version) published $published_at"
+
+echo "Resolving experimental channel ..."
+if ! experimental_info="$(get_experimental_run_info)"; then
+    die "Failed to resolve the experimental channel."
+fi
+if [[ -n $experimental_info ]]; then
+    read -r version published_at <<<"$experimental_info"
+    CHANNEL_DATA["experimental"]="- $version $published_at"
+    CHANNELS="$CHANNELS experimental"
+    echo "  -> ($version) published $published_at"
+else
+    echo "  -> not published yet; manifests will carry stable + snapshot only"
+fi
 
 # ---------------------------------------------------------------------------
 # Step 2: for each platform, build a manifest with all channels.
@@ -237,6 +295,8 @@ for entry in "${PLATFORMS[@]}"; do
             ARTIFACT_SIG=""
         fi
 
+        # Only stable has a GitHub release to take notes from; snapshot and
+        # experimental builds carry empty release notes.
         if [[ $channel == "stable" ]]; then
             RELEASE_NOTES=$(gh release view "$ref" --repo "$REPO" --json body --jq '.body' 2>/dev/null || echo "")
         else
@@ -270,7 +330,7 @@ for entry in "${PLATFORMS[@]}"; do
                 '. + {($ch): $entry}')
 
         # IPFS hosts stable binaries only, so the IPFS manifest carries the
-        # stable channel exclusively — snapshot is skipped here.
+        # stable channel exclusively — snapshot and experimental are skipped here.
         if [[ $channel == "stable" ]]; then
             # Same entry, only download_url repointed at the IPFS host.
             CHANNEL_ENTRY_IPFS=$(echo "$CHANNEL_ENTRY" |

@@ -38,9 +38,24 @@ interface RepoConfig {
 export interface Config {
   repositories: RepoConfig[];
   format: "zulip" | "github" | "debian" | "json" | "rpm";
+  channel: Channel;
   ghApiMaxAttempts: number;
   ghToken: string;
 }
+
+/** Release channel a build is published to. */
+export type Channel = "stable" | "snapshot" | "experimental";
+
+/**
+ * Where each channel's artifacts live under download.gnosisvpn.io. Keep in sync
+ * with build_gcs_url() in scripts/generate-update-manifest.sh and with
+ * pool_subpath_for_channel() in scripts/publish-apt.sh.
+ */
+export const CHANNEL_PATHS: Record<Channel, { debPool: string; macDir: string }> = {
+  stable: { debPool: "pool/main", macDir: "stable" },
+  snapshot: { debPool: "pool/snapshot", macDir: "latest" },
+  experimental: { debPool: "pool/experimental", macDir: "experimental" },
+};
 
 export interface ChangelogEntry {
   repository: string;
@@ -313,10 +328,12 @@ export function zulipFormat(
   clientVersion: string,
   appVersion: string,
   toolkitVersion: string,
+  channel: Channel = "snapshot",
 ): string {
-  let content = "A new snapshot build is available for testing with the following new content:\n\n";
+  const channelLabel = `${channel.charAt(0).toUpperCase()}${channel.slice(1)}`;
+  let content = `A new ${channel} build is available for testing with the following new content:\n\n`;
 
-  content += `**Snapshot version:** ${packageVersion}\n`;
+  content += `**${channelLabel} version:** ${packageVersion}\n`;
   content +=
     `**Client version:** ${clientVersion}, **App version:** ${appVersion}, **Toolkit version:** ${toolkitVersion}\n\n`;
 
@@ -328,11 +345,13 @@ export function zulipFormat(
   // macOS .pkg filenames substitute '-' for '+' in the version slug for
   // Artifact Registry compatibility (see build-binary.yaml::prepare_files).
   const macFileSlug = packageVersion.replaceAll("+", "-");
-  // Debian .debs live in the snapshot APT pool under their versioned filenames
-  // (gnosisvpn_<version>_<arch>.deb); the version is the literal padded value
-  // emitted by the build (see linux/nfpm-template.yaml version_schema: none).
-  const debPool = "https://download.gnosisvpn.io/linux/apt/pool/snapshot/g/gnosisvpn";
-  content += ` [Mac](https://download.gnosisvpn.io/macos/latest/gnosisvpn_${macFileSlug}_arm64.pkg) |`;
+  // Debian .debs live in their channel's APT pool under their versioned
+  // filenames (gnosisvpn_<version>_<arch>.deb); the version is the literal
+  // padded value emitted by the build (see linux/nfpm-template.yaml
+  // version_schema: none).
+  const paths = CHANNEL_PATHS[channel];
+  const debPool = `https://download.gnosisvpn.io/linux/apt/${paths.debPool}/g/gnosisvpn`;
+  content += ` [Mac](https://download.gnosisvpn.io/macos/${paths.macDir}/gnosisvpn_${macFileSlug}_arm64.pkg) |`;
   content += ` [Debian x86_64](${debPool}/gnosisvpn_${packageVersion}_amd64.deb) |`;
   content += ` [Debian aarch64](${debPool}/gnosisvpn_${packageVersion}_arm64.deb)\n`;
   return content;
@@ -614,6 +633,16 @@ export function readConfig(): Config {
     Deno.exit(1);
   }
 
+  // Which channel this build is published to, used for the download links.
+  // pr/commit builds pass an empty value; they are never published, so the
+  // snapshot paths are a harmless default.
+  const channel = Deno.env.get("GNOSISVPN_CHANNEL") || "snapshot";
+  if (!["stable", "snapshot", "experimental"].includes(channel)) {
+    console.error(`Error: Unsupported channel: ${channel}`);
+    console.error("Supported channels: stable, snapshot, experimental");
+    Deno.exit(1);
+  }
+
   return {
     repositories: [
       {
@@ -650,6 +679,7 @@ export function readConfig(): Config {
       },
     ],
     format: format as Config["format"],
+    channel: channel as Channel,
     ghApiMaxAttempts: parseInt(Deno.env.get("GH_API_MAX_ATTEMPTS") || "6", 10),
     ghToken,
   };
@@ -699,6 +729,7 @@ async function main(): Promise<void> {
         cliRepo.currentVersion,
         appRepo.currentVersion,
         toolkitRepo.currentVersion,
+        config.channel,
       );
       break;
     case "github":

@@ -33,14 +33,16 @@ PKG_NAME_INSTALLER="gnosisvpn_${PKG_VERSION_SLUG}_${PKG_ARCH}.pkg"
 COMPONENT_PKG="GnosisVPN.pkg"
 
 # Choice packages configuration
-# Format: "type:value" - package name and identifier are derived automatically
-CHOICE_PACKAGES=(
-    "network:jura-prod"
-    "network:jura-dev"
-    "network:piz-palu-dev"
-    "loglevel:info"
-    "loglevel:debug"
-)
+# Format: "type:value" - package name and identifier are derived automatically.
+# The network entries follow GNOSISVPN_NETWORKS (resolved by generate-package.sh
+# before this file is sourced), so each installer line only offers the networks
+# it actually ships.
+CHOICE_PACKAGES=()
+for _network in ${GNOSISVPN_NETWORKS}; do
+    CHOICE_PACKAGES+=("network:${_network}")
+done
+unset _network
+CHOICE_PACKAGES+=("loglevel:info" "loglevel:debug")
 
 # Keychain
 KEYCHAIN_NAME="gnosisvpn.keychain"
@@ -185,6 +187,14 @@ check_platform_prerequisites() {
         fi
     done
 
+    local network
+    for network in ${GNOSISVPN_NETWORKS}; do
+        if [[ ! -f "$RESOURCES_DIR/config/templates/${network}.toml.template" ]]; then
+            log_error "No config template for network '${network}': mac/resources/config/templates/${network}.toml.template not found"
+            missing=$((missing + 1))
+        fi
+    done
+
     if [[ $missing -gt 0 ]]; then
         log_error "Prerequisites check failed. Please install missing tools and verify file structure."
         exit 1
@@ -212,11 +222,23 @@ prepare_build_dir() {
     chmod 0644 "${BUILD_DIR}/scripts/version.txt"
     log_success "Version baked into installer scripts: ${GNOSISVPN_PACKAGE_VERSION}"
 
-    # Copy config templates to package payload
-    if [[ -d "$RESOURCES_DIR/config/templates" ]]; then
-        cp "$RESOURCES_DIR/config/templates"/*.template "${BUILD_DIR}/app-contents/rootfs/etc/gnosisvpn/templates/" || true
-        log_success "Config templates copied"
-    fi
+    # Bake the shipped network list alongside version.txt so the postinstall can
+    # pick a default, reject a stale choice from the other line, and drop
+    # templates it no longer ships.
+    echo "${GNOSISVPN_NETWORKS}" >"${BUILD_DIR}/scripts/networks"
+    chmod 0644 "${BUILD_DIR}/scripts/networks"
+    log_success "Networks baked into installer scripts: ${GNOSISVPN_NETWORKS}"
+
+    # Copy the config templates of the shipped networks into the payload. The
+    # build directory is reused across local builds, so clear any template left
+    # by a build of the other line first.
+    local templates_dst="${BUILD_DIR}/app-contents/rootfs/etc/gnosisvpn/templates"
+    rm -f "${templates_dst}"/*.template
+    local network
+    for network in ${GNOSISVPN_NETWORKS}; do
+        cp "$RESOURCES_DIR/config/templates/${network}.toml.template" "${templates_dst}/"
+    done
+    log_success "Config templates copied: ${GNOSISVPN_NETWORKS}"
 
     # Copy system configuration files to scripts directory (for postinstall access)
     if [[ -d "$RESOURCES_DIR/config/system" ]]; then
@@ -411,6 +433,96 @@ EOF
     done
 }
 
+# Installer copy per network. A case table rather than an associative array:
+# macOS ships /bin/bash 3.2, which has neither `declare -A` nor `${var,,}`.
+# These values are inlined into XML attributes as-is, so keep them free of
+# & < > and double quotes.
+network_title() {
+    case "$1" in
+    jura-prod) echo "Jura Prod" ;;
+    jura-dev) echo "Jura Dev" ;;
+    piz-palu-dev) echo "Piz Palu Dev" ;;
+    *) echo "$1" ;;
+    esac
+}
+
+network_description() {
+    case "$1" in
+    jura-prod) echo "Connect to VPN nodes on the Jura Prod network - US, UK, NL, Brazil, Australia, India, South Korea" ;;
+    jura-dev) echo "Connect to VPN nodes on the Jura Dev network - US, UK, India" ;;
+    piz-palu-dev) echo "Connect to VPN nodes on the Piz Palu Dev network" ;;
+    *) echo "Connect to VPN nodes on the $1 network" ;;
+    esac
+}
+
+# Render mac/Distribution.xml: expand the __NETWORK_*__ placeholders from
+# GNOSISVPN_NETWORKS (first network pre-selected; "(Recommended)" only when more
+# than one is offered) plus __MIN_OS_MACOS__.
+render_distribution_xml() {
+    local src="$1" dst="$2"
+    local nl=$'\n'
+    local sq="'"
+    local networks=()
+    read -r -a networks <<<"${GNOSISVPN_NETWORKS}"
+    if [[ ${#networks[@]} -eq 0 ]]; then
+        log_error "GNOSISVPN_NETWORKS is empty — cannot render ${src}"
+        exit 1
+    fi
+
+    # Mutual-exclusion group passed to the exclusiveEnabled() helper in the XML,
+    # e.g. 'jura-prod','jura-dev'
+    local group="" network
+    for network in "${networks[@]}"; do
+        group="${group:+${group},}${sq}${network}${sq}"
+    done
+
+    local pkg_ref_ids="" choice_lines="" choices="" pkg_refs="" idx=0 title selected
+    for network in "${networks[@]}"; do
+        title="$(network_title "$network")"
+        selected="false"
+        if [[ $idx -eq 0 ]]; then
+            selected="true"
+            [[ ${#networks[@]} -eq 1 ]] || title="${title} (Recommended)"
+        fi
+        pkg_ref_ids+="    <pkg-ref id=\"com.gnosisvpn.choice.network.${network}\"/>${nl}"
+        choice_lines+="            <line choice=\"${network}\"/>${nl}"
+        choices+="    <choice id=\"${network}\"
+            title=\"${title}\"
+            description=\"$(network_description "$network")\"
+            visible=\"true\"
+            enabled=\"exclusiveEnabled(${sq}${network}${sq}, [${group}])\"
+            start_selected=\"${selected}\">
+        <pkg-ref id=\"com.gnosisvpn.choice.network.${network}\"/>
+    </choice>${nl}${nl}"
+        pkg_refs+="    <pkg-ref id=\"com.gnosisvpn.choice.network.${network}\"
+             version=\"0\"
+             auth=\"root\"
+             installKBytes=\"0\"
+             onConclusion=\"none\">
+        #choice-network-${network}.pkg
+    </pkg-ref>${nl}${nl}"
+        idx=$((idx + 1))
+    done
+
+    local xml
+    xml="$(<"$src")"
+    # The replacements are quoted: with bash >= 5.2 patsub_replacement an
+    # unquoted "&" in a replacement would expand to the matched text.
+    xml="${xml//__NETWORK_PKG_REF_IDS__/"${pkg_ref_ids%"$nl"}"}"
+    xml="${xml//__NETWORK_CHOICE_LINES__/"${choice_lines%"$nl"}"}"
+    xml="${xml//__NETWORK_CHOICES__/"${choices%"$nl$nl"}"}"
+    xml="${xml//__NETWORK_PKG_REFS__/"${pkg_refs%"$nl$nl"}"}"
+    xml="${xml//__MIN_OS_MACOS__/"${MIN_OS_MACOS}"}"
+    printf '%s\n' "$xml" >"$dst"
+
+    if grep -q '__[A-Z][A-Z_]*__' "$dst"; then
+        log_error "Unrendered placeholder left in ${dst}:"
+        grep -n '__[A-Z][A-Z_]*__' "$dst" >&2
+        exit 1
+    fi
+    log_success "Rendered Distribution.xml for networks: ${GNOSISVPN_NETWORKS}"
+}
+
 # Build distribution package
 build_distribution_package() {
     log_info "Building distribution package with custom UI..."
@@ -439,7 +551,7 @@ build_distribution_package() {
     fi
 
     local dist_xml_resolved="${BUILD_DIR}/Distribution.xml"
-    sed "s/__MIN_OS_MACOS__/${MIN_OS_MACOS}/g" "$DISTRIBUTION_XML" >"$dist_xml_resolved"
+    render_distribution_xml "$DISTRIBUTION_XML" "$dist_xml_resolved"
 
     productbuild \
         --distribution "$dist_xml_resolved" \

@@ -185,6 +185,68 @@ Deno.test("zulipFormat formats snapshot entries and download links", () => {
   }
 });
 
+Deno.test("zulipFormat formats experimental builds with experimental paths", () => {
+  const output = zulipFormat(
+    [
+      {
+        id: "42",
+        title: "feat(pix): add strategy",
+        author: "octocat",
+        repository: "gnosis/gnosis_vpn-client",
+        component: "cli",
+      } as ChangelogEntry,
+    ],
+    "2026.09.09+build.020000.experimental",
+    "0.100.1",
+    "0.100.0",
+    "1.2.3",
+    "experimental",
+  );
+
+  if (
+    !output.includes("A new experimental build is available for testing with the following new content:\n\n")
+  ) {
+    throw new Error("zulipFormat output is missing the experimental intro");
+  }
+
+  if (!output.includes("**Experimental version:** 2026.09.09+build.020000.experimental\n")) {
+    throw new Error("zulipFormat output is missing the experimental version label");
+  }
+
+  if (
+    !output.includes(
+      "[Mac](https://download.gnosisvpn.io/macos/experimental/gnosisvpn_2026.09.09-build.020000.experimental_arm64.pkg)",
+    )
+  ) {
+    throw new Error("zulipFormat output is missing the experimental Mac download link");
+  }
+
+  if (
+    !output.includes(
+      "[Debian x86_64](https://download.gnosisvpn.io/linux/apt/pool/experimental/g/gnosisvpn/gnosisvpn_2026.09.09+build.020000.experimental_amd64.deb)",
+    )
+  ) {
+    throw new Error("zulipFormat output is missing the experimental Debian x86_64 apt-pool link");
+  }
+
+  if (output.includes("pool/snapshot") || output.includes("macos/latest")) {
+    throw new Error("zulipFormat leaked snapshot paths into an experimental build");
+  }
+});
+
+Deno.test("zulipFormat defaults to the snapshot channel", () => {
+  const withDefault = zulipFormat([], "2026.05.14+build.143052", "0.56.1", "0.6.1", "1.2.3");
+  const withExplicit = zulipFormat(
+    [],
+    "2026.05.14+build.143052",
+    "0.56.1",
+    "0.6.1",
+    "1.2.3",
+    "snapshot",
+  );
+  assertEquals(withDefault, withExplicit);
+});
+
 // --- githubFormat ---
 
 Deno.test("githubFormat - produces expected markdown sections", () => {
@@ -428,6 +490,7 @@ function withConfigEnv(env: Record<string, string>, fn: () => void): void {
     ...Object.keys(BASE_CONFIG_ENV),
     "GNOSISVPN_CHANGELOG_FORMAT",
     "GNOSISVPN_PACKAGE_BRANCH",
+    "GNOSISVPN_CHANNEL",
   ];
   const saved = keys.map((key) => [key, Deno.env.get(key)] as const);
   try {
@@ -451,5 +514,24 @@ Deno.test("readConfig - includes toolkit repository", () => {
     assertEquals(toolkit?.previousVersion, "1.2.2");
     assertEquals(toolkit?.currentVersion, "1.2.3");
     assertEquals(toolkit?.branch, "main");
+  });
+});
+
+Deno.test("readConfig - channel defaults to snapshot", () => {
+  withConfigEnv({}, () => {
+    assertEquals(readConfig().channel, "snapshot");
+  });
+});
+
+Deno.test("readConfig - reads the experimental channel", () => {
+  withConfigEnv({ GNOSISVPN_CHANNEL: "experimental" }, () => {
+    assertEquals(readConfig().channel, "experimental");
+  });
+});
+
+Deno.test("readConfig - an empty channel falls back to snapshot", () => {
+  // pr/commit builds pass GNOSISVPN_CHANNEL="" since they are never published.
+  withConfigEnv({ GNOSISVPN_CHANNEL: "" }, () => {
+    assertEquals(readConfig().channel, "snapshot");
   });
 });

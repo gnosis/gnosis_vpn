@@ -1,6 +1,7 @@
 # Reusable: publishes pre-built .deb artifacts to the APT repo.
 # Callers:
-#   - build-binary.yaml: snapshot channel, runs right after Linux build.
+#   - build-binary.yaml: snapshot and experimental channels, run right after the
+#                        Linux build.
 #   - release.yaml:      stable channel, runs ONLY after the GitHub release
 #                        has been created, so apt clients never see a stable
 #                        version that lacks a matching GitHub release.
@@ -9,7 +10,7 @@ on:
   workflow_call:
     inputs:
       channel:
-        description: 'APT suite to publish into (stable or snapshot)'
+        description: 'APT suite to publish into (stable, snapshot or experimental)'
         required: true
         type: string
       package_version:

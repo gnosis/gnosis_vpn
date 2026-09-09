@@ -5,6 +5,12 @@
 # Creates system user/group and configures the service after files are installed.
 # Compatible with: deb (apt/dpkg), rpm (yum/dnf), archlinux (pacman)
 #
+# The networks this package ships are baked into /usr/share/gnosisvpn/networks
+# (first entry = default). Two installer lines exist — stable/snapshot ship the
+# jura networks, experimental ships piz-palu-dev — so a channel switch leaves the
+# other line's configs behind as obsolete conffiles. Anything selecting or
+# validating a network must therefore consult that list, not the files on disk.
+#
 
 set -euo pipefail
 
@@ -56,29 +62,53 @@ remove_retired_conffiles() {
     done
 }
 
+# Networks shipped by this package (space-separated, first = default), baked at
+# build time by generate-package-linux.sh. Packages built before this file
+# existed, and non-deb hosts that never received it, fall back to the historical
+# default so an upgrade cannot lose its network selection.
+SHIPPED_NETWORKS=()
+load_shipped_networks() {
+    if [[ -r /usr/share/gnosisvpn/networks ]]; then
+        read -r -a SHIPPED_NETWORKS </usr/share/gnosisvpn/networks || true
+    fi
+    if [[ ${#SHIPPED_NETWORKS[@]} -eq 0 ]]; then
+        echo "$LOG_PREFIX WARNING: /usr/share/gnosisvpn/networks missing or empty — assuming 'jura-prod'"
+        SHIPPED_NETWORKS=(jura-prod)
+    fi
+}
+
+is_shipped_network() {
+    local candidate="$1" network
+    for network in "${SHIPPED_NETWORKS[@]}"; do
+        [[ $network == "$candidate" ]] && return 0
+    done
+    return 1
+}
+
 # Configure ownership and permissions for directories and binaries
 configure_filesystem_permissions() {
     # Precedence: explicit GNOSISVPN_HOPR_BLOKLI_URL > derived from network > pre-existing/legacy value.
-    local network_name blokli_url
-    network_name="${GNOSISVPN_NETWORK:-jura-prod}"
+    local network_name blokli_url default_network="${SHIPPED_NETWORKS[0]}"
+    network_name="${GNOSISVPN_NETWORK:-$default_network}"
 
-    # Accept retired names from old docs/pinned scripts without aborting.
-    if [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
+    # Accept retired names from old docs/pinned scripts without aborting, but
+    # only when the successor is one this package ships.
+    if ! is_shipped_network "$network_name"; then
         local successor
         successor="$(retired_network_successor "$network_name")"
-        if [[ -n $successor && -f /etc/gnosisvpn/config-${successor}.toml ]]; then
+        if [[ -n $successor ]] && is_shipped_network "$successor"; then
             echo "$LOG_PREFIX INFO: Network '${network_name}' was renamed to '${successor}' — using '${successor}'"
             network_name="$successor"
         fi
     fi
 
-    # Guard against a dangling config.toml or bogus default URL from a typo.
-    if [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
-        echo "$LOG_PREFIX ERROR: Unknown network '${network_name}': /etc/gnosisvpn/config-${network_name}.toml not found" >&2
-        local available
-        available="$(cd /etc/gnosisvpn 2>/dev/null && ls config-*.toml 2>/dev/null |
-            sed 's/^config-//; s/\.toml$//' | paste -sd', ' - || true)"
-        echo "$LOG_PREFIX ERROR: Supported networks: ${available:-none}" >&2
+    # Guard against a typo, or a network belonging to the other installer line
+    # whose config is still on disk as an obsolete conffile. The supported list
+    # comes from the baked list, not from `ls config-*.toml`, which would also
+    # offer those leftovers.
+    if ! is_shipped_network "$network_name" || [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
+        echo "$LOG_PREFIX ERROR: Network '${network_name}' is not shipped by this package" >&2
+        echo "$LOG_PREFIX ERROR: Supported networks: ${SHIPPED_NETWORKS[*]}" >&2
         exit 1
     fi
 
@@ -126,13 +156,20 @@ configure_filesystem_permissions() {
         current="${current#config-}"
         current="${current%.toml}"
         successor="$(retired_network_successor "$current")"
-        # Unknown retired name with missing target: fall back to the resolved default.
-        if [[ -z $successor && ! -f /etc/gnosisvpn/config-${current}.toml ]]; then
+        # A rename whose new name this line does not ship is no use here; fall
+        # through to the default below instead.
+        if [[ -n $successor ]] && ! is_shipped_network "$successor"; then
+            successor=""
+        fi
+        # Not shipped by this package (the other line's obsolete conffile, or an
+        # unknown name) or the target is gone: fall back to the resolved default.
+        if [[ -z $successor ]] &&
+            { ! is_shipped_network "$current" || [[ ! -f /etc/gnosisvpn/config-${current}.toml ]]; }; then
             successor="$network_name"
         fi
         if [[ -n $successor && $successor != "$current" ]]; then
             if [[ -f /etc/gnosisvpn/config-${successor}.toml ]]; then
-                echo "$LOG_PREFIX INFO: Re-pointing /etc/gnosisvpn/config.toml: config-${current}.toml (no longer shipped) -> config-${successor}.toml"
+                echo "$LOG_PREFIX INFO: Re-pointing /etc/gnosisvpn/config.toml: config-${current}.toml (not shipped by this package) -> config-${successor}.toml"
                 ln -sf /etc/gnosisvpn/config-"$successor".toml /etc/gnosisvpn/config.toml
                 migrated_from="$current"
                 network_name="$successor"
@@ -242,7 +279,9 @@ register_apt_repo() {
     local keyring_src="/usr/share/gnosisvpn/gnosisvpn-archive-keyring.gpg"
     local keyring_dst="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 
-    # Any "+" in version means snapshot channel.
+    # The channel is encoded in the version string. Experimental versions are
+    # snapshot-shaped (+build.<time>) with a trailing ".experimental" marker, so
+    # that suffix MUST be tested before the generic "+" case.
     local version channel component uris
     version="$(cat /etc/gnosisvpn/version.txt 2>/dev/null || echo "")"
     if [[ -z $version ]]; then
@@ -254,16 +293,25 @@ register_apt_repo() {
         fi
         return 0
     fi
-    if [[ $version == *"+"* ]]; then
+    case "$version" in
+    *.experimental | *.experimental.*)
+        channel="experimental"
+        component="experimental"
+        # Only gnosisvpn.io publishes dists/experimental/.
+        uris="https://download.gnosisvpn.io/linux/apt"
+        ;;
+    *"+"*)
         channel="snapshot"
         component="snapshot"
         # Only gnosisvpn.io publishes dists/snapshot/.
         uris="https://download.gnosisvpn.io/linux/apt"
-    else
+        ;;
+    *)
         channel="stable"
         component="main"
         uris="https://download.vpn.gnosis.eth.limo/linux/apt https://download.gnosisvpn.io/linux/apt"
-    fi
+        ;;
+    esac
 
     # Always restore the keyring so a user who deleted it gets it back on the next upgrade.
     if [[ ! -f $keyring_src ]]; then
@@ -478,6 +526,7 @@ main() {
     create_system_user_and_group
     # TODO: remove the removal code by December 2027 (see remove_retired_conffiles).
     remove_retired_conffiles "$@"
+    load_shipped_networks
     configure_filesystem_permissions
     # TODO: remove the removal code by December 2026 (see remove_legacy_apt_mirror).
     remove_legacy_apt_mirror

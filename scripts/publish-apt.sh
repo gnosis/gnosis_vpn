@@ -3,14 +3,19 @@
 # Build and publish a signed APT repository to gs://download.gnosisvpn.io/linux/apt
 # using reprepro.
 #
-# Two channels are supported:
-#   stable    - append-only pool, all historical releases kept under
-#               pool/main/g/gnosisvpn/ (Components: main).
-#   snapshot  - append-only pool, all historical snapshots kept under
-#               pool/snapshot/g/gnosisvpn/ (Components: snapshot). Filenames are
-#               version-pinned so old .debs stay reachable for in-flight installs.
-#               A separate retention pass is expected to prune old snapshots
-#               periodically.
+# Three channels are supported:
+#   stable        - append-only pool, all historical releases kept under
+#                   pool/main/g/gnosisvpn/ (Components: main).
+#   snapshot      - append-only pool, all historical snapshots kept under
+#                   pool/snapshot/g/gnosisvpn/ (Components: snapshot). Filenames
+#                   are version-pinned so old .debs stay reachable for in-flight
+#                   installs. A separate retention pass is expected to prune old
+#                   snapshots periodically.
+#   experimental  - append-only pool under pool/experimental/g/gnosisvpn/
+#                   (Components: experimental), same retention model as snapshot.
+#                   Serves the installer line built against the newer client/app
+#                   generation and is published to download.gnosisvpn.io only
+#                   (never mirrored to IPFS).
 #
 # Repository metadata (Packages, Release, InRelease, Release.gpg) is produced
 # by reprepro from linux/apt/conf/distributions. Reprepro drives gpg via
@@ -41,10 +46,11 @@ GNUPGHOME_AUTO=0
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") --channel <stable|snapshot> --debs <dir> [options]
+Usage: $(basename "$0") --channel <stable|snapshot|experimental> --debs <dir> [options]
 
 Required:
-  --channel <stable|snapshot>     APT suite to publish into
+  --channel <stable|snapshot|experimental>
+                                  APT suite to publish into
   --debs <dir>                    Directory containing freshly built .deb files.
                                   Must include:
                                     - gnosisvpn_<version>_amd64.deb
@@ -118,10 +124,13 @@ parse_args() {
         esac
     done
 
-    if [[ $CHANNEL != "stable" && $CHANNEL != "snapshot" ]]; then
-        log_error "--channel must be 'stable' or 'snapshot' (got: '${CHANNEL}')"
+    case "$CHANNEL" in
+    stable | snapshot | experimental) ;;
+    *)
+        log_error "--channel must be 'stable', 'snapshot' or 'experimental' (got: '${CHANNEL}')"
         usage
-    fi
+        ;;
+    esac
     if [[ -z $DEBS_DIR || ! -d $DEBS_DIR ]]; then
         log_error "--debs must point to an existing directory (got: '${DEBS_DIR}')"
         usage
@@ -203,12 +212,20 @@ parse_args() {
 
 # Bucket and work-dir paths for each channel. Reprepro derives the pool path
 # from the Components: field in conf/distributions, so these must match:
-#   stable    Components: main      → pool/main/g/gnosisvpn/
-#   snapshot  Components: snapshot  → pool/snapshot/g/gnosisvpn/
+#   stable        Components: main          → pool/main/g/gnosisvpn/
+#   snapshot      Components: snapshot      → pool/snapshot/g/gnosisvpn/
+#   experimental  Components: experimental  → pool/experimental/g/gnosisvpn/
+# An unknown channel must fail loudly: returning an empty path here would make
+# the caller rsync and publish against the bucket root.
 pool_subpath_for_channel() {
     case "$1" in
     stable) echo "pool/main/g/gnosisvpn" ;;
     snapshot) echo "pool/snapshot/g/gnosisvpn" ;;
+    experimental) echo "pool/experimental/g/gnosisvpn" ;;
+    *)
+        log_error "No pool path for channel '${1}'"
+        exit 1
+        ;;
     esac
 }
 
@@ -216,6 +233,11 @@ component_for_channel() {
     case "$1" in
     stable) echo "main" ;;
     snapshot) echo "snapshot" ;;
+    experimental) echo "experimental" ;;
+    *)
+        log_error "No component for channel '${1}'"
+        exit 1
+        ;;
     esac
 }
 
@@ -303,7 +325,7 @@ stage_pool() {
             if [[ $CHANNEL == "stable" ]]; then
                 log_error "Re-releasing the same version is not supported — bump package.json or delete the old .deb manually."
             else
-                log_error "Snapshot filenames embed a timestamp and must not be reused — rebuild with a fresh version or delete the old .deb manually."
+                log_error "${CHANNEL} filenames embed a timestamp and must not be reused — rebuild with a fresh version or delete the old .deb manually."
             fi
             exit 1
         fi

@@ -16,6 +16,20 @@ set -euo pipefail
 # Source common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
+# shellcheck source=config.sh
+source "${SCRIPT_DIR}/config.sh"
+
+# Which networks this package ships, and which channel it is published to.
+# CI exports both (see build-binary.yaml); a local build without them gets the
+# set implied by GNOSISVPN_CHANNEL, defaulting to the standard line.
+# Resolved here, before the platform script is sourced in parse_args, because
+# generate-package-mac.sh builds its choice-package list at source time.
+: "${GNOSISVPN_CHANNEL:=}"
+case "${GNOSISVPN_CHANNEL}" in
+experimental) : "${GNOSISVPN_NETWORKS:=${NETWORKS_EXPERIMENTAL}}" ;;
+*) : "${GNOSISVPN_NETWORKS:=${NETWORKS_STANDARD}}" ;;
+esac
+export GNOSISVPN_CHANNEL GNOSISVPN_NETWORKS
 
 # shellcheck disable=SC2317
 cleanup() {
@@ -103,7 +117,38 @@ parse_args() {
         parse_platform_args
     fi
 
+    validate_channel_version
+
     log_success "Command-line arguments parsed successfully"
+}
+
+# The channel a package belongs to is inferred from its version string after
+# installation (linux/scripts/postinstall.sh::register_apt_repo picks the APT
+# suite that way, and the macOS updater does the same), so a package whose
+# version does not match its channel would register the wrong suite. Refuse the
+# mismatch at build time instead.
+validate_channel_version() {
+    case "${GNOSISVPN_CHANNEL}" in
+    experimental)
+        case "${GNOSISVPN_PACKAGE_VERSION}" in
+        *.experimental | *.experimental.*) ;;
+        *)
+            log_error "GNOSISVPN_CHANNEL=experimental requires a version ending in '.experimental'"
+            log_error "Expected YYYY.MM.DD+build.HHMMSS.experimental, got: ${GNOSISVPN_PACKAGE_VERSION}"
+            exit 1
+            ;;
+        esac
+        ;;
+    stable | snapshot)
+        case "${GNOSISVPN_PACKAGE_VERSION}" in
+        *.experimental | *.experimental.*)
+            log_error "GNOSISVPN_CHANNEL=${GNOSISVPN_CHANNEL} must not be built from an experimental version"
+            log_error "Got: ${GNOSISVPN_PACKAGE_VERSION}"
+            exit 1
+            ;;
+        esac
+        ;;
+    esac
 }
 
 print_banner() {
@@ -114,6 +159,8 @@ print_banner() {
     echo "Package Version:            ${GNOSISVPN_PACKAGE_VERSION}"
     echo "Distribution:               ${GNOSISVPN_DISTRIBUTION}"
     echo "Architecture:               ${GNOSISVPN_ARCHITECTURE}"
+    echo "Channel:                    ${GNOSISVPN_CHANNEL:-(none)}"
+    echo "Networks:                   ${GNOSISVPN_NETWORKS}"
     echo "Signing:                    $(if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then echo "Enabled"; else echo "Disabled"; fi)"
     print_platform_banner
     echo "=========================================="
