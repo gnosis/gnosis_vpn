@@ -402,6 +402,27 @@ apt_install() {
     ${SUDO} env "${install_env[@]}" apt-get install "${apt_opts[@]}" "$package"
 }
 
+# Mirrors the package postinstall's notice — apt's own output usually scrolls past it.
+print_bbr_note() {
+    local file=/etc/sysctl.d/99-gnosisvpn-bbr.conf
+    [[ -f $file ]] || return 0
+    local active note=""
+    active="$(cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null || true)"
+    if [[ -n $active && $active != "bbr" ]]; then
+        note="  <- not active yet (currently ${active}); applies on the next boot"
+    fi
+    cat <<EOF
+
+[gnosisvpn] Network tuning: the package installed ${file}, which enables TCP BBR
+    congestion control system-wide to speed up traffic sent through the tunnel:
+        net.ipv4.tcp_congestion_control = bbr${note}
+        net.core.default_qdisc = fq
+    To disable:  sudo rm ${file}
+                 sudo sysctl -w net.ipv4.tcp_congestion_control=cubic
+                 sudo sysctl -w net.core.default_qdisc=fq_codel
+EOF
+}
+
 print_postinstall() {
     cat <<'EOF'
 
@@ -432,6 +453,7 @@ main() {
     write_sources
     apt_install
     print_postinstall
+    print_bbr_note
 }
 
 main "$@"

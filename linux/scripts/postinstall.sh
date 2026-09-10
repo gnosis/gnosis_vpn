@@ -400,6 +400,122 @@ reset_identity_if_requested() {
     # Leave gnosisvpn-dynamic.env intact; it holds GNOSISVPN_HOPR_BLOKLI_URL — deleting it would leave the service with an empty URL (clap rejects that).
 }
 
+# System-wide TCP BBR drop-in shipped by this package. It is a conffile: an admin who deletes it
+# keeps it deleted across upgrades, which is exactly the documented way to opt out.
+SYSCTL_BBR_FILE=/etc/sysctl.d/99-gnosisvpn-bbr.conf
+BBR_STATUS="skipped"
+BBR_PREVIOUS_CONGESTION_CONTROL=""
+BBR_PREVIOUS_QDISC=""
+
+read_sysctl() {
+    cat "/proc/sys/${1//.//}" 2>/dev/null || true
+}
+
+# Echoes "<file>=<value>" for a congestion control setting that outranks our drop-in at boot:
+# /etc/sysctl.conf is always read last, /etc/sysctl.d entries only when they sort after ours.
+conflicting_congestion_control() {
+    local our_base file base value
+    our_base="$(basename "$SYSCTL_BBR_FILE")"
+    for file in /etc/sysctl.d/*.conf /etc/sysctl.conf; do
+        [[ -f $file ]] || continue
+        if [[ $file == /etc/sysctl.d/* ]]; then
+            base="$(basename "$file")"
+            [[ $base == "$our_base" ]] && continue
+            [[ $base > $our_base ]] || continue
+        fi
+        value="$(sed -n -E 's/^[[:space:]]*net\.ipv4\.tcp_congestion_control[[:space:]]*=[[:space:]]*([^[:space:]#]+).*/\1/p' \
+            "$file" | tail -n1)"
+        if [[ -n $value && $value != "bbr" ]]; then
+            echo "${file}=${value}"
+            return 0
+        fi
+    done
+    # Explicit success: the caller runs under `set -e`, where a loop ending on a failed test would abort.
+    return 0
+}
+
+# Turn on BBR + fq now; the drop-in itself keeps them on across reboots.
+configure_tcp_bbr() {
+    if [[ ! -f $SYSCTL_BBR_FILE ]]; then
+        # Conffile removed on purpose; dpkg never restores it and neither do we.
+        echo "$LOG_PREFIX INFO: $SYSCTL_BBR_FILE is absent — leaving TCP congestion control alone"
+        BBR_STATUS="absent"
+        return 0
+    fi
+
+    if ! command -v sysctl >/dev/null 2>&1; then
+        echo "$LOG_PREFIX WARNING: sysctl not found — $SYSCTL_BBR_FILE takes effect on the next boot" >&2
+        BBR_STATUS="deferred"
+        return 0
+    fi
+
+    BBR_PREVIOUS_CONGESTION_CONTROL="$(read_sysctl net.ipv4.tcp_congestion_control)"
+    BBR_PREVIOUS_QDISC="$(read_sysctl net.core.default_qdisc)"
+
+    # bbr usually ships as a module that is only autoloaded on demand.
+    if ! grep -qw bbr /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null; then
+        modprobe tcp_bbr >/dev/null 2>&1 || true
+    fi
+    if ! grep -qw bbr /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null; then
+        echo "$LOG_PREFIX WARNING: This kernel does not offer BBR — keeping $SYSCTL_BBR_FILE for a future kernel" >&2
+        BBR_STATUS="unsupported"
+        return 0
+    fi
+
+    local conflict
+    conflict="$(conflicting_congestion_control)"
+    if [[ -n $conflict ]]; then
+        echo "$LOG_PREFIX INFO: ${conflict%%=*} sets net.ipv4.tcp_congestion_control=${conflict#*=} and takes precedence over $SYSCTL_BBR_FILE — not enabling BBR"
+        BBR_STATUS="overridden"
+        return 0
+    fi
+
+    if sysctl -q -p "$SYSCTL_BBR_FILE" >/dev/null 2>&1; then
+        BBR_STATUS="applied"
+    else
+        # Containers without CAP_SYS_ADMIN cannot write these knobs; a normal host still picks the drop-in up at boot.
+        echo "$LOG_PREFIX WARNING: Could not apply $SYSCTL_BBR_FILE now — it takes effect on the next boot" >&2
+        BBR_STATUS="deferred"
+    fi
+}
+
+# Final notice about the system-wide network tuning this package installs.
+print_tcp_bbr_summary() {
+    case "$BBR_STATUS" in
+    applied | deferred) ;;
+    *) return 0 ;;
+    esac
+
+    # Kernel defaults are the sensible thing to revert to when the previous value was already ours.
+    local previous_cc="${BBR_PREVIOUS_CONGESTION_CONTROL:-cubic}"
+    local previous_qdisc="${BBR_PREVIOUS_QDISC:-fq_codel}"
+    [[ $previous_cc == "bbr" ]] && previous_cc="cubic"
+    [[ $previous_qdisc == "fq" ]] && previous_qdisc="fq_codel"
+
+    echo "$LOG_PREFIX INFO: ----------------------------------------------------------------"
+    if [[ $BBR_STATUS == "applied" ]]; then
+        echo "$LOG_PREFIX INFO: TCP BBR congestion control is now enabled system-wide."
+    else
+        echo "$LOG_PREFIX INFO: TCP BBR congestion control will be enabled system-wide on the next boot."
+    fi
+    echo "$LOG_PREFIX INFO: It speeds up traffic sent through the VPN tunnel."
+    echo "$LOG_PREFIX INFO: New file: $SYSCTL_BBR_FILE"
+
+    # Report what is live once applied; otherwise what the drop-in will set at boot.
+    local effective_cc="bbr" effective_qdisc="fq"
+    if [[ $BBR_STATUS == "applied" ]]; then
+        effective_cc="$(read_sysctl net.ipv4.tcp_congestion_control)"
+        effective_qdisc="$(read_sysctl net.core.default_qdisc)"
+    fi
+    echo "$LOG_PREFIX INFO:   net.ipv4.tcp_congestion_control = ${effective_cc} (was: ${previous_cc})"
+    echo "$LOG_PREFIX INFO:   net.core.default_qdisc = ${effective_qdisc} (was: ${previous_qdisc})"
+    echo "$LOG_PREFIX INFO: To disable it:"
+    echo "$LOG_PREFIX INFO:   sudo rm $SYSCTL_BBR_FILE"
+    echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=${previous_cc}"
+    echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=${previous_qdisc}"
+    echo "$LOG_PREFIX INFO: ----------------------------------------------------------------"
+}
+
 # Enable and start the systemd service
 enable_and_start_systemd_service() {
     echo "$LOG_PREFIX INFO: Setting up systemd service..."
@@ -530,10 +646,12 @@ main() {
     remove_legacy_apt_mirror
     register_apt_repo
     reset_identity_if_requested
+    configure_tcp_bbr
     enable_and_start_systemd_service
     install_desktop_shortcut_for_user
 
     echo "$LOG_PREFIX SUCCESS: Post-installation completed successfully"
+    print_tcp_bbr_summary
 }
 
 # Args forwarded for dpkg-maintscript-helper (see remove_retired_conffiles).

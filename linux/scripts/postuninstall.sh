@@ -92,6 +92,15 @@ if [[ $IS_PURGE == "true" ]]; then
         rm -f /etc/logrotate.d/gnosisvpn
     fi
 
+    # Same conffile reasoning for the BBR drop-in; the running values stay until reboot, so say how to reset them.
+    if [[ -f /etc/sysctl.d/99-gnosisvpn-bbr.conf ]]; then
+        echo "$LOG_PREFIX INFO: Removing TCP BBR configuration: /etc/sysctl.d/99-gnosisvpn-bbr.conf"
+        rm -f /etc/sysctl.d/99-gnosisvpn-bbr.conf
+        echo "$LOG_PREFIX INFO: BBR stays active until the next reboot; reset it now with:"
+        echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=cubic"
+        echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=fq_codel"
+    fi
+
     # Remove state directory
     if [[ -d /var/lib/gnosisvpn ]]; then
         echo "$LOG_PREFIX INFO: Removing state directory: /var/lib/gnosisvpn"

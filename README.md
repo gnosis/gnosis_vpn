@@ -185,6 +185,40 @@ Direct `.deb` installs have no flags — these environment variables configure t
   sudo env GNOSISVPN_RESET_IDENTITY=true apt install ./gnosisvpn_*.deb
   ```
 
+### Network Tuning: TCP BBR
+
+The package installs `/etc/sysctl.d/99-gnosisvpn-bbr.conf`, which switches the kernel to the BBR congestion control
+algorithm together with the `fq` queueing discipline:
+
+```
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+```
+
+Both are system-wide settings, not VPN-specific ones — they improve throughput and latency of traffic sent through the
+tunnel. The postinstall also applies them right away, so no reboot is needed:
+
+```bash
+# enable BBR
+sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
+sudo sysctl -w net.core.default_qdisc=fq
+```
+
+It skips that step (leaving the file in place for a later kernel) when the kernel does not offer BBR, and it leaves an
+existing setting in charge when `/etc/sysctl.conf` — or an `/etc/sysctl.d` drop-in sorting after ours — already pins a
+different `net.ipv4.tcp_congestion_control`. What actually happened is printed at the end of the installation.
+
+To disable it again:
+
+```bash
+sudo rm /etc/sysctl.d/99-gnosisvpn-bbr.conf
+sudo sysctl -w net.ipv4.tcp_congestion_control=cubic
+sudo sysctl -w net.core.default_qdisc=fq_codel
+```
+
+The file is a dpkg conffile: once removed, upgrades do not bring it back. `sudo apt purge gnosisvpn` removes it as well,
+and the values stay as they are until they are reset with the `sysctl -w` commands above or the machine reboots.
+
 ## Reporting Issues
 
 To help us manage feedback and improve the project, we use a discussion-first process for all bug reports and feature
