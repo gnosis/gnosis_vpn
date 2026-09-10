@@ -16,7 +16,7 @@
 #   $4: Root directory "/" for the current system
 #
 # Environment variables from Distribution.xml choices:
-#   INSTALLER_CHOICE_NETWORK: "jura-prod", "jura-dev", "piz-palu-dev"
+#   INSTALLER_CHOICE_NETWORK: one of the networks listed in ${SCRIPT_DIR}/networks
 #   INSTALLER_CHOICE_LOGLEVEL: "debug" or "info"
 
 set -euo pipefail
@@ -81,12 +81,31 @@ if [[ -z "$INSTALLER_VERSION" ]]; then
     exit 1
 fi
 
+# Networks this installer ships (first = default), baked by generate-package-mac.sh; older packages fall back to the historical default.
+SHIPPED_NETWORKS=()
+if [[ -r "${SCRIPT_DIR}/networks" ]]; then
+    read -r -a SHIPPED_NETWORKS <"${SCRIPT_DIR}/networks" || true
+fi
+if [[ ${#SHIPPED_NETWORKS[@]} -eq 0 ]]; then
+    log_warn "Missing or empty ${SCRIPT_DIR}/networks — assuming 'jura-prod'"
+    SHIPPED_NETWORKS=(jura-prod)
+fi
+DEFAULT_NETWORK="${SHIPPED_NETWORKS[0]}"
+
+is_shipped_network() {
+    local candidate="$1" network
+    for network in "${SHIPPED_NETWORKS[@]}"; do
+        [[ "$network" == "$candidate" ]] && return 0
+    done
+    return 1
+}
+
 load_installer_choices() {
     local choice_dir="/Library/Logs/GnosisVPN/installer"
     local network_choice_file="${choice_dir}/network_choice"
     local loglevel_choice_file="${choice_dir}/loglevel_choice"
 
-    INSTALLER_CHOICE_NETWORK="jura-prod"
+    INSTALLER_CHOICE_NETWORK="$DEFAULT_NETWORK"
     INSTALLER_CHOICE_LOGLEVEL="info"
 
     if [[ -f "$network_choice_file" ]]; then
@@ -94,7 +113,13 @@ load_installer_choices() {
         # shellcheck disable=SC1090
         source "$network_choice_file"
     else
-        log_warn "Network choice file not found, defaulting to jura-prod"
+        log_warn "Network choice file not found, defaulting to ${DEFAULT_NETWORK}"
+    fi
+
+    # The choice file persists between installs, so it can name a network from the other line.
+    if ! is_shipped_network "$INSTALLER_CHOICE_NETWORK"; then
+        log_warn "Network choice '${INSTALLER_CHOICE_NETWORK}' is not shipped by this installer (${SHIPPED_NETWORKS[*]}) — using ${DEFAULT_NETWORK}"
+        INSTALLER_CHOICE_NETWORK="$DEFAULT_NETWORK"
     fi
 
     if [[ -f "$loglevel_choice_file" ]]; then
@@ -790,6 +815,17 @@ setup_configuration_files() {
     # Ensure config directory exists
     mkdir -p "$CONFIG_DIR"
 
+    # The payload only adds files, so drop the other line's templates before they are re-materialized below.
+    local stale_template stale_network
+    for stale_template in "${TEMPLATE_DIR_INSTALLED}"/*.template; do
+        [[ -f "$stale_template" ]] || continue
+        stale_network="$(basename "$stale_template" .toml.template)"
+        if ! is_shipped_network "$stale_network"; then
+            log_info "Removing template not shipped by this installer: $(basename "$stale_template")"
+            rm -f "$stale_template"
+        fi
+    done
+
     # Copy template files as configuration files (remove .template suffix)
     local template_files=("${TEMPLATE_DIR_INSTALLED}"/*.template)
     local copied=0
@@ -826,8 +862,8 @@ create_config_symlink() {
     # Check if target configuration exists
     if [[ ! -f "$target_config" ]]; then
         log_warn "Configuration file not found: $target_config"
-        log_info "Falling back to jura-prod.toml"
-        target_config="${CONFIG_DIR}/jura-prod.toml"
+        log_info "Falling back to ${DEFAULT_NETWORK}.toml"
+        target_config="${CONFIG_DIR}/${DEFAULT_NETWORK}.toml"
 
         if [[ ! -f "$target_config" ]]; then
             log_error "Default configuration file not found: $target_config"

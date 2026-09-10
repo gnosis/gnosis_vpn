@@ -16,6 +16,17 @@ set -euo pipefail
 # Source common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
+# shellcheck source=config.sh
+source "${SCRIPT_DIR}/config.sh"
+
+# Networks and channel of this build, resolved before the platform script is sourced because it needs them at source time.
+: "${GNOSISVPN_CHANNEL:=}"
+case "${GNOSISVPN_CHANNEL}" in
+experimental) : "${GNOSISVPN_NETWORKS:=${NETWORKS_EXPERIMENTAL}}" ;;
+*) : "${GNOSISVPN_NETWORKS:=${NETWORKS_STANDARD}}" ;;
+esac
+validate_network_names "${GNOSISVPN_NETWORKS}" || exit 1
+export GNOSISVPN_CHANNEL GNOSISVPN_NETWORKS
 
 # shellcheck disable=SC2317
 cleanup() {
@@ -103,7 +114,35 @@ parse_args() {
         parse_platform_args
     fi
 
+    validate_channel_version
+
     log_success "Command-line arguments parsed successfully"
+}
+
+# Channel implied by a version string; MUST match register_apt_repo in linux/scripts/postinstall.sh (".experimental" first).
+channel_from_version() {
+    case "$1" in
+    *.experimental | *.experimental.*) echo "experimental" ;;
+    *"+"*) echo "snapshot" ;;
+    *) echo "stable" ;;
+    esac
+}
+
+# A version implying another channel would register the wrong APT suite after install; refuse it at build time.
+validate_channel_version() {
+    # pr and commit builds are never published, so they carry no channel.
+    [[ -n ${GNOSISVPN_CHANNEL} ]] || return 0
+
+    local inferred
+    inferred="$(channel_from_version "${GNOSISVPN_PACKAGE_VERSION}")"
+    if [[ ${inferred} != "${GNOSISVPN_CHANNEL}" ]]; then
+        log_error "Version does not match the channel being built"
+        log_error "  GNOSISVPN_CHANNEL:         ${GNOSISVPN_CHANNEL}"
+        log_error "  GNOSISVPN_PACKAGE_VERSION: ${GNOSISVPN_PACKAGE_VERSION}"
+        log_error "  channel implied by version: ${inferred}"
+        log_error "Expected shapes: stable x.y.z | snapshot YYYY.MM.DD+build.HHMMSS | experimental YYYY.MM.DD+build.HHMMSS.experimental"
+        exit 1
+    fi
 }
 
 print_banner() {
@@ -114,6 +153,8 @@ print_banner() {
     echo "Package Version:            ${GNOSISVPN_PACKAGE_VERSION}"
     echo "Distribution:               ${GNOSISVPN_DISTRIBUTION}"
     echo "Architecture:               ${GNOSISVPN_ARCHITECTURE}"
+    echo "Channel:                    ${GNOSISVPN_CHANNEL:-(none)}"
+    echo "Networks:                   ${GNOSISVPN_NETWORKS}"
     echo "Signing:                    $(if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then echo "Enabled"; else echo "Disabled"; fi)"
     print_platform_banner
     echo "=========================================="
