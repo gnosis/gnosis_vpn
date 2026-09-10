@@ -80,6 +80,40 @@ is_shipped_network() {
 
 # Configure ownership and permissions for directories and binaries
 configure_filesystem_permissions() {
+    echo "$LOG_PREFIX INFO: Setting up directory permissions..."
+
+    # nfpm may have created it with a numeric UID; fix ownership here.
+    mkdir -p /etc/gnosisvpn
+    # root-owned so the unprivileged worker cannot replace files loaded by the root service
+    chown root:gnosisvpn /etc/gnosisvpn
+    chmod 755 /etc/gnosisvpn
+    chown gnosisvpn:gnosisvpn /etc/gnosisvpn/*.toml 2>/dev/null || true
+    chmod 644 /etc/gnosisvpn/*.toml 2>/dev/null || true
+
+    mkdir -p /var/log/gnosisvpn
+    chown -R gnosisvpn:gnosisvpn /var/log/gnosisvpn
+    chmod -R 755 /var/log/gnosisvpn
+
+    mkdir -p /var/lib/gnosisvpn
+    chown -R gnosisvpn:gnosisvpn /var/lib/gnosisvpn
+    chmod -R 775 /var/lib/gnosisvpn
+
+    # nfpm installs binaries before the user exists; fix ownership here.
+    if [[ -f /usr/bin/gnosis_vpn-worker ]]; then
+        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-worker
+    fi
+    if [[ -f /usr/bin/gnosis_vpn-ctl ]]; then
+        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-ctl
+    fi
+    if [[ -f /usr/bin/gnosis_vpn-app ]]; then
+        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-app
+    fi
+
+    echo "$LOG_PREFIX SUCCESS: Directory permissions configured"
+}
+
+# Point /etc/gnosisvpn/config.toml at the selected network and write its Blokli endpoint.
+configure_network_selection() {
     # Precedence: explicit GNOSISVPN_HOPR_BLOKLI_URL > derived from network > pre-existing/legacy value.
     local network_name blokli_url default_network="${SHIPPED_NETWORKS[0]}"
     network_name="${GNOSISVPN_NETWORK:-$default_network}"
@@ -95,10 +129,18 @@ configure_filesystem_permissions() {
     fi
 
     # Checked against the baked list, not `ls config-*.toml`, which would also offer the other line's leftover conffiles.
-    if ! is_shipped_network "$network_name" || [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
+    if ! is_shipped_network "$network_name"; then
         echo "$LOG_PREFIX ERROR: Network '${network_name}' is not shipped by this package" >&2
         echo "$LOG_PREFIX ERROR: Supported networks: ${SHIPPED_NETWORKS[*]}" >&2
         exit 1
+    fi
+
+    # dpkg never restores conffiles deleted outside of it, so failing here would brick every later apt run.
+    if [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
+        echo "$LOG_PREFIX ERROR: Missing /etc/gnosisvpn/config-${network_name}.toml" >&2
+        echo "$LOG_PREFIX ERROR: Restore it with: sudo dpkg -i --force-confmiss /path/to/gnosisvpn_*.deb" >&2
+        echo "$LOG_PREFIX WARNING: Skipping network setup — the service cannot start until the file is back" >&2
+        return 0
     fi
 
     # Network name is <prefix>-<env>; endpoint mirrors that split. Reject non-http(s) URLs to prevent env injection via EnvironmentFile.
@@ -113,25 +155,6 @@ configure_filesystem_permissions() {
             exit 1
         fi
     fi
-    echo "$LOG_PREFIX INFO: Setting up directory permissions..."
-
-    # nfpm may have created config dir with numeric UID; fix it here.
-    if [[ ! -d /etc/gnosisvpn ]]; then
-        mkdir -p /etc/gnosisvpn
-    fi
-    # root-owned so the unprivileged worker cannot replace files loaded by the root service
-    chown root:gnosisvpn /etc/gnosisvpn
-    chmod 755 /etc/gnosisvpn
-    chown gnosisvpn:gnosisvpn /etc/gnosisvpn/*.toml 2>/dev/null || true
-    chmod 644 /etc/gnosisvpn/*.toml 2>/dev/null || true
-
-    mkdir -p /var/log/gnosisvpn
-    chown -R gnosisvpn:gnosisvpn /var/log/gnosisvpn
-    chmod -R 755 /var/log/gnosisvpn
-
-    mkdir -p /var/lib/gnosisvpn
-    chown -R gnosisvpn:gnosisvpn /var/lib/gnosisvpn
-    chmod -R 775 /var/lib/gnosisvpn
 
     # Explicit GNOSISVPN_NETWORK wins; plain upgrade keeps the user's choice unless the link targets a retired config.
     local migrated_from="" migrated_blokli_url=""
@@ -223,18 +246,7 @@ EOF
         sed -i 's|^GNOSISVPN_HOPR_BLOKLI_URL=.\+$|GNOSISVPN_HOPR_BLOKLI_URL=|' /etc/gnosisvpn/gnosisvpn.env
     fi
 
-    # nfpm installs binaries before the user exists; fix ownership here.
-    if [[ -f /usr/bin/gnosis_vpn-worker ]]; then
-        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-worker
-    fi
-    if [[ -f /usr/bin/gnosis_vpn-ctl ]]; then
-        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-ctl
-    fi
-    if [[ -f /usr/bin/gnosis_vpn-app ]]; then
-        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-app
-    fi
-
-    echo "$LOG_PREFIX SUCCESS: Directory permissions configured"
+    echo "$LOG_PREFIX SUCCESS: Network '${network_name}' configured"
 }
 
 # TODO: remove the removal code by December 2026.
@@ -513,6 +525,7 @@ main() {
     remove_retired_conffiles "$@"
     load_shipped_networks
     configure_filesystem_permissions
+    configure_network_selection
     # TODO: remove the removal code by December 2026 (see remove_legacy_apt_mirror).
     remove_legacy_apt_mirror
     register_apt_repo
