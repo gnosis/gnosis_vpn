@@ -179,11 +179,12 @@ parse_args() {
     if [[ -n $NETWORK ]] && ! in_list "$NETWORK" "${CHANNEL_NETWORKS[@]}"; then
         err "--network must be one of '${CHANNEL_NETWORKS[*]}' on the '${CHANNEL}' channel (got: '${NETWORK}')"
         # Point at the channel that does ship it, when there is one.
-        local standard_networks=()
+        local standard_networks=() experimental_networks=()
         read -r -a standard_networks <<<"$(channel_networks stable)"
+        read -r -a experimental_networks <<<"$(channel_networks experimental)"
         if in_list "$NETWORK" "${standard_networks[@]}"; then
             err "'${NETWORK}' ships on the stable and snapshot channels"
-        elif in_list "$NETWORK" "$(channel_networks experimental)"; then
+        elif in_list "$NETWORK" "${experimental_networks[@]}"; then
             err "'${NETWORK}' ships on the experimental channel only: add --channel=experimental"
         fi
         exit 1

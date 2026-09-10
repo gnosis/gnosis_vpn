@@ -7,12 +7,12 @@ on:
         required: true
         type: string
       client_version:
-        description: 'Client version to build against; defaults to the newest version in the registry that has binaries for all architectures (or the latest client release when version_type=release)'
+        description: 'Client version to build against; defaults to the newest registry version with binaries for all architectures on this line''s side of COMPONENT_VERSION_BOUNDARY (or the newest client release below it when version_type=release)'
         required: false
         type: string
         default: ''
       app_version:
-        description: 'App version to build against; defaults to the newest version in the registry that has binaries for all architectures (or the latest app release when version_type=release)'
+        description: 'App version to build against; defaults to the newest registry version with binaries for all architectures on this line''s side of COMPONENT_VERSION_BOUNDARY (or the newest app release below it when version_type=release)'
         required: false
         type: string
         default: ''

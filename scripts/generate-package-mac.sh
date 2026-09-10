@@ -512,6 +512,8 @@ EOF
     done
 
     # Each whole-line placeholder streams its fragment file; __MIN_OS_MACOS__ is inline and carries no awk-significant "&".
+    # Failure is deferred past the rm so an awk error cannot leak the mktemp dir.
+    local render_rc=0
     awk \
         -v ids="$frag_ids" \
         -v lines="$frag_lines" \
@@ -527,9 +529,13 @@ EOF
         /__NETWORK_CHOICES__/      { dump(choices); next }
         /__NETWORK_PKG_REFS__/     { dump(refs);    next }
         { gsub(/__MIN_OS_MACOS__/, minos); print }
-    ' "$src" >"$dst"
+    ' "$src" >"$dst" || render_rc=$?
 
     rm -rf "$frag_dir"
+    if [[ $render_rc -ne 0 ]]; then
+        log_error "Failed to render ${src} (awk exit ${render_rc})"
+        exit 1
+    fi
 
     if grep -q '__[A-Z][A-Z_]*__' "$dst"; then
         log_error "Unrendered placeholder left in ${dst}:"
