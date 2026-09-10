@@ -28,6 +28,11 @@ meta = { location = "Sydney", flag = "AU" }
 address = "0xd8efe2ebe14c8cc193d5a9f5afd81276549fad67"
 meta = { location = "Seoul", flag = "KR" }
 
+# 16-core node, 16 peer limit
+[destinations.Austria]
+address = "0x210a14012535321b919653fdee8c2d5971b0e534"
+meta = { location = "Vienna", flag = "AT" }
+
 [connection.surb_balancing.ping]
 max_surb_upstream = "12000 Kb/s"
 
