@@ -206,15 +206,15 @@ jobs:
       - name: Pin to IPFS
         id: ipfs
         # TODO: re-pin to a tag once hoprnet/hopr-workflows#119 is merged.
-        uses: hoprnet/hopr-workflows/actions/ipfs-deployment@fc5ec1b32f4ec6c7587ad9b12b99cda7f3a510b1 # mj/ipfs-deployment
+        uses: hoprnet/hopr-workflows/actions/ipfs-deployment@cc08dfac92c69d93d71597095726ba79dcd2897b # mj/ipfs-deployment
         with:
-          environment: prod
+          environment_name: prod
           project_name: gnosis-vpn-downloads
           build_artifact_name: ipfs-${{ github.sha }}
           build_dir: ipfs
           pinata_jwt: ${{ secrets.PINATA_JWT }}
-          filebase_access_key: ${{ secrets.FILEBASE_ACCESS_KEY }}
-          filebase_secret_key: ${{ secrets.FILEBASE_SECRET_KEY }}
+          filebase_access_key: ${{ secrets.FILEBASE_HOPR_ACCESS_TOKEN }}
+          filebase_secret_key: ${{ secrets.FILEBASE_HOPR_SECRET_KEY }}
           filebase_bucket: gnosis-vpn-downloads
   propose-ens:
     needs: [prep-ipfs, deploy-ipfs]
