@@ -196,14 +196,26 @@ jobs:
           path: ./ipfs
   deploy-ipfs:
     needs: [prep-ipfs]
-    uses: gnosis/gh-action-pinata/.github/workflows/pinata-deployment.yml@6197bbf8ffd6bee0d4ddb633af27633ca80a6a26 # 0.2.0
-    with:
-      environment: prod
-      project_name: gnosis-vpn-downloads
-      build_dir: ./ipfs
-      build_artifact_name: ipfs-${{ github.sha }}
-    secrets:
-      PINATA_JWT: ${{ secrets.PINATA_JWT }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      ipfs_hash: ${{ steps.ipfs.outputs.ipfs_hash }}
+    steps:
+      - name: Pin to IPFS
+        id: ipfs
+        # TODO: re-pin to a tag once hoprnet/hopr-workflows#119 is merged.
+        uses: hoprnet/hopr-workflows/actions/ipfs-deployment@fc5ec1b32f4ec6c7587ad9b12b99cda7f3a510b1 # mj/ipfs-deployment
+        with:
+          environment: prod
+          project_name: gnosis-vpn-downloads
+          build_artifact_name: ipfs-${{ github.sha }}
+          build_dir: ipfs
+          pinata_jwt: ${{ secrets.PINATA_JWT }}
+          filebase_access_key: ${{ secrets.FILEBASE_ACCESS_KEY }}
+          filebase_secret_key: ${{ secrets.FILEBASE_SECRET_KEY }}
+          filebase_bucket: gnosis-vpn-downloads
   propose-ens:
     needs: [prep-ipfs, deploy-ipfs]
     # Only propose the ENS update for stable releases.
