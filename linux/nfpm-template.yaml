@@ -88,21 +88,15 @@ contents:
     type: config
     file_info:
       mode: 0644
-  - src: ./linux/resources/config-jura-prod.toml
-    dst: /etc/gnosisvpn/config-jura-prod.toml
-    type: config
+  # One `type: config` entry per network in GNOSISVPN_NETWORKS, rendered by generate-package-linux.sh.
+__GNOSIS_VPN_NETWORK_CONFIGS__
+  # Networks this package ships (space-separated, first = default); NOT a conffile, every upgrade must replace it.
+  - src: ./build/resources/networks
+    dst: /usr/share/gnosisvpn/networks
     file_info:
       mode: 0644
-  - src: ./linux/resources/config-jura-dev.toml
-    dst: /etc/gnosisvpn/config-jura-dev.toml
-    type: config
-    file_info:
-      mode: 0644
-  - src: ./linux/resources/config-piz-palu-dev.toml
-    dst: /etc/gnosisvpn/config-piz-palu-dev.toml
-    type: config
-    file_info:
-      mode: 0644
+      owner: root
+      group: root
   - src: ./linux/resources/logrotate.conf
     dst: /etc/logrotate.d/gnosisvpn
     type: config

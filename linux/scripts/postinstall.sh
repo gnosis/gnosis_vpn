@@ -5,6 +5,8 @@
 # Creates system user/group and configures the service after files are installed.
 # Compatible with: deb (apt/dpkg), rpm (yum/dnf), archlinux (pacman)
 #
+# Networks shipped are baked into /usr/share/gnosisvpn/networks (first = default); consult that, not the files on disk.
+#
 
 set -euo pipefail
 
@@ -56,17 +58,31 @@ remove_retired_conffiles() {
     done
 }
 
-# Networks are discovered from the installed conffiles rather than a hardcoded list.
-available_networks() {
-    (cd /etc/gnosisvpn 2>/dev/null && ls config-*.toml 2>/dev/null |
-        sed 's/^config-//; s/\.toml$//' | paste -sd, - | sed 's/,/, /g') || true
+# Networks shipped by this package (first = default), baked by generate-package-linux.sh; older packages fall back to the historical default.
+SHIPPED_NETWORKS=()
+load_shipped_networks() {
+    if [[ -r /usr/share/gnosisvpn/networks ]]; then
+        read -r -a SHIPPED_NETWORKS </usr/share/gnosisvpn/networks || true
+    fi
+    if [[ ${#SHIPPED_NETWORKS[@]} -eq 0 ]]; then
+        echo "$LOG_PREFIX WARNING: /usr/share/gnosisvpn/networks missing or empty — assuming 'jura-prod'"
+        SHIPPED_NETWORKS=(jura-prod)
+    fi
+}
+
+is_shipped_network() {
+    local candidate="$1" network
+    for network in "${SHIPPED_NETWORKS[@]}"; do
+        [[ $network == "$candidate" ]] && return 0
+    done
+    return 1
 }
 
 # Configure ownership and permissions for directories and binaries
 configure_filesystem_permissions() {
     echo "$LOG_PREFIX INFO: Setting up directory permissions..."
 
-    # Created before network discovery so a wiped /etc/gnosisvpn reports missing configs, not an unknown network.
+    # nfpm may have created it with a numeric UID; fix ownership here.
     mkdir -p /etc/gnosisvpn
     # root-owned so the unprivileged worker cannot replace files loaded by the root service
     chown root:gnosisvpn /etc/gnosisvpn
@@ -99,38 +115,31 @@ configure_filesystem_permissions() {
 # Point /etc/gnosisvpn/config.toml at the selected network and write its Blokli endpoint.
 configure_network_selection() {
     # Precedence: explicit GNOSISVPN_HOPR_BLOKLI_URL > derived from network > pre-existing/legacy value.
-    local requested network_name blokli_url available
-    requested="${GNOSISVPN_NETWORK:-}"
-    network_name="${requested:-jura-prod}"
-    available="$(available_networks)"
+    local network_name blokli_url default_network="${SHIPPED_NETWORKS[0]}"
+    network_name="${GNOSISVPN_NETWORK:-$default_network}"
 
-    # dpkg never restores conffiles deleted outside of it, so failing here would brick every later apt run.
-    if [[ -z $available ]]; then
-        echo "$LOG_PREFIX ERROR: No network configuration in /etc/gnosisvpn (all config-*.toml are missing)" >&2
-        echo "$LOG_PREFIX ERROR: Restore them with: sudo dpkg -i --force-confmiss /path/to/gnosisvpn_*.deb" >&2
-        echo "$LOG_PREFIX WARNING: Skipping network setup — the service cannot start until the files are back" >&2
-        return 0
-    fi
-
-    # Accept retired names from old docs/pinned scripts without aborting.
-    if [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
+    # Accept retired names, but only when the successor is one this package ships.
+    if ! is_shipped_network "$network_name"; then
         local successor
         successor="$(retired_network_successor "$network_name")"
-        if [[ -n $successor && -f /etc/gnosisvpn/config-${successor}.toml ]]; then
+        if [[ -n $successor ]] && is_shipped_network "$successor"; then
             echo "$LOG_PREFIX INFO: Network '${network_name}' was renamed to '${successor}' — using '${successor}'"
             network_name="$successor"
         fi
     fi
 
-    # Guard against a dangling config.toml or bogus default URL from a typo.
+    # Checked against the baked list, not `ls config-*.toml`, which would also offer the other line's leftover conffiles.
+    if ! is_shipped_network "$network_name"; then
+        echo "$LOG_PREFIX ERROR: Network '${network_name}' is not shipped by this package" >&2
+        echo "$LOG_PREFIX ERROR: Supported networks: ${SHIPPED_NETWORKS[*]}" >&2
+        exit 1
+    fi
+
+    # dpkg never restores conffiles deleted outside of it, so failing here would brick every later apt run.
     if [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
-        echo "$LOG_PREFIX ERROR: Unknown network '${network_name}': /etc/gnosisvpn/config-${network_name}.toml not found" >&2
-        echo "$LOG_PREFIX ERROR: Supported networks: ${available}" >&2
-        # A typo in GNOSISVPN_NETWORK is fatal so it gets corrected; a build not shipping the default must still configure.
-        if [[ -n $requested ]]; then
-            exit 1
-        fi
-        echo "$LOG_PREFIX WARNING: Skipping network setup — re-install with GNOSISVPN_NETWORK set to one of the above" >&2
+        echo "$LOG_PREFIX ERROR: Missing /etc/gnosisvpn/config-${network_name}.toml" >&2
+        echo "$LOG_PREFIX ERROR: Restore it with: sudo dpkg -i --force-confmiss /path/to/gnosisvpn_*.deb" >&2
+        echo "$LOG_PREFIX WARNING: Skipping network setup — the service cannot start until the file is back" >&2
         return 0
     fi
 
@@ -159,13 +168,18 @@ configure_network_selection() {
         current="${current#config-}"
         current="${current%.toml}"
         successor="$(retired_network_successor "$current")"
-        # Unknown retired name with missing target: fall back to the resolved default.
-        if [[ -z $successor && ! -f /etc/gnosisvpn/config-${current}.toml ]]; then
+        # A rename to a network this line does not ship is no use; fall through to the default.
+        if [[ -n $successor ]] && ! is_shipped_network "$successor"; then
+            successor=""
+        fi
+        # Not shipped by this package, or the target is gone: fall back to the resolved default.
+        if [[ -z $successor ]] &&
+            { ! is_shipped_network "$current" || [[ ! -f /etc/gnosisvpn/config-${current}.toml ]]; }; then
             successor="$network_name"
         fi
         if [[ -n $successor && $successor != "$current" ]]; then
             if [[ -f /etc/gnosisvpn/config-${successor}.toml ]]; then
-                echo "$LOG_PREFIX INFO: Re-pointing /etc/gnosisvpn/config.toml: config-${current}.toml (no longer shipped) -> config-${successor}.toml"
+                echo "$LOG_PREFIX INFO: Re-pointing /etc/gnosisvpn/config.toml: config-${current}.toml (not shipped by this package) -> config-${successor}.toml"
                 ln -sf /etc/gnosisvpn/config-"$successor".toml /etc/gnosisvpn/config.toml
                 migrated_from="$current"
                 network_name="$successor"
@@ -264,7 +278,7 @@ register_apt_repo() {
     local keyring_src="/usr/share/gnosisvpn/gnosisvpn-archive-keyring.gpg"
     local keyring_dst="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 
-    # Any "+" in version means snapshot channel.
+    # The channel is encoded in the version; ".experimental" is snapshot-shaped underneath, so it MUST be tested first.
     local version channel component uris
     version="$(cat /etc/gnosisvpn/version.txt 2>/dev/null || echo "")"
     if [[ -z $version ]]; then
@@ -276,16 +290,25 @@ register_apt_repo() {
         fi
         return 0
     fi
-    if [[ $version == *"+"* ]]; then
+    case "$version" in
+    *.experimental | *.experimental.*)
+        channel="experimental"
+        component="experimental"
+        # Only gnosisvpn.io publishes dists/experimental/.
+        uris="https://download.gnosisvpn.io/linux/apt"
+        ;;
+    *"+"*)
         channel="snapshot"
         component="snapshot"
         # Only gnosisvpn.io publishes dists/snapshot/.
         uris="https://download.gnosisvpn.io/linux/apt"
-    else
+        ;;
+    *)
         channel="stable"
         component="main"
         uris="https://download.vpn.gnosis.eth.limo/linux/apt https://download.gnosisvpn.io/linux/apt"
-    fi
+        ;;
+    esac
 
     # Always restore the keyring so a user who deleted it gets it back on the next upgrade.
     if [[ ! -f $keyring_src ]]; then
@@ -500,6 +523,7 @@ main() {
     create_system_user_and_group
     # TODO: remove the removal code by December 2027 (see remove_retired_conffiles).
     remove_retired_conffiles "$@"
+    load_shipped_networks
     configure_filesystem_permissions
     configure_network_selection
     # TODO: remove the removal code by December 2026 (see remove_legacy_apt_mirror).
