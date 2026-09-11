@@ -196,7 +196,9 @@ net.ipv4.tcp_congestion_control = bbr
 ```
 
 Both are system-wide settings, not VPN-specific ones — they improve throughput and latency of traffic sent through the
-tunnel. The postinstall also applies them right away, so no reboot is needed:
+tunnel. The postinstall applies them right away, so no reboot is needed for the congestion control. `default_qdisc` is a
+default for interfaces created after it is set, so an interface that is already up keeps its queueing discipline until
+it is recreated:
 
 ```bash
 # enable BBR
@@ -206,9 +208,9 @@ sudo sysctl -w net.core.default_qdisc=fq
 
 It skips that step when the kernel does not offer BBR, and it leaves an existing setting in charge when
 `/etc/sysctl.conf` — or an `/etc/sysctl.d` drop-in sorting after ours — already pins a different
-`net.ipv4.tcp_congestion_control`. In both cases the file stays installed, so `net.core.default_qdisc = fq` still
-applies on the next boot; remove the file to keep the system as it is. Which of these happened is printed at the end of
-the installation.
+`net.ipv4.tcp_congestion_control`. In both cases the file stays installed, so its `net.core.default_qdisc = fq` still
+applies on the next boot unless a later-sorting file pins that too — the postinstall checks both keys and says which way
+each one went. Remove the file to keep the system as it is. What happened is printed at the end of the installation.
 
 To disable it again:
 

@@ -413,15 +413,16 @@ print_bbr_note() {
     active_qdisc="$(cat /proc/sys/net/core/default_qdisc 2>/dev/null || true)"
     cat <<EOF
 
-[gnosisvpn] Network tuning: the package installed ${file}, which enables TCP BBR
-    congestion control system-wide to speed up traffic sent through the tunnel:
+[gnosisvpn] Network tuning: the package installed ${file}, the TCP BBR tuning
+    that speeds up traffic sent through the tunnel. As shipped it sets:
         net.ipv4.tcp_congestion_control = bbr
         net.core.default_qdisc = fq
+    The [GnosisVPN postinstall] lines above report what this host ended up with.
     Active now:  net.ipv4.tcp_congestion_control = ${active_cc:-unknown}
                  net.core.default_qdisc = ${active_qdisc:-unknown}
 EOF
     if [[ -n $active_cc && $active_cc != "bbr" ]]; then
-        echo "    BBR is not active — see the [GnosisVPN postinstall] lines above for the reason."
+        echo "    BBR is not active here — those lines say why."
     fi
     cat <<EOF
     To disable:  sudo rm ${file}
