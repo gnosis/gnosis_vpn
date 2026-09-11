@@ -20,6 +20,9 @@
 //   GNOSISVPN_CHANGELOG_FORMAT=zulip \
 //   GH_TOKEN=... \
 //   ./scripts/generate-changelog.ts
+//
+// The four GNOSISVPN_PREVIOUS_* variables are optional off the stable channel: unset or empty means
+// "this line has never built before", and that component contributes no entries. See readPreviousVersion().
 
 // --- Types ---
 
@@ -30,7 +33,9 @@ interface RepoConfig {
   // via GNOSISVPN_PACKAGE_BRANCH so close-release on a release branch only includes
   // installer PRs that targeted that branch.
   branch: string;
-  previousVersion: string;
+  // null when this line has never built before; select_previous_version() in
+  // scripts/resolve-build-versions.sh emits an empty value on purpose to say so.
+  previousVersion: string | null;
   currentVersion: string;
   allowMissingRelease: boolean;
 }
@@ -352,11 +357,11 @@ export function zulipFormat(
 
 export function githubFormat(
   entries: ChangelogEntry[],
-  previousCliVersion: string,
+  previousCliVersion: string | null,
   currentCliVersion: string,
-  previousAppVersion: string,
+  previousAppVersion: string | null,
   currentAppVersion: string,
-  previousToolkitVersion: string,
+  previousToolkitVersion: string | null,
   currentToolkitVersion: string,
 ): string {
   const sections: Record<string, string[]> = {
@@ -401,10 +406,12 @@ export function githubFormat(
   let content = "## What's Changed\n";
 
   // Compare and render via vTag so a pure "v"-prefix format change in the
-  // stored previous-version variables doesn't report a component update.
-  const cliUpdated = vTag(previousCliVersion) !== vTag(currentCliVersion);
-  const appUpdated = vTag(previousAppVersion) !== vTag(currentAppVersion);
-  const toolkitUpdated = vTag(previousToolkitVersion) !== vTag(currentToolkitVersion);
+  // stored previous-version variables doesn't report a component update. A null previous
+  // version has nothing to compare against; vTag(null) would render a broken "[v](.../tag/v)" link.
+  const cliUpdated = previousCliVersion !== null && vTag(previousCliVersion) !== vTag(currentCliVersion);
+  const appUpdated = previousAppVersion !== null && vTag(previousAppVersion) !== vTag(currentAppVersion);
+  const toolkitUpdated = previousToolkitVersion !== null &&
+    vTag(previousToolkitVersion) !== vTag(currentToolkitVersion);
 
   if (cliUpdated || appUpdated || toolkitUpdated) {
     content += "\nThis release contains the following component updates:\n\n";
@@ -505,6 +512,11 @@ export function debianFormat(
     }
   }
 
+  // A stanza with no change lines reads as a truncated file; say so explicitly instead.
+  if (entries.length === 0) {
+    changelog += "  * No recorded changes since the previous build.\n";
+  }
+
   changelog += `\n -- ${maintainer}  ${date}\n`;
 
   return changelog;
@@ -564,6 +576,21 @@ async function writeChangelog(content: string): Promise<void> {
 
 // --- Config Reader ---
 
+// Unset or empty means "this line has never built before" — select_previous_version() in
+// scripts/resolve-build-versions.sh emits an empty value on purpose, so an empty string must
+// not be an error here. Stable is the exception: its variables are always set, so an empty one
+// there is a mistake rather than a first build, and must not yield silently empty release notes.
+function readPreviousVersion(envVar: string, component: string, channel: Channel): string | null {
+  const value = Deno.env.get(envVar);
+  if (value) return value;
+  if (channel === "stable") {
+    console.error(`Error: ${envVar} is required`);
+    Deno.exit(1);
+  }
+  log("WARN", `${envVar} is unset or empty; treating it as "no previous ${component} build on this line"`);
+  return null;
+}
+
 export function readConfig(): Config {
   const ghToken = Deno.env.get("GH_TOKEN");
   if (!ghToken) {
@@ -571,11 +598,17 @@ export function readConfig(): Config {
     Deno.exit(1);
   }
 
-  const previousPackageVersion = Deno.env.get("GNOSISVPN_PREVIOUS_PACKAGE_VERSION");
-  if (!previousPackageVersion) {
-    console.error("Error: GNOSISVPN_PREVIOUS_PACKAGE_VERSION is required");
+  // Channel for the download links; pr/commit builds pass an empty value and are never published.
+  // Read before the versions: it decides whether a missing previous version is fatal.
+  const channelName = Deno.env.get("GNOSISVPN_CHANNEL") || "snapshot";
+  if (!["stable", "snapshot", "experimental"].includes(channelName)) {
+    console.error(`Error: Unsupported channel: ${channelName}`);
+    console.error("Supported channels: stable, snapshot, experimental");
     Deno.exit(1);
   }
+  const channel = channelName as Channel;
+
+  const previousPackageVersion = readPreviousVersion("GNOSISVPN_PREVIOUS_PACKAGE_VERSION", "Installer", channel);
 
   const currentPackageVersion = Deno.env.get("GNOSISVPN_PACKAGE_VERSION");
   if (!currentPackageVersion) {
@@ -583,11 +616,7 @@ export function readConfig(): Config {
     Deno.exit(1);
   }
 
-  const previousCliVersion = Deno.env.get("GNOSISVPN_PREVIOUS_CLIENT_VERSION");
-  if (!previousCliVersion) {
-    console.error("Error: GNOSISVPN_PREVIOUS_CLIENT_VERSION is required");
-    Deno.exit(1);
-  }
+  const previousCliVersion = readPreviousVersion("GNOSISVPN_PREVIOUS_CLIENT_VERSION", "Client", channel);
 
   const currentCliVersion = Deno.env.get("GNOSISVPN_CLIENT_VERSION");
   if (!currentCliVersion) {
@@ -595,11 +624,7 @@ export function readConfig(): Config {
     Deno.exit(1);
   }
 
-  const previousAppVersion = Deno.env.get("GNOSISVPN_PREVIOUS_APP_VERSION");
-  if (!previousAppVersion) {
-    console.error("Error: GNOSISVPN_PREVIOUS_APP_VERSION is required");
-    Deno.exit(1);
-  }
+  const previousAppVersion = readPreviousVersion("GNOSISVPN_PREVIOUS_APP_VERSION", "App", channel);
 
   const currentAppVersion = Deno.env.get("GNOSISVPN_APP_VERSION");
   if (!currentAppVersion) {
@@ -607,11 +632,7 @@ export function readConfig(): Config {
     Deno.exit(1);
   }
 
-  const previousToolkitVersion = Deno.env.get("GNOSISVPN_PREVIOUS_TOOLKIT_VERSION");
-  if (!previousToolkitVersion) {
-    console.error("Error: GNOSISVPN_PREVIOUS_TOOLKIT_VERSION is required");
-    Deno.exit(1);
-  }
+  const previousToolkitVersion = readPreviousVersion("GNOSISVPN_PREVIOUS_TOOLKIT_VERSION", "Toolkit", channel);
 
   const currentToolkitVersion = Deno.env.get("GNOSISVPN_TOOLKIT_VERSION");
   if (!currentToolkitVersion) {
@@ -623,14 +644,6 @@ export function readConfig(): Config {
   if (!["zulip", "github", "debian", "json", "rpm"].includes(format)) {
     console.error(`Error: Unsupported format: ${format}`);
     console.error("Supported formats: zulip, github, debian, json, rpm");
-    Deno.exit(1);
-  }
-
-  // Channel for the download links; pr/commit builds pass an empty value and are never published.
-  const channel = Deno.env.get("GNOSISVPN_CHANNEL") || "snapshot";
-  if (!["stable", "snapshot", "experimental"].includes(channel)) {
-    console.error(`Error: Unsupported channel: ${channel}`);
-    console.error("Supported channels: stable, snapshot, experimental");
     Deno.exit(1);
   }
 
@@ -670,7 +683,7 @@ export function readConfig(): Config {
       },
     ],
     format: format as Config["format"],
-    channel: channel as Channel,
+    channel,
     ghApiMaxAttempts: parseInt(Deno.env.get("GH_API_MAX_ATTEMPTS") || "6", 10),
     ghToken,
   };
@@ -683,7 +696,7 @@ async function main(): Promise<void> {
 
   console.error("Generating release notes...");
   for (const { label, previousVersion, currentVersion, branch } of config.repositories) {
-    console.error(`  ${label}: ${previousVersion} -> ${currentVersion} (base: ${branch})`);
+    console.error(`  ${label}: ${previousVersion ?? "(none)"} -> ${currentVersion} (base: ${branch})`);
   }
   console.error(`  Format: ${config.format}`);
   console.error("");
@@ -692,6 +705,10 @@ async function main(): Promise<void> {
   const allEntries: ChangelogEntry[] = [];
 
   for (const { repo, label, branch, previousVersion, currentVersion, allowMissingRelease } of config.repositories) {
+    if (previousVersion === null) {
+      log("INFO", `${label}: no previous version on this line, skipping its PR range`);
+      continue;
+    }
     if (previousVersion === currentVersion) continue;
 
     const previousDate = await getVersionDate(config, repo, previousVersion, false);
