@@ -412,35 +412,53 @@ read_sysctl() {
     cat "/proc/sys/${1//.//}" 2>/dev/null || true
 }
 
-# Echoes "<file>=<value>" for the congestion control setting that outranks our drop-in at boot.
-# sysctl.d files are read in bytewise filename order and /etc/sysctl.conf last, so only files
-# sorting after ours — and sysctl.conf itself — can override us, and the last writer wins.
+# Directories the boot-time loader reads, most specific first. A basename found in an earlier
+# directory shadows the same basename in the later ones, and the merged set is applied in bytewise
+# basename order — systemd-sysctl's rule, which is what runs at boot on a systemd host.
+SYSCTL_DIRS=(/etc/sysctl.d /run/sysctl.d /usr/local/lib/sysctl.d /usr/lib/sysctl.d /lib/sysctl.d)
+
+# Last net.ipv4.tcp_congestion_control assignment in a sysctl file, if any. Accepts the two
+# spellings the loaders take besides the plain one: a leading "-" (assign, ignore failures) and
+# "/" instead of "." as the name separator — both apply the value, so neither may hide an override.
+congestion_control_in_file() {
+    [[ -f $1 ]] || return 0
+    sed -n -E 's|^[[:space:]]*-?[[:space:]]*net[./]ipv4[./]tcp_congestion_control[[:space:]]*=[[:space:]]*([^[:space:]#]+).*|\1|p' \
+        "$1" | tail -n1
+    return 0
+}
+
+# Echoes "<file>=<value>" for the congestion control setting that outranks our drop-in at boot:
+# the files sorting after ours, plus /etc/sysctl.conf, which is always read last. The last of
+# them to set the key is the one that wins.
 conflicting_congestion_control() {
-    local our_base file base value winner="" winner_value=""
+    local our_base dir file base value winner="" winner_value=""
     our_base="$(basename "$SYSCTL_BBR_FILE")"
 
-    local bases=("$our_base")
-    for file in /etc/sysctl.d/*.conf; do
-        if [[ -f $file ]]; then
-            bases+=("${file##*/}")
-        fi
+    local -A path_by_base=()
+    for dir in "${SYSCTL_DIRS[@]}"; do
+        for file in "$dir"/*.conf; do
+            if [[ -f $file ]]; then
+                base="${file##*/}"
+                # First directory to carry a basename shadows the rest.
+                [[ -n ${path_by_base[$base]:-} ]] || path_by_base[$base]="$file"
+            fi
+        done
     done
+    path_by_base[$our_base]="$SYSCTL_BBR_FILE"
 
-    # Sorted with LC_ALL=C for the bytewise order sysctl.d uses; bash's own `>` would follow
+    # Sorted with LC_ALL=C for the bytewise order the loader uses; bash's own `>` would follow
     # the caller's LC_COLLATE, which can disagree on case and punctuation.
     local later_files=() seen_ours=false
     while IFS= read -r base; do
         if [[ $base == "$our_base" ]]; then
             seen_ours=true
         elif [[ $seen_ours == true ]]; then
-            later_files+=("/etc/sysctl.d/$base")
+            later_files+=("${path_by_base[$base]}")
         fi
-    done < <(printf '%s\n' "${bases[@]}" | LC_ALL=C sort -u)
+    done < <(printf '%s\n' "${!path_by_base[@]}" | LC_ALL=C sort)
 
     for file in "${later_files[@]}" /etc/sysctl.conf; do
-        [[ -f $file ]] || continue
-        value="$(sed -n -E 's/^[[:space:]]*net\.ipv4\.tcp_congestion_control[[:space:]]*=[[:space:]]*([^[:space:]#]+).*/\1/p' \
-            "$file" | tail -n1)"
+        value="$(congestion_control_in_file "$file")"
         if [[ -n $value ]]; then
             winner="$file"
             winner_value="$value"
@@ -458,7 +476,7 @@ conflicting_congestion_control() {
 configure_tcp_bbr() {
     if [[ ! -f $SYSCTL_BBR_FILE ]]; then
         # Removed on purpose; dpkg never restores a deleted conffile and neither do we. (rpm and
-        # pacman do reinstate it on upgrade, so there deletion holds only until the next one.)
+        # pacman do reinstate it on upgrade, so their deletion holds only until the next one.)
         echo "$LOG_PREFIX INFO: $SYSCTL_BBR_FILE is absent — leaving TCP congestion control alone"
         BBR_STATUS="absent"
         return 0
@@ -533,13 +551,21 @@ print_tcp_bbr_summary() {
     applied)
         live_cc="$(read_sysctl net.ipv4.tcp_congestion_control)"
         live_qdisc="$(read_sysctl net.core.default_qdisc)"
-        if [[ $live_cc == "bbr" ]]; then
+        # The file is a conffile an admin may have edited; it is applied as it stands, so what it
+        # asks for and what was already running both decide how honestly this can be phrased.
+        local requested_cc
+        requested_cc="$(congestion_control_in_file "$SYSCTL_BBR_FILE")"
+        if [[ $live_cc == "bbr" && $previous_cc == "bbr" ]]; then
+            echo "$LOG_PREFIX INFO: TCP BBR congestion control was already active here; the file keeps it that way."
+        elif [[ $live_cc == "bbr" ]]; then
             echo "$LOG_PREFIX INFO: TCP BBR congestion control is now enabled system-wide."
             echo "$LOG_PREFIX INFO: It speeds up traffic sent through the VPN tunnel."
+        elif [[ -z $requested_cc ]]; then
+            echo "$LOG_PREFIX INFO: Applied $SYSCTL_BBR_FILE as it stands on this host — the local copy"
+            echo "$LOG_PREFIX INFO: no longer sets net.ipv4.tcp_congestion_control, so BBR was not enabled."
         else
-            # The file is a conffile an admin may have edited; it is applied as it stands.
             echo "$LOG_PREFIX INFO: Applied $SYSCTL_BBR_FILE as it stands on this host: it asks for"
-            echo "$LOG_PREFIX INFO: net.ipv4.tcp_congestion_control = ${live_cc:-unknown}, not bbr — edited locally?"
+            echo "$LOG_PREFIX INFO: net.ipv4.tcp_congestion_control = ${requested_cc}, not bbr — edited locally?"
         fi
         echo "$LOG_PREFIX INFO:   net.ipv4.tcp_congestion_control = ${live_cc:-unknown} (was: ${previous_cc})"
         echo "$LOG_PREFIX INFO:   net.core.default_qdisc = ${live_qdisc:-unknown} (was: ${previous_qdisc})"
@@ -563,16 +589,22 @@ print_tcp_bbr_summary() {
     overridden)
         echo "$LOG_PREFIX INFO: TCP BBR was NOT enabled: ${BBR_CONFLICT%%=*} sets"
         echo "$LOG_PREFIX INFO: net.ipv4.tcp_congestion_control=${BBR_CONFLICT#*=} and is read after the file above."
+        echo "$LOG_PREFIX INFO: Unchanged by this install:"
+        echo "$LOG_PREFIX INFO:   net.ipv4.tcp_congestion_control = ${previous_cc}"
+        echo "$LOG_PREFIX INFO:   net.core.default_qdisc = ${previous_qdisc}"
         # The drop-in stays installed, so its second setting still lands on the next boot.
-        echo "$LOG_PREFIX INFO: The file does still set net.core.default_qdisc = fq on the next boot"
-        echo "$LOG_PREFIX INFO: (currently: ${previous_qdisc}). Remove it to keep the system as it is:"
+        echo "$LOG_PREFIX INFO: The file does still set net.core.default_qdisc = fq on the next boot."
+        echo "$LOG_PREFIX INFO: Remove it to keep the system as it is:"
         echo "$LOG_PREFIX INFO:   sudo rm $SYSCTL_BBR_FILE"
         ;;
     *)
         echo "$LOG_PREFIX INFO: TCP BBR was NOT enabled: this kernel does not offer it."
         echo "$LOG_PREFIX INFO: The file is kept, so BBR comes on once a kernel that supports it is booted."
-        echo "$LOG_PREFIX INFO: It does set net.core.default_qdisc = fq on the next boot already"
-        echo "$LOG_PREFIX INFO: (currently: ${previous_qdisc}). Remove it to keep the system as it is:"
+        echo "$LOG_PREFIX INFO: Unchanged by this install:"
+        echo "$LOG_PREFIX INFO:   net.ipv4.tcp_congestion_control = ${previous_cc}"
+        echo "$LOG_PREFIX INFO:   net.core.default_qdisc = ${previous_qdisc}"
+        echo "$LOG_PREFIX INFO: It does set net.core.default_qdisc = fq on the next boot already."
+        echo "$LOG_PREFIX INFO: Remove it to keep the system as it is:"
         echo "$LOG_PREFIX INFO:   sudo rm $SYSCTL_BBR_FILE"
         ;;
     esac

@@ -427,6 +427,8 @@ EOF
     To disable:  sudo rm ${file}
                  sudo sysctl -w net.ipv4.tcp_congestion_control=cubic
                  sudo sysctl -w net.core.default_qdisc=fq_codel
+    Those two are the kernel defaults. If this host ran something else before,
+    the [GnosisVPN postinstall] lines above report it as "(was: ...)".
 EOF
 }
 

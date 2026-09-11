@@ -107,7 +107,10 @@ if [[ $IS_PURGE == "true" ]]; then
     echo "$LOG_PREFIX INFO:   net.ipv4.tcp_congestion_control = ${ACTIVE_CC:-unknown}"
     echo "$LOG_PREFIX INFO:   net.core.default_qdisc = ${ACTIVE_QDISC:-unknown}"
     if [[ $ACTIVE_CC == "bbr" || $ACTIVE_QDISC == "fq" ]]; then
-        echo "$LOG_PREFIX INFO: Reset them to the kernel defaults with:"
+        # This script has no record of what the host ran before the package, and it may well have
+        # chosen bbr/fq itself — so these are offered as the kernel defaults, not as a restore.
+        echo "$LOG_PREFIX INFO: If you want the kernel defaults instead (this package cannot tell"
+        echo "$LOG_PREFIX INFO: whether this host set them itself), apply them with:"
         if [[ $ACTIVE_CC == "bbr" ]]; then
             echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=cubic"
         fi

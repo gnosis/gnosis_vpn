@@ -218,6 +218,10 @@ sudo sysctl -w net.ipv4.tcp_congestion_control=cubic
 sudo sysctl -w net.core.default_qdisc=fq_codel
 ```
 
+`cubic` and `fq_codel` are the kernel defaults, not necessarily what this host ran before — the package prints the
+values it found as `(was: ...)` at the end of the installation, and those are the ones to restore on a machine that was
+already tuned.
+
 The file is a dpkg conffile: once removed, upgrades do not bring it back. `sudo apt purge gnosisvpn` removes it as well,
 and the values stay as they are until they are reset with the `sysctl -w` commands above or the machine reboots.
 
