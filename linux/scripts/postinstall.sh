@@ -420,6 +420,7 @@ BBR_QDISC_CONFLICT=""
 BBR_PENDING_KEYS=""
 BBR_INVALID_KEYS=""
 BBR_NO_MODPROBE=false
+BBR_MODULE_UNLOADABLE=false
 
 read_sysctl() {
     cat "/proc/sys/${1//.//}" 2>/dev/null || true
@@ -580,7 +581,15 @@ configure_tcp_bbr() {
             fi
             if ! grep -qwF "$BBR_REQUESTED_CC" /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null; then
                 if command -v modprobe >/dev/null 2>&1; then
-                    echo "$LOG_PREFIX WARNING: This kernel does not offer ${CONGESTION_CONTROL_KEY}=${BBR_REQUESTED_CC} — keeping $SYSCTL_BBR_FILE as it is" >&2
+                    # A dry run resolves the module without loading it: if that succeeds the module
+                    # is here and only loading was refused (an unprivileged container), which a
+                    # normal boot of this host does not suffer from.
+                    if modprobe -n "tcp_${BBR_REQUESTED_CC}" >/dev/null 2>&1; then
+                        BBR_MODULE_UNLOADABLE=true
+                        echo "$LOG_PREFIX WARNING: tcp_${BBR_REQUESTED_CC} is present but could not be loaded here — leaving ${CONGESTION_CONTROL_KEY} to the next boot" >&2
+                    else
+                        echo "$LOG_PREFIX WARNING: This kernel does not offer ${CONGESTION_CONTROL_KEY}=${BBR_REQUESTED_CC} — keeping $SYSCTL_BBR_FILE as it is" >&2
+                    fi
                 else
                     # The kernel autoloads tcp_<name> through the usermode helper, so without kmod
                     # a reboot cannot load it either: this needs a person, not a restart.
@@ -594,7 +603,8 @@ configure_tcp_bbr() {
 
     if ! command -v sysctl >/dev/null 2>&1; then
         echo "$LOG_PREFIX WARNING: sysctl not found — $SYSCTL_BBR_FILE takes effect on the next boot" >&2
-        BBR_STATUS="deferred"
+        # A blocker found above still describes this host better than "deferred" does.
+        BBR_STATUS="${cc_blocked:-deferred}"
         return 0
     fi
 
@@ -682,7 +692,11 @@ print_tcp_bbr_summary() {
         echo "$LOG_PREFIX INFO: ${CONGESTION_CONTROL_KEY}=${BBR_CONFLICT#*=} and is read after the file above."
         ;;
     unsupported)
-        if [[ $BBR_NO_MODPROBE == true ]]; then
+        if [[ $BBR_MODULE_UNLOADABLE == true ]]; then
+            echo "$LOG_PREFIX INFO: ${CONGESTION_CONTROL_KEY} = ${BBR_REQUESTED_CC} could not be set here: the"
+            echo "$LOG_PREFIX INFO: tcp_${BBR_REQUESTED_CC} module is present but loading it was refused — an unprivileged"
+            echo "$LOG_PREFIX INFO: container, typically. A normal boot of this host loads it and applies the file."
+        elif [[ $BBR_NO_MODPROBE == true ]]; then
             echo "$LOG_PREFIX INFO: ${CONGESTION_CONTROL_KEY} = ${BBR_REQUESTED_CC} could not be set: the module"
             echo "$LOG_PREFIX INFO: is not loaded and modprobe is not installed to load it. Install kmod or load"
             echo "$LOG_PREFIX INFO: it by hand and re-install — a reboot on its own will not fix this."
@@ -735,12 +749,17 @@ print_tcp_bbr_summary() {
     fi
     print_qdisc_note
 
-    # Offer to undo only what was actually changed here.
+    # Offer to undo only the keys actually changed here: a key left to another file's policy must
+    # not be written back by advice of ours either.
     if [[ -n $BBR_LANDED_KEYS ]]; then
         echo "$LOG_PREFIX INFO: To disable it:"
         echo "$LOG_PREFIX INFO:   sudo rm $SYSCTL_BBR_FILE"
-        echo "$LOG_PREFIX INFO:   sudo sysctl -w ${CONGESTION_CONTROL_KEY}=${reset_cc}"
-        echo "$LOG_PREFIX INFO:   sudo sysctl -w ${QDISC_KEY}=${reset_qdisc}"
+        if [[ $BBR_LANDED_KEYS == *"$CONGESTION_CONTROL_KEY"* ]]; then
+            echo "$LOG_PREFIX INFO:   sudo sysctl -w ${CONGESTION_CONTROL_KEY}=${reset_cc}"
+        fi
+        if [[ $BBR_LANDED_KEYS == *"$QDISC_KEY"* ]]; then
+            echo "$LOG_PREFIX INFO:   sudo sysctl -w ${QDISC_KEY}=${reset_qdisc}"
+        fi
         if [[ $reset_is_kernel_default == true ]]; then
             echo "$LOG_PREFIX INFO: (kernel defaults — this host already ran what the file sets, so something"
             echo "$LOG_PREFIX INFO:  else may set it too: check /etc/sysctl.conf and /etc/sysctl.d)"

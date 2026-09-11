@@ -208,9 +208,10 @@ sudo sysctl -w net.core.default_qdisc=fq
 
 It skips that step when the kernel does not offer BBR, and it leaves an existing setting in charge when
 `/etc/sysctl.conf` — or an `/etc/sysctl.d` drop-in sorting after ours — already pins a different
-`net.ipv4.tcp_congestion_control`. In both cases the file stays installed, so its `net.core.default_qdisc = fq` still
-applies on the next boot unless a later-sorting file pins that too — the postinstall checks both keys and says which way
-each one went. Remove the file to keep the system as it is. What happened is printed at the end of the installation.
+`net.ipv4.tcp_congestion_control`. In both cases the file stays installed, and its `net.core.default_qdisc = fq` is
+resolved on its own — it applies unless a later-sorting file pins that key too, or this kernel has no `fq` to give. The
+postinstall settles each key separately and prints, at the end of the installation, which way each one went. Remove the
+file to keep the system as it is.
 
 To disable it again:
 
