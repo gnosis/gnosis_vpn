@@ -359,6 +359,23 @@ Deno.test("githubFormat - v-prefixed versions render a single v", () => {
   assertEquals(result.includes("vv"), false);
 });
 
+Deno.test("githubFormat - a missing previous version renders no component update", () => {
+  // The experimental line before its first build: nothing to compare against.
+  const result = githubFormat([], null, "0.100.1", null, "0.100.0", null, "1.4.2");
+  assertEquals(result.includes("component updates"), false);
+  // vTag(null) would have produced "[v](.../releases/tag/v)".
+  assertEquals(result.includes("releases/tag/v)"), false);
+  assertEquals(result.includes("[v]"), false);
+});
+
+Deno.test("githubFormat - a missing previous version does not hide the other components", () => {
+  const result = githubFormat([], null, "0.100.1", "1.0.0", "1.0.0", "1.2.3", "1.4.2");
+  assertEquals(result.includes("component updates"), true);
+  assertEquals(result.includes("GnosisVPN Toolkit"), true);
+  assertEquals(result.includes("GnosisVPN Client"), false);
+  assertEquals(result.includes("GnosisVPN App"), false);
+});
+
 // --- debianFormat ---
 
 Deno.test("debianFormat - line truncation at 80 chars", () => {
@@ -391,6 +408,11 @@ Deno.test("debianFormat - contains version and distribution", () => {
   assertEquals(result.includes("gnosisvpn (1.2.3)"), true);
   assertEquals(result.includes("urgency=medium"), true);
   assertEquals(result.includes("stable"), true);
+});
+
+Deno.test("debianFormat - a stanza with no entries carries a placeholder change line", () => {
+  const result = debianFormat([], "1.2.3");
+  assertEquals(result.includes("  * No recorded changes since the previous build."), true);
 });
 
 // --- rpmFormat ---
@@ -485,7 +507,9 @@ const BASE_CONFIG_ENV: Record<string, string> = {
   GNOSISVPN_TOOLKIT_VERSION: "1.2.3",
 };
 
-function withConfigEnv(env: Record<string, string>, fn: () => void): void {
+// A null value means "leave the variable unset"; an empty string is what GitHub Actions
+// actually passes for a repository variable that was never written.
+function withConfigEnv(env: Record<string, string | null>, fn: () => void): void {
   const keys = [
     ...Object.keys(BASE_CONFIG_ENV),
     "GNOSISVPN_CHANGELOG_FORMAT",
@@ -496,7 +520,8 @@ function withConfigEnv(env: Record<string, string>, fn: () => void): void {
   try {
     for (const key of keys) Deno.env.delete(key);
     for (const [key, value] of Object.entries({ ...BASE_CONFIG_ENV, ...env })) {
-      Deno.env.set(key, value);
+      if (value === null) Deno.env.delete(key);
+      else Deno.env.set(key, value);
     }
     fn();
   } finally {
@@ -533,5 +558,41 @@ Deno.test("readConfig - an empty channel falls back to snapshot", () => {
   // pr/commit builds pass GNOSISVPN_CHANNEL="" since they are never published.
   withConfigEnv({ GNOSISVPN_CHANNEL: "" }, () => {
     assertEquals(readConfig().channel, "snapshot");
+  });
+});
+
+Deno.test("readConfig - an empty previous version means no previous build", () => {
+  // A repository variable that was never written arrives as an empty string, not as unset.
+  withConfigEnv({ GNOSISVPN_PREVIOUS_CLIENT_VERSION: "", GNOSISVPN_CHANNEL: "experimental" }, () => {
+    const repositories = readConfig().repositories;
+    assertEquals(repositories.find((r) => r.label === "Client")?.previousVersion, null);
+    assertEquals(repositories.find((r) => r.label === "Toolkit")?.previousVersion, "1.2.2");
+  });
+});
+
+Deno.test("readConfig - an unset previous version means no previous build", () => {
+  withConfigEnv({ GNOSISVPN_PREVIOUS_CLIENT_VERSION: null, GNOSISVPN_CHANNEL: "experimental" }, () => {
+    assertEquals(readConfig().repositories.find((r) => r.label === "Client")?.previousVersion, null);
+  });
+});
+
+Deno.test("readConfig - all four previous versions may be missing", () => {
+  // The first build of a new release line, before update_experimental has written its variables.
+  withConfigEnv({
+    GNOSISVPN_PREVIOUS_PACKAGE_VERSION: "",
+    GNOSISVPN_PREVIOUS_CLIENT_VERSION: "",
+    GNOSISVPN_PREVIOUS_APP_VERSION: "",
+    GNOSISVPN_PREVIOUS_TOOLKIT_VERSION: "",
+    GNOSISVPN_CHANNEL: "experimental",
+  }, () => {
+    for (const repo of readConfig().repositories) {
+      assertEquals(repo.previousVersion, null);
+    }
+  });
+});
+
+Deno.test("readConfig - a missing previous version is tolerated on the snapshot channel", () => {
+  withConfigEnv({ GNOSISVPN_PREVIOUS_APP_VERSION: "" }, () => {
+    assertEquals(readConfig().repositories.find((r) => r.label === "App")?.previousVersion, null);
   });
 });
