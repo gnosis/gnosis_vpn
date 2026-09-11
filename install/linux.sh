@@ -417,12 +417,14 @@ print_bbr_note() {
     that speeds up traffic sent through the tunnel. As shipped it sets:
         net.ipv4.tcp_congestion_control = bbr
         net.core.default_qdisc = fq
-    The [GnosisVPN postinstall] lines above report what this host ended up with.
     Active now:  net.ipv4.tcp_congestion_control = ${active_cc:-unknown}
                  net.core.default_qdisc = ${active_qdisc:-unknown}
 EOF
     if [[ -n $active_cc && $active_cc != "bbr" ]]; then
-        echo "    BBR is not active here — those lines say why."
+        # Only worth pointing at when this run actually configured the package: apt does not
+        # re-run the maintainer scripts for a same-version install.
+        echo "    BBR is not active here. If this run installed or upgraded the package, the"
+        echo "    [GnosisVPN postinstall] lines above say why."
     fi
     cat <<EOF
     To disable:  sudo rm ${file}
