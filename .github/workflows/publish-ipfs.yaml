@@ -205,8 +205,7 @@ jobs:
     steps:
       - name: Pin to IPFS
         id: ipfs
-        # TODO: re-pin to a tag once hoprnet/hopr-workflows#119 is merged.
-        uses: hoprnet/hopr-workflows/actions/ipfs-deployment@cc08dfac92c69d93d71597095726ba79dcd2897b # mj/ipfs-deployment
+        uses: hoprnet/hopr-workflows/actions/ipfs-deployment@d3c63d1892da2ac9335684e43d04ce299ed0a420 # ipfs-deployment-v1.0.0
         with:
           environment_name: prod
           project_name: gnosis-vpn-downloads
