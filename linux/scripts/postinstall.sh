@@ -406,30 +406,50 @@ SYSCTL_BBR_FILE=/etc/sysctl.d/99-gnosisvpn-bbr.conf
 BBR_STATUS="skipped"
 BBR_PREVIOUS_CONGESTION_CONTROL=""
 BBR_PREVIOUS_QDISC=""
+BBR_CONFLICT=""
 
 read_sysctl() {
     cat "/proc/sys/${1//.//}" 2>/dev/null || true
 }
 
-# Echoes "<file>=<value>" for a congestion control setting that outranks our drop-in at boot:
-# /etc/sysctl.conf is always read last, /etc/sysctl.d entries only when they sort after ours.
+# Echoes "<file>=<value>" for the congestion control setting that outranks our drop-in at boot.
+# sysctl.d files are read in bytewise filename order and /etc/sysctl.conf last, so only files
+# sorting after ours — and sysctl.conf itself — can override us, and the last writer wins.
 conflicting_congestion_control() {
-    local our_base file base value
+    local our_base file base value winner="" winner_value=""
     our_base="$(basename "$SYSCTL_BBR_FILE")"
-    for file in /etc/sysctl.d/*.conf /etc/sysctl.conf; do
-        [[ -f $file ]] || continue
-        if [[ $file == /etc/sysctl.d/* ]]; then
-            base="$(basename "$file")"
-            [[ $base == "$our_base" ]] && continue
-            [[ $base > $our_base ]] || continue
-        fi
-        value="$(sed -n -E 's/^[[:space:]]*net\.ipv4\.tcp_congestion_control[[:space:]]*=[[:space:]]*([^[:space:]#]+).*/\1/p' \
-            "$file" | tail -n1)"
-        if [[ -n $value && $value != "bbr" ]]; then
-            echo "${file}=${value}"
-            return 0
+
+    local bases=("$our_base")
+    for file in /etc/sysctl.d/*.conf; do
+        if [[ -f $file ]]; then
+            bases+=("${file##*/}")
         fi
     done
+
+    # Sorted with LC_ALL=C for the bytewise order sysctl.d uses; bash's own `>` would follow
+    # the caller's LC_COLLATE, which can disagree on case and punctuation.
+    local later_files=() seen_ours=false
+    while IFS= read -r base; do
+        if [[ $base == "$our_base" ]]; then
+            seen_ours=true
+        elif [[ $seen_ours == true ]]; then
+            later_files+=("/etc/sysctl.d/$base")
+        fi
+    done < <(printf '%s\n' "${bases[@]}" | LC_ALL=C sort -u)
+
+    for file in "${later_files[@]}" /etc/sysctl.conf; do
+        [[ -f $file ]] || continue
+        value="$(sed -n -E 's/^[[:space:]]*net\.ipv4\.tcp_congestion_control[[:space:]]*=[[:space:]]*([^[:space:]#]+).*/\1/p' \
+            "$file" | tail -n1)"
+        if [[ -n $value ]]; then
+            winner="$file"
+            winner_value="$value"
+        fi
+    done
+
+    if [[ -n $winner && $winner_value != "bbr" ]]; then
+        echo "${winner}=${winner_value}"
+    fi
     # Explicit success: the caller runs under `set -e`, where a loop ending on a failed test would abort.
     return 0
 }
@@ -462,10 +482,9 @@ configure_tcp_bbr() {
         return 0
     fi
 
-    local conflict
-    conflict="$(conflicting_congestion_control)"
-    if [[ -n $conflict ]]; then
-        echo "$LOG_PREFIX INFO: ${conflict%%=*} sets net.ipv4.tcp_congestion_control=${conflict#*=} and takes precedence over $SYSCTL_BBR_FILE — not enabling BBR"
+    BBR_CONFLICT="$(conflicting_congestion_control)"
+    if [[ -n $BBR_CONFLICT ]]; then
+        echo "$LOG_PREFIX INFO: ${BBR_CONFLICT%%=*} sets net.ipv4.tcp_congestion_control=${BBR_CONFLICT#*=} and takes precedence over $SYSCTL_BBR_FILE — not enabling BBR"
         BBR_STATUS="overridden"
         return 0
     fi
@@ -479,13 +498,9 @@ configure_tcp_bbr() {
     fi
 }
 
-# Final notice about the system-wide network tuning this package installs.
+# Final notice about the system-wide network tuning this package installs — printed for every
+# outcome, so the end of the install always says what happened.
 print_tcp_bbr_summary() {
-    case "$BBR_STATUS" in
-    applied | deferred) ;;
-    *) return 0 ;;
-    esac
-
     # Kernel defaults are the sensible thing to revert to when the previous value was already ours.
     local previous_cc="${BBR_PREVIOUS_CONGESTION_CONTROL:-cubic}"
     local previous_qdisc="${BBR_PREVIOUS_QDISC:-fq_codel}"
@@ -493,26 +508,48 @@ print_tcp_bbr_summary() {
     [[ $previous_qdisc == "fq" ]] && previous_qdisc="fq_codel"
 
     echo "$LOG_PREFIX INFO: ----------------------------------------------------------------"
-    if [[ $BBR_STATUS == "applied" ]]; then
-        echo "$LOG_PREFIX INFO: TCP BBR congestion control is now enabled system-wide."
-    else
-        echo "$LOG_PREFIX INFO: TCP BBR congestion control will be enabled system-wide on the next boot."
+    if [[ $BBR_STATUS == "absent" ]]; then
+        echo "$LOG_PREFIX INFO: $SYSCTL_BBR_FILE is not installed — TCP congestion control left untouched."
+        echo "$LOG_PREFIX INFO: ----------------------------------------------------------------"
+        return 0
     fi
-    echo "$LOG_PREFIX INFO: It speeds up traffic sent through the VPN tunnel."
-    echo "$LOG_PREFIX INFO: New file: $SYSCTL_BBR_FILE"
 
-    # Report what is live once applied; otherwise what the drop-in will set at boot.
-    local effective_cc="bbr" effective_qdisc="fq"
-    if [[ $BBR_STATUS == "applied" ]]; then
-        effective_cc="$(read_sysctl net.ipv4.tcp_congestion_control)"
-        effective_qdisc="$(read_sysctl net.core.default_qdisc)"
-    fi
-    echo "$LOG_PREFIX INFO:   net.ipv4.tcp_congestion_control = ${effective_cc} (was: ${previous_cc})"
-    echo "$LOG_PREFIX INFO:   net.core.default_qdisc = ${effective_qdisc} (was: ${previous_qdisc})"
-    echo "$LOG_PREFIX INFO: To disable it:"
-    echo "$LOG_PREFIX INFO:   sudo rm $SYSCTL_BBR_FILE"
-    echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=${previous_cc}"
-    echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=${previous_qdisc}"
+    echo "$LOG_PREFIX INFO: New file: $SYSCTL_BBR_FILE"
+    case "$BBR_STATUS" in
+    applied)
+        echo "$LOG_PREFIX INFO: TCP BBR congestion control is now enabled system-wide."
+        echo "$LOG_PREFIX INFO: It speeds up traffic sent through the VPN tunnel."
+        echo "$LOG_PREFIX INFO:   net.ipv4.tcp_congestion_control = $(read_sysctl net.ipv4.tcp_congestion_control) (was: ${previous_cc})"
+        echo "$LOG_PREFIX INFO:   net.core.default_qdisc = $(read_sysctl net.core.default_qdisc) (was: ${previous_qdisc})"
+        echo "$LOG_PREFIX INFO: To disable it:"
+        echo "$LOG_PREFIX INFO:   sudo rm $SYSCTL_BBR_FILE"
+        echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=${previous_cc}"
+        echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=${previous_qdisc}"
+        ;;
+    deferred)
+        echo "$LOG_PREFIX INFO: TCP BBR congestion control will be enabled system-wide on the next boot."
+        echo "$LOG_PREFIX INFO: It speeds up traffic sent through the VPN tunnel."
+        echo "$LOG_PREFIX INFO:   net.ipv4.tcp_congestion_control = bbr (currently: ${previous_cc})"
+        echo "$LOG_PREFIX INFO:   net.core.default_qdisc = fq (currently: ${previous_qdisc})"
+        echo "$LOG_PREFIX INFO: To disable it, remove the file before rebooting:"
+        echo "$LOG_PREFIX INFO:   sudo rm $SYSCTL_BBR_FILE"
+        ;;
+    overridden)
+        echo "$LOG_PREFIX INFO: TCP BBR was NOT enabled: ${BBR_CONFLICT%%=*} sets"
+        echo "$LOG_PREFIX INFO: net.ipv4.tcp_congestion_control=${BBR_CONFLICT#*=} and is read after the file above."
+        # The drop-in stays installed, so its second setting still lands on the next boot.
+        echo "$LOG_PREFIX INFO: The file does still set net.core.default_qdisc = fq on the next boot"
+        echo "$LOG_PREFIX INFO: (currently: ${previous_qdisc}). Remove it to keep the system as it is:"
+        echo "$LOG_PREFIX INFO:   sudo rm $SYSCTL_BBR_FILE"
+        ;;
+    *)
+        echo "$LOG_PREFIX INFO: TCP BBR was NOT enabled: this kernel does not offer it."
+        echo "$LOG_PREFIX INFO: The file is kept, so BBR comes on once a kernel that supports it is booted."
+        echo "$LOG_PREFIX INFO: It does set net.core.default_qdisc = fq on the next boot already"
+        echo "$LOG_PREFIX INFO: (currently: ${previous_qdisc}). Remove it to keep the system as it is:"
+        echo "$LOG_PREFIX INFO:   sudo rm $SYSCTL_BBR_FILE"
+        ;;
+    esac
     echo "$LOG_PREFIX INFO: ----------------------------------------------------------------"
 }
 
