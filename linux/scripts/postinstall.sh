@@ -400,25 +400,22 @@ reset_identity_if_requested() {
     # Leave gnosisvpn-dynamic.env intact; it holds GNOSISVPN_HOPR_BLOKLI_URL — deleting it would leave the service with an empty URL (clap rejects that).
 }
 
-# System-wide TCP BBR drop-in shipped by this package. It is a conffile: on Debian/Ubuntu an admin
-# who deletes it keeps it deleted across upgrades, which is the documented way to opt out. (rpm and
-# pacman reinstate a missing config file on upgrade, so their deletion holds only until the next one.)
+# Conffile: deleting it is the documented opt-out. dpkg keeps it deleted; rpm/pacman reinstate it on upgrade.
 SYSCTL_BBR_FILE=/etc/sysctl.d/99-gnosisvpn-bbr.conf
 CONGESTION_CONTROL_KEY=net.ipv4.tcp_congestion_control
 QDISC_KEY=net.core.default_qdisc
 BBR_STATUS="skipped"
 BBR_PREVIOUS_CONGESTION_CONTROL=""
 BBR_PREVIOUS_QDISC=""
-# What the local copy of the drop-in asks for — an admin may have edited it — and what, if
-# anything, outranks each of those at boot.
+# What the (editable) local copy asks for, and the file that outranks each key at boot, if any.
 BBR_REQUESTED_CC=""
 BBR_REQUESTED_QDISC=""
 BBR_CONFLICT=""
 BBR_QDISC_CONFLICT=""
-# Keys the file asked for that are not live yet (partial apply), and keys whose value the kernel
-# refused outright — a reboot refuses those just the same.
+# Pending: not live yet, a reboot fixes it. Invalid: kernel refused the value, a reboot refuses it too.
 BBR_PENDING_KEYS=""
 BBR_INVALID_KEYS=""
+BBR_LANDED_KEYS=""
 BBR_NO_MODPROBE=false
 BBR_MODULE_UNLOADABLE=false
 
@@ -426,21 +423,15 @@ read_sysctl() {
     cat "/proc/sys/${1//.//}" 2>/dev/null || true
 }
 
-# Directories the boot-time loader reads, most specific first. A basename found in an earlier
-# directory shadows the same basename in the later ones, and the merged set is applied in bytewise
-# basename order — systemd-sysctl's rule, which is what runs at boot on a systemd host.
+# systemd-sysctl order: an earlier dir shadows the same basename in later ones; the merged set is applied in bytewise basename order.
 SYSCTL_DIRS=(/etc/sysctl.d /run/sysctl.d /usr/local/lib/sysctl.d /usr/lib/sysctl.d /lib/sysctl.d)
 
-# Last assignment affecting $2 in the sysctl file $1, if any. Handles everything the loaders accept
-# besides a plain key: a leading "-" (assign, ignore failures), "/" instead of "." as the name
-# separator, and a glob as the variable name — each applies a value, so none may hide an override.
-# A non-regular file (a /dev/null symlink masking this basename) yields nothing, which is correct:
-# it assigns nothing.
+# Last assignment to $2 in file $1. Accepts the "-" prefix, "/" separators and glob keys, as the loaders do.
 sysctl_value_in_file() {
     local file="$1" key="$2" file_key raw_value value result=""
-    [[ -f $file ]] || return 0
+    [[ -f $file ]] || return 0 # a /dev/null symlink masking the basename assigns nothing
     while IFS='=' read -r file_key raw_value; do
-        # Keys carry no whitespace; drop the ignore-failures marker and normalise the separator.
+        # Drop the ignore-failures marker and normalise "/" to ".".
         file_key="${file_key//[[:space:]]/}"
         file_key="${file_key#-}"
         file_key="${file_key//\//.}"
@@ -457,9 +448,7 @@ sysctl_value_in_file() {
     return 0
 }
 
-# Echoes "<file>=<value>" when something the loader reads after our drop-in pins $1 to anything
-# but $2: the files sorting after ours, plus /etc/sysctl.conf, which is always read last. The last
-# of them to set the key is the one that wins.
+# Echoes "<file>=<value>" when a file read after ours (later drop-ins, then /etc/sysctl.conf) pins $1 to anything but $2.
 conflicting_setting() {
     local key="$1" want="$2" our_base dir file base value winner="" winner_value=""
     our_base="$(basename "$SYSCTL_BBR_FILE")"
@@ -467,8 +456,7 @@ conflicting_setting() {
     local -A path_by_base=()
     for dir in "${SYSCTL_DIRS[@]}"; do
         for file in "$dir"/*.conf; do
-            # -e || -L, not -f: a symlink to /dev/null masks the basename entirely, so it has to
-            # claim the name here — sysctl_value_in_file then reads no assignment from it.
+            # -e || -L, not -f: a /dev/null symlink masks the basename and must claim it here.
             if [[ -e $file || -L $file ]]; then
                 base="${file##*/}"
                 # First directory to carry a basename shadows the rest.
@@ -478,8 +466,7 @@ conflicting_setting() {
     done
     path_by_base[$our_base]="$SYSCTL_BBR_FILE"
 
-    # Sorted with LC_ALL=C for the bytewise order the loader uses; bash's own `>` would follow
-    # the caller's LC_COLLATE, which can disagree on case and punctuation.
+    # LC_ALL=C for the loader's bytewise order; bash's own `>` follows LC_COLLATE.
     local later_files=() seen_ours=false
     while IFS= read -r base; do
         if [[ $base == "$our_base" ]]; then
@@ -504,9 +491,7 @@ conflicting_setting() {
     return 0
 }
 
-# Sets one knob and says what happened: 0 it holds the value, 1 the kernel refused the value (a
-# reboot refuses it too), 2 the knob is not writable here — a container, where the next boot of a
-# normal host still applies the file.
+# 0: applied. 1: kernel refused the value (a reboot refuses it too). 2: not writable here (container); a normal boot still applies the file.
 apply_sysctl_key() {
     local key="$1" value="$2" current
     if sysctl -qw "${key}=${value}" >/dev/null 2>&1 && [[ "$(read_sysctl "$key")" == "$value" ]]; then
@@ -514,10 +499,7 @@ apply_sysctl_key() {
     fi
     # A knob this kernel does not have at all is refused, not deferred: a reboot has no more of it.
     [[ -e "/proc/sys/${key//.//}" ]] || return 1
-    # Write back the value the knob already has: that proves whether this environment permits the
-    # write at all, which separates a refused value from a read-only /proc. A permission test on
-    # the path would not — root passes it even where the mount is read-only — and matching the
-    # error text would depend on the locale.
+    # Rewriting the current value tells a refused value from a read-only /proc without parsing locale-dependent error text.
     current="$(read_sysctl "$key")"
     if [[ -n $current ]] && sysctl -qw "${key}=${current}" >/dev/null 2>&1; then
         return 1
@@ -525,11 +507,8 @@ apply_sysctl_key() {
     return 2
 }
 
-# Keys applied one at a time rather than with `sysctl -p`, so a key another file wins at boot can
-# be left alone: imposing our value on it until the next reboot would override the administrator's
-# policy rather than defer to it. (A key an admin added to the drop-in beyond these two is left to
-# the boot-time loader.)
-BBR_LANDED_KEYS=""
+# Per key, not `sysctl -p`: a key another file wins at boot stays untouched instead of being overridden until reboot.
+# Keys an admin added beyond these two are left to the boot-time loader.
 apply_requested_setting() {
     local key="$1" value="$2" conflict="$3" rc=0
     [[ -n $value && -z $conflict ]] || return 0
@@ -545,7 +524,7 @@ apply_requested_setting() {
 # Turn on what the drop-in asks for now; the file itself keeps it that way across reboots.
 configure_tcp_bbr() {
     if [[ ! -f $SYSCTL_BBR_FILE ]]; then
-        echo "$LOG_PREFIX INFO: $SYSCTL_BBR_FILE is absent — leaving TCP congestion control alone"
+        echo "$LOG_PREFIX INFO: $SYSCTL_BBR_FILE is absent; leaving TCP congestion control alone"
         BBR_STATUS="absent"
         return 0
     fi
@@ -561,38 +540,31 @@ configure_tcp_bbr() {
         BBR_QDISC_CONFLICT="$(conflicting_setting "$QDISC_KEY" "$BBR_REQUESTED_QDISC")"
     fi
 
-    # Whether the congestion control is ours to set at all. The qdisc is an independent key and is
-    # decided separately below: the boot-time loader applies it whatever happens to this one.
+    # Only the congestion control here; the qdisc is independent and settled separately below.
     local cc_blocked=""
     if [[ -n $BBR_REQUESTED_CC ]]; then
-        # Checked before kernel support: an override decides the outcome whatever the kernel offers,
-        # and reporting "unsupported" would promise an activation that override keeps blocking.
+        # Before the kernel check: an override wins regardless, and "unsupported" would promise an activation it blocks.
         BBR_CONFLICT="$(conflicting_setting "$CONGESTION_CONTROL_KEY" "$BBR_REQUESTED_CC")"
         if [[ -n $BBR_CONFLICT ]]; then
-            echo "$LOG_PREFIX INFO: ${BBR_CONFLICT%%=*} sets ${CONGESTION_CONTROL_KEY}=${BBR_CONFLICT#*=} and takes precedence over $SYSCTL_BBR_FILE — leaving that key to it"
+            echo "$LOG_PREFIX INFO: ${BBR_CONFLICT%%=*} sets ${CONGESTION_CONTROL_KEY}=${BBR_CONFLICT#*=} and takes precedence over $SYSCTL_BBR_FILE; leaving that key to it"
             cc_blocked="overridden"
         else
-            # Congestion control usually ships as a module that is only autoloaded on demand, named
-            # tcp_<value>. Checked for whatever the local copy asks for: a value this kernel does
-            # not have is rejected at boot too, so it must not be reported as waiting for one.
-            # -F because the value comes from an editable file and is not a regular expression.
+            # tcp_<value> is usually an on-demand module; probe whatever the editable copy asks for.
+            # -F: the value comes from an editable file, not a regex.
             if ! grep -qwF "$BBR_REQUESTED_CC" /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null; then
                 modprobe "tcp_${BBR_REQUESTED_CC}" >/dev/null 2>&1 || true
             fi
             if ! grep -qwF "$BBR_REQUESTED_CC" /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null; then
                 if command -v modprobe >/dev/null 2>&1; then
-                    # A dry run resolves the module without loading it: if that succeeds the module
-                    # is here and only loading was refused (an unprivileged container), which a
-                    # normal boot of this host does not suffer from.
+                    # modprobe -n resolves without loading: success means only loading was refused (container), which a normal boot does not suffer.
                     if modprobe -n "tcp_${BBR_REQUESTED_CC}" >/dev/null 2>&1; then
                         BBR_MODULE_UNLOADABLE=true
-                        echo "$LOG_PREFIX WARNING: tcp_${BBR_REQUESTED_CC} is present but could not be loaded here — leaving ${CONGESTION_CONTROL_KEY} to the next boot" >&2
+                        echo "$LOG_PREFIX WARNING: tcp_${BBR_REQUESTED_CC} is present but could not be loaded here; leaving ${CONGESTION_CONTROL_KEY} to the next boot" >&2
                     else
-                        echo "$LOG_PREFIX WARNING: This kernel does not offer ${CONGESTION_CONTROL_KEY}=${BBR_REQUESTED_CC} — keeping $SYSCTL_BBR_FILE as it is" >&2
+                        echo "$LOG_PREFIX WARNING: This kernel does not offer ${CONGESTION_CONTROL_KEY}=${BBR_REQUESTED_CC}; keeping $SYSCTL_BBR_FILE as it is" >&2
                     fi
                 else
-                    # The kernel autoloads tcp_<name> through the usermode helper, so without kmod
-                    # a reboot cannot load it either: this needs a person, not a restart.
+                    # Kernel autoload goes through kmod too, so a reboot cannot fix this.
                     BBR_NO_MODPROBE=true
                     echo "$LOG_PREFIX WARNING: ${CONGESTION_CONTROL_KEY}=${BBR_REQUESTED_CC} is not loaded and modprobe is not installed to load it" >&2
                 fi
@@ -602,7 +574,7 @@ configure_tcp_bbr() {
     fi
 
     if ! command -v sysctl >/dev/null 2>&1; then
-        echo "$LOG_PREFIX WARNING: sysctl not found — $SYSCTL_BBR_FILE takes effect on the next boot" >&2
+        echo "$LOG_PREFIX WARNING: sysctl not found; $SYSCTL_BBR_FILE takes effect on the next boot" >&2
         # A blocker found above still describes this host better than "deferred" does.
         BBR_STATUS="${cc_blocked:-deferred}"
         return 0
@@ -617,25 +589,23 @@ configure_tcp_bbr() {
     if [[ -n $cc_blocked ]]; then
         BBR_STATUS="$cc_blocked"
     elif [[ -n $BBR_INVALID_KEYS ]]; then
-        echo "$LOG_PREFIX WARNING: The kernel refused ${BBR_INVALID_KEYS} as written in $SYSCTL_BBR_FILE — the next boot refuses it too" >&2
+        echo "$LOG_PREFIX WARNING: The kernel refused ${BBR_INVALID_KEYS} as written in $SYSCTL_BBR_FILE; the next boot refuses it too" >&2
         BBR_STATUS="invalid"
     elif [[ -z $BBR_PENDING_KEYS ]]; then
         BBR_STATUS="applied"
     elif [[ -n $BBR_LANDED_KEYS ]]; then
-        echo "$LOG_PREFIX WARNING: Could not set ${BBR_PENDING_KEYS} now — it takes effect on the next boot" >&2
+        echo "$LOG_PREFIX WARNING: Could not set ${BBR_PENDING_KEYS} now; it takes effect on the next boot" >&2
         BBR_STATUS="partial"
     else
-        echo "$LOG_PREFIX WARNING: Could not apply $SYSCTL_BBR_FILE now — it takes effect on the next boot" >&2
+        echo "$LOG_PREFIX WARNING: Could not apply $SYSCTL_BBR_FILE now; it takes effect on the next boot" >&2
         BBR_STATUS="deferred"
     fi
 }
 
-# The qdisc setting is a default for interfaces created afterwards, and another file may outrank
-# it, so say what it will and will not do rather than implying a running tunnel changes under it.
+# default_qdisc only affects interfaces created later and may be outranked; say exactly what it will do.
 print_qdisc_note() {
     if [[ -n $BBR_INVALID_KEYS && $BBR_INVALID_KEYS == *"$QDISC_KEY"* ]]; then
-        # The refusal is already reported, and it applies at boot too: saying what the file "sets
-        # at boot" here would contradict it.
+        # Already reported as refused; "sets at boot" would contradict that.
         return 0
     elif [[ -z $BBR_REQUESTED_QDISC ]]; then
         echo "$LOG_PREFIX INFO: The local copy sets no ${QDISC_KEY}."
@@ -644,21 +614,17 @@ print_qdisc_note() {
         echo "$LOG_PREFIX INFO: so the file's ${QDISC_KEY} does not decide the boot-time value."
     else
         echo "$LOG_PREFIX INFO: The file sets ${QDISC_KEY} = ${BBR_REQUESTED_QDISC} at boot, for interfaces"
-        echo "$LOG_PREFIX INFO: created after that — one already up keeps its queueing discipline."
+        echo "$LOG_PREFIX INFO: created after that; one already up keeps its queueing discipline."
     fi
 }
 
-# Final notice about the system-wide network tuning this package installs — printed for every
-# outcome, so the end of the install always says what happened. The headline differs per outcome;
-# the facts below it (live values, what did not land, what the qdisc will do, how to undo) do not.
+# Printed for every outcome: the headline varies, the facts below it (live values, misses, qdisc note, undo) do not.
 print_tcp_bbr_summary() {
     # Reported as read, never normalised: this script has no record of who set them.
     local previous_cc="${BBR_PREVIOUS_CONGESTION_CONTROL:-unknown}"
     local previous_qdisc="${BBR_PREVIOUS_QDISC:-unknown}"
 
-    # What to reset to when disabling: the captured value, which is what the file changed it from.
-    # Where the host already ran what the file asks for, the package changed nothing and cannot
-    # claim to own that value, so name the kernel default and say so instead.
+    # Undo advice restores the captured value; if it already matched the file we own nothing and name the kernel default.
     local reset_cc="$previous_cc" reset_qdisc="$previous_qdisc" reset_is_kernel_default=false
     if [[ $previous_cc == "$BBR_REQUESTED_CC" || $previous_cc == "unknown" ]]; then
         reset_cc="cubic"
@@ -671,7 +637,7 @@ print_tcp_bbr_summary() {
 
     echo "$LOG_PREFIX INFO: ----------------------------------------------------------------"
     if [[ $BBR_STATUS == "absent" ]]; then
-        echo "$LOG_PREFIX INFO: $SYSCTL_BBR_FILE is not installed — TCP congestion control left untouched."
+        echo "$LOG_PREFIX INFO: $SYSCTL_BBR_FILE is not installed; TCP congestion control left untouched."
         echo "$LOG_PREFIX INFO: ----------------------------------------------------------------"
         return 0
     fi
@@ -694,12 +660,12 @@ print_tcp_bbr_summary() {
     unsupported)
         if [[ $BBR_MODULE_UNLOADABLE == true ]]; then
             echo "$LOG_PREFIX INFO: ${CONGESTION_CONTROL_KEY} = ${BBR_REQUESTED_CC} could not be set here: the"
-            echo "$LOG_PREFIX INFO: tcp_${BBR_REQUESTED_CC} module is present but loading it was refused — an unprivileged"
+            echo "$LOG_PREFIX INFO: tcp_${BBR_REQUESTED_CC} module is present but loading it was refused, an unprivileged"
             echo "$LOG_PREFIX INFO: container, typically. A normal boot of this host loads it and applies the file."
         elif [[ $BBR_NO_MODPROBE == true ]]; then
             echo "$LOG_PREFIX INFO: ${CONGESTION_CONTROL_KEY} = ${BBR_REQUESTED_CC} could not be set: the module"
             echo "$LOG_PREFIX INFO: is not loaded and modprobe is not installed to load it. Install kmod or load"
-            echo "$LOG_PREFIX INFO: it by hand and re-install — a reboot on its own will not fix this."
+            echo "$LOG_PREFIX INFO: it by hand and re-install; a reboot on its own will not fix this."
         elif [[ $BBR_REQUESTED_CC == "bbr" ]]; then
             echo "$LOG_PREFIX INFO: TCP BBR was NOT enabled: this kernel does not offer it."
             echo "$LOG_PREFIX INFO: The file is kept, so BBR comes on once a kernel that supports it is booted."
@@ -713,16 +679,16 @@ print_tcp_bbr_summary() {
         ;;
     applied | partial | invalid)
         if [[ -z $BBR_REQUESTED_CC ]]; then
-            echo "$LOG_PREFIX INFO: Applied $SYSCTL_BBR_FILE as it stands on this host — the local copy"
+            echo "$LOG_PREFIX INFO: Applied $SYSCTL_BBR_FILE as it stands on this host; the local copy"
             echo "$LOG_PREFIX INFO: no longer sets ${CONGESTION_CONTROL_KEY}, so BBR was not enabled."
         elif [[ $BBR_REQUESTED_CC != "bbr" ]]; then
             echo "$LOG_PREFIX INFO: Applied $SYSCTL_BBR_FILE as it stands on this host: it asks for"
-            echo "$LOG_PREFIX INFO: ${CONGESTION_CONTROL_KEY} = ${BBR_REQUESTED_CC}, not bbr — edited locally?"
+            echo "$LOG_PREFIX INFO: ${CONGESTION_CONTROL_KEY} = ${BBR_REQUESTED_CC}, not bbr. Edited locally?"
         elif [[ $BBR_INVALID_KEYS == *"$CONGESTION_CONTROL_KEY"* ]]; then
             echo "$LOG_PREFIX INFO: TCP BBR congestion control was NOT enabled: this kernel refused the value"
             echo "$LOG_PREFIX INFO: the file asks for."
         elif [[ $live_cc != "bbr" ]]; then
-            echo "$LOG_PREFIX INFO: TCP BBR congestion control could not be set now — the file asks for it"
+            echo "$LOG_PREFIX INFO: TCP BBR congestion control could not be set now; the file asks for it"
             echo "$LOG_PREFIX INFO: and the next boot applies it."
         elif [[ $previous_cc == "bbr" ]]; then
             echo "$LOG_PREFIX INFO: TCP BBR congestion control was already active here; the file keeps it that way."
@@ -732,8 +698,7 @@ print_tcp_bbr_summary() {
         fi
         ;;
     *)
-        # Unreachable: configure_tcp_bbr sets a status on every path. Kept so an added status
-        # cannot silently borrow another branch's wording.
+        # Unreachable today; keeps a new status from silently borrowing another branch's wording.
         echo "$LOG_PREFIX INFO: TCP tuning state: ${BBR_STATUS}."
         ;;
     esac
@@ -742,15 +707,14 @@ print_tcp_bbr_summary() {
     echo "$LOG_PREFIX INFO:   ${QDISC_KEY} = ${live_qdisc:-unknown} (was: ${previous_qdisc})"
     if [[ -n $BBR_INVALID_KEYS ]]; then
         echo "$LOG_PREFIX INFO: Refused by the kernel as written in the file: ${BBR_INVALID_KEYS}"
-        echo "$LOG_PREFIX INFO: The next boot refuses the same value — fix or remove the file."
+        echo "$LOG_PREFIX INFO: The next boot refuses the same value; fix or remove the file."
     fi
     if [[ -n $BBR_PENDING_KEYS ]]; then
         echo "$LOG_PREFIX INFO: Not set yet, and waiting for the next boot: ${BBR_PENDING_KEYS}"
     fi
     print_qdisc_note
 
-    # Offer to undo only the keys actually changed here: a key left to another file's policy must
-    # not be written back by advice of ours either.
+    # Undo advice only for keys changed here; a key left to another file's policy stays out of it.
     if [[ -n $BBR_LANDED_KEYS ]]; then
         echo "$LOG_PREFIX INFO: To disable it:"
         echo "$LOG_PREFIX INFO:   sudo rm $SYSCTL_BBR_FILE"
@@ -761,7 +725,7 @@ print_tcp_bbr_summary() {
             echo "$LOG_PREFIX INFO:   sudo sysctl -w ${QDISC_KEY}=${reset_qdisc}"
         fi
         if [[ $reset_is_kernel_default == true ]]; then
-            echo "$LOG_PREFIX INFO: (kernel defaults — this host already ran what the file sets, so something"
+            echo "$LOG_PREFIX INFO: (kernel defaults: this host already ran what the file sets, so something"
             echo "$LOG_PREFIX INFO:  else may set it too: check /etc/sysctl.conf and /etc/sysctl.d)"
         fi
     else

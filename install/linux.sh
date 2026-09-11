@@ -402,9 +402,7 @@ apt_install() {
     ${SUDO} env "${install_env[@]}" apt-get install "${apt_opts[@]}" "$package"
 }
 
-# Mirrors the package postinstall's notice — apt's own output usually scrolls past it.
-# Reports the live values rather than predicting the next boot: the postinstall above is the
-# one that knows whether BBR was applied, deferred, overridden or unsupported.
+# Mirrors the postinstall notice, which apt output scrolls past; reports live values only, the postinstall knows the why.
 print_bbr_note() {
     local file=/etc/sysctl.d/99-gnosisvpn-bbr.conf
     [[ -f $file ]] || return 0
@@ -423,8 +421,7 @@ EOF
                  net.core.default_qdisc = ${active_qdisc:-unknown}
 EOF
     if [[ -n $active_cc && $active_cc != "bbr" ]]; then
-        # Only worth pointing at when this run actually configured the package: apt does not
-        # re-run the maintainer scripts for a same-version install.
+        # apt skips maintainer scripts on a same-version install, so those lines may not exist.
         echo "    BBR is not active here. If this run installed or upgraded the package, the"
         echo "    [GnosisVPN postinstall] lines above say why."
     fi

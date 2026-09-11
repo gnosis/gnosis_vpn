@@ -92,23 +92,20 @@ if [[ $IS_PURGE == "true" ]]; then
         rm -f /etc/logrotate.d/gnosisvpn
     fi
 
-    # Same conffile reasoning for the BBR drop-in. Unconditional: dpkg may have dropped the
-    # conffile already, or the admin did, and the running values still need reporting either way.
+    # rm -f unconditionally: dpkg or the admin may have removed it already.
     if [[ -f /etc/sysctl.d/99-gnosisvpn-bbr.conf ]]; then
         echo "$LOG_PREFIX INFO: Removing TCP BBR configuration: /etc/sysctl.d/99-gnosisvpn-bbr.conf"
     fi
     rm -f /etc/sysctl.d/99-gnosisvpn-bbr.conf
 
-    # Removing a sysctl.d file does not undo what it already applied — and it may never have been
-    # applied here, so report what is actually running rather than assuming BBR is on.
+    # Removing the file undoes nothing already applied; report live values rather than assume BBR was on.
     ACTIVE_CC="$(cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null || true)"
     ACTIVE_QDISC="$(cat /proc/sys/net/core/default_qdisc 2>/dev/null || true)"
     echo "$LOG_PREFIX INFO: Running values are unchanged by this removal:"
     echo "$LOG_PREFIX INFO:   net.ipv4.tcp_congestion_control = ${ACTIVE_CC:-unknown}"
     echo "$LOG_PREFIX INFO:   net.core.default_qdisc = ${ACTIVE_QDISC:-unknown}"
     if [[ $ACTIVE_CC == "bbr" || $ACTIVE_QDISC == "fq" ]]; then
-        # This script has no record of what the host ran before the package, and it may well have
-        # chosen bbr/fq itself — so these are offered as the kernel defaults, not as a restore.
+        # No record of pre-package values, and the host may have chosen bbr/fq itself: kernel defaults, not a restore.
         echo "$LOG_PREFIX INFO: If you want the kernel defaults instead (this package cannot tell"
         echo "$LOG_PREFIX INFO: whether this host set them itself), apply them with:"
         if [[ $ACTIVE_CC == "bbr" ]]; then
