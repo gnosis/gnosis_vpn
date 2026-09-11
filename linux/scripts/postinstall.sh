@@ -400,6 +400,48 @@ reset_identity_if_requested() {
     # Leave gnosisvpn-dynamic.env intact; it holds GNOSISVPN_HOPR_BLOKLI_URL — deleting it would leave the service with an empty URL (clap rejects that).
 }
 
+# Conffile: deleting it is the documented opt-out. dpkg keeps it deleted; rpm/pacman reinstate it on upgrade.
+SYSCTL_BBR_FILE=/etc/sysctl.d/99-gnosisvpn-bbr.conf
+CONGESTION_CONTROL_KEY=net.ipv4.tcp_congestion_control
+QDISC_KEY=net.core.default_qdisc
+
+read_sysctl() {
+    cat "/proc/sys/${1//.//}" 2>/dev/null || true
+}
+
+# sysctl --system reads every sysctl.d directory and then /etc/sysctl.conf, in the same order as
+# boot, so a file that outranks ours keeps its value here too and no reboot is needed.
+configure_tcp_bbr() {
+    [[ -f $SYSCTL_BBR_FILE ]] || return 0
+    if ! command -v sysctl >/dev/null 2>&1; then
+        echo "$LOG_PREFIX WARNING: sysctl not found; $SYSCTL_BBR_FILE takes effect on the next boot" >&2
+        return 0
+    fi
+    # Kernel autoload goes through kmod; load it here in case that is restricted.
+    modprobe tcp_bbr >/dev/null 2>&1 || true
+    # Errors belong to whichever file caused them, not to this package.
+    sysctl --system >/dev/null 2>&1 || true
+}
+
+print_tcp_bbr_summary() {
+    [[ -f $SYSCTL_BBR_FILE ]] || return 0
+    local cc qdisc
+    cc="$(read_sysctl "$CONGESTION_CONTROL_KEY")"
+    qdisc="$(read_sysctl "$QDISC_KEY")"
+    echo "$LOG_PREFIX INFO: ----------------------------------------------------------------"
+    echo "$LOG_PREFIX INFO: Network tuning from $SYSCTL_BBR_FILE:"
+    echo "$LOG_PREFIX INFO:   ${CONGESTION_CONTROL_KEY} = ${cc:-unknown}"
+    echo "$LOG_PREFIX INFO:   ${QDISC_KEY} = ${qdisc:-unknown}"
+    if [[ $cc != "bbr" ]]; then
+        echo "$LOG_PREFIX INFO: The file asks for bbr; this kernel or another sysctl file overrides it."
+    fi
+    echo "$LOG_PREFIX INFO: To disable:"
+    echo "$LOG_PREFIX INFO:   sudo rm $SYSCTL_BBR_FILE"
+    echo "$LOG_PREFIX INFO:   sudo sysctl -w ${CONGESTION_CONTROL_KEY}=cubic"
+    echo "$LOG_PREFIX INFO:   sudo sysctl -w ${QDISC_KEY}=fq_codel"
+    echo "$LOG_PREFIX INFO: ----------------------------------------------------------------"
+}
+
 # Enable and start the systemd service
 enable_and_start_systemd_service() {
     echo "$LOG_PREFIX INFO: Setting up systemd service..."
@@ -530,10 +572,12 @@ main() {
     remove_legacy_apt_mirror
     register_apt_repo
     reset_identity_if_requested
+    configure_tcp_bbr
     enable_and_start_systemd_service
     install_desktop_shortcut_for_user
 
     echo "$LOG_PREFIX SUCCESS: Post-installation completed successfully"
+    print_tcp_bbr_summary
 }
 
 # Args forwarded for dpkg-maintscript-helper (see remove_retired_conffiles).
