@@ -104,7 +104,7 @@ __GNOSIS_VPN_NETWORK_CONFIGS__
       mode: 0644
       owner: root
       group: root
-  # Enables TCP BBR + fq system-wide; postinstall.sh applies it and reports it to the user.
+  # TCP BBR + fq; postinstall.sh applies it without a reboot.
   - src: ./linux/resources/sysctl-bbr.conf
     dst: /etc/sysctl.d/99-gnosisvpn-bbr.conf
     type: config

@@ -187,35 +187,20 @@ Direct `.deb` installs have no flags — these environment variables configure t
 
 ### Network Tuning: TCP BBR
 
-The package installs `/etc/sysctl.d/99-gnosisvpn-bbr.conf`, which switches the kernel to the BBR congestion control
-algorithm together with the `fq` queueing discipline:
+The package installs `/etc/sysctl.d/99-gnosisvpn-bbr.conf`, which selects the BBR congestion control algorithm and the
+`fq` queueing discipline system-wide:
 
 ```
 net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr
 ```
 
-Both are system-wide settings, not VPN-specific ones. They improve throughput and latency of traffic sent through the
-tunnel. The postinstall applies them right away, so no reboot is needed for the congestion control. `default_qdisc` is a
-default for interfaces created after it is set, so an interface that is already up keeps its queueing discipline until
-it is recreated.
+They improve throughput and latency of traffic sent through the tunnel. The postinstall runs `sysctl --system`, so no
+reboot is needed. `default_qdisc` only applies to interfaces created after it is set; one already up keeps its queueing
+discipline. If another sysctl file or `/etc/sysctl.conf` already pins these keys, that file still wins - the postinstall
+prints the resulting values.
 
-To apply them by hand:
-
-```bash
-# enable BBR
-sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
-sudo sysctl -w net.core.default_qdisc=fq
-```
-
-The postinstall skips that step when the kernel does not offer BBR, and it leaves an existing setting in charge when
-`/etc/sysctl.conf`, or an `/etc/sysctl.d` drop-in sorting after ours, already pins a different
-`net.ipv4.tcp_congestion_control`. In both cases the file stays installed, and its `net.core.default_qdisc = fq` is
-resolved on its own: it applies unless a later-sorting file pins that key too, or this kernel has no `fq` to give. The
-postinstall settles each key separately and prints, at the end of the installation, which way each one went. Remove the
-file to keep the system as it is.
-
-To disable it again:
+To disable it (removing the file alone does not reset the running values):
 
 ```bash
 sudo rm /etc/sysctl.d/99-gnosisvpn-bbr.conf
@@ -223,12 +208,8 @@ sudo sysctl -w net.ipv4.tcp_congestion_control=cubic
 sudo sysctl -w net.core.default_qdisc=fq_codel
 ```
 
-`cubic` and `fq_codel` are the kernel defaults, not necessarily what this host ran before. The package prints the values
-it found as `(was: ...)` at the end of the installation, and those are the ones to restore on a machine that was already
-tuned.
-
-The file is a dpkg conffile: once removed, upgrades do not bring it back. `sudo apt purge gnosisvpn` removes it as well,
-and the values stay as they are until they are reset with the `sysctl -w` commands above or the machine reboots.
+`cubic` and `fq_codel` are the kernel defaults. The file is a dpkg conffile: once removed, upgrades do not bring it
+back, and `sudo apt purge gnosisvpn` removes it too.
 
 ## Reporting Issues
 

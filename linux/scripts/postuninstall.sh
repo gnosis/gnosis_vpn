@@ -93,28 +93,11 @@ if [[ $IS_PURGE == "true" ]]; then
     fi
 
     # rm -f unconditionally: dpkg or the admin may have removed it already.
-    if [[ -f /etc/sysctl.d/99-gnosisvpn-bbr.conf ]]; then
-        echo "$LOG_PREFIX INFO: Removing TCP BBR configuration: /etc/sysctl.d/99-gnosisvpn-bbr.conf"
-    fi
     rm -f /etc/sysctl.d/99-gnosisvpn-bbr.conf
-
-    # Removing the file undoes nothing already applied; report live values rather than assume BBR was on.
-    ACTIVE_CC="$(cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null || true)"
-    ACTIVE_QDISC="$(cat /proc/sys/net/core/default_qdisc 2>/dev/null || true)"
-    echo "$LOG_PREFIX INFO: Running values are unchanged by this removal:"
-    echo "$LOG_PREFIX INFO:   net.ipv4.tcp_congestion_control = ${ACTIVE_CC:-unknown}"
-    echo "$LOG_PREFIX INFO:   net.core.default_qdisc = ${ACTIVE_QDISC:-unknown}"
-    if [[ $ACTIVE_CC == "bbr" || $ACTIVE_QDISC == "fq" ]]; then
-        # No record of pre-package values, and the host may have chosen bbr/fq itself: kernel defaults, not a restore.
-        echo "$LOG_PREFIX INFO: If you want the kernel defaults instead (this package cannot tell"
-        echo "$LOG_PREFIX INFO: whether this host set them itself), apply them with:"
-        if [[ $ACTIVE_CC == "bbr" ]]; then
-            echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=cubic"
-        fi
-        if [[ $ACTIVE_QDISC == "fq" ]]; then
-            echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=fq_codel"
-        fi
-    fi
+    echo "$LOG_PREFIX INFO: Removed TCP BBR configuration: /etc/sysctl.d/99-gnosisvpn-bbr.conf"
+    echo "$LOG_PREFIX INFO: Running values persist until reset or reboot:"
+    echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=cubic"
+    echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=fq_codel"
 
     # Remove state directory
     if [[ -d /var/lib/gnosisvpn ]]; then

@@ -402,38 +402,6 @@ apt_install() {
     ${SUDO} env "${install_env[@]}" apt-get install "${apt_opts[@]}" "$package"
 }
 
-# Mirrors the postinstall notice, which apt output scrolls past; reports live values only, the postinstall knows the why.
-print_bbr_note() {
-    local file=/etc/sysctl.d/99-gnosisvpn-bbr.conf
-    [[ -f $file ]] || return 0
-    local active_cc active_qdisc
-    active_cc="$(cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null || true)"
-    active_qdisc="$(cat /proc/sys/net/core/default_qdisc 2>/dev/null || true)"
-    cat <<EOF
-
-[gnosisvpn] Network tuning: the package installed ${file}, the TCP BBR tuning
-    that speeds up traffic sent through the tunnel. It currently asks for:
-EOF
-    # The file's own lines, not the shipped defaults: it is a conffile and may have been edited.
-    grep -vE '^[[:space:]]*(#|$)' "$file" 2>/dev/null | sed 's/^/        /' || true
-    cat <<EOF
-    Active now:  net.ipv4.tcp_congestion_control = ${active_cc:-unknown}
-                 net.core.default_qdisc = ${active_qdisc:-unknown}
-EOF
-    if [[ -n $active_cc && $active_cc != "bbr" ]]; then
-        # apt skips maintainer scripts on a same-version install, so those lines may not exist.
-        echo "    BBR is not active here. If this run installed or upgraded the package, the"
-        echo "    [GnosisVPN postinstall] lines above say why."
-    fi
-    cat <<EOF
-    To disable:  sudo rm ${file}
-                 sudo sysctl -w net.ipv4.tcp_congestion_control=cubic
-                 sudo sysctl -w net.core.default_qdisc=fq_codel
-    Those two are the kernel defaults. If this host ran something else before,
-    the [GnosisVPN postinstall] lines above report it as "(was: ...)".
-EOF
-}
-
 print_postinstall() {
     cat <<'EOF'
 
@@ -464,7 +432,6 @@ main() {
     write_sources
     apt_install
     print_postinstall
-    print_bbr_note
 }
 
 main "$@"
