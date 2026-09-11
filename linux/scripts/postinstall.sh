@@ -457,7 +457,8 @@ conflicting_congestion_control() {
 # Turn on BBR + fq now; the drop-in itself keeps them on across reboots.
 configure_tcp_bbr() {
     if [[ ! -f $SYSCTL_BBR_FILE ]]; then
-        # Conffile removed on purpose; dpkg never restores it and neither do we.
+        # Removed on purpose; dpkg never restores a deleted conffile and neither do we. (rpm and
+        # pacman do reinstate it on upgrade, so there deletion holds only until the next one.)
         echo "$LOG_PREFIX INFO: $SYSCTL_BBR_FILE is absent — leaving TCP congestion control alone"
         BBR_STATUS="absent"
         return 0
@@ -472,6 +473,15 @@ configure_tcp_bbr() {
     BBR_PREVIOUS_CONGESTION_CONTROL="$(read_sysctl net.ipv4.tcp_congestion_control)"
     BBR_PREVIOUS_QDISC="$(read_sysctl net.core.default_qdisc)"
 
+    # Checked before kernel support: an override decides the outcome whatever the kernel offers,
+    # and reporting "unsupported" would promise an activation that override keeps blocking.
+    BBR_CONFLICT="$(conflicting_congestion_control)"
+    if [[ -n $BBR_CONFLICT ]]; then
+        echo "$LOG_PREFIX INFO: ${BBR_CONFLICT%%=*} sets net.ipv4.tcp_congestion_control=${BBR_CONFLICT#*=} and takes precedence over $SYSCTL_BBR_FILE — not enabling BBR"
+        BBR_STATUS="overridden"
+        return 0
+    fi
+
     # bbr usually ships as a module that is only autoloaded on demand.
     if ! grep -qw bbr /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null; then
         modprobe tcp_bbr >/dev/null 2>&1 || true
@@ -479,13 +489,6 @@ configure_tcp_bbr() {
     if ! grep -qw bbr /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null; then
         echo "$LOG_PREFIX WARNING: This kernel does not offer BBR — keeping $SYSCTL_BBR_FILE for a future kernel" >&2
         BBR_STATUS="unsupported"
-        return 0
-    fi
-
-    BBR_CONFLICT="$(conflicting_congestion_control)"
-    if [[ -n $BBR_CONFLICT ]]; then
-        echo "$LOG_PREFIX INFO: ${BBR_CONFLICT%%=*} sets net.ipv4.tcp_congestion_control=${BBR_CONFLICT#*=} and takes precedence over $SYSCTL_BBR_FILE — not enabling BBR"
-        BBR_STATUS="overridden"
         return 0
     fi
 
@@ -501,11 +504,21 @@ configure_tcp_bbr() {
 # Final notice about the system-wide network tuning this package installs — printed for every
 # outcome, so the end of the install always says what happened.
 print_tcp_bbr_summary() {
-    # Kernel defaults are the sensible thing to revert to when the previous value was already ours.
-    local previous_cc="${BBR_PREVIOUS_CONGESTION_CONTROL:-cubic}"
-    local previous_qdisc="${BBR_PREVIOUS_QDISC:-fq_codel}"
-    [[ $previous_cc == "bbr" ]] && previous_cc="cubic"
-    [[ $previous_qdisc == "fq" ]] && previous_qdisc="fq_codel"
+    # Reported as read, never normalised: this script has no record of who set them.
+    local previous_cc="${BBR_PREVIOUS_CONGESTION_CONTROL:-unknown}"
+    local previous_qdisc="${BBR_PREVIOUS_QDISC:-unknown}"
+
+    # What to reset to when disabling. Where the host already ran what the drop-in sets, the
+    # package cannot claim to own that value, so name the kernel default and say so.
+    local reset_cc="$previous_cc" reset_qdisc="$previous_qdisc" reset_is_kernel_default=false
+    if [[ $reset_cc == "bbr" || $reset_cc == "unknown" ]]; then
+        reset_cc="cubic"
+        reset_is_kernel_default=true
+    fi
+    if [[ $reset_qdisc == "fq" || $reset_qdisc == "unknown" ]]; then
+        reset_qdisc="fq_codel"
+        reset_is_kernel_default=true
+    fi
 
     echo "$LOG_PREFIX INFO: ----------------------------------------------------------------"
     if [[ $BBR_STATUS == "absent" ]]; then
@@ -515,16 +528,29 @@ print_tcp_bbr_summary() {
     fi
 
     echo "$LOG_PREFIX INFO: New file: $SYSCTL_BBR_FILE"
+    local live_cc live_qdisc
     case "$BBR_STATUS" in
     applied)
-        echo "$LOG_PREFIX INFO: TCP BBR congestion control is now enabled system-wide."
-        echo "$LOG_PREFIX INFO: It speeds up traffic sent through the VPN tunnel."
-        echo "$LOG_PREFIX INFO:   net.ipv4.tcp_congestion_control = $(read_sysctl net.ipv4.tcp_congestion_control) (was: ${previous_cc})"
-        echo "$LOG_PREFIX INFO:   net.core.default_qdisc = $(read_sysctl net.core.default_qdisc) (was: ${previous_qdisc})"
+        live_cc="$(read_sysctl net.ipv4.tcp_congestion_control)"
+        live_qdisc="$(read_sysctl net.core.default_qdisc)"
+        if [[ $live_cc == "bbr" ]]; then
+            echo "$LOG_PREFIX INFO: TCP BBR congestion control is now enabled system-wide."
+            echo "$LOG_PREFIX INFO: It speeds up traffic sent through the VPN tunnel."
+        else
+            # The file is a conffile an admin may have edited; it is applied as it stands.
+            echo "$LOG_PREFIX INFO: Applied $SYSCTL_BBR_FILE as it stands on this host: it asks for"
+            echo "$LOG_PREFIX INFO: net.ipv4.tcp_congestion_control = ${live_cc:-unknown}, not bbr — edited locally?"
+        fi
+        echo "$LOG_PREFIX INFO:   net.ipv4.tcp_congestion_control = ${live_cc:-unknown} (was: ${previous_cc})"
+        echo "$LOG_PREFIX INFO:   net.core.default_qdisc = ${live_qdisc:-unknown} (was: ${previous_qdisc})"
         echo "$LOG_PREFIX INFO: To disable it:"
         echo "$LOG_PREFIX INFO:   sudo rm $SYSCTL_BBR_FILE"
-        echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=${previous_cc}"
-        echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=${previous_qdisc}"
+        echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=${reset_cc}"
+        echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=${reset_qdisc}"
+        if [[ $reset_is_kernel_default == true ]]; then
+            echo "$LOG_PREFIX INFO: (kernel defaults — this host already ran what the file sets, so something"
+            echo "$LOG_PREFIX INFO:  else may set it too: check /etc/sysctl.conf and /etc/sysctl.d)"
+        fi
         ;;
     deferred)
         echo "$LOG_PREFIX INFO: TCP BBR congestion control will be enabled system-wide on the next boot."
