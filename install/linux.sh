@@ -414,9 +414,11 @@ print_bbr_note() {
     cat <<EOF
 
 [gnosisvpn] Network tuning: the package installed ${file}, the TCP BBR tuning
-    that speeds up traffic sent through the tunnel. As shipped it sets:
-        net.ipv4.tcp_congestion_control = bbr
-        net.core.default_qdisc = fq
+    that speeds up traffic sent through the tunnel. It currently asks for:
+EOF
+    # The file's own lines, not the shipped defaults: it is a conffile and may have been edited.
+    grep -vE '^[[:space:]]*(#|$)' "$file" 2>/dev/null | sed 's/^/        /' || true
+    cat <<EOF
     Active now:  net.ipv4.tcp_congestion_control = ${active_cc:-unknown}
                  net.core.default_qdisc = ${active_qdisc:-unknown}
 EOF
