@@ -80,6 +80,9 @@ jobs:
           GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_APP_RELEASE_VERSION }}
           GNOSISVPN_PREVIOUS_TOOLKIT_VERSION: ${{ vars.GNOSISVPN_TOOLKIT_RELEASE_VERSION }}
           GNOSISVPN_CHANGELOG_FORMAT: github
+          # Keeps the stable line strict: a missing GNOSISVPN_*_RELEASE_VERSION must fail here
+          # rather than yield release notes that silently omit a component.
+          GNOSISVPN_CHANNEL: stable
           # Aggregate PRs merged into the dispatching ref (e.g. a release branch)
           # rather than main, so close-release on a non-main branch produces release
           # notes that match what actually shipped on that branch. Only affects the
