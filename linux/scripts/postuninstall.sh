@@ -92,6 +92,13 @@ if [[ $IS_PURGE == "true" ]]; then
         rm -f /etc/logrotate.d/gnosisvpn
     fi
 
+    # rm -f unconditionally: dpkg or the admin may have removed it already.
+    rm -f /etc/sysctl.d/99-gnosisvpn-bbr.conf
+    echo "$LOG_PREFIX INFO: Removed TCP BBR configuration: /etc/sysctl.d/99-gnosisvpn-bbr.conf"
+    echo "$LOG_PREFIX INFO: Running values persist until reset or reboot:"
+    echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=cubic"
+    echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=fq_codel"
+
     # Remove state directory
     if [[ -d /var/lib/gnosisvpn ]]; then
         echo "$LOG_PREFIX INFO: Removing state directory: /var/lib/gnosisvpn"

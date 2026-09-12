@@ -104,6 +104,14 @@ __GNOSIS_VPN_NETWORK_CONFIGS__
       mode: 0644
       owner: root
       group: root
+  # TCP BBR + fq; postinstall.sh applies it without a reboot.
+  - src: ./linux/resources/sysctl-bbr.conf
+    dst: /etc/sysctl.d/99-gnosisvpn-bbr.conf
+    type: config
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
   - src: ./linux/resources/gnosisvpn.service
     dst: /usr/lib/systemd/system/gnosisvpn.service
   - src: ./linux/resources/copyright
