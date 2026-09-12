@@ -45,7 +45,7 @@ TOML configuration templates for different network environments.
 - **jura-dev**: Development network (stable, snapshot)
 - **piz-palu-dev**: Piz Palu development network (experimental)
 
-**Template Structure:**
+**Template Structure** (Jura networks):
 
 ```toml
 version = 6
@@ -55,8 +55,11 @@ address = "0xExitNodeAddress"
 meta = { location = "City", flag = "XX" }
 ```
 
+The `[destinations.*]` tables are present in the Jura templates only. `piz-palu-dev` declares `version = 7`, ships no
+destination list and relies on the client finding exit nodes at runtime.
+
 The table key is a free-form destination id (the country name, by convention). `path` is optional and may only be
-`path = { hops = N }` with `N` in 0-3; when omitted it defaults to 1 hop, which is what both shipped configs rely on.
+`path = { hops = N }` with `N` in 0-3; when omitted it defaults to 1 hop, which is what the Jura configs rely on.
 
 The `meta` table accepts any string key-value pairs. Two keys are used by the UI:
 
