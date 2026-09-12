@@ -1,4 +1,4 @@
-version = 6
+version = 7
 
 [pix_strategy]
 price_per_byte = "0.000000000000000001 wxHOPR"
