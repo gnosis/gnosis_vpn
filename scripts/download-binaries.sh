@@ -25,7 +25,7 @@ usage() {
     echo "  --app-version <version>        Set the App version (e.g., latest, 0.2.2, 0.2.2+pr.10)"
     echo "  --toolkit-version <version>    Set the Toolkit version (e.g., latest, 0.1.0, 0.1.0+pr.5)"
     echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux, aarch64-darwin), default: x86_64-linux"
-    echo "  --distribution <type>          Set the distribution type (deb, dmg), default: deb"
+    echo "  --distribution <type>          Set the distribution type (deb, rpm, dmg), default: deb"
     echo "  -h, --help                     Show this help message"
     exit 1
 }
@@ -165,9 +165,10 @@ download_linux_binaries() {
         chmod +x "${BINARY_DIR}/${artifact}"
     done
     download_toolkit_binaries "${GNOSISVPN_ARCHITECTURE}"
-    echo "Downloading gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}"
+    # The app is only published as a .deb; its payload is distro-neutral, so rpm builds repackage it too.
+    echo "Downloading gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.deb"
     gcloud artifacts files download --destination="${BINARY_DIR}" \
-        "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" --local-filename="gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}"
+        "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.deb" --local-filename="gnosis_vpn-app.deb"
 
     log_success "All binaries downloaded"
 }

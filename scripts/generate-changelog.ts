@@ -52,10 +52,10 @@ export interface Config {
 export type Channel = "stable" | "snapshot" | "experimental";
 
 /** Artifact paths per channel; keep in sync with build_gcs_url() and pool_subpath_for_channel(). */
-export const CHANNEL_PATHS: Record<Channel, { debPool: string; macDir: string }> = {
-  stable: { debPool: "pool/main", macDir: "stable" },
-  snapshot: { debPool: "pool/snapshot", macDir: "latest" },
-  experimental: { debPool: "pool/experimental", macDir: "experimental" },
+export const CHANNEL_PATHS: Record<Channel, { debPool: string; macDir: string; rpmRepo: string }> = {
+  stable: { debPool: "pool/main", macDir: "stable", rpmRepo: "stable" },
+  snapshot: { debPool: "pool/snapshot", macDir: "latest", rpmRepo: "snapshot" },
+  experimental: { debPool: "pool/experimental", macDir: "experimental", rpmRepo: "experimental" },
 };
 
 export interface ChangelogEntry {
@@ -449,7 +449,11 @@ export function zulipFormat(
   const debPool = `https://download.gnosisvpn.io/linux/apt/${paths.debPool}/g/gnosisvpn`;
   content += ` [Mac](https://download.gnosisvpn.io/macos/${paths.macDir}/gnosisvpn_${macFileSlug}_arm64.pkg) |`;
   content += ` [Debian x86_64](${debPool}/gnosisvpn_${packageVersion}_amd64.deb) |`;
-  content += ` [Debian aarch64](${debPool}/gnosisvpn_${packageVersion}_arm64.deb)\n`;
+  content += ` [Debian aarch64](${debPool}/gnosisvpn_${packageVersion}_arm64.deb) |`;
+  // .rpms live in their channel's dnf repository under gnosisvpn-<version>-1.<arch>.rpm (release is always 1).
+  const rpmPackages = `https://download.gnosisvpn.io/linux/rpm/${paths.rpmRepo}/packages`;
+  content += ` [Fedora/EL x86_64](${rpmPackages}/gnosisvpn-${packageVersion}-1.x86_64.rpm) |`;
+  content += ` [Fedora/EL aarch64](${rpmPackages}/gnosisvpn-${packageVersion}-1.aarch64.rpm)\n`;
   return content;
 }
 

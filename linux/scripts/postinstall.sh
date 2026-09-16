@@ -9,9 +9,19 @@
 # Networks shipped are baked into /usr/share/gnosisvpn/networks (first = default); consult that, not the files on disk.
 #
 
-set -euo pipefail
-
 LOG_PREFIX="[GnosisVPN postinstall]"
+
+# __GNOSIS_VPN_SCRIPTLET_LIB__
+
+# dnf repository base URLs. GCS comes first: dnf treats baseurl as ordered mirrors, and the IPFS copy lags behind
+# a release until its ENS update lands.
+RPM_REPO_URL_PRIMARY="https://download.gnosisvpn.io/linux/rpm"
+RPM_REPO_URL_IPFS="https://download.vpn.gnosis.eth.limo/linux/rpm"
+RPM_REPO_PATH="/etc/yum.repos.d/gnosisvpn.repo"
+RPM_KEY_PATH="/etc/pki/rpm-gpg/RPM-GPG-KEY-gnosisvpn"
+
+# Set by main from the package manager's arguments (see scriptlet_mode).
+SCRIPTLET_MODE="dpkg"
 
 # Set by migrate_legacy_identity; gate the service start and the legacy account removal.
 MIGRATION_OK=false
@@ -145,7 +155,11 @@ configure_network_selection() {
     # dpkg never restores conffiles deleted outside of it, so failing here would brick every later apt run.
     if [[ ! -f /etc/gnosisvpn/config-${network_name}.toml ]]; then
         echo "$LOG_PREFIX ERROR: Missing /etc/gnosisvpn/config-${network_name}.toml" >&2
-        echo "$LOG_PREFIX ERROR: Restore it with: sudo dpkg -i --force-confmiss /path/to/gnosisvpn_*.deb" >&2
+        if is_rpm_mode "$SCRIPTLET_MODE"; then
+            echo "$LOG_PREFIX ERROR: Restore it with: sudo dnf reinstall gnosisvpn" >&2
+        else
+            echo "$LOG_PREFIX ERROR: Restore it with: sudo dpkg -i --force-confmiss /path/to/gnosisvpn_*.deb" >&2
+        fi
         echo "$LOG_PREFIX WARNING: Skipping network setup — the service cannot start until the file is back" >&2
         return 0
     fi
@@ -297,7 +311,21 @@ remove_legacy_apt_mirror() {
     fi
 }
 
+# Channel implied by a package version; MUST match channel_from_version in scripts/generate-package.sh.
+# ".experimental" is snapshot-shaped underneath, so it MUST be tested first.
+channel_for_version() {
+    case "$1" in
+    *.experimental | *.experimental.*) echo "experimental" ;;
+    *"+"*) echo "snapshot" ;;
+    *) echo "stable" ;;
+    esac
+}
+
 register_apt_repo() {
+    # Fedora can have dpkg and apt-get installed, so the tools alone do not mean this is a dpkg install.
+    if is_rpm_mode "$SCRIPTLET_MODE"; then
+        return 0
+    fi
     if ! command -v dpkg >/dev/null 2>&1 || ! command -v apt-get >/dev/null 2>&1; then
         return 0
     fi
@@ -318,21 +346,19 @@ register_apt_repo() {
         fi
         return 0
     fi
-    case "$version" in
-    *.experimental | *.experimental.*)
-        channel="experimental"
+    channel="$(channel_for_version "$version")"
+    case "$channel" in
+    experimental)
         component="experimental"
         # Only gnosisvpn.io publishes dists/experimental/.
         uris="https://download.gnosisvpn.io/linux/apt"
         ;;
-    *"+"*)
-        channel="snapshot"
+    snapshot)
         component="snapshot"
         # Only gnosisvpn.io publishes dists/snapshot/.
         uris="https://download.gnosisvpn.io/linux/apt"
         ;;
     *)
-        channel="stable"
         component="main"
         uris="https://download.vpn.gnosis.eth.limo/linux/apt https://download.gnosisvpn.io/linux/apt"
         ;;
@@ -390,6 +416,53 @@ EOF
     chmod 0644 "$sources_path"
     echo "$LOG_PREFIX SUCCESS: APT source registered at $sources_path"
     echo "$LOG_PREFIX INFO: Run 'sudo apt-get update' to refresh the package cache"
+}
+
+# dnf repository definition for a channel; install/linux.sh writes the same file, keep both in sync.
+render_rpm_repo() {
+    local channel="$1" baseurl="${RPM_REPO_URL_PRIMARY}/$1"
+    # Only stable is mirrored to IPFS.
+    if [[ $channel == "stable" ]]; then
+        baseurl="${baseurl} ${RPM_REPO_URL_IPFS}/stable"
+    fi
+    cat <<EOF
+[gnosisvpn]
+name=GnosisVPN (${channel})
+baseurl=${baseurl}
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=file://${RPM_KEY_PATH}
+metadata_expire=6h
+EOF
+}
+
+register_rpm_repo() {
+    if ! is_rpm_mode "$SCRIPTLET_MODE"; then
+        return 0
+    fi
+
+    local version channel rendered
+    version="$(cat /etc/gnosisvpn/version.txt 2>/dev/null || echo "")"
+    if [[ -z $version ]]; then
+        echo "$LOG_PREFIX WARNING: Cannot determine channel (missing/empty /etc/gnosisvpn/version.txt) — skipping dnf repository registration"
+        return 0
+    fi
+    channel="$(channel_for_version "$version")"
+    rendered="$(render_rpm_repo "$channel")"
+
+    if [[ -f $RPM_REPO_PATH ]] && [[ "$(cat "$RPM_REPO_PATH")" == "$rendered" ]]; then
+        echo "$LOG_PREFIX INFO: dnf repository already tracks the '$channel' channel at $RPM_REPO_PATH (leaving as-is)"
+        return 0
+    fi
+
+    echo "$LOG_PREFIX INFO: Registering GnosisVPN dnf repository (channel: $channel)"
+    printf '%s\n' "$rendered" >"$RPM_REPO_PATH"
+    chmod 0644 "$RPM_REPO_PATH"
+    echo "$LOG_PREFIX SUCCESS: dnf repository registered at $RPM_REPO_PATH"
+    # The rpm database is locked while this scriptlet runs, so the key cannot be imported from here.
+    echo "$LOG_PREFIX INFO: If you installed the package file directly, trust the repository once so automatic updates work:"
+    echo "$LOG_PREFIX INFO:   sudo rpm --import $RPM_KEY_PATH && sudo dnf makecache -y --repo gnosisvpn"
 }
 
 # Moves the legacy identity aside through the toolkit so the service gets a fresh identity on next start.
@@ -631,7 +704,16 @@ warn_if_dns_not_diverted() {
         echo "$LOG_PREFIX WARNING: To divert DNS: 'sudo ln -sf /run/systemd/resolve/stub-resolv.conf $RESOLV_CONF', then reconnect."
     else
         echo "$LOG_PREFIX WARNING: Neither systemd-resolved nor resolvconf manages $RESOLV_CONF."
-        echo "$LOG_PREFIX WARNING: To divert DNS: install and enable systemd-resolved (or resolvconf) with your package manager, restart your network manager, then reconnect."
+        if is_rpm_mode "$SCRIPTLET_MODE"; then
+            echo "$LOG_PREFIX WARNING: To enable systemd-resolved with NetworkManager:"
+            echo "$LOG_PREFIX WARNING:   sudo dnf install -y systemd-resolved"
+            echo "$LOG_PREFIX WARNING:   sudo systemctl enable --now systemd-resolved"
+            echo "$LOG_PREFIX WARNING:   printf '[main]\\ndns=systemd-resolved\\n' | sudo tee /etc/NetworkManager/conf.d/90-gnosisvpn-dns.conf"
+            echo "$LOG_PREFIX WARNING:   sudo ln -sf ../run/systemd/resolve/stub-resolv.conf $RESOLV_CONF"
+            echo "$LOG_PREFIX WARNING:   sudo systemctl restart NetworkManager"
+        else
+            echo "$LOG_PREFIX WARNING: To divert DNS: install and enable systemd-resolved (or resolvconf) with your package manager, restart your network manager, then reconnect."
+        fi
     fi
 }
 
@@ -671,6 +753,9 @@ enable_and_start_systemd_service() {
 
 # Main execution
 main() {
+    set -euo pipefail
+    SCRIPTLET_MODE="$(scriptlet_mode install "${1:-}")"
+
     # TODO: remove the removal code by December 2027 (see remove_retired_conffiles).
     remove_retired_conffiles "$@"
     load_shipped_networks
@@ -683,6 +768,7 @@ main() {
     # TODO: remove the removal code by December 2026 (see remove_legacy_apt_mirror).
     remove_legacy_apt_mirror
     register_apt_repo
+    register_rpm_repo
     # --reset-identity moves the legacy dir aside first, so the migration then finds nothing to migrate.
     reset_identity_if_requested
     migrate_legacy_identity
@@ -700,5 +786,8 @@ main() {
     print_migration_failure
 }
 
+# Sourced by the unit tests; executed by dpkg directly and by rpm as `/bin/sh <file> <arg>`.
 # Args forwarded for dpkg-maintscript-helper and the previous version (see remove_retired_conffiles, remove_pre_0_96_log).
-main "$@"
+if [[ -z ${BASH_SOURCE[0]:-} || ${BASH_SOURCE[0]} == "$0" ]]; then
+    main "$@"
+fi

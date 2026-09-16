@@ -10,6 +10,11 @@ NETWORK="default"
 SUBNET="default"
 
 get_vm_image() {
+    # <project>/<family>, e.g. rocky-linux-cloud/rocky-linux-10-arm64, to test another distribution of the family.
+    if [[ -n ${GNOSISVPN_VM_IMAGE:-} ]]; then
+        echo "projects/${GNOSISVPN_VM_IMAGE%%/*}/global/images/family/${GNOSISVPN_VM_IMAGE##*/}"
+        return
+    fi
     case "${GNOSISVPN_DISTRIBUTION}" in
     deb)
         if [ "${GNOSISVPN_ARCHITECTURE}" == "aarch64-linux" ]; then
@@ -21,11 +26,12 @@ get_vm_image() {
         fi
         ;;
     rpm)
+        # EL9 lacks webkit2gtk4.1, so the rpm is tested on EL10.
         if [ "${GNOSISVPN_ARCHITECTURE}" == "aarch64-linux" ]; then
-            echo "projects/centos-cloud/global/images/family/centos-stream-9-arm64"
+            echo "projects/centos-cloud/global/images/family/centos-stream-10-arm64"
             return
         else
-            echo "projects/centos-cloud/global/images/family/centos-stream-9"
+            echo "projects/centos-cloud/global/images/family/centos-stream-10"
             return
         fi
         ;;
@@ -95,6 +101,8 @@ copy_action() {
     echo "Copying artifacts on ${INSTANCE_NAME}"
     script_dir=$(cd "$(dirname "$0")" && pwd)
     gcloud compute scp --tunnel-through-iap --project="${PROJECT_ID}" --zone=${ZONE} "${script_dir}/install-package.sh" "${INSTANCE_NAME}":/tmp/install-package.sh
+    # install-package.sh reuses the installer's EPEL setup for rpm hosts.
+    gcloud compute scp --tunnel-through-iap --project="${PROJECT_ID}" --zone=${ZONE} "${script_dir}/../install/linux.sh" "${INSTANCE_NAME}":/tmp/install-linux.sh
     gcloud compute scp --tunnel-through-iap --project="${PROJECT_ID}" --zone=${ZONE} "${script_dir}"/../build/packages/gnosisvpn*."${GNOSISVPN_DISTRIBUTION}" "${INSTANCE_NAME}":/tmp/gnosisvpn."${GNOSISVPN_DISTRIBUTION}"
     echo "Artifacts successfully copied on ${INSTANCE_NAME}"
 }
@@ -238,5 +246,9 @@ GNOSISVPN_DISTRIBUTION="$2" # e.g., "deb", "rpm", "archlinux"
 GNOSISVPN_ARCHITECTURE="$3" # e.g., "x86_64-linux", "aarch64-linux"
 INSTANCE_NAME="gnosisvpn-client-${GNOSISVPN_DISTRIBUTION}-${GNOSISVPN_ARCHITECTURE/_/-}"
 INSTANCE_NAME="${INSTANCE_NAME/-linux/}" # Remove -linux suffix for VM name
+# One VM per image family, so several distributions of a family can be tested side by side.
+if [[ -n ${GNOSISVPN_VM_IMAGE:-} ]]; then
+    INSTANCE_NAME="${INSTANCE_NAME}-${GNOSISVPN_VM_IMAGE##*/}"
+fi
 check_parameters "$@"
 main "$@"

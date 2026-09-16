@@ -68,9 +68,12 @@
             deno
             go
             google-cloud-sdk
+            bats
           ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             dpkg
             reprepro
+            createrepo_c
+            rpm
           ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
             curl
             openssl

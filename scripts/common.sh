@@ -252,7 +252,8 @@ generate_package_name() {
         else
             arch_name="$GNOSISVPN_ARCHITECTURE"
         fi
-        echo "gnosisvpn-${GNOSISVPN_PACKAGE_VERSION}.${arch_name}.rpm"
+        # NVRA; nfpm's default rpm release is 1.
+        echo "gnosisvpn-${GNOSISVPN_PACKAGE_VERSION}-1.${arch_name}.rpm"
         ;;
     archlinux)
         # Convert architecture for archlinux packages
@@ -274,12 +275,40 @@ generate_package_name() {
 # Validate distribution type
 validate_distribution() {
     local distribution="$1"
-    if [[ ! $distribution =~ ^(deb|dmg)$ ]]; then
+    if [[ ! $distribution =~ ^(deb|rpm|dmg)$ ]]; then
         log_error "Invalid distribution: $distribution"
-        log_error "Valid options: deb, dmg"
+        log_error "Valid options: deb, rpm, dmg"
         return 1
     fi
     return 0
+}
+
+# RPM separates version and release with '-', so the version itself must not contain one.
+check_rpm_version_syntax() {
+    local version="$1"
+    if [[ $version == *-* ]]; then
+        log_error "Invalid rpm version: $version (an rpm version must not contain '-')"
+        return 1
+    fi
+    return 0
+}
+
+# Copy the Linux maintainer scripts to <out_dir>, inlining scriptlet-lib.sh at the __GNOSIS_VPN_SCRIPTLET_LIB__ line.
+render_maintainer_scripts() {
+    local src_dir="$1" out_dir="$2" script
+    # sed's r silently ignores a missing file, which would render scripts without the shared functions.
+    if [[ ! -f "${src_dir}/scriptlet-lib.sh" ]]; then
+        log_error "Missing ${src_dir}/scriptlet-lib.sh"
+        return 1
+    fi
+    mkdir -p "$out_dir"
+    for script in preinstall postinstall preuninstall postuninstall; do
+        sed -e "/__GNOSIS_VPN_SCRIPTLET_LIB__/{
+        r ${src_dir}/scriptlet-lib.sh
+        d
+        }" "${src_dir}/${script}.sh" >"${out_dir}/${script}.sh"
+        chmod 0755 "${out_dir}/${script}.sh"
+    done
 }
 
 # Validate architecture

@@ -1,0 +1,89 @@
+# Reusable: publishes pre-built .rpm artifacts to the dnf repository.
+# Callers:
+#   - build-binary.yaml: snapshot and experimental, right after the Linux build.
+#   - release.yaml:      stable channel, runs ONLY after the GitHub release
+#                        has been created and BEFORE the APT publish, so a
+#                        failed APT publish can roll this one back cheaply.
+name: Publish RPM
+on:
+  workflow_call:
+    inputs:
+      channel:
+        description: 'dnf repository to publish into (stable, snapshot or experimental)'
+        required: true
+        type: string
+      package_version:
+        description: 'GNOSISVPN_PACKAGE_VERSION used to name the .rpm artifacts'
+        required: true
+        type: string
+    outputs:
+      previous_artifact:
+        description: 'Name of the artifact holding the replaced repomd.xml pair (input for a rollback)'
+        value: ${{ jobs.publish.outputs.previous_artifact }}
+concurrency:
+  # Stale-metadata cleanup races with a parallel publish to the same repository.
+  group: publish-rpm-${{ inputs.channel }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: depot-ubuntu-22.04-4
+    name: Publish RPM (${{ inputs.channel }})
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PACKAGE_VERSION: ${{ inputs.package_version }}
+      CHANNEL: ${{ inputs.channel }}
+    outputs:
+      previous_artifact: rpm-previous-${{ inputs.channel }}-${{ steps.slug.outputs.slug }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install rpm tooling
+        run: sudo apt-get update && sudo apt-get install -y createrepo-c rpm gnupg gpg-agent
+      - name: Artifact-safe version slug
+        id: slug
+        # Artifact names may not contain '+'.
+        run: echo "slug=${PACKAGE_VERSION//+/-}" | tee -a "$GITHUB_OUTPUT"
+      - name: Download package artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: gnosisvpn-${{ env.PACKAGE_VERSION }}-1.*.rpm*
+          merge-multiple: true
+          path: ./build/rpm-input
+      - name: List downloaded artifacts
+        run: ls -la ./build/rpm-input
+      - name: Setup GPG signing key
+        env:
+          GNOSISVPN_GPG_PRIVATE_KEY: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}
+        run: |
+          printf '%s' "${GNOSISVPN_GPG_PRIVATE_KEY}" > /tmp/gnosis_vpn_gpg_key.asc
+          chmod 600 /tmp/gnosis_vpn_gpg_key.asc
+      - name: Setup GCP
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@837b94246698537325ecc664dfb22c72c0d6b8ed # setup-gcp-v4
+        with:
+          workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
+          service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
+          install_sdk: true
+      - name: Publish dnf repository
+        shell: bash
+        env:
+          GNOSISVPN_GPG_PRIVATE_KEY_PATH: /tmp/gnosis_vpn_gpg_key.asc
+          GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
+        run: |
+          bash scripts/publish-rpm.sh \
+            --channel "${CHANNEL}" \
+            --rpms ./build/rpm-input \
+            --previous-dir ./build/rpm-previous
+      - name: Keep the replaced metadata for a rollback
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rpm-previous-${{ inputs.channel }}-${{ steps.slug.outputs.slug }}
+          path: ./build/rpm-previous
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove GPG signing key
+        if: always()
+        run: |
+          shred -u /tmp/gnosis_vpn_gpg_key.asc 2>/dev/null || rm -f /tmp/gnosis_vpn_gpg_key.asc
