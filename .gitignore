@@ -1,5 +1,6 @@
 .DS_Store
 .env
+.env.local
 gnosisvpn_*.dsc
 gnosisvpn_*.tar.xz
 gnosisvpn_*_source.changes
