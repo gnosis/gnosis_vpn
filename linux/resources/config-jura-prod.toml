@@ -45,3 +45,7 @@ topup_capacity = "480 MiB"
 lower_capacity_threshold = "128 MiB"
 min_safe_capacity_required = "384 MiB"
 sizing_mode = "deterministic"
+
+[connection.path_planner]
+# Prune to the 3 fastest candidate paths; the client preset keeps every relayer (0).
+min_paths_anonymity_floor = 3
