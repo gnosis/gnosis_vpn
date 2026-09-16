@@ -12,12 +12,6 @@ meta = { location = "London", flag = "GB" }
 address = "0x7f25c474f26488b2e29343c881f0cdc0e6d02abd"
 meta = { location = "Mumbai", flag = "IN" }
 
-[connection.surb_balancing.ping]
-max_surb_upstream = "12000 Kb/s"
-
-[connection.surb_balancing.main]
-max_surb_upstream = "12000 Kb/s"
-
 [connection.path_planner]
 # Prune to the 3 fastest candidate paths; the client preset keeps every relayer (0).
 min_paths_anonymity_floor = 3
