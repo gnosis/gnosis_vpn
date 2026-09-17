@@ -70,7 +70,7 @@
         <key>GNOSISVPN_HOPR_BLOKLI_URL</key>
         <string>https://blokli-__NETWORK_PREFIX__.__NETWORK_ENV__.hoprnet.link</string>
         <key>RUST_LOG</key>
-        <string>info</string>
+        <string>info,hopr_protocol_hopr::surb_store=error,hopr_transport_session::manager=error</string>
         <key>RUST_BACKTRACE</key>
         <string>1</string>
         <key>TMPDIR</key>
