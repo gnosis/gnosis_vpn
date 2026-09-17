@@ -85,7 +85,7 @@ GNOSISVPN_CHANNEL=experimental \
   GNOSISVPN_PACKAGE_VERSION="$(date -u +%Y.%m.%d+build.%H%M%S.experimental)" \
   just package deb x86_64-linux
 
-# Standard line (ships jura-prod and jura-dev)
+# Standard line (ships jura-prod, jura-staging and jura-dev)
 just package deb x86_64-linux
 ```
 

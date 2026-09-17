@@ -77,7 +77,8 @@ Options:
                                 Also configurable via GNOSISVPN_CHANNEL env var.
   --network=<name>              Network to configure. Which networks are
                                 available depends on the channel:
-                                  stable, snapshot  jura-prod (default), jura-dev
+                                  stable, snapshot  jura-prod (default), jura-staging,
+                                                    jura-dev
                                   experimental      piz-palu-dev (default)
                                 On stable and snapshot, omitting this keeps an
                                 existing choice. Also configurable via
