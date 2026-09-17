@@ -35,10 +35,10 @@ The installer accepts options after `-s --`:
 - `--network=<name>` — network to configure. Each channel only ships the networks of its own line, so which names are
   accepted depends on `--channel`. Env var: `GNOSISVPN_NETWORK`.
 
-  | Channel              | Networks                | Default        |
-  | -------------------- | ----------------------- | -------------- |
-  | `stable`, `snapshot` | `jura-prod`, `jura-dev` | `jura-prod`    |
-  | `experimental`       | `piz-palu-dev`          | `piz-palu-dev` |
+  | Channel              | Networks                                | Default        |
+  | -------------------- | --------------------------------------- | -------------- |
+  | `stable`, `snapshot` | `jura-prod`, `jura-staging`, `jura-dev` | `jura-prod`    |
+  | `experimental`       | `piz-palu-dev`                          | `piz-palu-dev` |
 
   On `stable` and `snapshot`, omitting `--network` keeps an existing choice.
 
@@ -67,10 +67,10 @@ stable suite.
 **Two installer lines.** The three channels come from two lines that differ in which client and app generation they are
 built against, and therefore in which networks they ship:
 
-| Line         | Channels             | Networks                | Client + app version |
-| ------------ | -------------------- | ----------------------- | -------------------- |
-| standard     | `stable`, `snapshot` | `jura-prod`, `jura-dev` | below `0.100.0`      |
-| experimental | `experimental`       | `piz-palu-dev`          | `0.100.0` and above  |
+| Line         | Channels             | Networks                                | Client + app version |
+| ------------ | -------------------- | --------------------------------------- | -------------------- |
+| standard     | `stable`, `snapshot` | `jura-prod`, `jura-staging`, `jura-dev` | below `0.100.0`      |
+| experimental | `experimental`       | `piz-palu-dev`                          | `0.100.0` and above  |
 
 **Switching channels:** re-run the installer with the desired `--channel`. When the target channel's newest package is
 older than the installed one, the installer performs a pinned downgrade (plain `apt upgrade` would never move back on
@@ -159,10 +159,10 @@ Direct `.deb` installs have no flags — these environment variables configure t
 
 - `GNOSISVPN_NETWORK=<name>` — network configuration to use; determines which configuration file is symlinked to
   `/etc/gnosisvpn/config.toml` during installation. Only the networks the package actually ships are accepted — they are
-  listed in `/usr/share/gnosisvpn/networks` (first entry is the default): `jura-prod jura-dev` on the standard line,
-  `piz-palu-dev` on the experimental line. Passing a network from the other line fails the install with the supported
-  list, and if `config.toml` points at a network this package does not ship, the postinstall re-points it at the default
-  and moves the Blokli endpoint with it (unless a custom `GNOSISVPN_HOPR_BLOKLI_URL` is set).
+  listed in `/usr/share/gnosisvpn/networks` (first entry is the default): `jura-prod jura-staging jura-dev` on the
+  standard line, `piz-palu-dev` on the experimental line. Passing a network from the other line fails the install with
+  the supported list, and if `config.toml` points at a network this package does not ship, the postinstall re-points it
+  at the default and moves the Blokli endpoint with it (unless a custom `GNOSISVPN_HOPR_BLOKLI_URL` is set).
 
   ```bash
   sudo env GNOSISVPN_NETWORK=jura-dev apt install ./gnosisvpn_*.deb

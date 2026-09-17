@@ -39,7 +39,7 @@ err() { printf '\033[0;31m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 channel_networks() {
     case "$1" in
     experimental) echo "piz-palu-dev" ;;
-    *) echo "jura-prod jura-dev" ;;
+    *) echo "jura-prod jura-staging jura-dev" ;;
     esac
 }
 
