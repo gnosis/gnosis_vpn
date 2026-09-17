@@ -39,7 +39,7 @@ err() { printf '\033[0;31m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 channel_networks() {
     case "$1" in
     experimental) echo "piz-palu-dev" ;;
-    *) echo "jura-prod jura-dev" ;;
+    *) echo "jura-prod jura-staging jura-dev" ;;
     esac
 }
 
@@ -77,7 +77,8 @@ Options:
                                 Also configurable via GNOSISVPN_CHANNEL env var.
   --network=<name>              Network to configure. Which networks are
                                 available depends on the channel:
-                                  stable, snapshot  jura-prod (default), jura-dev
+                                  stable, snapshot  jura-prod (default), jura-staging,
+                                                    jura-dev
                                   experimental      piz-palu-dev (default)
                                 On stable and snapshot, omitting this keeps an
                                 existing choice. Also configurable via
