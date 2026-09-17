@@ -69,6 +69,8 @@ jobs:
           # Points the download links at the experimental pool / bucket dir.
           GNOSISVPN_CHANNEL: experimental
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+          COMPONENT_VERSION_BOUNDARY: ${{ needs.build_binary.outputs.COMPONENT_VERSION_BOUNDARY }}
+          COMPONENT_V4_BRANCH: ${{ needs.build_binary.outputs.COMPONENT_V4_BRANCH }}
       - name: Prepare notification message
         run: |
           # Store content in environment variable for the Zulip action

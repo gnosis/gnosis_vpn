@@ -89,6 +89,10 @@ jobs:
           # gnosis_vpn (installer) repo lookup; client/app PRs are aggregated from
           # their own repos with the default branch.
           GNOSISVPN_PACKAGE_BRANCH: ${{ github.ref_name }}
+          # The client/app line split, carried over from the build that resolved the versions,
+          # so the notes never aggregate the branch of the line this build did not ship.
+          COMPONENT_VERSION_BOUNDARY: ${{ needs.build_binary.outputs.COMPONENT_VERSION_BOUNDARY }}
+          COMPONENT_V4_BRANCH: ${{ needs.build_binary.outputs.COMPONENT_V4_BRANCH }}
       - name: Generate GitHub App token
         id: bot-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0

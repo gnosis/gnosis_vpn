@@ -27,7 +27,8 @@
 #   GITHUB_REPOSITORY, GITHUB_REF      set by GitHub Actions (VERSION_TYPE=release)
 #
 # Outputs written to GITHUB_OUTPUT:
-#   the resolved package/client/app/toolkit versions plus GNOSISVPN_NETWORKS, GNOSISVPN_CHANNEL and SKIP_BUILDING
+#   the resolved package/client/app/toolkit versions plus GNOSISVPN_NETWORKS, GNOSISVPN_CHANNEL,
+#   COMPONENT_VERSION_BOUNDARY, COMPONENT_V4_BRANCH and SKIP_BUILDING
 #
 
 set -euo pipefail
@@ -306,6 +307,11 @@ main() {
     esac
     set_output "GNOSISVPN_NETWORKS" "${networks}"
     set_output "GNOSISVPN_CHANNEL" "${channel}"
+
+    # Published so generate-changelog.ts splits the lines on the same values this script did,
+    # rather than carrying its own copy that a config.sh edit would silently leave behind.
+    set_output "COMPONENT_VERSION_BOUNDARY" "${COMPONENT_VERSION_BOUNDARY}"
+    set_output "COMPONENT_V4_BRANCH" "${COMPONENT_V4_BRANCH}"
 
     local skip_building=false
     if [[ ${version_type} == "snapshot" || ${version_type} == "experimental" ]]; then
