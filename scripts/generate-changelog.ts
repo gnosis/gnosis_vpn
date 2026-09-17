@@ -8,7 +8,8 @@
 // - gnosis_vpn-toolkit repository (merged PRs between dates)
 // - gnosis_vpn Installer repository (merged PRs since last release)
 //
-// Example:
+// Example (`just changelog` wraps the first line for you):
+//   source ./scripts/config.sh && export COMPONENT_VERSION_BOUNDARY COMPONENT_V4_BRANCH
 //   GNOSISVPN_PREVIOUS_PACKAGE_VERSION=0.56.4 \
 //   GNOSISVPN_PACKAGE_VERSION=0.56.5 \
 //   GNOSISVPN_PREVIOUS_CLIENT_VERSION=0.54.4 \
