@@ -10,9 +10,6 @@ config/
 ├── system/               # System configuration files
 │   └── com.gnosisvpn.gnosisvpnclient.plist  # LaunchD service configuration
 └── templates/           # Configuration templates
-    ├── jura-prod.toml.template          # Jura Prod network (standard line)
-    ├── jura-dev.toml.template           # Jura Dev network (standard line)
-    ├── piz-palu-dev.toml.template       # Piz Palu Dev network (experimental line)
 ```
 
 Each build ships only the templates of its installer line, selected by `GNOSISVPN_NETWORKS` (see `NETWORKS_STANDARD` /
@@ -42,6 +39,7 @@ TOML configuration templates for different network environments.
 **Available Networks:**
 
 - **jura-prod**: Default production network (stable, snapshot)
+- **jura-staging**: Staging network (stable, snapshot)
 - **jura-dev**: Development network (stable, snapshot)
 - **piz-palu-dev**: Piz Palu development network (experimental)
 

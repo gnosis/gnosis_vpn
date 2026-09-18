@@ -430,6 +430,7 @@ EOF
 network_title() {
     case "$1" in
     jura-prod) echo "Jura Prod" ;;
+    jura-staging) echo "Jura Staging" ;;
     jura-dev) echo "Jura Dev" ;;
     piz-palu-dev) echo "Piz Palu Dev" ;;
     *) echo "$1" ;;
@@ -440,6 +441,7 @@ network_description() {
     case "$1" in
     jura-prod) echo "Connect to VPN nodes on the Jura Prod network - US, UK, NL, Brazil, Australia, India, South Korea" ;;
     jura-dev) echo "Connect to VPN nodes on the Jura Dev network - US, UK, India" ;;
+    jura-staging) echo "Connect to VPN nodes on the Jura Staging network - US, UK, Brazil, Australia, South Korea" ;;
     piz-palu-dev) echo "Connect to VPN nodes on the Piz Palu Dev network" ;;
     *) echo "Connect to VPN nodes on the $1 network" ;;
     esac

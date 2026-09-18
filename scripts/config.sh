@@ -16,5 +16,5 @@ COMPONENT_VERSION_BOUNDARY="${COMPONENT_VERSION_BOUNDARY:-0.100.0}"
 COMPONENT_V4_BRANCH="${COMPONENT_V4_BRANCH:-release/hoprdv4}"
 
 # Networks per installer line (space-separated, first = default); packages bake the list for their postinstall.
-NETWORKS_STANDARD="${NETWORKS_STANDARD:-jura-prod jura-dev}"
+NETWORKS_STANDARD="${NETWORKS_STANDARD:-jura-prod jura-staging jura-dev}"
 NETWORKS_EXPERIMENTAL="${NETWORKS_EXPERIMENTAL:-piz-palu-dev}"
