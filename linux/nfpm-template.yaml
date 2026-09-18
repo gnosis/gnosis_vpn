@@ -68,6 +68,13 @@ contents:
     dst: /usr/bin/gnosis_vpn-app
     file_info:
       mode: 0755
+  # Reads the installed version and update manifests for the app. Needs no
+  # privileges for either; `update` has no engine on Linux and refuses, so
+  # there is no sudoers entry to go with it.
+  - src: ./build/download/gnosis_vpn-update
+    dst: /usr/bin/gnosis_vpn-update
+    file_info:
+      mode: 0755
   # Resource files
   - src: ./build/resources/version.txt
     dst: /etc/gnosisvpn/version.txt
