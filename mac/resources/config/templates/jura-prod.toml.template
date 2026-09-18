@@ -2,36 +2,36 @@ version = 6
 
 [destinations.USA]
 address = "0x7220CfE91F369bfE79F883c2891e97407D7a4D48"
-meta = { location = "Omaha", flag = "US" }
+meta = { location = "Omaha", flag = "US", latitude = "41.2400", longitude = "-96.0100" }
 
 [destinations.UK]
 address = "0xcD9D0E23cD999dFC0D1400D837F8e612DbbbDFAA"
-meta = { location = "London", flag = "GB" }
+meta = { location = "London", flag = "GB", latitude = "51.5019", longitude = "-0.1187" }
 
 [destinations.Netherlands]
 address = "0x00d7096439d1f731c73574Adb7E4A9f3B7775326"
-meta = { location = "Amsterdam", flag = "NL" }
+meta = { location = "Amsterdam", flag = "NL", latitude = "52.3519", longitude = "4.9147" }
 
 [destinations.Brazil]
 address = "0x12b78461da59E8317C61bD249EA0DEA2aA9527de"
-meta = { location = "Sao Paulo", flag = "BR" }
+meta = { location = "Sao Paulo", flag = "BR", latitude = "-23.5567", longitude = "-46.6270" }
 
 [destinations.India]
 address = "0x1062696f8eec5b71bfa6be7e52df1d7457428106"
-meta = { location = "Mumbai", flag = "IN" }
+meta = { location = "Mumbai", flag = "IN", latitude = "19.0684", longitude = "72.8758" }
 
 [destinations.Australia]
 address = "0x64885d2d2bc9df7b415aac184e020c632d715dff"
-meta = { location = "Sydney", flag = "AU" }
+meta = { location = "Sydney", flag = "AU", latitude = "-33.8714", longitude = "151.2125" }
 
 [destinations."South Korea"]
 address = "0xd8efe2ebe14c8cc193d5a9f5afd81276549fad67"
-meta = { location = "Seoul", flag = "KR" }
+meta = { location = "Seoul", flag = "KR", latitude = "37.5683", longitude = "126.9978" }
 
 # 16-core node, 16 peer limit
 [destinations.Austria]
 address = "0x210a14012535321b919653fdee8c2d5971b0e534"
-meta = { location = "Vienna", flag = "AT" }
+meta = { location = "Vienna", flag = "AT", latitude = "48.2020", longitude = "16.3647" }
 
 [strategy]
 channel_capacity = "480 MiB"

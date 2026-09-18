@@ -50,7 +50,7 @@ version = 6
 
 [destinations.Country]
 address = "0xExitNodeAddress"
-meta = { location = "City", flag = "XX" }
+meta = { location = "City", flag = "XX", latitude = "12.3456", longitude = "-65.4321" }
 ```
 
 The `[destinations.*]` tables are present in the Jura templates only. `piz-palu-dev` declares `version = 7`, ships no
@@ -59,12 +59,18 @@ destination list and relies on the client finding exit nodes at runtime.
 The table key is a free-form destination id (the country name, by convention). `path` is optional and may only be
 `path = { hops = N }` with `N` in 0-3; when omitted it defaults to 1 hop, which is what the Jura configs rely on.
 
-The `meta` table accepts any string key-value pairs. Two keys are used by the UI:
+The `meta` table accepts any string key-value pairs. Four keys are used by the UI:
 
-| Key        | Required | Description                                                                                             |
-| ---------- | -------- | ------------------------------------------------------------------------------------------------------- |
-| `location` | yes      | Human-readable city name shown in the exit node list                                                    |
-| `flag`     | no       | ISO 3166-1 alpha-2 country code (e.g. `"SE"`, `"BR"`, `"GB"`) used to render the country flag in the UI |
+| Key         | Required | Description                                                                                             |
+| ----------- | -------- | ------------------------------------------------------------------------------------------------------- |
+| `location`  | yes      | Human-readable city name shown in the exit node list                                                    |
+| `flag`      | no       | ISO 3166-1 alpha-2 country code (e.g. `"SE"`, `"BR"`, `"GB"`) used to render the country flag in the UI |
+| `latitude`  | no       | Decimal degrees (WGS84), quoted, `-90` to `90` - places the exit on the app's map                       |
+| `longitude` | no       | Decimal degrees (WGS84), quoted, `-180` to `180` - places the exit on the app's map                     |
+
+Every `meta` value is a string, so coordinates must be quoted: a bare `latitude = 12.3456` fails to parse and takes the
+whole `[destinations]` table with it. A coordinate that is not a number, or is out of range, is ignored and the app
+falls back to the country the `flag` names.
 
 ## Usage
 
