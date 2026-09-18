@@ -18,16 +18,17 @@
 #   GH_TOKEN                           (required) token for gh api calls
 #   GITHUB_OUTPUT                      step output file; defaults to /dev/null
 #                                      so the script can be run locally
-#   INPUT_CLIENT_VERSION               explicit client version override
-#   INPUT_APP_VERSION                  explicit app version override
-#   INPUT_TOOLKIT_VERSION              explicit toolkit version override
+#   INPUT_CLIENT_VERSION               explicit client version override ("latest" means the same as unset)
+#   INPUT_APP_VERSION                  explicit app version override ("latest" means the same as unset)
+#   INPUT_TOOLKIT_VERSION              explicit toolkit version override ("latest" means the same as unset)
 #   GNOSISVPN_<C>_PREVIOUS_VERSION     previously built version, for the skip check and changelog range
 #   GNOSISVPN_<C>_PREVIOUS_VERSION_{PR,RELEASE,EXPERIMENTAL} per-line candidates; the one matching VERSION_TYPE wins when set
 #   PR_HEAD_SHA                        PR head commit sha (VERSION_TYPE=commit)
 #   GITHUB_REPOSITORY, GITHUB_REF      set by GitHub Actions (VERSION_TYPE=release)
 #
 # Outputs written to GITHUB_OUTPUT:
-#   the resolved package/client/app/toolkit versions plus GNOSISVPN_NETWORKS, GNOSISVPN_CHANNEL and SKIP_BUILDING
+#   the resolved package/client/app/toolkit versions plus GNOSISVPN_NETWORKS, GNOSISVPN_CHANNEL,
+#   COMPONENT_VERSION_BOUNDARY, COMPONENT_V4_BRANCH and SKIP_BUILDING
 #
 
 set -euo pipefail
@@ -100,12 +101,30 @@ select_previous_version() {
     fi
 }
 
+# "latest" is an accepted spelling of a component version (check_version_syntax in common.sh) and
+# download-binaries.sh reads it as "resolve it for me". The resolvers below already pick the newest
+# version on this line, so as an override it says nothing more than leaving it unset does. Clearing
+# it keeps every consumer on a concrete version: warn_if_outside_boundary and the client/app line
+# split in generate-changelog.ts both compare version cores, and "latest" has none, so it would
+# quietly read main while the build ships the below-boundary line.
+drop_latest_override() {
+    local name="$1"
+    if [[ ${!name:-} == "latest" ]]; then
+        log_info "${name}=latest; resolving it as if no override were given."
+        unset "${name}"
+    fi
+}
+
 main() {
     local version_type="${VERSION_TYPE:-}"
     if [[ -z ${version_type} ]]; then
         log_error "VERSION_TYPE is not set. Expected snapshot, experimental, commit, pr, or release."
         exit 1
     fi
+
+    drop_latest_override INPUT_CLIENT_VERSION
+    drop_latest_override INPUT_APP_VERSION
+    drop_latest_override INPUT_TOOLKIT_VERSION
 
     # Resolved before anything reads them, and published so the build jobs share one changelog range.
     GNOSISVPN_PACKAGE_PREVIOUS_VERSION="$(select_previous_version PACKAGE)"
@@ -306,6 +325,11 @@ main() {
     esac
     set_output "GNOSISVPN_NETWORKS" "${networks}"
     set_output "GNOSISVPN_CHANNEL" "${channel}"
+
+    # Published so generate-changelog.ts splits the lines on the same values this script did,
+    # rather than carrying its own copy that a config.sh edit would silently leave behind.
+    set_output "COMPONENT_VERSION_BOUNDARY" "${COMPONENT_VERSION_BOUNDARY}"
+    set_output "COMPONENT_V4_BRANCH" "${COMPONENT_V4_BRANCH}"
 
     local skip_building=false
     if [[ ${version_type} == "snapshot" || ${version_type} == "experimental" ]]; then

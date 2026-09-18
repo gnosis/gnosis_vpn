@@ -1,16 +1,20 @@
 import { assertEquals } from "@std/assert";
 import {
   type ChangelogEntry,
+  componentBranch,
   debianFormat,
   extractChangelogType,
   getReleaseType,
   getUrgencyLevel,
   githubFormat,
   jsonFormat,
+  parseBackport,
   readConfig,
   rfc2822Date,
   rpmFormat,
   validateIso8601Date,
+  versionCore,
+  versionCoreLt,
   zulipFormat,
 } from "./generate-changelog.ts";
 
@@ -493,6 +497,96 @@ Deno.test("rfc2822Date - formats with +0000 not GMT", () => {
   assertEquals(result.includes("Mon, 15 Jan 2024"), true);
 });
 
+// --- versionCore / versionCoreLt / componentBranch ---
+
+// The values scripts/config.sh ships; this script has no copy of its own, so the tests carry them.
+const BOUNDARY = "0.100.0";
+const V4_BRANCH = "release/hoprdv4";
+
+Deno.test("versionCore - strips a leading v and build metadata", () => {
+  assertEquals(versionCore("0.96.2"), [0, 96, 2]);
+  assertEquals(versionCore("v0.96.2"), [0, 96, 2]);
+  assertEquals(versionCore("0.96.2+pr.638"), [0, 96, 2]);
+  assertEquals(versionCore("0.101.0+commit.abc1234"), [0, 101, 0]);
+});
+
+Deno.test("versionCore - rejects versions with no numeric core", () => {
+  assertEquals(versionCore("0.96"), null);
+  assertEquals(versionCore("0.96.2-rc.1"), null);
+  assertEquals(versionCore(""), null);
+});
+
+Deno.test("versionCore - a date-based version reads as an ordinary core", () => {
+  // Only package versions take this shape, and they never pick a component branch;
+  // reading as a very high version keeps them off the v4 line either way.
+  assertEquals(versionCore("2026.09.17+build.120000"), [2026, 9, 17]);
+});
+
+Deno.test("versionCoreLt - compares numerically, not lexically", () => {
+  // The whole split hinges on this: "0.96.2" sorts after "0.100.0" as a string.
+  assertEquals(versionCoreLt("0.96.2", "0.100.0"), true);
+  assertEquals(versionCoreLt("0.100.0", "0.100.0"), false);
+  assertEquals(versionCoreLt("0.101.3", "0.100.0"), false);
+  assertEquals(versionCoreLt("0.99.99", "0.100.0"), true);
+});
+
+Deno.test("versionCoreLt - an unparseable version is not below the boundary", () => {
+  assertEquals(versionCoreLt("2026.09.17+build.120000", "0.100.0"), false);
+  assertEquals(versionCoreLt("0.96.2", "not-a-version"), false);
+});
+
+Deno.test("componentBranch - v4 versions read the v4 branch, v5 versions read main", () => {
+  assertEquals(componentBranch("0.96.2", BOUNDARY, V4_BRANCH), "release/hoprdv4");
+  assertEquals(componentBranch("0.35.5", BOUNDARY, V4_BRANCH), "release/hoprdv4");
+  assertEquals(componentBranch("0.100.0", BOUNDARY, V4_BRANCH), "main");
+  assertEquals(componentBranch("0.101.0", BOUNDARY, V4_BRANCH), "main");
+});
+
+Deno.test("componentBranch - registry build metadata does not change the line", () => {
+  assertEquals(componentBranch("0.96.2+pr.638", BOUNDARY, V4_BRANCH), "release/hoprdv4");
+  assertEquals(componentBranch("v0.101.0+commit.abc1234", BOUNDARY, V4_BRANCH), "main");
+});
+
+Deno.test("componentBranch - a version with no numeric core falls back to main", () => {
+  assertEquals(componentBranch("", BOUNDARY, V4_BRANCH), "main");
+});
+
+// --- parseBackport ---
+
+Deno.test("parseBackport - the generated prefix form carries the original title", () => {
+  const result = parseBackport(
+    "[Backport release/hoprdv4] fix(connection): make SURB ramping configurable (GNO-780)",
+    "# Description\nBackport of #810 to `release/hoprdv4`.",
+  );
+  assertEquals(result?.title, "fix(connection): make SURB ramping configurable (GNO-780)");
+  assertEquals(result?.sourceNumber, 810);
+});
+
+Deno.test("parseBackport - the numbered form carries only the source PR", () => {
+  const result = parseBackport("Backport 793 to release/hoprdv4", null);
+  assertEquals(result?.title, null);
+  assertEquals(result?.sourceNumber, 793);
+});
+
+Deno.test("parseBackport - a prefixed title without a resolvable body keeps its title", () => {
+  const result = parseBackport("[Backport release/hoprdv4] feat(ui): improve light theme", null);
+  assertEquals(result?.title, "feat(ui): improve light theme");
+  assertEquals(result?.sourceNumber, null);
+});
+
+Deno.test("parseBackport - ordinary PRs are not backports", () => {
+  assertEquals(parseBackport("fix: backport of the 0.101 ui changes", null), null);
+  assertEquals(parseBackport("feat(ui): improve light theme", "Backport of #123"), null);
+});
+
+Deno.test("extractChangelogType - a resolved backport title classifies as its own type", () => {
+  const generated = "[Backport release/hoprdv4] fix(core): report reconnecting state";
+  // The generated prefix is what drove every backport into "Other": the type it yields
+  // is not one githubFormat has a section for, so it falls through to the default.
+  assertEquals(extractChangelogType(generated), "[backport release/hoprdv4] fix");
+  assertEquals(extractChangelogType(parseBackport(generated, null)!.title!), "fix");
+});
+
 // --- readConfig ---
 
 const BASE_CONFIG_ENV: Record<string, string> = {
@@ -505,6 +599,9 @@ const BASE_CONFIG_ENV: Record<string, string> = {
   GNOSISVPN_APP_VERSION: "0.6.1",
   GNOSISVPN_PREVIOUS_TOOLKIT_VERSION: "1.2.2",
   GNOSISVPN_TOOLKIT_VERSION: "1.2.3",
+  // Required, with no default in the script: the workflows pass them through from scripts/config.sh.
+  COMPONENT_VERSION_BOUNDARY: "0.100.0",
+  COMPONENT_V4_BRANCH: "release/hoprdv4",
 };
 
 // A null value means "leave the variable unset"; an empty string is what GitHub Actions
@@ -594,5 +691,45 @@ Deno.test("readConfig - all four previous versions may be missing", () => {
 Deno.test("readConfig - a missing previous version is tolerated on the snapshot channel", () => {
   withConfigEnv({ GNOSISVPN_PREVIOUS_APP_VERSION: "" }, () => {
     assertEquals(readConfig().repositories.find((r) => r.label === "App")?.previousVersion, null);
+  });
+});
+
+Deno.test("readConfig - a v4 client and app read their release branch", () => {
+  withConfigEnv({ GNOSISVPN_CLIENT_VERSION: "0.96.2", GNOSISVPN_APP_VERSION: "0.35.5" }, () => {
+    const repositories = readConfig().repositories;
+    assertEquals(repositories.find((r) => r.label === "Client")?.branch, "release/hoprdv4");
+    assertEquals(repositories.find((r) => r.label === "App")?.branch, "release/hoprdv4");
+    assertEquals(repositories.find((r) => r.label === "Toolkit")?.branch, "main");
+  });
+});
+
+Deno.test("readConfig - a v5 client and app read main", () => {
+  withConfigEnv({ GNOSISVPN_CLIENT_VERSION: "0.101.0", GNOSISVPN_APP_VERSION: "0.100.3" }, () => {
+    const repositories = readConfig().repositories;
+    assertEquals(repositories.find((r) => r.label === "Client")?.branch, "main");
+    assertEquals(repositories.find((r) => r.label === "App")?.branch, "main");
+  });
+});
+
+Deno.test("readConfig - the two components are placed independently", () => {
+  // Nothing forbids a build pairing a v5 client with an app that has not crossed yet.
+  withConfigEnv({ GNOSISVPN_CLIENT_VERSION: "0.101.0", GNOSISVPN_APP_VERSION: "0.35.5" }, () => {
+    const repositories = readConfig().repositories;
+    assertEquals(repositories.find((r) => r.label === "Client")?.branch, "main");
+    assertEquals(repositories.find((r) => r.label === "App")?.branch, "release/hoprdv4");
+  });
+});
+
+Deno.test("readConfig - the branch and the boundary follow what config.sh passed in", () => {
+  withConfigEnv({
+    GNOSISVPN_CLIENT_VERSION: "0.96.2",
+    COMPONENT_V4_BRANCH: "release/hoprdv4-next",
+    COMPONENT_VERSION_BOUNDARY: "0.90.0",
+  }, () => {
+    const repositories = readConfig().repositories;
+    // 0.96.2 is at or above the lowered boundary, so it is no longer the v4 line.
+    assertEquals(repositories.find((r) => r.label === "Client")?.branch, "main");
+    // 0.6.1 still is.
+    assertEquals(repositories.find((r) => r.label === "App")?.branch, "release/hoprdv4-next");
   });
 });

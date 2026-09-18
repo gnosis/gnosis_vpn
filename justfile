@@ -7,6 +7,11 @@ download distribution arch:
 
 # Generate changelog
 changelog:
+    #!/usr/bin/env bash
+    set -o errexit -o nounset -o pipefail
+    # The line split has no default in the script; it comes from config.sh, as it does in CI.
+    source ./scripts/config.sh
+    export COMPONENT_VERSION_BOUNDARY COMPONENT_V4_BRANCH
     ./scripts/generate-changelog.ts
 
 # Generate manual pages for binaries
