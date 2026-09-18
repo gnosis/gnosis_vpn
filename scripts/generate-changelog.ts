@@ -160,7 +160,9 @@ export function versionCoreLt(version: string, boundary: string): boolean {
  * The two lines are split by the boundary exactly as resolve-build-versions.sh splits them:
  * the v4 line sits below it on its own release branch, the v5 line at or above it on main.
  * Reading a v4 build's PRs from main would credit it with v5 changes it does not contain.
- * A version with no numeric core falls back to main, the branch everything else builds from.
+ * A version with no numeric core falls back to main, the branch everything else builds from;
+ * "latest" never arrives here as such, because resolve-build-versions.sh resolves that spelling
+ * to the concrete version of the line it is building before publishing it.
  */
 export function componentBranch(version: string, boundary: string, v4Branch: string): string {
   return versionCoreLt(version, boundary) ? v4Branch : "main";
