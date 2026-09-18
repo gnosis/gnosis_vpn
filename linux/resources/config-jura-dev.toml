@@ -2,15 +2,15 @@ version = 6
 
 [destinations.USA]
 address = "0xe686ade652a815e0e26803c1a795f9d65c82e06e"
-meta = { location = "Omaha", flag = "US" }
+meta = { location = "Omaha", flag = "US", latitude = "41.2400", longitude = "-96.0100" }
 
 [destinations.UK]
 address = "0x7b2b69c52ec97907d7a3b2d2724ba92781b7def7"
-meta = { location = "London", flag = "GB" }
+meta = { location = "London", flag = "GB", latitude = "51.5019", longitude = "-0.1187" }
 
 [destinations.India]
 address = "0x7f25c474f26488b2e29343c881f0cdc0e6d02abd"
-meta = { location = "Mumbai", flag = "IN" }
+meta = { location = "Mumbai", flag = "IN", latitude = "19.0684", longitude = "72.8758" }
 
 [connection.path_planner]
 # Prune to the 3 fastest candidate paths; the client preset keeps every relayer (0).
