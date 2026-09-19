@@ -108,6 +108,9 @@ configure_filesystem_permissions() {
     if [[ -f /usr/bin/gnosis_vpn-app ]]; then
         chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-app
     fi
+    if [[ -f /usr/bin/gnosis_vpn-update ]]; then
+        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-update
+    fi
 
     echo "$LOG_PREFIX SUCCESS: Directory permissions configured"
 }
