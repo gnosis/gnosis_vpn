@@ -201,13 +201,14 @@ main() {
             set -e
             handle_resolve_rc "gnosis_vpn-app" "$rc"
         fi
-        # The toolkit is shared by both lines: no version window.
         if [[ -n ${INPUT_TOOLKIT_VERSION:-} ]]; then
             latest_toolkit_pr_version="${INPUT_TOOLKIT_VERSION#v}"
         else
             set +e
             latest_toolkit_pr_version="$(
-                "${SCRIPT_DIR}/resolve-registry-version.sh" gnosis_vpn-toolkit gnosis_vpn-update-aarch64-darwin
+                "${SCRIPT_DIR}/resolve-registry-version.sh" gnosis_vpn-toolkit \
+                    gnosis_vpn-update-x86_64-linux gnosis_vpn-update-aarch64-linux \
+                    gnosis_vpn-update-aarch64-darwin
             )"
             rc=$?
             set -e
