@@ -14,9 +14,18 @@
 %gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl list com.gnosisvpn.gnosisvpnclient
 
 # Allow gnosisvpn group members to run the self-updater, spawned by the app as:
-#   sudo -n /usr/local/bin/gnosis_vpn-update update --channel <stable|snapshot|experimental> [--force]
-# Argument forms are enumerated exactly; extend in lockstep with the app's invocation.
+#   sudo -n /usr/local/bin/gnosis_vpn-update update --output json --channel <stable|snapshot|experimental> [--force]
+# Argument forms are enumerated exactly, in the order the app passes them; sudo
+# matches argv literally, so extend this in lockstep with the app's invocation.
 # The experimental entries land ahead of the toolkit and app learning the channel.
+%gnosisvpn ALL=(root) NOPASSWD: /usr/local/bin/gnosis_vpn-update update --output json --channel stable
+%gnosisvpn ALL=(root) NOPASSWD: /usr/local/bin/gnosis_vpn-update update --output json --channel stable --force
+%gnosisvpn ALL=(root) NOPASSWD: /usr/local/bin/gnosis_vpn-update update --output json --channel snapshot
+%gnosisvpn ALL=(root) NOPASSWD: /usr/local/bin/gnosis_vpn-update update --output json --channel snapshot --force
+%gnosisvpn ALL=(root) NOPASSWD: /usr/local/bin/gnosis_vpn-update update --output json --channel experimental
+%gnosisvpn ALL=(root) NOPASSWD: /usr/local/bin/gnosis_vpn-update update --output json --channel experimental --force
+
+# Retained for app builds that predate --output json (and for a rollback).
 %gnosisvpn ALL=(root) NOPASSWD: /usr/local/bin/gnosis_vpn-update update --channel stable
 %gnosisvpn ALL=(root) NOPASSWD: /usr/local/bin/gnosis_vpn-update update --channel stable --force
 %gnosisvpn ALL=(root) NOPASSWD: /usr/local/bin/gnosis_vpn-update update --channel snapshot
