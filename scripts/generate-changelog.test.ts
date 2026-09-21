@@ -1,6 +1,8 @@
 import { assertEquals } from "@std/assert";
 import {
   type ChangelogEntry,
+  collectChangelogEntries,
+  type Config,
   debianFormat,
   extractChangelogType,
   getReleaseType,
@@ -595,4 +597,83 @@ Deno.test("readConfig - a missing previous version is tolerated on the snapshot 
   withConfigEnv({ GNOSISVPN_PREVIOUS_APP_VERSION: "" }, () => {
     assertEquals(readConfig().repositories.find((r) => r.label === "App")?.previousVersion, null);
   });
+});
+
+async function withFetchMock(
+  handler: (url: string) => Response,
+  fn: (urls: string[]) => Promise<void>,
+): Promise<void> {
+  const originalFetch = globalThis.fetch;
+  const urls: string[] = [];
+  globalThis.fetch = ((input: RequestInfo | URL) => {
+    const url = input instanceof Request ? input.url : String(input);
+    urls.push(url);
+    return Promise.resolve(handler(url));
+  }) as typeof fetch;
+
+  try {
+    await fn(urls);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+Deno.test("snapshot changelog includes a PR merged into the version PR's release branch", async () => {
+  const config: Config = {
+    repositories: [{
+      repo: "gnosis/gnosis_vpn-client",
+      label: "Client",
+      branch: "main",
+      previousVersion: "0.96.1+pr.800",
+      currentVersion: "0.96.1+pr.801",
+      allowMissingRelease: false,
+    }],
+    format: "zulip",
+    channel: "snapshot",
+    ghApiMaxAttempts: 1,
+    ghToken: "test-token",
+  };
+
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    await withFetchMock((url) => {
+      if (url.endsWith("/pulls/800")) {
+        return Response.json({ merged_at: "2026-09-14T15:00:00Z" });
+      }
+      if (url.endsWith("/pulls/801")) {
+        return Response.json({
+          merged_at: "2026-09-14T17:06:54Z",
+          base: { ref: "release/hoprdv4" },
+        });
+      }
+      if (url.includes("/pulls?")) {
+        return Response.json([{
+          number: 801,
+          title: "chore(deps): bump edgli + hopr-lib to v4-line HEAD (reply-opener LRU fix)",
+          state: "closed",
+          merged_at: "2026-09-14T17:06:54Z",
+          user: { login: "Teebor-Choka" },
+          labels: [],
+        }]);
+      }
+      throw new Error(`Unexpected GitHub API request: ${url}`);
+    }, async (urls) => {
+      const entries = await collectChangelogEntries(config);
+
+      assertEquals(urls.some((url) => url.includes("base=release/hoprdv4")), true);
+      assertEquals(entries.map((entry) => entry.id), ["801"]);
+
+      const announcement = zulipFormat(
+        entries,
+        "2026.09.14+build.180352",
+        "0.96.1+pr.801",
+        "0.0.0",
+        "0.0.0",
+      );
+      assertEquals(announcement.includes("[#801](https://github.com/gnosis/gnosis_vpn-client/pull/801)"), true);
+    });
+  } finally {
+    console.error = originalConsoleError;
+  }
 });
