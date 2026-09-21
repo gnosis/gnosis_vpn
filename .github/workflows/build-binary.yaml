@@ -192,6 +192,10 @@ jobs:
     runs-on: macos-15
     name: Build Mac
     needs: setup
+    env:
+      # Where gsutil keeps resumable-transfer tracker files; its ~/.gsutil
+      # default is not writable on the hosted macOS runner.
+      GSUTIL_STATE: ${{ runner.temp }}/gsutil
     permissions:
       contents: read
       id-token: write
@@ -285,7 +289,8 @@ jobs:
           local_pkg="./build/macos/stable/${{ steps.prepare_files.outputs.pkg }}"
           if gsutil -q stat "$dest" 2>/dev/null; then
             tmp=$(mktemp)
-            gsutil -q cp "$dest" "$tmp"
+            mkdir -p "$GSUTIL_STATE"
+            gsutil -o "GSUtil:state_dir=$GSUTIL_STATE" -q cp "$dest" "$tmp"
             if ! cmp -s "$tmp" "$local_pkg"; then
               echo "ERROR: ${dest} already exists with different content." >&2
               echo "Re-releasing the same version is not supported — bump package.json or delete the old .pkg manually." >&2
@@ -300,7 +305,11 @@ jobs:
         # post-upload `setmeta` wildcard to only touch the newly uploaded objects.
         if: contains(fromJSON('["snapshot","release","experimental"]'), inputs.version_type)
         run: |
-          gsutil -m -h "Cache-Control:public, max-age=31536000, immutable" \
+          # ~/.gsutil is not writable on the macOS runner, and a resumable
+          # transfer cannot start without its tracker file (see GSUTIL_STATE).
+          mkdir -p "$GSUTIL_STATE"
+          gsutil -o "GSUtil:state_dir=$GSUTIL_STATE" \
+            -m -h "Cache-Control:public, max-age=31536000, immutable" \
             cp -r "./build/macos/${{ steps.prepare_files.outputs.channel }}/." \
             "gs://download.gnosisvpn.io/macos/${{ steps.prepare_files.outputs.channel }}/"
   ## TODO Publish into IPFS as well
