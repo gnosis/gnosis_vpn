@@ -23,15 +23,15 @@
 //
 // The four GNOSISVPN_PREVIOUS_* variables are optional off the stable channel: unset or empty means
 // "this line has never built before", and that component contributes no entries. See readPreviousVersion().
+//
+// Client and app PRs are aggregated from the branch carrying the line their version sits on (see componentBranch).
 
 // --- Types ---
 
 interface RepoConfig {
   repo: string;
   label: string;
-  // Fallback PR `base=` filter. Defaults to "main"; the installer repo is overridable
-  // via GNOSISVPN_PACKAGE_BRANCH so close-release on a release branch only includes
-  // installer PRs that targeted that branch. A current +pr.N version uses its PR base branch.
+  // PR `base=` filter when the version names no branch itself (a `+pr.N` version uses its PR's base).
   branch: string;
   // null when this line has never built before; select_previous_version() in
   // scripts/resolve-build-versions.sh emits an empty value on purpose to say so.
@@ -73,6 +73,8 @@ export interface ChangelogEntry {
 interface GitHubPR {
   number: number;
   title: string;
+  // Present on the list and detail endpoints; a backport names its source PR here.
+  body: string | null;
   state: string;
   merged_at: string | null;
   user: { login: string };
@@ -122,6 +124,35 @@ export function validateIso8601Date(dateString: string): boolean {
 // v-prefixed; this normalizes to the v-prefixed form without doubling the "v".
 function vTag(version: string): string {
   return `${version}`.startsWith("v") ? `${version}` : `v${version}`;
+}
+
+// --- Release Lines ---
+
+// Same split as COMPONENT_VERSION_BOUNDARY in scripts/config.sh and the client/app docs/branch-strategy.md.
+export const COMPONENT_VERSION_BOUNDARY = "0.100.0";
+export const COMPONENT_V4_BRANCH = "release/hoprdv4";
+
+// Mirrors version_core() in scripts/common.sh; null for anything without an x.y.z core.
+export function versionCore(version: string): [number, number, number] | null {
+  const core = `${version}`.replace(/^v/, "").split("+")[0];
+  const match = core.match(/^(\d+)\.(\d+)\.(\d+)$/);
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+}
+
+/** version < boundary, compared on the numeric core. Mirrors version_core_lt() in scripts/common.sh. */
+export function versionCoreLt(version: string, boundary: string): boolean {
+  const a = versionCore(version);
+  const b = versionCore(boundary);
+  if (!a || !b) return false;
+  for (let i = 0; i < 3; i++) {
+    if (a[i] !== b[i]) return a[i] < b[i];
+  }
+  return false;
+}
+
+/** Reading a v4 build's PRs from main would credit it with v5 changes; no numeric core falls back to main. */
+export function componentBranch(version: string): string {
+  return versionCoreLt(version, COMPONENT_VERSION_BOUNDARY) ? COMPONENT_V4_BRANCH : "main";
 }
 
 // --- GitHub API Client ---
@@ -263,6 +294,64 @@ async function getVersionMetadata(
   return { date, baseBranch };
 }
 
+// --- Backports ---
+
+// Backports carry a bot-generated title and author; crediting the source PR keeps them out of "Other".
+const BACKPORT_TITLE_PREFIX = /^\[Backport [^\]]*\]\s*(.+)$/i;
+const BACKPORT_TITLE_NUMBER = /^Backport #?(\d+) to \S+/i;
+const BACKPORT_BODY_SOURCE = /Backport of #(\d+)/i;
+
+export interface BackportRef {
+  /** The original title, when the generated one still carries it; null otherwise. */
+  title: string | null;
+  /** The PR this was backported from; null when neither title nor body names one. */
+  sourceNumber: number | null;
+}
+
+/** Recognizes both generated backport title shapes. Returns null when the PR is not a backport. */
+export function parseBackport(title: string, body: string | null): BackportRef | null {
+  const prefixed = title.match(BACKPORT_TITLE_PREFIX);
+  const numbered = title.match(BACKPORT_TITLE_NUMBER);
+  if (!prefixed && !numbered) return null;
+
+  const source = numbered?.[1] ?? body?.match(BACKPORT_BODY_SOURCE)?.[1];
+  return {
+    title: prefixed?.[1] ?? null,
+    sourceNumber: source ? Number(source) : null,
+  };
+}
+
+/** Title and author from the source PR; the generated title is a truncatable copy, used only as fallback. */
+async function resolveBackport(
+  config: Config,
+  repoName: string,
+  pr: GitHubPR,
+): Promise<{ title: string; author: string }> {
+  const backport = parseBackport(pr.title, pr.body);
+  if (!backport) return { title: pr.title, author: pr.user.login };
+
+  // Nothing to look up: keep whatever the generated title carried, and the bot as author.
+  const fallback = { title: backport.title ?? pr.title, author: pr.user.login };
+  if (backport.sourceNumber === null) {
+    log("WARN", `${repoName}#${pr.number} reads as a backport but names no source PR.`);
+    return fallback;
+  }
+
+  // A deleted or unreachable source must not fail the release.
+  const source = (await ghApiCall(
+    config,
+    repoName,
+    `/pulls/${backport.sourceNumber}`,
+    true,
+  )) as GitHubPR | null;
+  if (!source) {
+    log("WARN", `${repoName}#${pr.number}: backport source #${backport.sourceNumber} not found.`);
+    return fallback;
+  }
+
+  return { title: source.title, author: source.user.login };
+}
+
 // --- PR Fetcher ---
 
 async function fetchMergedPRs(
@@ -298,18 +387,19 @@ async function fetchMergedPRs(
     const state = pr.state.toLowerCase();
     const mergedDate = pr.merged_at.split("T")[0] ||
       new Date().toISOString().split("T")[0];
-    const changelogType = extractChangelogType(pr.title);
+    const { title, author } = await resolveBackport(config, repoName, pr);
+    const changelogType = extractChangelogType(title);
 
     log(
       "DEBUG",
-      `Processing PR: id=${pr.number}, title=${pr.title}, author=${pr.user.login}, labels=${labels}, merged_at=${mergedDate}, type=${changelogType}, component=${component}`,
+      `Processing PR: id=${pr.number}, title=${title}, author=${author}, labels=${labels}, merged_at=${mergedDate}, type=${changelogType}, component=${component}`,
     );
 
     entries.push({
       repository: repoName,
       id: String(pr.number),
-      title: pr.title,
-      author: pr.user.login,
+      title,
+      author,
       labels,
       state,
       date: mergedDate,
@@ -648,6 +738,10 @@ export function readConfig(): Config {
     Deno.exit(1);
   }
 
+  // A v4 build reads the v4 branch and a v5 build reads main, without any caller saying so.
+  const clientBranch = componentBranch(currentCliVersion);
+  const appBranch = componentBranch(currentAppVersion);
+
   const format = Deno.env.get("GNOSISVPN_CHANGELOG_FORMAT") || "github";
   if (!["zulip", "github", "debian", "json", "rpm"].includes(format)) {
     console.error(`Error: Unsupported format: ${format}`);
@@ -668,7 +762,7 @@ export function readConfig(): Config {
       {
         repo: "gnosis/gnosis_vpn-client",
         label: "Client",
-        branch: "main",
+        branch: clientBranch,
         previousVersion: previousCliVersion,
         currentVersion: currentCliVersion,
         allowMissingRelease: false,
@@ -676,7 +770,7 @@ export function readConfig(): Config {
       {
         repo: "gnosis/gnosis_vpn-app",
         label: "App",
-        branch: "main",
+        branch: appBranch,
         previousVersion: previousAppVersion,
         currentVersion: currentAppVersion,
         allowMissingRelease: false,
@@ -684,6 +778,7 @@ export function readConfig(): Config {
       {
         repo: "gnosis/gnosis_vpn-toolkit",
         label: "Toolkit",
+        // Shared by both lines, so it has no release branch to split off.
         branch: "main",
         previousVersion: previousToolkitVersion,
         currentVersion: currentToolkitVersion,

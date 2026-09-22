@@ -18,9 +18,9 @@
 #   GH_TOKEN                           (required) token for gh api calls
 #   GITHUB_OUTPUT                      step output file; defaults to /dev/null
 #                                      so the script can be run locally
-#   INPUT_CLIENT_VERSION               explicit client version override
-#   INPUT_APP_VERSION                  explicit app version override
-#   INPUT_TOOLKIT_VERSION              explicit toolkit version override
+#   INPUT_CLIENT_VERSION               explicit client version override ("latest" means the same as unset)
+#   INPUT_APP_VERSION                  explicit app version override ("latest" means the same as unset)
+#   INPUT_TOOLKIT_VERSION              explicit toolkit version override ("latest" means the same as unset)
 #   GNOSISVPN_<C>_PREVIOUS_VERSION     previously built version, for the skip check and changelog range
 #   GNOSISVPN_<C>_PREVIOUS_VERSION_{PR,RELEASE,EXPERIMENTAL} per-line candidates; the one matching VERSION_TYPE wins when set
 #   PR_HEAD_SHA                        PR head commit sha (VERSION_TYPE=commit)
@@ -100,12 +100,25 @@ select_previous_version() {
     fi
 }
 
+# "latest" adds nothing over unset (the resolvers already pick the newest) and has no version core for the line split.
+drop_latest_override() {
+    local name="$1"
+    if [[ ${!name:-} == "latest" ]]; then
+        log_info "${name}=latest; resolving it as if no override were given."
+        unset "${name}"
+    fi
+}
+
 main() {
     local version_type="${VERSION_TYPE:-}"
     if [[ -z ${version_type} ]]; then
         log_error "VERSION_TYPE is not set. Expected snapshot, experimental, commit, pr, or release."
         exit 1
     fi
+
+    drop_latest_override INPUT_CLIENT_VERSION
+    drop_latest_override INPUT_APP_VERSION
+    drop_latest_override INPUT_TOOLKIT_VERSION
 
     # Resolved before anything reads them, and published so the build jobs share one changelog range.
     GNOSISVPN_PACKAGE_PREVIOUS_VERSION="$(select_previous_version PACKAGE)"
