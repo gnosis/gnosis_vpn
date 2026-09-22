@@ -36,11 +36,6 @@ on:
         value: ${{ jobs.setup.outputs.GNOSISVPN_NETWORKS }}
       GNOSISVPN_CHANNEL:
         value: ${{ jobs.setup.outputs.GNOSISVPN_CHANNEL }}
-      # The line split this build resolved with, so the changelog aggregates the same one.
-      COMPONENT_VERSION_BOUNDARY:
-        value: ${{ jobs.setup.outputs.COMPONENT_VERSION_BOUNDARY }}
-      COMPONENT_V4_BRANCH:
-        value: ${{ jobs.setup.outputs.COMPONENT_V4_BRANCH }}
       # "Did this build actually run?" — also consumed by experimental-build.yaml.
       SNAPSHOT_TRIGGERED:
         value: ${{ jobs.setup.outputs.SKIP_BUILDING == 'false' }}
@@ -62,8 +57,6 @@ jobs:
       GNOSISVPN_TOOLKIT_VERSION: ${{ steps.setup.outputs.GNOSISVPN_TOOLKIT_VERSION }}
       GNOSISVPN_NETWORKS: ${{ steps.setup.outputs.GNOSISVPN_NETWORKS }}
       GNOSISVPN_CHANNEL: ${{ steps.setup.outputs.GNOSISVPN_CHANNEL }}
-      COMPONENT_VERSION_BOUNDARY: ${{ steps.setup.outputs.COMPONENT_VERSION_BOUNDARY }}
-      COMPONENT_V4_BRANCH: ${{ steps.setup.outputs.COMPONENT_V4_BRANCH }}
       # Resolved per line so the build jobs and the skip check share one changelog range.
       GNOSISVPN_PACKAGE_PREVIOUS_VERSION: ${{ steps.setup.outputs.GNOSISVPN_PACKAGE_PREVIOUS_VERSION }}
       GNOSISVPN_CLIENT_PREVIOUS_VERSION: ${{ steps.setup.outputs.GNOSISVPN_CLIENT_PREVIOUS_VERSION }}
@@ -163,10 +156,6 @@ jobs:
           GNOSISVPN_GPG_PRIVATE_KEY_PATH: /tmp/gnosis_vpn_gpg_key.asc
           GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
           GNOSISVPN_CHANGELOG_FORMAT: debian
-          # The line split this build resolved with; `just changelog` otherwise falls back to
-          # sourcing config.sh itself. Only the Linux arches reach it, so the mac job needs neither.
-          COMPONENT_VERSION_BOUNDARY: ${{ needs.setup.outputs.COMPONENT_VERSION_BOUNDARY }}
-          COMPONENT_V4_BRANCH: ${{ needs.setup.outputs.COMPONENT_V4_BRANCH }}
       - name: Upload Package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

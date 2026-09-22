@@ -27,8 +27,7 @@
 #   GITHUB_REPOSITORY, GITHUB_REF      set by GitHub Actions (VERSION_TYPE=release)
 #
 # Outputs written to GITHUB_OUTPUT:
-#   the resolved package/client/app/toolkit versions plus GNOSISVPN_NETWORKS, GNOSISVPN_CHANNEL,
-#   COMPONENT_VERSION_BOUNDARY, COMPONENT_V4_BRANCH and SKIP_BUILDING
+#   the resolved package/client/app/toolkit versions plus GNOSISVPN_NETWORKS, GNOSISVPN_CHANNEL and SKIP_BUILDING
 #
 
 set -euo pipefail
@@ -104,9 +103,9 @@ select_previous_version() {
 # "latest" is an accepted spelling of a component version (check_version_syntax in common.sh) and
 # download-binaries.sh reads it as "resolve it for me". The resolvers below already pick the newest
 # version on this line, so as an override it says nothing more than leaving it unset does. Clearing
-# it keeps every consumer on a concrete version: warn_if_outside_boundary and the client/app line
-# split in generate-changelog.ts both compare version cores, and "latest" has none, so it would
-# quietly read main while the build ships the below-boundary line.
+# it keeps every consumer on a concrete version: the boundary warnings here and the client/app line
+# split in generate-changelog.ts both compare version cores, and "latest" has none, so the changelog
+# would quietly read main while the build ships the below-boundary line.
 drop_latest_override() {
     local name="$1"
     if [[ ${!name:-} == "latest" ]]; then
@@ -325,11 +324,6 @@ main() {
     esac
     set_output "GNOSISVPN_NETWORKS" "${networks}"
     set_output "GNOSISVPN_CHANNEL" "${channel}"
-
-    # Published so generate-changelog.ts splits the lines on the same values this script did,
-    # rather than carrying its own copy that a config.sh edit would silently leave behind.
-    set_output "COMPONENT_VERSION_BOUNDARY" "${COMPONENT_VERSION_BOUNDARY}"
-    set_output "COMPONENT_V4_BRANCH" "${COMPONENT_V4_BRANCH}"
 
     local skip_building=false
     if [[ ${version_type} == "snapshot" || ${version_type} == "experimental" ]]; then

@@ -2,6 +2,8 @@ import { assertEquals } from "@std/assert";
 import {
   type ChangelogEntry,
   collectChangelogEntries,
+  COMPONENT_V4_BRANCH,
+  COMPONENT_VERSION_BOUNDARY,
   componentBranch,
   type Config,
   debianFormat,
@@ -502,8 +504,6 @@ Deno.test("rfc2822Date - formats with +0000 not GMT", () => {
 // --- versionCore / versionCoreLt / componentBranch ---
 
 // The values scripts/config.sh ships; this script has no copy of its own, so the tests carry them.
-const BOUNDARY = "0.100.0";
-const V4_BRANCH = "release/hoprdv4";
 
 Deno.test("versionCore - strips a leading v and build metadata", () => {
   assertEquals(versionCore("0.96.2"), [0, 96, 2]);
@@ -538,19 +538,27 @@ Deno.test("versionCoreLt - an unparseable version is not below the boundary", ()
 });
 
 Deno.test("componentBranch - v4 versions read the v4 branch, v5 versions read main", () => {
-  assertEquals(componentBranch("0.96.2", BOUNDARY, V4_BRANCH), "release/hoprdv4");
-  assertEquals(componentBranch("0.35.5", BOUNDARY, V4_BRANCH), "release/hoprdv4");
-  assertEquals(componentBranch("0.100.0", BOUNDARY, V4_BRANCH), "main");
-  assertEquals(componentBranch("0.101.0", BOUNDARY, V4_BRANCH), "main");
+  assertEquals(componentBranch("0.96.2"), "release/hoprdv4");
+  assertEquals(componentBranch("0.35.5"), "release/hoprdv4");
+  assertEquals(componentBranch("0.100.0"), "main");
+  assertEquals(componentBranch("0.101.0"), "main");
 });
 
 Deno.test("componentBranch - registry build metadata does not change the line", () => {
-  assertEquals(componentBranch("0.96.2+pr.638", BOUNDARY, V4_BRANCH), "release/hoprdv4");
-  assertEquals(componentBranch("v0.101.0+commit.abc1234", BOUNDARY, V4_BRANCH), "main");
+  assertEquals(componentBranch("0.96.2+pr.638"), "release/hoprdv4");
+  assertEquals(componentBranch("v0.101.0+commit.abc1234"), "main");
 });
 
 Deno.test("componentBranch - a version with no numeric core falls back to main", () => {
-  assertEquals(componentBranch("", BOUNDARY, V4_BRANCH), "main");
+  assertEquals(componentBranch(""), "main");
+});
+
+Deno.test("the line split matches the defaults in scripts/config.sh", () => {
+  // The build resolves versions with config.sh; a boundary moved there must move here too.
+  const configSh = Deno.readTextFileSync(new URL("./config.sh", import.meta.url));
+  const boundary = configSh.match(/^COMPONENT_VERSION_BOUNDARY="\$\{COMPONENT_VERSION_BOUNDARY:-([^}]+)\}"$/m)?.[1];
+  assertEquals(boundary, COMPONENT_VERSION_BOUNDARY);
+  assertEquals(COMPONENT_V4_BRANCH, "release/hoprdv4");
 });
 
 // --- parseBackport ---
@@ -601,9 +609,6 @@ const BASE_CONFIG_ENV: Record<string, string> = {
   GNOSISVPN_APP_VERSION: "0.6.1",
   GNOSISVPN_PREVIOUS_TOOLKIT_VERSION: "1.2.2",
   GNOSISVPN_TOOLKIT_VERSION: "1.2.3",
-  // Required, with no default in the script: the workflows pass them through from scripts/config.sh.
-  COMPONENT_VERSION_BOUNDARY: "0.100.0",
-  COMPONENT_V4_BRANCH: "release/hoprdv4",
 };
 
 // A null value means "leave the variable unset"; an empty string is what GitHub Actions
@@ -719,20 +724,6 @@ Deno.test("readConfig - the two components are placed independently", () => {
     const repositories = readConfig().repositories;
     assertEquals(repositories.find((r) => r.label === "Client")?.branch, "main");
     assertEquals(repositories.find((r) => r.label === "App")?.branch, "release/hoprdv4");
-  });
-});
-
-Deno.test("readConfig - the branch and the boundary follow what config.sh passed in", () => {
-  withConfigEnv({
-    GNOSISVPN_CLIENT_VERSION: "0.96.2",
-    COMPONENT_V4_BRANCH: "release/hoprdv4-next",
-    COMPONENT_VERSION_BOUNDARY: "0.90.0",
-  }, () => {
-    const repositories = readConfig().repositories;
-    // 0.96.2 is at or above the lowered boundary, so it is no longer the v4 line.
-    assertEquals(repositories.find((r) => r.label === "Client")?.branch, "main");
-    // 0.6.1 still is.
-    assertEquals(repositories.find((r) => r.label === "App")?.branch, "release/hoprdv4-next");
   });
 });
 

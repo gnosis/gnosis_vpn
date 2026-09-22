@@ -8,8 +8,7 @@
 // - gnosis_vpn-toolkit repository (merged PRs between dates)
 // - gnosis_vpn Installer repository (merged PRs since last release)
 //
-// Example (`just changelog` wraps the first line for you):
-//   source ./scripts/config.sh && export COMPONENT_VERSION_BOUNDARY COMPONENT_V4_BRANCH
+// Example:
 //   GNOSISVPN_PREVIOUS_PACKAGE_VERSION=0.56.4 \
 //   GNOSISVPN_PACKAGE_VERSION=0.56.5 \
 //   GNOSISVPN_PREVIOUS_CLIENT_VERSION=0.54.4 \
@@ -25,9 +24,7 @@
 // The four GNOSISVPN_PREVIOUS_* variables are optional off the stable channel: unset or empty means
 // "this line has never built before", and that component contributes no entries. See readPreviousVersion().
 //
-// Client and app PRs are aggregated from the branch carrying the line being built, chosen by comparing
-// the version being built against COMPONENT_VERSION_BOUNDARY (see componentBranch). That variable and
-// COMPONENT_V4_BRANCH are required and come from scripts/config.sh via the build's step outputs.
+// Client and app PRs are aggregated from the branch carrying the line their version sits on (see componentBranch).
 
 // --- Types ---
 
@@ -135,12 +132,9 @@ function vTag(version: string): string {
 
 // --- Release Lines ---
 
-// COMPONENT_VERSION_BOUNDARY and COMPONENT_V4_BRANCH are defined once in scripts/config.sh and
-// reach this script through the environment: resolve-build-versions.sh splits the lines on them
-// when it picks the client and app versions, publishes both as step outputs, and the workflows
-// pass those along. They are required here on purpose — a default would be a second copy that a
-// config.sh edit leaves behind, and the build would resolve one line while these notes aggregate
-// the other's branch.
+// Same split as COMPONENT_VERSION_BOUNDARY in scripts/config.sh and the client/app docs/branch-strategy.md.
+export const COMPONENT_VERSION_BOUNDARY = "0.100.0";
+export const COMPONENT_V4_BRANCH = "release/hoprdv4";
 
 // Mirrors version_core() in scripts/common.sh: drop a leading "v" and any "+build" metadata.
 // Returns null for anything without a numeric x.y.z core, e.g. a date-based snapshot version.
@@ -171,8 +165,8 @@ export function versionCoreLt(version: string, boundary: string): boolean {
  * "latest" never arrives here as such, because resolve-build-versions.sh resolves that spelling
  * to the concrete version of the line it is building before publishing it.
  */
-export function componentBranch(version: string, boundary: string, v4Branch: string): string {
-  return versionCoreLt(version, boundary) ? v4Branch : "main";
+export function componentBranch(version: string): string {
+  return versionCoreLt(version, COMPONENT_VERSION_BOUNDARY) ? COMPONENT_V4_BRANCH : "main";
 }
 
 // --- GitHub API Client ---
@@ -771,22 +765,8 @@ export function readConfig(): Config {
 
   // Which line's branch the client and app PRs come from follows the versions being built,
   // so a v4 build reads the v4 branch and a v5 build reads main without any caller saying so.
-  const boundary = Deno.env.get("COMPONENT_VERSION_BOUNDARY");
-  if (!boundary) {
-    console.error("Error: COMPONENT_VERSION_BOUNDARY is required");
-    console.error("It is defined in scripts/config.sh; export it or pass it from the build's step outputs.");
-    Deno.exit(1);
-  }
-
-  const v4Branch = Deno.env.get("COMPONENT_V4_BRANCH");
-  if (!v4Branch) {
-    console.error("Error: COMPONENT_V4_BRANCH is required");
-    console.error("It is defined in scripts/config.sh; export it or pass it from the build's step outputs.");
-    Deno.exit(1);
-  }
-
-  const clientBranch = componentBranch(currentCliVersion, boundary, v4Branch);
-  const appBranch = componentBranch(currentAppVersion, boundary, v4Branch);
+  const clientBranch = componentBranch(currentCliVersion);
+  const appBranch = componentBranch(currentAppVersion);
 
   const format = Deno.env.get("GNOSISVPN_CHANGELOG_FORMAT") || "github";
   if (!["zulip", "github", "debian", "json", "rpm"].includes(format)) {

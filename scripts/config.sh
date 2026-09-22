@@ -11,9 +11,6 @@ RETAIN_EXPERIMENTAL="${RETAIN_EXPERIMENTAL:-7}"
 
 # Client/app boundary between the installer lines: standard < boundary <= experimental (the toolkit is not split).
 COMPONENT_VERSION_BOUNDARY="${COMPONENT_VERSION_BOUNDARY:-0.100.0}"
-# Branch carrying the below-boundary client/app line; the other line lives on main. Read by generate-changelog.ts
-# to aggregate a build's PRs from the line it actually ships.
-COMPONENT_V4_BRANCH="${COMPONENT_V4_BRANCH:-release/hoprdv4}"
 
 # Networks per installer line (space-separated, first = default); packages bake the list for their postinstall.
 NETWORKS_STANDARD="${NETWORKS_STANDARD:-jura-prod jura-staging jura-dev}"
