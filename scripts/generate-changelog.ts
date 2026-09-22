@@ -34,10 +34,11 @@
 interface RepoConfig {
   repo: string;
   label: string;
-  // PR `base=` filter. The installer repo is overridable via GNOSISVPN_PACKAGE_BRANCH
-  // so close-release on a release branch only includes installer PRs that targeted that
-  // branch; client and app follow their version's line via componentBranch(); the toolkit
-  // is not split between lines and always reads main.
+  // Fallback PR `base=` filter, used when the current version does not name a branch of its
+  // own: a `+pr.N` version takes the base branch of that PR instead. The installer repo is
+  // overridable via GNOSISVPN_PACKAGE_BRANCH so close-release on a release branch only includes
+  // installer PRs that targeted that branch; client and app follow their version's line via
+  // componentBranch(); the toolkit is not split between lines and always reads main.
   branch: string;
   // null when this line has never built before; select_previous_version() in
   // scripts/resolve-build-versions.sh emits an empty value on purpose to say so.
@@ -85,6 +86,12 @@ interface GitHubPR {
   merged_at: string | null;
   user: { login: string };
   labels: { name: string }[];
+  base?: { ref: string };
+}
+
+interface VersionMetadata {
+  date: string;
+  baseBranch?: string;
 }
 
 interface GitHubCommit {
@@ -253,22 +260,24 @@ async function ghApiCall(
   Deno.exit(1);
 }
 
-// --- Version Date Fetcher ---
+// --- Version Metadata Fetcher ---
 
-async function getVersionDate(
+async function getVersionMetadata(
   config: Config,
   repo: string,
   version: string,
   allowMissingRelease: boolean,
-): Promise<string> {
+): Promise<VersionMetadata> {
   log("DEBUG", `Fetching version date for ${repo} ${version}`);
   let date = "";
+  let baseBranch: string | undefined;
   if (`${version}`.includes("+pr.")) {
     log("DEBUG", `Getting version date from PR number in version string`);
     const prNumber = version.split("+pr.")[1];
     const pr = (await ghApiCall(config, repo, `/pulls/${prNumber}`)) as GitHubPR;
     if (pr.merged_at) {
       date = pr.merged_at;
+      baseBranch = pr.base?.ref;
     } else {
       log(
         "ERROR",
@@ -302,7 +311,7 @@ async function getVersionDate(
     Deno.exit(1);
   }
 
-  return date;
+  return { date, baseBranch };
 }
 
 // --- Backports ---
@@ -829,19 +838,7 @@ export function readConfig(): Config {
   };
 }
 
-// --- Main ---
-
-async function main(): Promise<void> {
-  const config = readConfig();
-
-  console.error("Generating release notes...");
-  for (const { label, previousVersion, currentVersion, branch } of config.repositories) {
-    console.error(`  ${label}: ${previousVersion ?? "(none)"} -> ${currentVersion} (base: ${branch})`);
-  }
-  console.error(`  Format: ${config.format}`);
-  console.error("");
-
-  // Fetch PRs from all repositories
+export async function collectChangelogEntries(config: Config): Promise<ChangelogEntry[]> {
   const allEntries: ChangelogEntry[] = [];
 
   for (const { repo, label, branch, previousVersion, currentVersion, allowMissingRelease } of config.repositories) {
@@ -851,13 +848,42 @@ async function main(): Promise<void> {
     }
     if (previousVersion === currentVersion) continue;
 
-    const previousDate = await getVersionDate(config, repo, previousVersion, false);
-    const currentDate = await getVersionDate(config, repo, currentVersion, allowMissingRelease);
-    log("INFO", `${label} date range: ${previousDate} to ${currentDate}`);
+    const previousVersionMetadata = await getVersionMetadata(config, repo, previousVersion, false);
+    const currentVersionMetadata = await getVersionMetadata(config, repo, currentVersion, allowMissingRelease);
+    const effectiveBranch = currentVersionMetadata.baseBranch ?? branch;
+    log(
+      "INFO",
+      `${label} date range: ${previousVersionMetadata.date} to ${currentVersionMetadata.date} (base: ${effectiveBranch})`,
+    );
 
-    const entries = await fetchMergedPRs(config, repo, previousDate, currentDate, label, branch);
+    const entries = await fetchMergedPRs(
+      config,
+      repo,
+      previousVersionMetadata.date,
+      currentVersionMetadata.date,
+      label,
+      effectiveBranch,
+    );
     allEntries.push(...entries);
   }
+
+  return allEntries;
+}
+
+// --- Main ---
+
+async function main(): Promise<void> {
+  const config = readConfig();
+
+  console.error("Generating release notes...");
+  for (const { label, previousVersion, currentVersion, branch } of config.repositories) {
+    console.error(`  ${label}: ${previousVersion ?? "(none)"} -> ${currentVersion} (fallback base: ${branch})`);
+  }
+  console.error(`  Format: ${config.format}`);
+  console.error("");
+
+  // Fetch PRs from all repositories
+  const allEntries = await collectChangelogEntries(config);
 
   console.error("");
   console.error(`Fetched ${allEntries.length} PRs total`);
