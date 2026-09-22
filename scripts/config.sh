@@ -10,7 +10,7 @@ RETAIN_SNAPSHOT="${RETAIN_SNAPSHOT:-7}"
 RETAIN_EXPERIMENTAL="${RETAIN_EXPERIMENTAL:-7}"
 
 # Client/app boundary between the installer lines: standard < boundary <= experimental (the toolkit is not split).
-COMPONENT_VERSION_BOUNDARY="${COMPONENT_VERSION_BOUNDARY:-0.100.0}"
+COMPONENT_VERSION_BOUNDARY="0.100.0"
 
 # Networks per installer line (space-separated, first = default); packages bake the list for their postinstall.
 NETWORKS_STANDARD="${NETWORKS_STANDARD:-jura-prod jura-staging jura-dev}"
