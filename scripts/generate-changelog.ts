@@ -31,11 +31,7 @@
 interface RepoConfig {
   repo: string;
   label: string;
-  // Fallback PR `base=` filter, used when the current version does not name a branch of its
-  // own: a `+pr.N` version takes the base branch of that PR instead. The installer repo is
-  // overridable via GNOSISVPN_PACKAGE_BRANCH so close-release on a release branch only includes
-  // installer PRs that targeted that branch; client and app follow their version's line via
-  // componentBranch(); the toolkit is not split between lines and always reads main.
+  // PR `base=` filter when the version names no branch itself (a `+pr.N` version uses its PR's base).
   branch: string;
   // null when this line has never built before; select_previous_version() in
   // scripts/resolve-build-versions.sh emits an empty value on purpose to say so.
@@ -136,8 +132,7 @@ function vTag(version: string): string {
 export const COMPONENT_VERSION_BOUNDARY = "0.100.0";
 export const COMPONENT_V4_BRANCH = "release/hoprdv4";
 
-// Mirrors version_core() in scripts/common.sh: drop a leading "v" and any "+build" metadata.
-// Returns null for anything without a numeric x.y.z core, e.g. a date-based snapshot version.
+// Mirrors version_core() in scripts/common.sh; null for anything without an x.y.z core.
 export function versionCore(version: string): [number, number, number] | null {
   const core = `${version}`.replace(/^v/, "").split("+")[0];
   const match = core.match(/^(\d+)\.(\d+)\.(\d+)$/);
@@ -155,16 +150,7 @@ export function versionCoreLt(version: string, boundary: string): boolean {
   return false;
 }
 
-/**
- * Base branch to aggregate a client/app component's PRs from.
- *
- * The two lines are split by the boundary exactly as resolve-build-versions.sh splits them:
- * the v4 line sits below it on its own release branch, the v5 line at or above it on main.
- * Reading a v4 build's PRs from main would credit it with v5 changes it does not contain.
- * A version with no numeric core falls back to main, the branch everything else builds from;
- * "latest" never arrives here as such, because resolve-build-versions.sh resolves that spelling
- * to the concrete version of the line it is building before publishing it.
- */
+/** Reading a v4 build's PRs from main would credit it with v5 changes; no numeric core falls back to main. */
 export function componentBranch(version: string): string {
   return versionCoreLt(version, COMPONENT_VERSION_BOUNDARY) ? COMPONENT_V4_BRANCH : "main";
 }
@@ -310,12 +296,7 @@ async function getVersionMetadata(
 
 // --- Backports ---
 
-// A backport lands on a release branch under a generated title that buries the original
-// conventional-commit type ("[Backport release/hoprdv4] fix(core): ...") or drops it entirely
-// ("Backport 793 to release/hoprdv4"), and is authored by the bot that opened it. Left alone,
-// every backported change is filed under "Other" and credited to a bot, which is most of a
-// release line that ships by backporting. Both forms name their source PR, so the entry takes
-// the source's type, title and author; the link stays on the PR that landed on this line.
+// Backports carry a bot-generated title and author; crediting the source PR keeps them out of "Other".
 const BACKPORT_TITLE_PREFIX = /^\[Backport [^\]]*\]\s*(.+)$/i;
 const BACKPORT_TITLE_NUMBER = /^Backport #?(\d+) to \S+/i;
 const BACKPORT_BODY_SOURCE = /Backport of #(\d+)/i;
@@ -340,12 +321,7 @@ export function parseBackport(title: string, body: string | null): BackportRef |
   };
 }
 
-/**
- * The title and author a backport should be credited with.
- *
- * The source PR is the authority: the generated title is a copy taken when the backport was
- * opened, and the action truncates long ones. It is only used when the source cannot be read.
- */
+/** Title and author from the source PR; the generated title is a truncatable copy, used only as fallback. */
 async function resolveBackport(
   config: Config,
   repoName: string,
@@ -361,8 +337,7 @@ async function resolveBackport(
     return fallback;
   }
 
-  // Source PRs live in the same repo, on the line this was backported from. A deleted or
-  // otherwise unreachable one must not fail the release: fall back instead.
+  // A deleted or unreachable source must not fail the release.
   const source = (await ghApiCall(
     config,
     repoName,
@@ -763,8 +738,7 @@ export function readConfig(): Config {
     Deno.exit(1);
   }
 
-  // Which line's branch the client and app PRs come from follows the versions being built,
-  // so a v4 build reads the v4 branch and a v5 build reads main without any caller saying so.
+  // A v4 build reads the v4 branch and a v5 build reads main, without any caller saying so.
   const clientBranch = componentBranch(currentCliVersion);
   const appBranch = componentBranch(currentAppVersion);
 

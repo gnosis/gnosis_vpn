@@ -100,12 +100,7 @@ select_previous_version() {
     fi
 }
 
-# "latest" is an accepted spelling of a component version (check_version_syntax in common.sh) and
-# download-binaries.sh reads it as "resolve it for me". The resolvers below already pick the newest
-# version on this line, so as an override it says nothing more than leaving it unset does. Clearing
-# it keeps every consumer on a concrete version: the boundary warnings here and the client/app line
-# split in generate-changelog.ts both compare version cores, and "latest" has none, so the changelog
-# would quietly read main while the build ships the below-boundary line.
+# "latest" adds nothing over unset (the resolvers already pick the newest) and has no version core for the line split.
 drop_latest_override() {
     local name="$1"
     if [[ ${!name:-} == "latest" ]]; then

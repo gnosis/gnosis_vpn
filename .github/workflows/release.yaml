@@ -83,11 +83,7 @@ jobs:
           # Keeps the stable line strict: a missing GNOSISVPN_*_RELEASE_VERSION must fail here
           # rather than yield release notes that silently omit a component.
           GNOSISVPN_CHANNEL: stable
-          # Aggregate PRs merged into the dispatching ref (e.g. a release branch)
-          # rather than main, so close-release on a non-main branch produces release
-          # notes that match what actually shipped on that branch. Only affects the
-          # gnosis_vpn (installer) repo lookup; client and app pick their own branch
-          # from the version being released, per the line split below.
+          # Installer PRs come from the dispatching ref so a release branch's notes match what shipped there.
           GNOSISVPN_PACKAGE_BRANCH: ${{ github.ref_name }}
       - name: Generate GitHub App token
         id: bot-token

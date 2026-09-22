@@ -503,8 +503,6 @@ Deno.test("rfc2822Date - formats with +0000 not GMT", () => {
 
 // --- versionCore / versionCoreLt / componentBranch ---
 
-// The values scripts/config.sh ships; this script has no copy of its own, so the tests carry them.
-
 Deno.test("versionCore - strips a leading v and build metadata", () => {
   assertEquals(versionCore("0.96.2"), [0, 96, 2]);
   assertEquals(versionCore("v0.96.2"), [0, 96, 2]);
@@ -519,8 +517,7 @@ Deno.test("versionCore - rejects versions with no numeric core", () => {
 });
 
 Deno.test("versionCore - a date-based version reads as an ordinary core", () => {
-  // Only package versions take this shape, and they never pick a component branch;
-  // reading as a very high version keeps them off the v4 line either way.
+  // Only package versions look like this; reading as a huge version keeps them off the v4 line anyway.
   assertEquals(versionCore("2026.09.17+build.120000"), [2026, 9, 17]);
 });
 
@@ -591,8 +588,7 @@ Deno.test("parseBackport - ordinary PRs are not backports", () => {
 
 Deno.test("extractChangelogType - a resolved backport title classifies as its own type", () => {
   const generated = "[Backport release/hoprdv4] fix(core): report reconnecting state";
-  // The generated prefix is what drove every backport into "Other": the type it yields
-  // is not one githubFormat has a section for, so it falls through to the default.
+  // The generated prefix yields a type githubFormat has no section for, which is what filed backports under "Other".
   assertEquals(extractChangelogType(generated), "[backport release/hoprdv4] fix");
   assertEquals(extractChangelogType(parseBackport(generated, null)!.title!), "fix");
 });
