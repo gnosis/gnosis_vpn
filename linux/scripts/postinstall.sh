@@ -108,9 +108,8 @@ configure_filesystem_permissions() {
     if [[ -f /usr/bin/gnosis_vpn-app ]]; then
         chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-app
     fi
-    if [[ -f /usr/bin/gnosis_vpn-update ]]; then
-        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-update
-    fi
+    # gnosis_vpn-update is deliberately absent: it stays root-owned, as on macOS,
+    # so the service account cannot swap a binary that runs privileged elsewhere.
 
     echo "$LOG_PREFIX SUCCESS: Directory permissions configured"
 }

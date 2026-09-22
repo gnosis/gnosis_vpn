@@ -70,11 +70,14 @@ contents:
       mode: 0755
   # Reads the installed version and update manifests for the app. Needs no
   # privileges for either; `update` has no engine on Linux and refuses, so
-  # there is no sudoers entry to go with it.
+  # there is no sudoers entry to go with it. Root-owned, unlike the binaries
+  # above, so the service account cannot swap what runs privileged on macOS.
   - src: ./build/download/gnosis_vpn-update
     dst: /usr/bin/gnosis_vpn-update
     file_info:
       mode: 0755
+      owner: root
+      group: root
   # Resource files
   - src: ./build/resources/version.txt
     dst: /etc/gnosisvpn/version.txt
