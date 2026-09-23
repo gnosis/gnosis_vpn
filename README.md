@@ -340,24 +340,28 @@ download.gnosisvpn.io/
 The `experimental` key appears in the per-platform manifests only once the Experimental Build workflow has published
 once; it is never added to the `.ipfs.json` variants, because experimental is not mirrored to IPFS.
 
-The manifests are `schema_version` 2. Each channel entry carries `end_of_life`, either `null` or an object saying that
-installs of that channel with a package version `<= max_version` stop working at `ends_at` (RFC 3339 UTC). `reason`
-explains why, without a call to action, which the app supplies:
+The manifests are `schema_version` 2. Each channel entry carries `end_of_life`, a list (`[]` when nothing is announced).
+Each item says that installs of that channel with a package version `<= version` stop working at `ends_at` (RFC 3339
+UTC); with several matching items the earliest `ends_at` applies. `reason` explains why, without a call to action, which
+the app supplies:
 
 ```json
-"end_of_life": {
-  "max_version": "0.92.0",
-  "ends_at": "2026-10-15T00:00:00Z",
-  "reason": "GnosisVPN versions up to 0.92.0 rely on legacy HOPR endpoints that are being shut down."
-}
+"end_of_life": [
+  {
+    "version": "0.92.0",
+    "ends_at": "2026-10-15T00:00:00Z",
+    "reason": "GnosisVPN versions up to 0.92.0 rely on legacy HOPR endpoints that are being shut down."
+  }
+]
 ```
 
 ### Config
 
 Pinned inputs in `config/`, read with `jq`:
 
-- `manifest.json` — `min_app_version` and the per-channel `end_of_life` objects (keyed `stable`, `snapshot`,
-  `experimental`; an absent channel has none) written into every manifest
+- `min-app-version.json` — `min_app_version` per channel, required for `stable`, `snapshot` and `experimental`; a plain
+  `x.y.z` on the date-based channels means no gate
+- `end-of-life.json` — `end_of_life` list per channel; an absent channel has none
 - `min-os.json` — minimum OS versions (`macos`, `linux_ubuntu`), written as `min_os_version` in the manifests and into
   the macOS `Distribution.xml`
 

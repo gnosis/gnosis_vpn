@@ -6,13 +6,14 @@
 # For each platform/arch the script:
 #   1. Resolves version and published_at from GitHub per channel.
 #   2. Fetches size via HTTP HEAD, sha256 and signature directly from GCS.
-#   3. Builds a manifest containing all channels, each with its end_of_life (null when nothing is announced).
+#   3. Builds a manifest containing all channels, each with its end_of_life list ([] when nothing is announced).
 #   4. Writes the manifest JSON to OUTPUT_DIR.
 #
 # Inputs from config/ (pinned, not env-overridable):
-#   manifest.json  min_app_version and per-channel end_of_life {max_version, ends_at, reason}: installs of that
-#                  channel with version <= max_version stop working at ends_at (RFC 3339 UTC)
-#   min-os.json    OS floors written as min_os_version
+#   min-app-version.json  min_app_version per channel
+#   end-of-life.json      end_of_life per channel, a list of {version, ends_at, reason}: installs of that channel
+#                         with version <= version stop working at ends_at (RFC 3339 UTC)
+#   min-os.json           OS floors written as min_os_version
 #
 # Channel → GCS path mapping:
 #   Linux  stable        → download.gnosisvpn.io/linux/apt/pool/main/g/gnosisvpn/
@@ -72,45 +73,70 @@ validate_ends_at() {
         die "ends_at '$ends_at' is not a valid date/time"
 }
 
-# Sets MIN_APP_VERSION and END_OF_LIFE[channel]; call bare, a command substitution would swallow die().
-load_manifest_config() {
-    local file="$1" channel max_version ends_at shape
-    [[ -f $file ]] || die "Manifest config '$file' not found."
+# Mirrors the toolkit's channel_of_version, so a value is only ever compared against its own channel's versions.
+is_channel_version() {
+    local channel="$1" version="$2"
+    case "$channel" in
+    stable) [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ;;
+    snapshot) [[ $version =~ \+build\.[0-9]+$ ]] ;;
+    experimental) [[ $version =~ \.experimental$ ]] ;;
+    *) return 1 ;;
+    esac
+}
+
+# Sets MIN_APP_VERSIONS[channel] for every channel; call bare, a command substitution would swallow die().
+load_min_app_versions() {
+    local file="$1" channel version
+    [[ -f $file ]] || die "'$file' not found."
     jq -e '
         type == "object"
-        and (keys == ["end_of_life", "min_app_version"])
-        and (.min_app_version | type == "string")
-        and (.end_of_life | type == "object")
-        and (.end_of_life | to_entries | all(
+        and (keys == ["experimental", "snapshot", "stable"])
+        and ([.[] | type == "string"] | all)
+    ' "$file" >/dev/null ||
+        die "'$file' must be {stable, snapshot, experimental} with string values."
+
+    # A plain x.y.z sorts below every date-based build, so on snapshot/experimental it means "no gate".
+    declare -gA MIN_APP_VERSIONS=()
+    while IFS=$'\t' read -r channel version; do
+        validate_version "$version"
+        is_channel_version "$channel" "$version" || is_channel_version stable "$version" ||
+            die "min_app_version.${channel} '$version' is neither a ${channel} version nor x.y.z."
+        MIN_APP_VERSIONS[$channel]="$version"
+    done < <(jq -r 'to_entries[] | [.key, .value] | @tsv' "$file")
+}
+
+# Sets END_OF_LIFE[channel] to its JSON list for announced channels; call bare, a command substitution would swallow die().
+load_end_of_life() {
+    local file="$1" channel version ends_at
+    [[ -f $file ]] || die "'$file' not found."
+    jq -e '
+        type == "object"
+        and (to_entries | all(
             (.key | IN("stable", "snapshot", "experimental"))
-            and (.value | type == "object")
-            and (.value | keys == ["ends_at", "max_version", "reason"])
-            and (.value | [.[] | type == "string"] | all)
+            and (.value | type == "array")
+            and (.value | all(
+                type == "object"
+                and keys == ["ends_at", "reason", "version"]
+                and ([.[] | type == "string"] | all)
+            ))
         ))
     ' "$file" >/dev/null ||
-        die "'$file' must be {min_app_version, end_of_life: {<stable|snapshot|experimental>: {max_version, ends_at, reason}}} with string values."
-
-    MIN_APP_VERSION=$(jq -r '.min_app_version' "$file")
-    [[ $MIN_APP_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
-        die "min_app_version '$MIN_APP_VERSION' must be x.y.z"
+        die "'$file' must be {<stable|snapshot|experimental>: [{version, ends_at, reason}]} with string values."
 
     declare -gA END_OF_LIFE=()
-    while IFS=$'\t' read -r channel max_version ends_at; do
-        validate_version "$max_version"
-        case "$channel" in
-        stable) shape='^[0-9]+\.[0-9]+\.[0-9]+$' ;;
-        snapshot) shape='\+build\.[0-9]+$' ;;
-        experimental) shape='\.experimental$' ;;
-        esac
-        [[ $max_version =~ $shape ]] ||
-            die "end_of_life.${channel}.max_version '$max_version' is not a ${channel} version."
+    while IFS=$'\t' read -r channel version ends_at; do
+        validate_version "$version"
+        is_channel_version "$channel" "$version" ||
+            die "end_of_life.${channel} version '$version' is not a ${channel} version."
         validate_ends_at "$ends_at"
         if [[ $(date -u -d "$ends_at" +%s) -le $(date -u +%s) ]]; then
-            echo "WARN: end_of_life.${channel}.ends_at ${ends_at} is in the past." >&2
+            echo "WARN: end_of_life.${channel} ends_at ${ends_at} is in the past." >&2
         fi
-        END_OF_LIFE[$channel]=$(jq -c --arg ch "$channel" '.end_of_life[$ch]' "$file")
-        echo "  [$channel] end of life: <= ${max_version} stops working at ${ends_at}"
-    done < <(jq -r '.end_of_life | to_entries[] | [.key, .value.max_version, .value.ends_at] | @tsv' "$file")
+        echo "  [$channel] end of life: <= ${version} stops working at ${ends_at}"
+    done < <(jq -r 'to_entries[] | .key as $ch | .value[] | [$ch, .version, .ends_at] | @tsv' "$file")
+    for channel in $(jq -r 'keys[]' "$file"); do
+        END_OF_LIFE[$channel]=$(jq -c --arg ch "$channel" '.[$ch]' "$file")
+    done
 }
 
 # Returns "tag version published_at" for the latest stable GitHub release.
@@ -241,8 +267,9 @@ GENERATED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 mkdir -p "$OUTPUT_DIR"
 
 # Config only; fails before any network call.
-echo "Loading ${CONFIG_DIR}/manifest.json ..."
-load_manifest_config "${CONFIG_DIR}/manifest.json"
+echo "Loading ${CONFIG_DIR} ..."
+load_min_app_versions "${CONFIG_DIR}/min-app-version.json"
+load_end_of_life "${CONFIG_DIR}/end-of-life.json"
 
 # ---------------------------------------------------------------------------
 # Step 1: resolve each channel.
@@ -344,8 +371,8 @@ for entry in "${PLATFORMS[@]}"; do
             --arg artifact_signature "$ARTIFACT_SIG" \
             --arg release_notes "$RELEASE_NOTES" \
             --arg min_os_version "$MIN_OS" \
-            --arg min_app_version "$MIN_APP_VERSION" \
-            --argjson end_of_life "${END_OF_LIFE[$channel]:-null}" \
+            --arg min_app_version "${MIN_APP_VERSIONS[$channel]}" \
+            --argjson end_of_life "${END_OF_LIFE[$channel]:-[]}" \
             '{
         version: $version,
         published_at: $published_at,
