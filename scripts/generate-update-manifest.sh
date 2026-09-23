@@ -79,7 +79,7 @@ is_channel_version() {
     case "$channel" in
     stable) [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ;;
     snapshot) [[ $version =~ \+build\.[0-9]+$ ]] ;;
-    experimental) [[ $version =~ \.experimental$ ]] ;;
+    experimental) [[ $version =~ \+build\.[0-9]+\.experimental$ ]] ;;
     *) return 1 ;;
     esac
 }
