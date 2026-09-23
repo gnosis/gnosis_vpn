@@ -550,9 +550,9 @@ Deno.test("componentBranch - a version with no numeric core falls back to main",
   assertEquals(componentBranch(""), "main");
 });
 
-Deno.test("the line split matches the defaults in scripts/config.sh", () => {
-  // The build resolves versions with config.sh; a boundary moved there must move here too.
-  const configSh = Deno.readTextFileSync(new URL("./config.sh", import.meta.url));
+Deno.test("the line split matches the defaults in config/channels.sh", () => {
+  // The build resolves versions with config/channels.sh; a boundary moved there must move here too.
+  const configSh = Deno.readTextFileSync(new URL("../config/channels.sh", import.meta.url));
   const boundary = configSh.match(/^COMPONENT_VERSION_BOUNDARY="\$\{COMPONENT_VERSION_BOUNDARY:-([^}]+)\}"$/m)?.[1];
   assertEquals(boundary, COMPONENT_VERSION_BOUNDARY);
   assertEquals(COMPONENT_V4_BRANCH, "release/hoprdv4");

@@ -35,7 +35,6 @@ set -euo pipefail
 set -x
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/config.sh"
 CONFIG_DIR="${SCRIPT_DIR}/../config"
 
 GCS_BASE_URL="https://download.gnosisvpn.io"

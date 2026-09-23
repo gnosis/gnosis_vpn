@@ -16,8 +16,8 @@ set -euo pipefail
 # Source common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
-# shellcheck source=config.sh
-source "${SCRIPT_DIR}/config.sh"
+# shellcheck source=../config/channels.sh
+source "${SCRIPT_DIR}/../config/channels.sh"
 
 # Networks and channel of this build, resolved before the platform script is sourced because it needs them at source time.
 : "${GNOSISVPN_CHANNEL:=}"

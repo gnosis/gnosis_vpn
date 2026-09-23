@@ -357,8 +357,10 @@ the app supplies:
 
 ### Config
 
-Pinned inputs in `config/`, read with `jq`:
+Pinned inputs in `config/`. The JSON files are read with `jq`; `channels.sh` is sourced by the scripts:
 
+- `channels.sh` — the per-channel retention counts, `COMPONENT_VERSION_BOUNDARY` (the client/app version that separates
+  the two installer lines) and `NETWORKS_STANDARD` / `NETWORKS_EXPERIMENTAL` (the networks each line ships)
 - `min-app-version.json` — `min_app_version` per channel, required for `stable`, `snapshot` and `experimental`; a plain
   `x.y.z` on the date-based channels means no gate
 - `end-of-life.json` — `end_of_life` list per channel; an absent channel has none
@@ -368,16 +370,13 @@ Pinned inputs in `config/`, read with `jq`:
 ### Scripts
 
 - `common.sh` — shared utility functions (logging, version checks)
-- `config.sh` — static configuration used by the build, packaging and manifest scripts: the per-channel retention
-  counts, `COMPONENT_VERSION_BOUNDARY` (the client/app version that separates the two installer lines) and
-  `NETWORKS_STANDARD` / `NETWORKS_EXPERIMENTAL` (the networks each line ships)
 - `download-binaries.sh` — downloads pre-built upstream binaries (`gnosis_vpn-client`, `gnosis_vpn-app`) from GCP
   Artifact Registry
 - `generate-changelog.ts` — aggregates merged PRs across the three repos; emits zulip/github/debian/json/rpm formats
   (requires Deno). Client and app PRs come from the branch of the line being built: versions below `0.100.0` read
   `release/hoprdv4`, the rest read `main`. The split is hardcoded in the script, matching `COMPONENT_VERSION_BOUNDARY`
-  in `config.sh`, and a test keeps the two in step. Backport PRs are credited with their source PR's title, type and
-  author
+  in `config/channels.sh`, and a test keeps the two in step. Backport PRs are credited with their source PR's title,
+  type and author
 - `generate-manual.sh` — creates man pages (Linux only)
 - `generate-package.sh` — dispatcher that invokes the Linux or macOS packaging script
 - `generate-package-linux.sh` — builds the `.deb` via nfpm, GPG-signs it, writes `.asc` and `.sha256` sidecars

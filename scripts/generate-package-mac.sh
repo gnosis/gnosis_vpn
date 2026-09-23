@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-source "${SCRIPT_DIR}/config.sh"
+source "${SCRIPT_DIR}/../config/channels.sh"
 
 MIN_OS_MACOS="$(jq -r '.macos // empty' "${SCRIPT_DIR}/../config/min-os.json")"
 if [[ -z $MIN_OS_MACOS ]]; then

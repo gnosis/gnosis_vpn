@@ -72,8 +72,8 @@ both (see `build-binary.yaml`); a local build without them gets the standard lin
 | `GNOSISVPN_NETWORKS` | space-separated network names, first = default | Which `config-<network>.toml` conffiles the package ships          |
 
 `GNOSISVPN_NETWORKS` defaults to `NETWORKS_STANDARD` (or `NETWORKS_EXPERIMENTAL` when the channel is `experimental`)
-from `scripts/config.sh`, and is baked into the package as `/usr/share/gnosisvpn/networks` so the postinstall can pick a
-default and re-point `/etc/gnosisvpn/config.toml` after a channel switch.
+from `config/channels.sh`, and is baked into the package as `/usr/share/gnosisvpn/networks` so the postinstall can pick
+a default and re-point `/etc/gnosisvpn/config.toml` after a channel switch.
 
 The build refuses a channel/version mismatch, because the installed package infers its APT suite from its own version
 string: an `experimental` build needs a version ending in `.experimental`, and `stable`/`snapshot` builds must not have

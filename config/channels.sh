@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Shared build/release constants — used by the packaging scripts, manifest generator and workflows.
-# Manifest inputs (min_app_version, end_of_life) and OS floors live in ../config/*.json.
+# Per-channel and per-installer-line constants, sourced by the build, packaging and prune scripts (keep bash 3.2 safe).
 
 # Retention counts for published versions — referenced by the prune script
 RETAIN_STABLE="${RETAIN_STABLE:-3}"
