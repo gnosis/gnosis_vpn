@@ -10,6 +10,12 @@ set -euo pipefail
 
 source "${SCRIPT_DIR}/config.sh"
 
+MIN_OS_MACOS="$(jq -r '.macos // empty' "${SCRIPT_DIR}/../config/min-os.json")"
+if [[ -z $MIN_OS_MACOS ]]; then
+    log_error "config/min-os.json has no macos entry"
+    exit 1
+fi
+
 # Safe default values
 : "${GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH:=}"
 : "${GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH:=}"

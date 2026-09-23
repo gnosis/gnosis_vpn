@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # Shared build/release constants — used by the packaging scripts, manifest generator and workflows.
-MIN_OS_MACOS="15.0"
-MIN_OS_LINUX_UBUNTU="22.04"
-MIN_APP_VERSION="${MIN_APP_VERSION:-0.77.0}"
+# Manifest inputs (min_app_version, end_of_life) and OS floors live in ../config/*.json.
 
 # Retention counts for published versions — referenced by the prune script
 RETAIN_STABLE="${RETAIN_STABLE:-3}"
