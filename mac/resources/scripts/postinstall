@@ -219,7 +219,8 @@ check_previous_installation() {
     local launchd_plist="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
 
     if [[ -f "$VERSION_FILE" ]]; then
-        PREVIOUS_VERSION=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
+        PREVIOUS_VERSION=$(cat "$VERSION_FILE" 2>/dev/null || true)
+        PREVIOUS_VERSION="${PREVIOUS_VERSION:-unknown}"
     elif [[ -f "$launchd_plist" ]] || [[ -f "$CONFIG_FILE" ]]; then
         PREVIOUS_VERSION="legacy"
         log_info "Legacy installation detected (no version file)"
