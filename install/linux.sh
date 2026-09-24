@@ -35,7 +35,7 @@ log() { printf '\033[0;34m[gnosisvpn]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 err() { printf '\033[0;31m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 
-# Networks per channel (first = default); mirrors NETWORKS_* in scripts/config.sh, keep in sync.
+# Networks per channel (first = default); mirrors NETWORKS_* in config/channels.sh, keep in sync.
 channel_networks() {
     case "$1" in
     experimental) echo "piz-palu-dev" ;;
