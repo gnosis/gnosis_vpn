@@ -36,8 +36,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "${SCRIPT_DIR}/common.sh"
-# shellcheck source=config.sh
-source "${SCRIPT_DIR}/config.sh"
+# shellcheck source=../config/channels.sh
+source "${SCRIPT_DIR}/../config/channels.sh"
 
 GITHUB_OUTPUT="${GITHUB_OUTPUT:-/dev/null}"
 

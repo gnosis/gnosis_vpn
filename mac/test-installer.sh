@@ -23,8 +23,8 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="${PROJECT_ROOT}/build"
 
 # Networks the build under test is expected to ship (first = default).
-# shellcheck source=../scripts/config.sh
-source "${PROJECT_ROOT}/scripts/config.sh"
+# shellcheck source=../config/channels.sh
+source "${PROJECT_ROOT}/config/channels.sh"
 : "${GNOSISVPN_NETWORKS:=${NETWORKS_STANDARD}}"
 NETWORKS=()
 read -r -a NETWORKS <<<"${GNOSISVPN_NETWORKS}"
@@ -130,7 +130,7 @@ test_build_structure() {
         "[[ \"\$(cat '${BUILD_DIR}/scripts/networks' 2>/dev/null)\" == '${GNOSISVPN_NETWORKS}' ]]"
 
     # Scripts
-    local scripts=("postinstall" "preinstall" "uninstall.sh" "logging.sh")
+    local scripts=("postinstall" "preinstall" "uninstall.sh" "logging.sh" "process-control.sh")
     for script in "${scripts[@]}"; do
         run_test "Script '$script' exists" "[[ -f '${BUILD_DIR}/scripts/$script' ]]"
     done

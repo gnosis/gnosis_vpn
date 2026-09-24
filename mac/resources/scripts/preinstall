@@ -24,9 +24,9 @@ log_info "Install package: $1"
 log_info "Target volume: $2"
 
 # Check for existing installation
-CONFIG_DIR="${2}/etc/gnosisvpn"
+CONFIG_DIR="${2%/}/etc/gnosisvpn"
 VERSION_FILE="${CONFIG_DIR}/version.txt"
-BIN_DIR="${2}/usr/local/bin"
+BIN_DIR="${2%/}/usr/local/bin"
 
 if [[ -f "$VERSION_FILE" ]]; then
     previous_version=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
