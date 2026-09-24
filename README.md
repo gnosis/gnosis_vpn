@@ -340,25 +340,49 @@ download.gnosisvpn.io/
 The `experimental` key appears in the per-platform manifests only once the Experimental Build workflow has published
 once; it is never added to the `.ipfs.json` variants, because experimental is not mirrored to IPFS.
 
+The manifests are `schema_version` 2. Each channel entry carries `end_of_life`, a list (`[]` when nothing is announced).
+Each item says that installs of that channel with a package version `<= version` stop working at `ends_at` (RFC 3339
+UTC); with several matching items the earliest `ends_at` applies. `reason` explains why, without a call to action, which
+the app supplies:
+
+```json
+"end_of_life": [
+  {
+    "version": "0.92.0",
+    "ends_at": "2026-10-15T00:00:00Z",
+    "reason": "GnosisVPN versions up to 0.92.0 rely on legacy HOPR endpoints that are being shut down."
+  }
+]
+```
+
+### Config
+
+Pinned inputs in `config/`. The JSON files are read with `jq`; `channels.sh` is sourced by the scripts:
+
+- `channels.sh` — the per-channel retention counts, `COMPONENT_VERSION_BOUNDARY` (the client/app version that separates
+  the two installer lines) and `NETWORKS_STANDARD` / `NETWORKS_EXPERIMENTAL` (the networks each line ships)
+- `min-app-version.json` — `min_app_version` per channel, required for `stable`, `snapshot` and `experimental`; a plain
+  `x.y.z` on the date-based channels means no gate
+- `end-of-life.json` — `end_of_life` list per channel; an absent channel has none
+- `min-os.json` — minimum OS versions (`macos`, `linux_ubuntu`), written as `min_os_version` in the manifests and into
+  the macOS `Distribution.xml`
+
 ### Scripts
 
 - `common.sh` — shared utility functions (logging, version checks)
-- `config.sh` — static configuration used by the build, packaging and manifest scripts: `MIN_OS_*`, `MIN_APP_VERSION`,
-  the per-channel retention counts, `COMPONENT_VERSION_BOUNDARY` (the client/app version that separates the two
-  installer lines) and `NETWORKS_STANDARD` / `NETWORKS_EXPERIMENTAL` (the networks each line ships)
 - `download-binaries.sh` — downloads pre-built upstream binaries (`gnosis_vpn-client`, `gnosis_vpn-app`) from GCP
   Artifact Registry
 - `generate-changelog.ts` — aggregates merged PRs across the three repos; emits zulip/github/debian/json/rpm formats
   (requires Deno). Client and app PRs come from the branch of the line being built: versions below `0.100.0` read
   `release/hoprdv4`, the rest read `main`. The split is hardcoded in the script, matching `COMPONENT_VERSION_BOUNDARY`
-  in `config.sh`, and a test keeps the two in step. Backport PRs are credited with their source PR's title, type and
-  author
+  in `config/channels.sh`, and a test keeps the two in step. Backport PRs are credited with their source PR's title,
+  type and author
 - `generate-manual.sh` — creates man pages (Linux only)
 - `generate-package.sh` — dispatcher that invokes the Linux or macOS packaging script
 - `generate-package-linux.sh` — builds the `.deb` via nfpm, GPG-signs it, writes `.asc` and `.sha256` sidecars
 - `generate-package-mac.sh` — builds the macOS `.pkg` via `productbuild` and notarizes with Apple
 - `generate-update-manifest.sh` — builds per-platform JSON manifests (`linux-amd64.json`, etc.) consumed by the client
-  app for auto-update
+  app for auto-update, taking `min_app_version`, `end_of_life` and the OS floors from `config/`
 - `publish-apt.sh` — builds and signs the APT repo (`Packages`, `InRelease`, `Release.gpg`) and publishes it to GCS
 
 ## Dependency Updates

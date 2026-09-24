@@ -77,7 +77,7 @@ BINARY_PERMISSIONS=(
     gnosis_vpn-update:root:wheel:755
 )
 
-# Diagnostic only: nothing branches on these beyond the wording of two log lines.
+# INSTALLATION_TYPE gates the legacy WireGuard cleanup; PREVIOUS_VERSION is only logged.
 INSTALLATION_TYPE="fresh"
 PREVIOUS_VERSION=""
 
@@ -219,7 +219,8 @@ check_previous_installation() {
     local launchd_plist="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
 
     if [[ -f "$VERSION_FILE" ]]; then
-        PREVIOUS_VERSION=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
+        PREVIOUS_VERSION=$(cat "$VERSION_FILE" 2>/dev/null || true)
+        PREVIOUS_VERSION="${PREVIOUS_VERSION:-unknown}"
     elif [[ -f "$launchd_plist" ]] || [[ -f "$CONFIG_FILE" ]]; then
         PREVIOUS_VERSION="legacy"
         log_info "Legacy installation detected (no version file)"
@@ -879,7 +880,7 @@ copy_uninstall() {
 }
 
 # TODO: remove this cleanup by December 2026.
-# Migration only: installs from before the userspace WireGuard migration copied
+# Update-only migration: installs from before the userspace WireGuard migration copied
 # wg/wg-quick/wireguard-go to $BIN_DIR; nothing ships or reads them anymore.
 # Skip symlinks: on Intel Macs, Homebrew's wireguard-tools/wireguard-go formulas
 # symlink into /usr/local/bin, and `-f` follows symlinks, so an unguarded check
@@ -1322,7 +1323,9 @@ main() {
 
     # The payload already placed the binaries; only ownership is left to fix.
     apply_binary_permissions
-    remove_legacy_wireguard_binaries
+    if [[ "$INSTALLATION_TYPE" == "update" ]]; then
+        remove_legacy_wireguard_binaries
+    fi
     setup_management_script
 
     # Setup configuration files and create symlink

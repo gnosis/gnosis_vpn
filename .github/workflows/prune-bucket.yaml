@@ -1,5 +1,5 @@
 # Reusable: prunes old artifacts from gs://download.gnosisvpn.io, keeping only
-# the newest N versions per channel (N from scripts/config.sh). Deletes the
+# the newest N versions per channel (N from config/channels.sh). Deletes the
 # primary artifact plus its .asc / .sha256 sidecars for every pruned version,
 # across both the APT pool and the macOS directory of the channel.
 #
@@ -46,8 +46,8 @@ jobs:
         shell: bash
         run: |
           channel="${{ inputs.channel }}"
-          # Retention counts: single source of truth in scripts/config.sh.
-          source scripts/config.sh
+          # Retention counts: single source of truth in config/channels.sh.
+          source config/channels.sh
           case "$channel" in
             snapshot)
               apt_pool="pool/snapshot/g/gnosisvpn"

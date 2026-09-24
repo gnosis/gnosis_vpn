@@ -128,7 +128,7 @@ function vTag(version: string): string {
 
 // --- Release Lines ---
 
-// Same split as COMPONENT_VERSION_BOUNDARY in scripts/config.sh and the client/app docs/branch-strategy.md.
+// Same split as COMPONENT_VERSION_BOUNDARY in config/channels.sh and the client/app docs/branch-strategy.md.
 export const COMPONENT_VERSION_BOUNDARY = "0.100.0";
 export const COMPONENT_V4_BRANCH = "release/hoprdv4";
 

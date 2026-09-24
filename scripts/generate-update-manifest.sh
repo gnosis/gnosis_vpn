@@ -6,8 +6,14 @@
 # For each platform/arch the script:
 #   1. Resolves version and published_at from GitHub per channel.
 #   2. Fetches size via HTTP HEAD, sha256 and signature directly from GCS.
-#   3. Builds a manifest containing all channels.
+#   3. Builds a manifest containing all channels, each with its end_of_life list ([] when nothing is announced).
 #   4. Writes the manifest JSON to OUTPUT_DIR.
+#
+# Inputs from config/ (pinned, not env-overridable):
+#   min-app-version.json  min_app_version per channel
+#   end-of-life.json      end_of_life per channel, a list of {version, ends_at, reason}: installs of that channel
+#                         with version <= version stop working at ends_at (RFC 3339 UTC)
+#   min-os.json           OS floors written as min_os_version
 #
 # Channel → GCS path mapping:
 #   Linux  stable        → download.gnosisvpn.io/linux/apt/pool/main/g/gnosisvpn/
@@ -23,16 +29,13 @@
 #   GH_TOKEN  GitHub token with read access to releases
 #
 # Optional environment variables:
-#   OUTPUT_DIR                   Where to write manifest JSON files (default: ./build/manifests)
-#   MIN_APP_VERSION              Minimum installed app version eligible for this update (default from config.sh)
-#   MIN_OS_VERSION_LINUX_UBUNTU  Override minimum Linux version (default from config.sh)
-#   MIN_OS_VERSION_MACOS         Override minimum macOS version (default from config.sh)
+#   OUTPUT_DIR  Where to write manifest JSON files (default: ./build/manifests)
 
 set -euo pipefail
 set -x
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/config.sh"
+CONFIG_DIR="${SCRIPT_DIR}/../config"
 
 GCS_BASE_URL="https://download.gnosisvpn.io"
 IPFS_BASE_URL="download.vpn.gnosis.eth"
@@ -58,6 +61,81 @@ validate_version() {
     local semver_regex='^[0-9]+\.[0-9]+\.[0-9]+(\+(pr|commit|build)(\.[0-9A-Za-z-]+)*)?$'
     [[ $version =~ $semver_regex ]] ||
         die "Version '$version' does not match expected format: x.y.z or x.y.z+(pr|commit|build).<meta>"
+}
+
+# RFC 3339 UTC to the second, same form as published_at; GNU date is fine since this runs on Linux CI only.
+validate_ends_at() {
+    local ends_at="$1"
+    [[ $ends_at =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] ||
+        die "ends_at '$ends_at' must be RFC 3339 UTC, e.g. 2026-12-01T00:00:00Z"
+    date -u -d "$ends_at" +%s >/dev/null 2>&1 ||
+        die "ends_at '$ends_at' is not a valid date/time"
+}
+
+# Mirrors the toolkit's channel_of_version, so a value is only ever compared against its own channel's versions.
+is_channel_version() {
+    local channel="$1" version="$2"
+    case "$channel" in
+    stable) [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ;;
+    snapshot) [[ $version =~ \+build\.[0-9]+$ ]] ;;
+    experimental) [[ $version =~ \+build\.[0-9]+\.experimental$ ]] ;;
+    *) return 1 ;;
+    esac
+}
+
+# Sets MIN_APP_VERSIONS[channel] for every channel; call bare, a command substitution would swallow die().
+load_min_app_versions() {
+    local file="$1" channel version
+    [[ -f $file ]] || die "'$file' not found."
+    jq -e '
+        type == "object"
+        and (keys == ["experimental", "snapshot", "stable"])
+        and ([.[] | type == "string"] | all)
+    ' "$file" >/dev/null ||
+        die "'$file' must be {stable, snapshot, experimental} with string values."
+
+    # A plain x.y.z sorts below every date-based build, so on snapshot/experimental it means "no gate".
+    declare -gA MIN_APP_VERSIONS=()
+    while IFS=$'\t' read -r channel version; do
+        validate_version "$version"
+        is_channel_version "$channel" "$version" || is_channel_version stable "$version" ||
+            die "min_app_version.${channel} '$version' is neither a ${channel} version nor x.y.z."
+        MIN_APP_VERSIONS[$channel]="$version"
+    done < <(jq -r 'to_entries[] | [.key, .value] | @tsv' "$file")
+}
+
+# Sets END_OF_LIFE[channel] to its JSON list for announced channels; call bare, a command substitution would swallow die().
+load_end_of_life() {
+    local file="$1" channel version ends_at
+    [[ -f $file ]] || die "'$file' not found."
+    jq -e '
+        type == "object"
+        and (to_entries | all(
+            (.key | IN("stable", "snapshot", "experimental"))
+            and (.value | type == "array")
+            and (.value | all(
+                type == "object"
+                and keys == ["ends_at", "reason", "version"]
+                and ([.[] | type == "string"] | all)
+            ))
+        ))
+    ' "$file" >/dev/null ||
+        die "'$file' must be {<stable|snapshot|experimental>: [{version, ends_at, reason}]} with string values."
+
+    declare -gA END_OF_LIFE=()
+    while IFS=$'\t' read -r channel version ends_at; do
+        validate_version "$version"
+        is_channel_version "$channel" "$version" ||
+            die "end_of_life.${channel} version '$version' is not a ${channel} version."
+        validate_ends_at "$ends_at"
+        if [[ $(date -u -d "$ends_at" +%s) -le $(date -u +%s) ]]; then
+            echo "WARN: end_of_life.${channel} ends_at ${ends_at} is in the past." >&2
+        fi
+        echo "  [$channel] end of life: <= ${version} stops working at ${ends_at}"
+    done < <(jq -r 'to_entries[] | .key as $ch | .value[] | [$ch, .version, .ends_at] | @tsv' "$file")
+    for channel in $(jq -r 'keys[]' "$file"); do
+        END_OF_LIFE[$channel]=$(jq -c --arg ch "$channel" '.[$ch]' "$file")
+    done
 }
 
 # Returns "tag version published_at" for the latest stable GitHub release.
@@ -129,6 +207,8 @@ get_experimental_run_info() {
 # channel, and version. Linux artifacts are GPG-signed; macOS relies on Apple
 # notarization instead.
 # ---------------------------------------------------------------------------
+MIN_OS_MACOS=$(jq -er '.macos' "${CONFIG_DIR}/min-os.json")
+MIN_OS_LINUX_UBUNTU=$(jq -er '.linux_ubuntu' "${CONFIG_DIR}/min-os.json")
 PLATFORMS=(
     "linux-amd64|linux|${MIN_OS_LINUX_UBUNTU}"
     "linux-arm64|linux|${MIN_OS_LINUX_UBUNTU}"
@@ -185,6 +265,11 @@ GENERATED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 mkdir -p "$OUTPUT_DIR"
 
+# Config only; fails before any network call.
+echo "Loading ${CONFIG_DIR} ..."
+load_min_app_versions "${CONFIG_DIR}/min-app-version.json"
+load_end_of_life "${CONFIG_DIR}/end-of-life.json"
+
 # ---------------------------------------------------------------------------
 # Step 1: resolve each channel.
 #   CHANNEL_DATA stores "ref version published_at"; ref is a git tag (stable) or "-" (snapshot, experimental).
@@ -220,13 +305,7 @@ fi
 ERRORS=0
 
 for entry in "${PLATFORMS[@]}"; do
-    IFS='|' read -r MANIFEST_NAME OS_FAMILY DEFAULT_MIN_OS <<<"$entry"
-
-    case "$OS_FAMILY" in
-    linux) MIN_OS="${MIN_OS_VERSION_LINUX_UBUNTU:-$DEFAULT_MIN_OS}" ;;
-    macos) MIN_OS="${MIN_OS_VERSION_MACOS:-$DEFAULT_MIN_OS}" ;;
-    *) MIN_OS="$DEFAULT_MIN_OS" ;;
-    esac
+    IFS='|' read -r MANIFEST_NAME OS_FAMILY MIN_OS <<<"$entry"
 
     echo "Processing platform $MANIFEST_NAME ..."
 
@@ -291,7 +370,8 @@ for entry in "${PLATFORMS[@]}"; do
             --arg artifact_signature "$ARTIFACT_SIG" \
             --arg release_notes "$RELEASE_NOTES" \
             --arg min_os_version "$MIN_OS" \
-            --arg min_app_version "$MIN_APP_VERSION" \
+            --arg min_app_version "${MIN_APP_VERSIONS[$channel]}" \
+            --argjson end_of_life "${END_OF_LIFE[$channel]:-[]}" \
             '{
         version: $version,
         published_at: $published_at,
@@ -301,7 +381,8 @@ for entry in "${PLATFORMS[@]}"; do
         artifact_signature: $artifact_signature,
         release_notes: $release_notes,
         min_os_version: $min_os_version,
-        min_app_version: $min_app_version
+        min_app_version: $min_app_version,
+        end_of_life: $end_of_life
       }')
 
         CHANNELS_JSON=$(echo "$CHANNELS_JSON" |
@@ -320,7 +401,7 @@ for entry in "${PLATFORMS[@]}"; do
     done
 
     BODY=$(jq -n \
-        --argjson schema_version 1 \
+        --argjson schema_version 2 \
         --arg generated_at "$GENERATED_AT" \
         --argjson channels "$CHANNELS_JSON" \
         '{schema_version: $schema_version, generated_at: $generated_at, channels: $channels}')
@@ -330,7 +411,7 @@ for entry in "${PLATFORMS[@]}"; do
     echo "  Written: $OUT_PATH"
 
     BODY_IPFS=$(jq -n \
-        --argjson schema_version 1 \
+        --argjson schema_version 2 \
         --arg generated_at "$GENERATED_AT" \
         --argjson channels "$CHANNELS_JSON_IPFS" \
         '{schema_version: $schema_version, generated_at: $generated_at, channels: $channels}')

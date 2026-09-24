@@ -13,7 +13,7 @@ config/
 ```
 
 Each build ships only the templates of its installer line, selected by `GNOSISVPN_NETWORKS` (see `NETWORKS_STANDARD` /
-`NETWORKS_EXPERIMENTAL` in `scripts/config.sh`): the stable and snapshot channels ship the jura networks, the
+`NETWORKS_EXPERIMENTAL` in `config/channels.sh`): the stable and snapshot channels ship the jura networks, the
 experimental channel ships `piz-palu-dev`.
 
 ## System Configuration Files
@@ -84,7 +84,7 @@ The networks a build ships are baked next to the installer's `version.txt` (read
 To customize the installer configuration:
 
 1. **Add new network templates**: create a new `.toml.template` file in `templates/`, then add the network to
-   `NETWORKS_STANDARD` or `NETWORKS_EXPERIMENTAL` in `scripts/config.sh` and give it a title and description in
+   `NETWORKS_STANDARD` or `NETWORKS_EXPERIMENTAL` in `config/channels.sh` and give it a title and description in
    `network_title` / `network_description` in `scripts/generate-package-mac.sh`. Linux additionally needs a matching
    `linux/resources/config-<network>.toml`.
 2. **Modify service behavior**: Edit `system/com.gnosisvpn.gnosisvpnclient.plist`
