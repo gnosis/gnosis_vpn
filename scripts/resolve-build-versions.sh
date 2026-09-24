@@ -151,6 +151,16 @@ main() {
         fi
     }
 
+    # Every packaged architecture downloads its updater, so a tag missing one fails the matrix.
+    local toolkit_files=(gnosis_vpn-update-x86_64-linux gnosis_vpn-update-aarch64-linux gnosis_vpn-update-aarch64-darwin)
+    require_complete_toolkit() {
+        local version="$1"
+        "${SCRIPT_DIR}/resolve-registry-version.sh" --only-version "${version}" gnosis_vpn-toolkit "${toolkit_files[@]}" >/dev/null || {
+            log_error "Toolkit ${version} lacks an updater for every packaged architecture; pass a toolkit_version that has them."
+            exit 1
+        }
+    }
+
     # Resolver exit 2 means "nothing inside this line's window": a legitimate skip for the nightlies, fatal elsewhere.
     local components_out_of_window=false
     handle_resolve_rc() {
@@ -216,12 +226,11 @@ main() {
         fi
         if [[ -n ${INPUT_TOOLKIT_VERSION:-} ]]; then
             latest_toolkit_pr_version="${INPUT_TOOLKIT_VERSION#v}"
+            require_complete_toolkit "${latest_toolkit_pr_version}"
         else
             set +e
             latest_toolkit_pr_version="$(
-                "${SCRIPT_DIR}/resolve-registry-version.sh" gnosis_vpn-toolkit \
-                    gnosis_vpn-update-x86_64-linux gnosis_vpn-update-aarch64-linux \
-                    gnosis_vpn-update-aarch64-darwin
+                "${SCRIPT_DIR}/resolve-registry-version.sh" gnosis_vpn-toolkit "${toolkit_files[@]}"
             )"
             rc=$?
             set -e
@@ -284,6 +293,7 @@ main() {
         client_version="${client_version#v}"
         app_version="${app_version#v}"
         toolkit_version="${toolkit_version#v}"
+        require_complete_toolkit "${toolkit_version}"
         [[ -z ${INPUT_CLIENT_VERSION:-} ]] || warn_if_outside_boundary "gnosis_vpn-client" "${client_version}"
         [[ -z ${INPUT_APP_VERSION:-} ]] || warn_if_outside_boundary "gnosis_vpn-app" "${app_version}"
         set_output "GNOSISVPN_PACKAGE_VERSION" "${package_version}"

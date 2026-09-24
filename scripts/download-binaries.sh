@@ -154,7 +154,10 @@ download_linux_binaries() {
     # binary; without it the Updates tab can only tell the user to reinstall.
     echo "Downloading gnosis_vpn-toolkit:${GNOSISVPN_TOOLKIT_VERSION}:gnosis_vpn-update-${GNOSISVPN_ARCHITECTURE}"
     gcloud artifacts files download --destination="${BINARY_DIR}" \
-        "gnosis_vpn-toolkit:${GNOSISVPN_TOOLKIT_VERSION}:gnosis_vpn-update-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn-update
+        "gnosis_vpn-toolkit:${GNOSISVPN_TOOLKIT_VERSION}:gnosis_vpn-update-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn-update || {
+        log_error "Toolkit ${GNOSISVPN_TOOLKIT_VERSION} has no gnosis_vpn-update-${GNOSISVPN_ARCHITECTURE}; pass --toolkit-version with one that does"
+        exit 1
+    }
     chmod 755 "${BINARY_DIR}/gnosis_vpn-update"
     echo "Downloaded binary: ${BINARY_DIR}/gnosis_vpn-update"
     echo "Downloading gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}"

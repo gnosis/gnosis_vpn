@@ -14,7 +14,7 @@ on:
         type: string
         default: ''
       toolkit_version:
-        description: 'Toolkit version to build against (default: newest registry version with the darwin binary)'
+        description: 'Toolkit version to build against (default: newest registry version with the updater for every architecture)'
         required: false
         type: string
         default: ''
