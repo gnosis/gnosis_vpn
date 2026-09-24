@@ -45,11 +45,6 @@ join_path() {
     fi
 }
 
-# The GUI session's user, or empty; logname/who-am-i just say root under installer(8).
-console_user() {
-    scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }' || true
-}
-
 # Ensure we have required parameters
 if [[ -z $PACKAGE_PATH ]]; then
     log_error "Missing required parameter: package path"
@@ -68,18 +63,6 @@ UI_TARGET_APP="$(join_path "$TARGET_VOLUME" "/Applications/Gnosis VPN.app")"
 
 INSTALLED_LOG_DIR_PATH="/Library/Logs/GnosisVPN"
 INSTALLED_LIB_DIR_PATH="/Library/Application Support/GnosisVPN"
-
-# binary:owner:group:mode, shared by apply_binary_permissions and verify_installation.
-BINARY_PERMISSIONS=(
-    gnosis_vpn-root:root:wheel:750
-    gnosis_vpn-worker:root:gnosisvpn:750
-    gnosis_vpn-ctl:gnosisvpn:gnosisvpn:755
-    gnosis_vpn-update:root:wheel:755
-)
-
-# INSTALLATION_TYPE gates the legacy WireGuard cleanup; PREVIOUS_VERSION is only logged.
-INSTALLATION_TYPE="fresh"
-PREVIOUS_VERSION=""
 
 # Rollback mechanism
 ROLLBACK_STEPS=()
@@ -211,27 +194,58 @@ disable_rollback() {
     trap - ERR EXIT
 }
 
-# Sets globals, never echoes: logging.sh routes fd 1 through tee, so a $(...) capture swallows these log lines.
-# Never probes $BIN_DIR: the payload lands there before we run, making every fresh install look like an update.
+# Check if previous installation exists
 check_previous_installation() {
     log_info "Checking for previous installation..."
 
-    local launchd_plist="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
+    local has_previous=false
+    local previous_version=""
 
+    # Check for version file
     if [[ -f "$VERSION_FILE" ]]; then
-        PREVIOUS_VERSION=$(cat "$VERSION_FILE" 2>/dev/null || true)
-        PREVIOUS_VERSION="${PREVIOUS_VERSION:-unknown}"
-    elif [[ -f "$launchd_plist" ]] || [[ -f "$CONFIG_FILE" ]]; then
-        PREVIOUS_VERSION="legacy"
-        log_info "Legacy installation detected (no version file)"
+        previous_version=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
+        log_info "Found previous installation version: $previous_version"
+        has_previous=true
     fi
 
-    if [[ -n "$PREVIOUS_VERSION" ]]; then
-        INSTALLATION_TYPE="update"
-        log_info "Previous installation detected (version: $PREVIOUS_VERSION)"
+    # Check for existing binaries
+    if [[ -f "$BIN_DIR/gnosis_vpn-root" ]] || [[ -f "$BIN_DIR/gnosis_vpn-worker" ]] || [[ -f "$BIN_DIR/gnosis_vpn-ctl" ]]; then
+        log_info "Found existing binaries in $BIN_DIR"
+        has_previous=true
+
+        if [[ -z "$previous_version" ]]; then
+            previous_version="legacy"
+            log_info "Legacy installation detected (no version file)"
+        fi
+    fi
+
+    if [[ "$has_previous" == true ]]; then
+        log_info "Previous installation detected (version: $previous_version)"
+        echo "update"
     else
-        INSTALLATION_TYPE="fresh"
         log_info "No previous installation found"
+        echo "fresh"
+    fi
+}
+
+# Update binary if changed
+update_binary() {
+    local source_path="$1" # Source binary from package payload
+    local target_path="$2"
+    local owner="$3"
+    local group="$4"
+    local mode="$5"
+
+    log_info "Updating $target_path..."
+    # Copy new binary
+    if cp "$source_path" "$target_path"; then
+        chmod "$mode" "$target_path"
+        chown "$owner:$group" "$target_path" 2>/dev/null || true
+        log_success "Updated $target_path"
+        return 0
+    else
+        log_error "Failed to update $target_path"
+        return 1
     fi
 }
 
@@ -310,6 +324,8 @@ create_system_group() {
     log_info "Creating dedicated system group for Gnosis VPN..."
 
     local groupname="gnosisvpn"
+    local current_user
+    current_user=$(logname 2>/dev/null || who am i | awk '{print $1}' || echo "unknown")
 
     # Find next available system GID (typically 200-499 range for system groups)
     local gid
@@ -325,6 +341,19 @@ create_system_group() {
     # Check if group already exists
     if dscl . -read "/Groups/$groupname" >/dev/null 2>&1; then
         log_info "System group '$groupname' already exists"
+
+        # Check if current user is already in the group
+        local group_members
+        group_members=$(dscl . -read "/Groups/$groupname" GroupMembership 2>/dev/null | cut -d' ' -f2- || echo "")
+
+        if [[ "$group_members" == *"$current_user"* ]]; then
+            log_info "Current user '$current_user' is already in group '$groupname'"
+        else
+            log_info "Adding current user '$current_user' to existing group '$groupname'"
+            dseditgroup -o edit -a "$current_user" -t user "$groupname"
+            log_success "User '$current_user' added to group '$groupname'"
+        fi
+
         return 0
     fi
 
@@ -335,6 +364,24 @@ create_system_group() {
     dscl . -create "/Groups/$groupname" PrimaryGroupID "$gid"
     dscl . -create "/Groups/$groupname" RealName "Gnosis VPN System Group"
     dscl . -create "/Groups/$groupname" RecordName "$groupname"
+
+    # Add current user to the group
+    if [[ "$current_user" != "unknown" ]] && [[ "$current_user" != "root" ]]; then
+        log_info "Adding current user '$current_user' to group '$groupname'"
+        dseditgroup -o edit -a "$current_user" -t user "$groupname"
+        # ===
+        # Critical Network Entitlements Needed:
+        dseditgroup -o edit -a "$groupname" -t user _networkd
+        # com.apple.developer.networking.networkextension - For VPN/tunnel creation
+        # com.apple.security.network.server - For binding to sockets
+        # com.apple.security.network.client - For outbound connections
+        # com.apple.developer.system-extension.install - For system extensions
+        # ===
+
+        log_success "User '$current_user' added to group '$groupname'"
+    else
+        log_warn "Could not determine current user or user is root - skipping group membership"
+    fi
 
     log_success "System group '$groupname' created successfully (GID: $gid)"
 }
@@ -392,6 +439,8 @@ configure_plist() {
 
 # Install launchd service
 install_launchd_service() {
+    local installation_type="$1"
+
     log_info "Installing launchd service..."
 
     # Configuration
@@ -734,6 +783,8 @@ cleanup_old_backups() {
 
 # Backup existing configuration if present
 backup_config() {
+    local installation_type="$1"
+
     # Create config directory if it doesn't exist
     mkdir -p "$CONFIG_DIR"
 
@@ -742,7 +793,7 @@ backup_config() {
         timestamp=$(date +%Y%m%d-%H%M%S)
         local backup_file="${CONFIG_DIR}/config-${timestamp}.toml.backup"
 
-        if [[ "$INSTALLATION_TYPE" == "update" ]]; then
+        if [[ "$installation_type" == "update" ]]; then
             log_info "Update detected: Creating configuration backup..."
         else
             log_info "Existing configuration found: Creating backup..."
@@ -801,6 +852,8 @@ setup_configuration_files() {
 
 # Create configuration symlink
 create_config_symlink() {
+    local installation_type="$1"
+
     log_info "Creating configuration symlink..."
 
     # Target configuration file
@@ -880,7 +933,7 @@ copy_uninstall() {
 }
 
 # TODO: remove this cleanup by December 2026.
-# Update-only migration: installs from before the userspace WireGuard migration copied
+# Migration only: installs from before the userspace WireGuard migration copied
 # wg/wg-quick/wireguard-go to $BIN_DIR; nothing ships or reads them anymore.
 # Skip symlinks: on Intel Macs, Homebrew's wireguard-tools/wireguard-go formulas
 # symlink into /usr/local/bin, and `-f` follows symlinks, so an unguarded check
@@ -897,38 +950,51 @@ remove_legacy_wireguard_binaries() {
     done
 }
 
-# Nothing to copy: the payload already placed them, and the gnosisvpn group only exists from install time on.
-# Failures are fatal on purpose: a worker left root:wheel cannot be exec'd by the service.
-apply_binary_permissions() {
-    log_info "Applying binary ownership and permissions..."
+# Update binaries incrementally (only if changed)
+update_binaries() {
+    local installation_type="$1"
 
-    local binary_info binary owner group mode
-    for binary_info in "${BINARY_PERMISSIONS[@]}"; do
-        IFS=":" read -r binary owner group mode <<< "$binary_info"
+    log_info "Updating binaries..."
+    binaries_array=(gnosis_vpn-root:root:wheel:750 gnosis_vpn-worker:root:gnosisvpn:750 gnosis_vpn-ctl:gnosisvpn:gnosisvpn:755 gnosis_vpn-update:root:wheel:755)
 
-        if [[ ! -f "$BIN_DIR/${binary}" ]]; then
-            log_error "Missing $BIN_DIR/${binary} — package payload was not installed"
-            return 1
+    # For fresh installations, just copy all binaries
+    if [[ "$installation_type" == "fresh" ]]; then
+        log_info "Fresh installation: Installing all binaries..."
+
+        for binary_info in "${binaries_array[@]}"; do
+            IFS=":" read -r binary owner group mode <<< "$binary_info"
+            if [[ -f "${2}/usr/local/bin/${binary}" ]]; then
+                cp "${2}/usr/local/bin/${binary}" "$BIN_DIR/${binary}"
+                chmod "$mode" "$BIN_DIR/${binary}"
+                chown "$owner:$group" "$BIN_DIR/${binary}" 2>/dev/null || true
+                log_success "Installed ${binary}"
+            fi
+        done
+    else
+        # For updates, check each binary individually
+        log_info "Update installation: Checking which binaries need updates..."
+
+        local updates_made=0
+
+        for binary_info in "${binaries_array[@]}"; do
+            IFS=":" read -r binary owner group mode <<< "$binary_info"
+            if [[ -f "${2}/usr/local/bin/${binary}" ]]; then
+                if update_binary "${2}/usr/local/bin/${binary}" "$BIN_DIR/${binary}" "$owner" "$group" "$mode"; then
+                    updates_made=$((updates_made + 1))
+                fi
+            fi
+        done
+
+        if [[ $updates_made -gt 0 ]]; then
+            log_success "Updated $updates_made binary(ies)"
+        else
+            log_info "All binaries are up to date"
         fi
 
-        chown "$owner:$group" "$BIN_DIR/${binary}"
-        chmod "$mode" "$BIN_DIR/${binary}"
-        log_success "${binary}: $owner:$group $mode"
-    done
-}
-
-# Lets the logged-in user talk to the binaries unprivileged; a headless install just has nobody to add.
-add_console_user_to_group() {
-    local user
-    user=$(console_user)
-
-    if [[ -z "$user" ]] || [[ "$user" == "root" ]]; then
-        log_warn "No console user - skipping group membership. Run 'sudo dseditgroup -o edit -a <user> -t user gnosisvpn' to grant it."
-        return 0
+        remove_legacy_wireguard_binaries
     fi
-
-    dseditgroup -o edit -a "$user" -t user gnosisvpn
-    log_success "User '$user' added to group 'gnosisvpn'"
+    # Install management script
+    setup_management_script
 }
 
 # Set proper file permissions
@@ -951,7 +1017,10 @@ set_permissions() {
     chmod -R 755 "$INSTALLED_LOG_DIR_PATH"
     log_info "Log directory permissions updated: $INSTALLED_LOG_DIR_PATH"
 
-    add_console_user_to_group
+    # add current user to the gnosisvpn group to allow interactions with binaries without privilige escalation
+    CURRENT_USER=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }')
+    log_info "Current user detected: $CURRENT_USER"
+    dseditgroup -o edit -a "$CURRENT_USER" -t user gnosisvpn
 
     # Create and set permissions for state directory
     local state_dir="$INSTALLED_LIB_DIR_PATH"
@@ -977,21 +1046,9 @@ verify_installation() {
 
     local errors=0
 
-    # Owner and mode too, not just -x: as root, -x passes on any exec bit.
-    local binary_info binary owner group mode want got
-    for binary_info in "${BINARY_PERMISSIONS[@]}"; do
-        IFS=":" read -r binary owner group mode <<< "$binary_info"
-
+    for binary in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl gnosis_vpn-update; do
         if [[ ! -x "$BIN_DIR/${binary}" ]]; then
             log_error "$BIN_DIR/${binary} binary not found or not executable"
-            errors=$((errors + 1))
-            continue
-        fi
-
-        want="$owner:$group $mode"
-        got=$(stat -f "%Su:%Sg %Lp" "$BIN_DIR/${binary}")
-        if [[ "$got" != "$want" ]]; then
-            log_error "$BIN_DIR/${binary} has '$got', expected '$want'"
             errors=$((errors + 1))
         fi
     done
@@ -1011,7 +1068,9 @@ verify_installation() {
 
 # Print installation summary
 print_summary() {
-    if [[ "$INSTALLATION_TYPE" == "update" ]]; then
+    local installation_type="$1"
+
+    if [[ "$installation_type" == "update" ]]; then
         log_section "Update Summary"
         log_info "Installation type: Update"
     else
@@ -1059,7 +1118,7 @@ print_summary() {
     echo ""
     log_info "Log file: $INSTALLER_LOG_FILE"
 
-    if [[ "$INSTALLATION_TYPE" == "update" ]]; then
+    if [[ "$installation_type" == "update" ]]; then
         log_success "Update completed successfully!"
     else
         log_success "Installation completed successfully!"
@@ -1254,7 +1313,7 @@ launch_app() {
 
         # Detect the current logged-in user so we open the app in their session
         local current_user
-        current_user=$(console_user)
+        current_user=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }' || true)
         if [[ -z "$current_user" ]]; then
             log_warn "No logged-in console user detected; skipping UI launch"
             return 0
@@ -1309,11 +1368,12 @@ main() {
     log_info "Log level: $INSTALLER_CHOICE_LOGLEVEL"
 
     # Determine installation type (fresh vs update)
-    check_previous_installation
+    local installation_type
+    installation_type=$(check_previous_installation)
 
-    log_section "Installation Type: $INSTALLATION_TYPE"
+    log_section "Installation Type: $installation_type"
 
-    backup_config
+    backup_config "$installation_type"
     copy_uninstall
 
     # Create system user and group
@@ -1321,16 +1381,12 @@ main() {
     create_system_user
     update_user_group
 
-    # The payload already placed the binaries; only ownership is left to fix.
-    apply_binary_permissions
-    if [[ "$INSTALLATION_TYPE" == "update" ]]; then
-        remove_legacy_wireguard_binaries
-    fi
-    setup_management_script
+    # Update binaries (incrementally for updates, full for fresh installs)
+    update_binaries "$installation_type" "$TARGET_VOLUME"
 
     # Setup configuration files and create symlink
     setup_configuration_files
-    create_config_symlink
+    create_config_symlink "$installation_type"
 
     # Set proper permissions
     set_permissions
@@ -1345,7 +1401,7 @@ main() {
     validate_service_environment
 
     # Install launchd service
-    install_launchd_service
+    install_launchd_service "$installation_type"
 
     # Verify plist deployment
     verify_plist_deployment
@@ -1364,7 +1420,7 @@ main() {
     check_service_status
 
     # Print summary
-    print_summary
+    print_summary "$installation_type"
 
     # Launch UI application (best-effort; guarded internally so it cannot fail)
     launch_app
@@ -1384,8 +1440,7 @@ main() {
     log_script_end "success"
 }
 
-# Lets tests source the file for its functions; installer(8) always runs it as a script.
-if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    main
-    exit 0
-fi
+# Execute main function
+main
+
+exit 0

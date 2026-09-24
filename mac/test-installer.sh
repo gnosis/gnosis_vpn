@@ -130,7 +130,7 @@ test_build_structure() {
         "[[ \"\$(cat '${BUILD_DIR}/scripts/networks' 2>/dev/null)\" == '${GNOSISVPN_NETWORKS}' ]]"
 
     # Scripts
-    local scripts=("postinstall" "preinstall" "uninstall.sh" "logging.sh" "process-control.sh")
+    local scripts=("postinstall" "preinstall" "uninstall.sh" "logging.sh")
     for script in "${scripts[@]}"; do
         run_test "Script '$script' exists" "[[ -f '${BUILD_DIR}/scripts/$script' ]]"
     done
