@@ -8,11 +8,12 @@
 # every required file. Exits non-zero if no version is complete.
 #
 # The optional --min-version / --below-version window restricts candidates by numeric core; it is how the two lines pick components.
+# --only-version checks that one tag instead of scanning the registry; exit 1 when it is missing or incomplete.
 #
 # All diagnostics go to stderr; ONLY the resolved version is printed to stdout,
 # so callers can safely capture it with:  ver="$(resolve-registry-version.sh ...)"
 #
-# Usage: resolve-registry-version.sh [--min-version <x.y.z>] [--below-version <x.y.z>] <package> <required-file>...
+# Usage: resolve-registry-version.sh [--min-version <x.y.z>] [--below-version <x.y.z>] [--only-version <tag>] <package> <required-file>...
 #
 # Exit codes:
 #   0  a complete version was found (printed to stdout)
@@ -29,9 +30,10 @@ source "${SCRIPT_DIR}/common.sh"
 
 MIN_VERSION=""
 BELOW_VERSION=""
+ONLY_VERSION=""
 
 usage() {
-    log_error "Usage: $0 [--min-version <x.y.z>] [--below-version <x.y.z>] <package> <required-file>..."
+    log_error "Usage: $0 [--min-version <x.y.z>] [--below-version <x.y.z>] [--only-version <tag>] <package> <required-file>..."
     exit 1
 }
 
@@ -52,6 +54,14 @@ parse_options() {
                 usage
             fi
             BELOW_VERSION="$2"
+            shift 2
+            ;;
+        --only-version)
+            if [[ -z ${2:-} ]]; then
+                log_error "--only-version requires a value"
+                usage
+            fi
+            ONLY_VERSION="$2"
             shift 2
             ;;
         -h | --help)
@@ -98,9 +108,13 @@ main() {
     # Versions, newest-first by upload time. `name` is a full resource path;
     # its basename is the version tag.
     local versions
-    versions="$(gcloud artifacts versions list \
-        --package="${package}" --sort-by="~createTime" --format="value(name)" |
-        sed 's#.*/##')"
+    if [[ -n $ONLY_VERSION ]]; then
+        versions="$ONLY_VERSION"
+    else
+        versions="$(gcloud artifacts versions list \
+            --package="${package}" --sort-by="~createTime" --format="value(name)" |
+            sed 's#.*/##')"
+    fi
 
     if [[ -z $versions ]]; then
         log_error "No versions found for package '${package}' in ${CLOUDSDK_ARTIFACTS_REPOSITORY}."

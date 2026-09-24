@@ -22,7 +22,7 @@ on:
         type: string
         default: ''
       toolkit_version:
-        description: 'Toolkit version to release (default: latest gnosis_vpn-toolkit GitHub release)'
+        description: 'Toolkit version to release (default: latest gnosis_vpn-toolkit GitHub release); must carry the Linux and macOS updaters'
         required: false
         type: string
         default: ''
