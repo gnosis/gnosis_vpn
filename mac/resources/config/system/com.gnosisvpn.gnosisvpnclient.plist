@@ -6,6 +6,12 @@
     <key>Label</key>
     <string>com.gnosisvpn.gnosisvpnclient</string>
 
+    <!-- Lets Login Items & Extensions show the app's name and icon -->
+    <key>AssociatedBundleIdentifiers</key>
+    <array>
+        <string>com.gnosisvpn.gnosisvpnclient</string>
+    </array>
+
     <!-- Program Configuration -->
     <key>ProgramArguments</key>
     <array>

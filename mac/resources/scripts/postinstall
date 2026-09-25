@@ -1190,6 +1190,8 @@ install_ui_application() {
         chmod -R 755 "$UI_TARGET_APP" || true
         chown -R root:admin "$UI_TARGET_APP" 2>/dev/null || true
         xattr -dr com.apple.quarantine "$UI_TARGET_APP" 2>/dev/null || true
+        # BTM resolves the daemon's AssociatedBundleIdentifiers through LaunchServices
+        /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$UI_TARGET_APP" 2>/dev/null || true
 
         # Clean up staged archive
         rm -f "$UI_STAGED_ARCHIVE" || true
@@ -1400,14 +1402,14 @@ main() {
     # Validate service environment
     validate_service_environment
 
+    # Install UI application before the service so BTM can associate the daemon with it
+    install_ui_application
+
     # Install launchd service
     install_launchd_service "$installation_type"
 
     # Verify plist deployment
     verify_plist_deployment
-
-    # Install UI application
-    install_ui_application
 
     # Clean up old backup files
     cleanup_old_backups
