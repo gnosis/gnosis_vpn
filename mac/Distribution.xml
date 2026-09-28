@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
     <title>Gnosis VPN</title>
-    <allowed-os-versions>
-        <os-version min="__MIN_OS_MACOS__"/>
-    </allowed-os-versions>
+    <!-- No <allowed-os-versions>: it can pre-empt installationCheck()'s macOS dialog with Apple's generic refusal. -->
     <installation-check script="installationCheck()"/>
     <organization>com.gnosisvpn</organization>
     <domains enable_anywhere="true"/>
@@ -31,7 +29,7 @@ __NETWORK_PKG_REF_IDS__
             var isAppleSilicon = false;
             try {
                 isAppleSilicon = system.sysctl('hw.optional.arm64') == 1;
-            } catch (e) {}
+            } catch (e) {} // a missing key may throw; only Intel lacks it
             if (!isAppleSilicon) {
                 my.result.title = 'Apple Silicon Required';
                 my.result.message = 'Gnosis VPN requires a Mac with Apple Silicon (M1 or later). Intel-based Macs are not supported.';
@@ -41,7 +39,7 @@ __NETWORK_PKG_REF_IDS__
 
             if (system.compareVersions(system.version.ProductVersion, '__MIN_OS_MACOS__') < 0) {
                 my.result.title = 'macOS __MIN_OS_MACOS__ or Later Required';
-                my.result.message = 'Gnosis VPN requires macOS __MIN_OS_MACOS__ (Sequoia) or later. You are running macOS ' + system.version.ProductVersion + '. Please update macOS in System Settings > Software Update.';
+                my.result.message = 'Gnosis VPN requires macOS __MIN_OS_MACOS__ or later. You are running macOS ' + system.version.ProductVersion + '. Please update macOS in System Settings > Software Update.';
                 my.result.type = 'Fatal';
                 return false;
             }
