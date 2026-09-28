@@ -6,7 +6,8 @@ user-friendly graphical interface for installing and configuring the Gnosis VPN 
 ## Features
 
 - **Custom UI**: Professional welcome, readme, and completion screens with branding
-- **System Requirements Check**: Validates macOS version (floor from `config/min-os.json`) and Apple Silicon architecture
+- **System Requirements Check**: Validates macOS version (floor from `config/min-os.json`) and Apple Silicon
+  architecture
 - **Incremental Updates**: Detects previous installations and only updates changed binaries
 - **Configuration Preservation**: Maintains user settings during updates when possible
 - **Version Tracking**: Tracks installation versions for better update management
