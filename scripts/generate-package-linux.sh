@@ -69,6 +69,13 @@ check_platform_prerequisites() {
         log_error "Run 'just download ${GNOSISVPN_DISTRIBUTION} ${GNOSISVPN_ARCHITECTURE}' first"
         missing=$((missing + 1))
     fi
+    # Named separately from the client binaries above: it comes from the toolkit, so it is the
+    # one that goes missing when the resolved toolkit version predates the Linux artifacts.
+    if [[ ! -f "${BINARY_DIR}/gnosis_vpn-update" ]]; then
+        log_error "Updater not found: ${BINARY_DIR}/gnosis_vpn-update"
+        log_error "Run 'just download ${GNOSISVPN_DISTRIBUTION} ${GNOSISVPN_ARCHITECTURE}' first"
+        missing=$((missing + 1))
+    fi
     if [[ ! -f "${BUILD_DIR}/changelog/changelog.gz" ]]; then
         log_error "Changelog not found at ${BUILD_DIR}/changelog/changelog.gz"
         log_error "Run 'just changelog' first"
@@ -94,6 +101,13 @@ check_platform_prerequisites() {
         log_error "Run 'just manual' first"
         missing=$((missing + 1))
     fi
+    local network
+    for network in ${GNOSISVPN_NETWORKS}; do
+        if [[ ! -f "${SCRIPT_DIR}/../linux/resources/config-${network}.toml" ]]; then
+            log_error "No config for network '${network}': linux/resources/config-${network}.toml not found"
+            missing=$((missing + 1))
+        fi
+    done
     if [[ $missing -gt 0 ]]; then
         log_error "Prerequisites check failed. Please install missing tools and run prerequisite steps."
         exit 1
@@ -128,6 +142,9 @@ generate_nfpm_config() {
     mkdir -p "${BUILD_DIR}/resources"
     echo "${GNOSISVPN_PACKAGE_VERSION}" >"${BUILD_DIR}/resources/version.txt"
     log_success "Generated version file: ${BUILD_DIR}/resources/version.txt"
+    # Bake the shipped network list so postinstall.sh needs no hardcoded names.
+    echo "${GNOSISVPN_NETWORKS}" >"${BUILD_DIR}/resources/networks"
+    log_success "Generated networks file: ${GNOSISVPN_NETWORKS}"
     # Dearmor the public key so the postinstall can register the APT source
     # without needing gnupg as a package dependency on the target host.
     gpg --dearmor <"${SCRIPT_DIR}/../gnosisvpn-public-key.asc" \
@@ -142,7 +159,17 @@ generate_nfpm_config() {
         local rel="${src#"$rootfs"/}"
         printf '  - src: "%s"\n    dst: "/%s"\n' "$src" "$rel"
     done >"$nfpm_app_contents"
-    sed -e "/__GNOSIS_VPN_APP_CONTENTS__/{
+    # One conffile entry per shipped network.
+    local nfpm_network_configs network
+    nfpm_network_configs=$(mktemp)
+    for network in ${GNOSISVPN_NETWORKS}; do
+        printf '  - src: ./linux/resources/config-%s.toml\n    dst: /etc/gnosisvpn/config-%s.toml\n    type: config\n    file_info:\n      mode: 0644\n' \
+            "$network" "$network"
+    done >"$nfpm_network_configs"
+    sed -e "/__GNOSIS_VPN_NETWORK_CONFIGS__/{
+    r $nfpm_network_configs
+    d
+    }" -e "/__GNOSIS_VPN_APP_CONTENTS__/{
     r $nfpm_app_contents
     d
     }" "${SCRIPT_DIR}/../linux/nfpm-template.yaml" >"${SCRIPT_DIR}/../linux/nfpm.yaml"
@@ -150,8 +177,8 @@ generate_nfpm_config() {
         sed -i.backup '/^license:.*/d' "${SCRIPT_DIR}/../linux/nfpm.yaml"
         rm -f "${SCRIPT_DIR}/../linux/nfpm.yaml.backup"
     fi
-    rm -f "$nfpm_app_contents"
-    log_success "Generated nfpm configuration for ${GNOSISVPN_DISTRIBUTION} (${nfpm_arch})"
+    rm -f "$nfpm_app_contents" "$nfpm_network_configs"
+    log_success "Generated nfpm configuration for ${GNOSISVPN_DISTRIBUTION} (${nfpm_arch}), networks: ${GNOSISVPN_NETWORKS}"
 }
 
 generate_package() {

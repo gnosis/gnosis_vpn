@@ -27,31 +27,17 @@ elif command -v pacman >/dev/null 2>&1; then
     PKG_MANAGER="arch"
 fi
 
+# TODO: remove by December 2027.
+# Completes the rm_conffile handshake started in preinstall.sh; DPKG_MAINTSCRIPT_NAME gates non-dpkg hosts.
+if [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] && command -v dpkg-maintscript-helper >/dev/null 2>&1; then
+    for conffile in config-jura.toml config-rotsee.toml config-piz-palu-staging.toml; do
+        dpkg-maintscript-helper rm_conffile "/etc/gnosisvpn/$conffile" "" gnosisvpn -- "$@"
+    done
+fi
+
 # Reload systemd after service file removal
 echo "$LOG_PREFIX INFO: Reloading systemd daemon..."
 deb-systemd-helper daemon-reload || true
-
-# Reparse the wg-quick AppArmor profile so the now-removed local drop-in
-# (/etc/apparmor.d/local/wg-quick) include is dropped. No-op where the profile or
-# AppArmor isn't present (RPM/Arch/older Ubuntu/AppArmor-disabled).
-reload_apparmor_wg_quick() {
-    # Only relevant where the wg-quick AppArmor profile exists (e.g. Ubuntu 26.04+).
-    if [[ ! -e /etc/apparmor.d/wg-quick ]]; then
-        return 0
-    fi
-    if ! command -v apparmor_parser >/dev/null 2>&1; then
-        return 0
-    fi
-    # Skip if AppArmor isn't actually enabled in the kernel.
-    if [[ -r /sys/module/apparmor/parameters/enabled ]] &&
-        [[ "$(cat /sys/module/apparmor/parameters/enabled)" != "Y" ]]; then
-        return 0
-    fi
-    echo "$LOG_PREFIX INFO: reloading wg-quick AppArmor profile after drop-in removal..."
-    apparmor_parser -r -T -W /etc/apparmor.d/wg-quick ||
-        echo "$LOG_PREFIX WARNING: failed to reload wg-quick AppArmor profile"
-}
-reload_apparmor_wg_quick
 
 # Check if this is a complete purge
 IS_PURGE=false
@@ -100,14 +86,18 @@ fi
 if [[ $IS_PURGE == "true" ]]; then
     echo "$LOG_PREFIX INFO: Performing complete removal (purge)..."
 
-    # Remove logrotate configuration. Purge only: it is a dpkg conffile, and
-    # deleting it on plain remove makes dpkg record the deletion as
-    # intentional, so it would never be restored on reinstall. dpkg purge
-    # removes it itself on deb; this covers rpm/arch.
+    # logrotate.d is a dpkg conffile — only delete on purge to avoid dpkg treating the removal as intentional.
     if [[ -f /etc/logrotate.d/gnosisvpn ]]; then
         echo "$LOG_PREFIX INFO: Removing logrotate configuration"
         rm -f /etc/logrotate.d/gnosisvpn
     fi
+
+    # rm -f unconditionally: dpkg or the admin may have removed it already.
+    rm -f /etc/sysctl.d/99-gnosisvpn-bbr.conf
+    echo "$LOG_PREFIX INFO: Removed TCP BBR configuration: /etc/sysctl.d/99-gnosisvpn-bbr.conf"
+    echo "$LOG_PREFIX INFO: Running values persist until reset or reboot:"
+    echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=cubic"
+    echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=fq_codel"
 
     # Remove state directory
     if [[ -d /var/lib/gnosisvpn ]]; then

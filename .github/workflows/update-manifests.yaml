@@ -5,6 +5,7 @@ on:
     workflows:
       - Close release
       - Snapshot Build
+      - Experimental Build
     types:
       - completed
     branches:
@@ -18,13 +19,14 @@ jobs:
     name: Update Manifests
     permissions:
       contents: read
-      actions: read
+      # write: the final step dispatches the Publish IPFS workflow.
+      actions: write
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@ade4bbd75f7204255c61d19c23f67d3da221e7d2 # setup-gcp-v4
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@7263182fc9a2bab22cc5a029929940914eb9748d # setup-gcp-v4
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
@@ -46,7 +48,7 @@ jobs:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           OUTPUT_DIR: ./build/manifests
       - name: Sign manifests
-        uses: hoprnet/hopr-workflows/actions/sign-file@ade4bbd75f7204255c61d19c23f67d3da221e7d2 # sign-file-v2
+        uses: hoprnet/hopr-workflows/actions/sign-file@97a7c86f59aafbf8f71581a402a07165de51750e # sign-file-v2
         with:
           path: ./build/manifests
           architecture: x86_64-linux
@@ -68,3 +70,9 @@ jobs:
           process_gcloudignore: false
       - name: Set cache control
         run: gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://download.gnosisvpn.io/manifests/**"
+      - name: Trigger Publish IPFS
+        # Stable releases only; our run id makes publish-ipfs pick up this run's manifests artifact.
+        if: ${{ github.event.workflow_run.name == 'Close release' && github.event.workflow_run.conclusion == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run publish-ipfs.yaml --ref main -f propose_ens=true -f manifests_run_id=${{ github.run_id }}

@@ -6,6 +6,12 @@
     <key>Label</key>
     <string>com.gnosisvpn.gnosisvpnclient</string>
 
+    <!-- Lets Login Items & Extensions show the app's name and icon -->
+    <key>AssociatedBundleIdentifiers</key>
+    <array>
+        <string>com.gnosisvpn.gnosisvpnclient</string>
+    </array>
+
     <!-- Program Configuration -->
     <key>ProgramArguments</key>
     <array>
@@ -68,7 +74,7 @@
         <key>GNOSISVPN_LOG_FILE</key>
         <string>/Library/Logs/GnosisVPN/gnosisvpn.log</string>
         <key>GNOSISVPN_HOPR_BLOKLI_URL</key>
-        <string>https://blokli.__NETWORK_NAME__.hoprnet.link</string>
+        <string>https://blokli-__NETWORK_PREFIX__.__NETWORK_ENV__.hoprnet.link</string>
         <key>RUST_LOG</key>
         <string>info</string>
         <key>RUST_BACKTRACE</key>

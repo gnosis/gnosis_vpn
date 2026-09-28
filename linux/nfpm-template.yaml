@@ -23,7 +23,6 @@ overrides:
       - systemd
       - iptables
       - logrotate
-      - wireguard
       - ca-certificates
       - libwebkit2gtk-4.1-0
       # Ubuntu 24.04+ renamed libgtk-3-0 to libgtk-3-0t64 (64-bit time_t
@@ -38,7 +37,6 @@ overrides:
       - systemd
       - iptables
       - logrotate
-      - wireguard
       - ca-certificates
       - webkit2gtk4.1
       - gtk3
@@ -70,6 +68,16 @@ contents:
     dst: /usr/bin/gnosis_vpn-app
     file_info:
       mode: 0755
+  # Reads the installed version and update manifests for the app. Needs no
+  # privileges for either; `update` has no engine on Linux and refuses, so
+  # there is no sudoers entry to go with it. Root-owned, unlike the binaries
+  # above, so the service account cannot swap what runs privileged on macOS.
+  - src: ./build/download/gnosis_vpn-update
+    dst: /usr/bin/gnosis_vpn-update
+    file_info:
+      mode: 0755
+      owner: root
+      group: root
   # Resource files
   - src: ./build/resources/version.txt
     dst: /etc/gnosisvpn/version.txt
@@ -90,18 +98,25 @@ contents:
     type: config
     file_info:
       mode: 0644
-  - src: ./linux/resources/config-jura.toml
-    dst: /etc/gnosisvpn/config-jura.toml
-    type: config
+  # One `type: config` entry per network in GNOSISVPN_NETWORKS, rendered by generate-package-linux.sh.
+__GNOSIS_VPN_NETWORK_CONFIGS__
+  # Networks this package ships (space-separated, first = default); NOT a conffile, every upgrade must replace it.
+  - src: ./build/resources/networks
+    dst: /usr/share/gnosisvpn/networks
     file_info:
       mode: 0644
-  - src: ./linux/resources/config-rotsee.toml
-    dst: /etc/gnosisvpn/config-rotsee.toml
-    type: config
-    file_info:
-      mode: 0644
+      owner: root
+      group: root
   - src: ./linux/resources/logrotate.conf
     dst: /etc/logrotate.d/gnosisvpn
+    type: config
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  # TCP BBR + fq; postinstall.sh applies it without a reboot.
+  - src: ./linux/resources/sysctl-bbr.conf
+    dst: /etc/sysctl.d/99-gnosisvpn-bbr.conf
     type: config
     file_info:
       mode: 0644
@@ -125,16 +140,6 @@ contents:
       group: root
   - src: ./linux/resources/lintian-overrides
     dst: /usr/share/lintian/overrides/gnosisvpn
-    file_info:
-      mode: 0644
-      owner: root
-      group: root
-  # AppArmor local drop-in: grants the wg-quick profile (Ubuntu 26.04+) read
-  # access to our managed WireGuard config. Plain content (no type: config) so
-  # it is removed cleanly on uninstall; postinstall/postuninstall reparse the
-  # wg-quick profile to pick up / drop this local include.
-  - src: ./linux/resources/apparmor-local-wg-quick
-    dst: /etc/apparmor.d/local/wg-quick
     file_info:
       mode: 0644
       owner: root

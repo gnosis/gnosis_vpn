@@ -16,7 +16,7 @@
 #   $4: Root directory "/" for the current system
 #
 # Environment variables from Distribution.xml choices:
-#   INSTALLER_CHOICE_NETWORK: "jura" or "rotsee"
+#   INSTALLER_CHOICE_NETWORK: one of the networks listed in ${SCRIPT_DIR}/networks
 #   INSTALLER_CHOICE_LOGLEVEL: "debug" or "info"
 
 set -euo pipefail
@@ -81,12 +81,31 @@ if [[ -z "$INSTALLER_VERSION" ]]; then
     exit 1
 fi
 
+# Networks this installer ships (first = default), baked by generate-package-mac.sh; older packages fall back to the historical default.
+SHIPPED_NETWORKS=()
+if [[ -r "${SCRIPT_DIR}/networks" ]]; then
+    read -r -a SHIPPED_NETWORKS <"${SCRIPT_DIR}/networks" || true
+fi
+if [[ ${#SHIPPED_NETWORKS[@]} -eq 0 ]]; then
+    log_warn "Missing or empty ${SCRIPT_DIR}/networks — assuming 'jura-prod'"
+    SHIPPED_NETWORKS=(jura-prod)
+fi
+DEFAULT_NETWORK="${SHIPPED_NETWORKS[0]}"
+
+is_shipped_network() {
+    local candidate="$1" network
+    for network in "${SHIPPED_NETWORKS[@]}"; do
+        [[ "$network" == "$candidate" ]] && return 0
+    done
+    return 1
+}
+
 load_installer_choices() {
     local choice_dir="/Library/Logs/GnosisVPN/installer"
     local network_choice_file="${choice_dir}/network_choice"
     local loglevel_choice_file="${choice_dir}/loglevel_choice"
 
-    INSTALLER_CHOICE_NETWORK="jura"
+    INSTALLER_CHOICE_NETWORK="$DEFAULT_NETWORK"
     INSTALLER_CHOICE_LOGLEVEL="info"
 
     if [[ -f "$network_choice_file" ]]; then
@@ -94,7 +113,13 @@ load_installer_choices() {
         # shellcheck disable=SC1090
         source "$network_choice_file"
     else
-        log_warn "Network choice file not found, defaulting to jura"
+        log_warn "Network choice file not found, defaulting to ${DEFAULT_NETWORK}"
+    fi
+
+    # The choice file persists between installs, so it can name a network from the other line.
+    if ! is_shipped_network "$INSTALLER_CHOICE_NETWORK"; then
+        log_warn "Network choice '${INSTALLER_CHOICE_NETWORK}' is not shipped by this installer (${SHIPPED_NETWORKS[*]}) — using ${DEFAULT_NETWORK}"
+        INSTALLER_CHOICE_NETWORK="$DEFAULT_NETWORK"
     fi
 
     if [[ -f "$loglevel_choice_file" ]]; then
@@ -441,7 +466,12 @@ install_launchd_service() {
         sed -i '' '/<key>RUST_LOG<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>info</string>|;}' "$source_plist"
         sed -i '' '/<key>RUST_BACKTRACE<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>1</string>|;}' "$source_plist"
     fi
-    sed -i '' "s|__NETWORK_NAME__|${INSTALLER_CHOICE_NETWORK}|g" "$source_plist"
+    # Network names are <prefix>-<env> (env is the segment after the last
+    # '-', e.g. jura-prod -> prefix=jura env=prod, piz-palu-dev ->
+    # prefix=piz-palu env=dev); the Blokli endpoint mirrors that split.
+    local network_prefix="${INSTALLER_CHOICE_NETWORK%-*}"
+    local network_env="${INSTALLER_CHOICE_NETWORK##*-}"
+    sed -i '' "s|__NETWORK_PREFIX__|${network_prefix}|g; s|__NETWORK_ENV__|${network_env}|g" "$source_plist"
 
     # Handle existing service (for updates/reinstalls)
     local service_was_running=false
@@ -785,6 +815,17 @@ setup_configuration_files() {
     # Ensure config directory exists
     mkdir -p "$CONFIG_DIR"
 
+    # The payload only adds files, so drop the other line's templates before they are re-materialized below.
+    local stale_template stale_network
+    for stale_template in "${TEMPLATE_DIR_INSTALLED}"/*.template; do
+        [[ -f "$stale_template" ]] || continue
+        stale_network="$(basename "$stale_template" .toml.template)"
+        if ! is_shipped_network "$stale_network"; then
+            log_info "Removing template not shipped by this installer: $(basename "$stale_template")"
+            rm -f "$stale_template"
+        fi
+    done
+
     # Copy template files as configuration files (remove .template suffix)
     local template_files=("${TEMPLATE_DIR_INSTALLED}"/*.template)
     local copied=0
@@ -821,8 +862,8 @@ create_config_symlink() {
     # Check if target configuration exists
     if [[ ! -f "$target_config" ]]; then
         log_warn "Configuration file not found: $target_config"
-        log_info "Falling back to jura.toml"
-        target_config="${CONFIG_DIR}/jura.toml"
+        log_info "Falling back to ${DEFAULT_NETWORK}.toml"
+        target_config="${CONFIG_DIR}/${DEFAULT_NETWORK}.toml"
 
         if [[ ! -f "$target_config" ]]; then
             log_error "Default configuration file not found: $target_config"
@@ -891,12 +932,30 @@ copy_uninstall() {
     log_success "Uninstall script copied to $INSTALLED_LIB_DIR_PATH/uninstall.sh"
 }
 
+# TODO: remove this cleanup by December 2026.
+# Migration only: installs from before the userspace WireGuard migration copied
+# wg/wg-quick/wireguard-go to $BIN_DIR; nothing ships or reads them anymore.
+# Skip symlinks: on Intel Macs, Homebrew's wireguard-tools/wireguard-go formulas
+# symlink into /usr/local/bin, and `-f` follows symlinks, so an unguarded check
+# would delete the user's Homebrew-managed WireGuard alongside our old vendored copy.
+remove_legacy_wireguard_binaries() {
+    local binary
+    for binary in wg wg-quick wireguard-go; do
+        if [[ -L "$BIN_DIR/$binary" ]]; then
+            log_info "Skipping $BIN_DIR/$binary: symlink, likely managed by Homebrew or another tool"
+        elif [[ -f "$BIN_DIR/$binary" ]]; then
+            rm -f "$BIN_DIR/$binary"
+            log_success "Removed legacy binary: $BIN_DIR/$binary"
+        fi
+    done
+}
+
 # Update binaries incrementally (only if changed)
 update_binaries() {
     local installation_type="$1"
 
     log_info "Updating binaries..."
-    binaries_array=(gnosis_vpn-root:root:wheel:750 gnosis_vpn-worker:root:gnosisvpn:750 gnosis_vpn-ctl:gnosisvpn:gnosisvpn:755 gnosis_vpn-update:root:wheel:755 wg:root:wheel:755 wireguard-go:root:wheel:755 wg-quick:root:wheel:755)
+    binaries_array=(gnosis_vpn-root:root:wheel:750 gnosis_vpn-worker:root:gnosisvpn:750 gnosis_vpn-ctl:gnosisvpn:gnosisvpn:755 gnosis_vpn-update:root:wheel:755)
 
     # For fresh installations, just copy all binaries
     if [[ "$installation_type" == "fresh" ]]; then
@@ -931,6 +990,8 @@ update_binaries() {
         else
             log_info "All binaries are up to date"
         fi
+
+        remove_legacy_wireguard_binaries
     fi
     # Install management script
     setup_management_script
@@ -1129,6 +1190,8 @@ install_ui_application() {
         chmod -R 755 "$UI_TARGET_APP" || true
         chown -R root:admin "$UI_TARGET_APP" 2>/dev/null || true
         xattr -dr com.apple.quarantine "$UI_TARGET_APP" 2>/dev/null || true
+        # BTM resolves the daemon's AssociatedBundleIdentifiers through LaunchServices
+        /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$UI_TARGET_APP" 2>/dev/null || true
 
         # Clean up staged archive
         rm -f "$UI_STAGED_ARCHIVE" || true
@@ -1339,14 +1402,14 @@ main() {
     # Validate service environment
     validate_service_environment
 
+    # Install UI application before the service so BTM can associate the daemon with it
+    install_ui_application
+
     # Install launchd service
     install_launchd_service "$installation_type"
 
     # Verify plist deployment
     verify_plist_deployment
-
-    # Install UI application
-    install_ui_application
 
     # Clean up old backup files
     cleanup_old_backups

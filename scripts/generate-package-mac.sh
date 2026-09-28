@@ -8,7 +8,13 @@
 
 set -euo pipefail
 
-source "${SCRIPT_DIR}/config.sh"
+source "${SCRIPT_DIR}/../config/channels.sh"
+
+MIN_OS_MACOS="$(jq -r '.macos // empty' "${SCRIPT_DIR}/../config/min-os.json")"
+if [[ -z $MIN_OS_MACOS ]]; then
+    log_error "config/min-os.json has no macos entry"
+    exit 1
+fi
 
 # Safe default values
 : "${GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH:=}"
@@ -33,13 +39,13 @@ PKG_NAME_INSTALLER="gnosisvpn_${PKG_VERSION_SLUG}_${PKG_ARCH}.pkg"
 COMPONENT_PKG="GnosisVPN.pkg"
 
 # Choice packages configuration
-# Format: "type:value" - package name and identifier are derived automatically
-CHOICE_PACKAGES=(
-    "network:jura"
-    "network:rotsee"
-    "loglevel:info"
-    "loglevel:debug"
-)
+# Format: "type:value" - name and identifier are derived automatically; network entries follow GNOSISVPN_NETWORKS.
+CHOICE_PACKAGES=()
+for _network in ${GNOSISVPN_NETWORKS}; do
+    CHOICE_PACKAGES+=("network:${_network}")
+done
+unset _network
+CHOICE_PACKAGES+=("loglevel:info" "loglevel:debug")
 
 # Keychain
 KEYCHAIN_NAME="gnosisvpn.keychain"
@@ -184,6 +190,14 @@ check_platform_prerequisites() {
         fi
     done
 
+    local network
+    for network in ${GNOSISVPN_NETWORKS}; do
+        if [[ ! -f "$RESOURCES_DIR/config/templates/${network}.toml.template" ]]; then
+            log_error "No config template for network '${network}': mac/resources/config/templates/${network}.toml.template not found"
+            missing=$((missing + 1))
+        fi
+    done
+
     if [[ $missing -gt 0 ]]; then
         log_error "Prerequisites check failed. Please install missing tools and verify file structure."
         exit 1
@@ -211,11 +225,19 @@ prepare_build_dir() {
     chmod 0644 "${BUILD_DIR}/scripts/version.txt"
     log_success "Version baked into installer scripts: ${GNOSISVPN_PACKAGE_VERSION}"
 
-    # Copy config templates to package payload
-    if [[ -d "$RESOURCES_DIR/config/templates" ]]; then
-        cp "$RESOURCES_DIR/config/templates"/*.template "${BUILD_DIR}/app-contents/rootfs/etc/gnosisvpn/templates/" || true
-        log_success "Config templates copied"
-    fi
+    # Bake the shipped network list next to version.txt for the postinstall.
+    echo "${GNOSISVPN_NETWORKS}" >"${BUILD_DIR}/scripts/networks"
+    chmod 0644 "${BUILD_DIR}/scripts/networks"
+    log_success "Networks baked into installer scripts: ${GNOSISVPN_NETWORKS}"
+
+    # Copy the shipped networks' templates into the payload, clearing any left by a build of the other line.
+    local templates_dst="${BUILD_DIR}/app-contents/rootfs/etc/gnosisvpn/templates"
+    rm -f "${templates_dst}"/*.template
+    local network
+    for network in ${GNOSISVPN_NETWORKS}; do
+        cp "$RESOURCES_DIR/config/templates/${network}.toml.template" "${templates_dst}/"
+    done
+    log_success "Config templates copied: ${GNOSISVPN_NETWORKS}"
 
     # Copy system configuration files to scripts directory (for postinstall access)
     if [[ -d "$RESOURCES_DIR/config/system" ]]; then
@@ -234,45 +256,6 @@ prepare_build_dir() {
             exit 1
         fi
     done
-
-    # Copy artifacts needed by the application
-    if [[ -d "$RESOURCES_DIR/artifacts/" ]]; then
-        mkdir -p "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/"
-
-        for wg_binary in wg wireguard-go wg-quick; do
-            if [[ -f "$RESOURCES_DIR/artifacts/${wg_binary}" ]]; then
-                cp "$RESOURCES_DIR/artifacts/${wg_binary}" "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/${wg_binary}"
-                chmod 755 "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/${wg_binary}"
-                log_success "Copied artifact binary: ${wg_binary}"
-            else
-                log_error "Missing artifact binary: ${wg_binary}"
-                exit 1
-            fi
-        done
-
-        # Signing of the binaries by the `Developer ID Application` certificate
-        if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then
-            security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}"
-            security default-keychain -s "${KEYCHAIN_NAME}"
-            security set-keychain-settings -lut 21600 "${KEYCHAIN_NAME}"
-            security unlock-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}"
-            security list-keychains -d user -s "${KEYCHAIN_NAME}" login.keychain
-            security import "${GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PATH}" -k "${KEYCHAIN_NAME}" -P "${GNOSISVPN_APPLE_CERTIFICATE_DEVELOPER_PASSWORD}" -T /usr/bin/codesign
-            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}" 2>/dev/null >/dev/null
-            CERT_ID=$(security find-identity -v -p codesigning "${KEYCHAIN_NAME}" | awk -F'"' '{print $2}' | tr -d '\n')
-
-            # sign the wg binary
-            codesign --sign "${CERT_ID}" --options runtime --timestamp "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wg"
-            codesign --verify --deep --strict --verbose=4 "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wg"
-            log_success "'wg' binary signed successfully"
-
-            # sign the wireguard-go binary
-            codesign --sign "${CERT_ID}" --options runtime --timestamp "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wireguard-go"
-            codesign --verify --deep --strict --verbose=4 "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/wireguard-go"
-            log_success "'wireguard-go' binary signed successfully"
-        fi
-        log_success "Artifacts copied"
-    fi
 
     log_success "Build directory prepared"
 }
@@ -449,6 +432,127 @@ EOF
     done
 }
 
+# Installer copy per network. A case table because macOS bash 3.2 has no `declare -A`; inlined into XML, so no & < > or quotes.
+network_title() {
+    case "$1" in
+    jura-prod) echo "Jura Prod" ;;
+    jura-staging) echo "Jura Staging" ;;
+    jura-dev) echo "Jura Dev" ;;
+    piz-palu-dev) echo "Piz Palu Dev" ;;
+    *) echo "$1" ;;
+    esac
+}
+
+network_description() {
+    case "$1" in
+    jura-prod) echo "Connect to VPN nodes on the Jura Prod network - US, UK, NL, Brazil, Australia, India, South Korea" ;;
+    jura-dev) echo "Connect to VPN nodes on the Jura Dev network - US, UK, India" ;;
+    jura-staging) echo "Connect to VPN nodes on the Jura Staging network - US, UK, Brazil, Australia, South Korea" ;;
+    piz-palu-dev) echo "Connect to VPN nodes on the Piz Palu Dev network" ;;
+    *) echo "Connect to VPN nodes on the $1 network" ;;
+    esac
+}
+
+# Render mac/Distribution.xml. Spliced with awk, not ${var//pat/"$repl"}: macOS bash 3.2 inserts the quotes literally.
+render_distribution_xml() {
+    local src="$1" dst="$2"
+    local sq="'"
+    local networks=()
+    read -r -a networks <<<"${GNOSISVPN_NETWORKS}"
+    if [[ ${#networks[@]} -eq 0 ]]; then
+        log_error "GNOSISVPN_NETWORKS is empty — cannot render ${src}"
+        exit 1
+    fi
+    # Re-validated because this function is also called directly by tests and ad-hoc renders.
+    validate_network_names "${GNOSISVPN_NETWORKS}" || exit 1
+
+    # Mutual-exclusion group for the XML's exclusiveEnabled() helper, e.g. 'jura-prod','jura-dev'.
+    local group="" network
+    for network in "${networks[@]}"; do
+        group="${group:+${group},}${sq}${network}${sq}"
+    done
+
+    local frag_dir
+    frag_dir="$(mktemp -d -t gnosis-dist-frag.XXXXXX)"
+    local frag_ids="${frag_dir}/ids" frag_lines="${frag_dir}/lines"
+    local frag_choices="${frag_dir}/choices" frag_refs="${frag_dir}/refs"
+    : >"$frag_ids"
+    : >"$frag_lines"
+    : >"$frag_choices"
+    : >"$frag_refs"
+
+    local idx=0 title selected
+    for network in "${networks[@]}"; do
+        title="$(network_title "$network")"
+        selected="false"
+        if [[ $idx -eq 0 ]]; then
+            selected="true"
+            [[ ${#networks[@]} -eq 1 ]] || title="${title} (Recommended)"
+        fi
+
+        printf '    <pkg-ref id="com.gnosisvpn.choice.network.%s"/>\n' "$network" >>"$frag_ids"
+        printf '            <line choice="%s"/>\n' "$network" >>"$frag_lines"
+
+        # Blank line between blocks, matching the hand-written layout.
+        [[ $idx -eq 0 ]] || printf '\n' >>"$frag_choices"
+        cat >>"$frag_choices" <<EOF
+    <choice id="${network}"
+            title="${title}"
+            description="$(network_description "$network")"
+            visible="true"
+            enabled="exclusiveEnabled(${sq}${network}${sq}, [${group}])"
+            start_selected="${selected}">
+        <pkg-ref id="com.gnosisvpn.choice.network.${network}"/>
+    </choice>
+EOF
+
+        [[ $idx -eq 0 ]] || printf '\n' >>"$frag_refs"
+        cat >>"$frag_refs" <<EOF
+    <pkg-ref id="com.gnosisvpn.choice.network.${network}"
+             version="0"
+             auth="root"
+             installKBytes="0"
+             onConclusion="none">
+        #choice-network-${network}.pkg
+    </pkg-ref>
+EOF
+        idx=$((idx + 1))
+    done
+
+    # Each whole-line placeholder streams its fragment file; __MIN_OS_MACOS__ is inline and carries no awk-significant "&".
+    # Failure is deferred past the rm so an awk error cannot leak the mktemp dir.
+    local render_rc=0
+    awk \
+        -v ids="$frag_ids" \
+        -v lines="$frag_lines" \
+        -v choices="$frag_choices" \
+        -v refs="$frag_refs" \
+        -v minos="$MIN_OS_MACOS" '
+        function dump(path) {
+            while ((getline fragment_line < path) > 0) print fragment_line
+            close(path)
+        }
+        /__NETWORK_PKG_REF_IDS__/  { dump(ids);     next }
+        /__NETWORK_CHOICE_LINES__/ { dump(lines);   next }
+        /__NETWORK_CHOICES__/      { dump(choices); next }
+        /__NETWORK_PKG_REFS__/     { dump(refs);    next }
+        { gsub(/__MIN_OS_MACOS__/, minos); print }
+    ' "$src" >"$dst" || render_rc=$?
+
+    rm -rf "$frag_dir"
+    if [[ $render_rc -ne 0 ]]; then
+        log_error "Failed to render ${src} (awk exit ${render_rc})"
+        exit 1
+    fi
+
+    if grep -q '__[A-Z][A-Z_]*__' "$dst"; then
+        log_error "Unrendered placeholder left in ${dst}:"
+        grep -n '__[A-Z][A-Z_]*__' "$dst" >&2
+        exit 1
+    fi
+    log_success "Rendered Distribution.xml for networks: ${GNOSISVPN_NETWORKS}"
+}
+
 # Build distribution package
 build_distribution_package() {
     log_info "Building distribution package with custom UI..."
@@ -464,18 +568,20 @@ build_distribution_package() {
         exit 1
     fi
 
-    # Generate welcome.html from template
+    # Generate welcome.html from template. ${VAR#v} guards against a double
+    # "v": component versions carry the exact registry tag, which may or may
+    # not be v-prefixed.
     if [[ -f "${distribution_dir}/welcome.html" ]]; then
-        sed -i "s/__GNOSISVPN_PACKAGE_VERSION__/v${GNOSISVPN_PACKAGE_VERSION}/g" "$distribution_dir/welcome.html"
-        sed -i "s/__GNOSISVPN_APP_VERSION__/v${GNOSISVPN_APP_VERSION}/g" "$distribution_dir/welcome.html"
-        sed -i "s/__GNOSISVPN_CLIENT_VERSION__/v${GNOSISVPN_CLIENT_VERSION}/g" "$distribution_dir/welcome.html"
-        sed -i "s/__GNOSISVPN_TOOLKIT_VERSION__/v${GNOSISVPN_TOOLKIT_VERSION}/g" "$distribution_dir/welcome.html"
+        sed -i "s/__GNOSISVPN_PACKAGE_VERSION__/v${GNOSISVPN_PACKAGE_VERSION#v}/g" "$distribution_dir/welcome.html"
+        sed -i "s/__GNOSISVPN_APP_VERSION__/v${GNOSISVPN_APP_VERSION#v}/g" "$distribution_dir/welcome.html"
+        sed -i "s/__GNOSISVPN_CLIENT_VERSION__/v${GNOSISVPN_CLIENT_VERSION#v}/g" "$distribution_dir/welcome.html"
+        sed -i "s/__GNOSISVPN_TOOLKIT_VERSION__/v${GNOSISVPN_TOOLKIT_VERSION#v}/g" "$distribution_dir/welcome.html"
     else
         log_warn "welcome.html not found, using default if available"
     fi
 
     local dist_xml_resolved="${BUILD_DIR}/Distribution.xml"
-    sed "s/__MIN_OS_MACOS__/${MIN_OS_MACOS}/g" "$DISTRIBUTION_XML" >"$dist_xml_resolved"
+    render_distribution_xml "$DISTRIBUTION_XML" "$dist_xml_resolved"
 
     productbuild \
         --distribution "$dist_xml_resolved" \
@@ -495,11 +601,22 @@ build_distribution_package() {
 
 }
 
+# Create and configure the dedicated keychain used to hold the installer signing certificate
+create_signing_keychain() {
+    log_info "Creating signing keychain..."
+    security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}"
+    security default-keychain -s "${KEYCHAIN_NAME}"
+    security set-keychain-settings -lut 21600 "${KEYCHAIN_NAME}"
+    security unlock-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}"
+    security list-keychains -d user -s "${KEYCHAIN_NAME}" login.keychain
+    log_success "Signing keychain created: ${KEYCHAIN_NAME}"
+}
+
 # Sign package
 sign_platform_package() {
     if [[ $GNOSISVPN_ENABLE_SIGNATURE == true ]]; then
         log_info "Signing package for distribution..."
-        security unlock-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}"
+        create_signing_keychain
         security import "${GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PATH}" -k "${KEYCHAIN_NAME}" -P "${GNOSISVPN_APPLE_CERTIFICATE_INSTALLER_PASSWORD}" -T /usr/bin/productsign -T /usr/bin/xcrun
         security set-key-partition-list -S apple-tool:,apple:,productsign:,xcrun: -s -k "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_NAME}" 2>/dev/null >/dev/null
         local signing_identity

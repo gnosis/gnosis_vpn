@@ -1,0 +1,9 @@
+# Default
+* @esterlus @ausias-armesto @mjadach-iv
+
+# Highest-trust artifacts: release signing key and disclosure policy.
+/gnosisvpn-public-key.asc @esterlus @ausias-armesto @tolbrino
+/SECURITY.md              @esterlus @ausias-armesto @tolbrino
+
+# Changing ownership itself stays with org admins.
+/.github/CODEOWNERS @gnosis/ext-hopr-admin

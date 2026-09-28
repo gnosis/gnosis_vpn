@@ -1,14 +1,15 @@
-name: Snapshot Build
+# Nightly experimental-line build; mirrors snapshot-build.yaml, kept separate because update-manifests.yaml triggers on workflow NAME.
+name: Experimental Build
 on:
   workflow_dispatch:
     inputs:
       client_version:
-        description: 'Client version to build against (default: newest registry version with binaries for all architectures)'
+        description: 'Client version to build against (default: newest registry version >= COMPONENT_VERSION_BOUNDARY with binaries for all architectures)'
         required: false
         type: string
         default: ''
       app_version:
-        description: 'App version to build against (default: newest registry version with binaries for all architectures)'
+        description: 'App version to build against (default: newest registry version >= COMPONENT_VERSION_BOUNDARY with binaries for all architectures)'
         required: false
         type: string
         default: ''
@@ -18,27 +19,27 @@ on:
         type: string
         default: ''
   repository_dispatch:
-    types: [snapshot_build]
+    types: [experimental_build]
   schedule:
-    - cron: '0 1 * * *' # Runs every day at 1 AM UTC. Please note that scheduled workflows can be delayed by up to 3 hours, so the actual execution time may vary.
+    - cron: '0 2 * * *' # Daily at 2 AM UTC, an hour after the snapshot nightly; may be delayed by up to 3 hours.
 permissions:
   contents: read
   id-token: write
 concurrency:
-  group: snapshot-build
+  group: experimental-build
   cancel-in-progress: false
 jobs:
   build_binary:
     name: Build
     uses: ./.github/workflows/build-binary.yaml
     with:
-      version_type: snapshot
+      version_type: experimental
       client_version: ${{ inputs.client_version }}
       app_version: ${{ inputs.app_version }}
       toolkit_version: ${{ inputs.toolkit_version }}
     secrets: inherit
-  update_snapshot:
-    name: Update snapshot
+  update_experimental:
+    name: Update experimental
     runs-on: depot-ubuntu-22.04-4
     if: needs.build_binary.outputs.SNAPSHOT_TRIGGERED == 'true'
     needs:
@@ -48,10 +49,10 @@ jobs:
       GNOSISVPN_CLIENT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_CLIENT_VERSION }}
       GNOSISVPN_APP_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_APP_VERSION }}
       GNOSISVPN_TOOLKIT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_TOOLKIT_VERSION }}
-      GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ vars.GNOSISVPN_PACKAGE_PR_VERSION }}
-      GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ vars.GNOSISVPN_CLIENT_PR_VERSION }}
-      GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_APP_PR_VERSION }}
-      GNOSISVPN_PREVIOUS_TOOLKIT_VERSION: ${{ vars.GNOSISVPN_TOOLKIT_PR_VERSION }}
+      GNOSISVPN_PREVIOUS_PACKAGE_VERSION: ${{ vars.GNOSISVPN_PACKAGE_EXPERIMENTAL_PR_VERSION }}
+      GNOSISVPN_PREVIOUS_CLIENT_VERSION: ${{ vars.GNOSISVPN_CLIENT_EXPERIMENTAL_PR_VERSION }}
+      GNOSISVPN_PREVIOUS_APP_VERSION: ${{ vars.GNOSISVPN_APP_EXPERIMENTAL_PR_VERSION }}
+      GNOSISVPN_PREVIOUS_TOOLKIT_VERSION: ${{ vars.GNOSISVPN_TOOLKIT_EXPERIMENTAL_PR_VERSION }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -65,6 +66,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GNOSISVPN_CHANGELOG_FORMAT: zulip
+          # Points the download links at the experimental pool / bucket dir.
+          GNOSISVPN_CHANNEL: experimental
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Prepare notification message
         run: |
@@ -82,7 +85,7 @@ jobs:
           organization-url: "https://hopr.zulipchat.com"
           type: "stream"
           to: "GnosisVPN"
-          topic: "Snapshot Builds"
+          topic: "Experimental Builds"
           content: ${{ env.NOTIFICATION_CONTENT }}
       - name: Generate GitHub App token
         id: bot-token
@@ -97,30 +100,27 @@ jobs:
         run: |
           if [[ "${GNOSISVPN_PACKAGE_VERSION}" != "${GNOSISVPN_PREVIOUS_PACKAGE_VERSION}" ]]; then
             echo "New merged PR found for gnosis_vpn: ${GNOSISVPN_PACKAGE_VERSION}"
-            gh variable set GNOSISVPN_PACKAGE_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_PACKAGE_VERSION}"
+            gh variable set GNOSISVPN_PACKAGE_EXPERIMENTAL_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_PACKAGE_VERSION}"
           fi
           if [[ "${GNOSISVPN_CLIENT_VERSION}" != "${GNOSISVPN_PREVIOUS_CLIENT_VERSION}" ]]; then
             echo "New merged PR found for gnosis_vpn-client: ${GNOSISVPN_CLIENT_VERSION}"
-            gh variable set GNOSISVPN_CLIENT_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_CLIENT_VERSION}"
+            gh variable set GNOSISVPN_CLIENT_EXPERIMENTAL_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_CLIENT_VERSION}"
           fi
           if [[ "${GNOSISVPN_APP_VERSION}" != "${GNOSISVPN_PREVIOUS_APP_VERSION}" ]]; then
             echo "New merged PR found for gnosis_vpn-app: ${GNOSISVPN_APP_VERSION}"
-            gh variable set GNOSISVPN_APP_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_APP_VERSION}"
+            gh variable set GNOSISVPN_APP_EXPERIMENTAL_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_APP_VERSION}"
           fi
           if [[ "${GNOSISVPN_TOOLKIT_VERSION}" != "${GNOSISVPN_PREVIOUS_TOOLKIT_VERSION}" ]]; then
             echo "New merged PR found for gnosis_vpn-toolkit: ${GNOSISVPN_TOOLKIT_VERSION}"
-            gh variable set GNOSISVPN_TOOLKIT_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_TOOLKIT_VERSION}"
+            gh variable set GNOSISVPN_TOOLKIT_EXPERIMENTAL_PR_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_TOOLKIT_VERSION}"
           fi
-      - name: Publish snapshot manifest variables
-        # This job only runs when artifacts were actually built
-        # (SNAPSHOT_TRIGGERED == 'true'), so these variables always reflect the
-        # most recent real snapshot — never a no-op skipped run. generate-update-manifest.sh
-        # reads them instead of walking workflow runs to find the latest non-skipped build.
+      - name: Publish experimental manifest variables
+        # Only runs on a real build, so these always name the latest non-skipped one; the manifest generator tolerates their absence.
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
-          GNOSISVPN_SNAPSHOT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+          GNOSISVPN_EXPERIMENTAL_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
         run: |
           published_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          echo "Publishing snapshot version ${GNOSISVPN_SNAPSHOT_VERSION} (published_at ${published_at})"
-          gh variable set GNOSISVPN_SNAPSHOT_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_SNAPSHOT_VERSION}"
-          gh variable set GNOSISVPN_SNAPSHOT_DATE --repo ${{ github.repository }} --body "${published_at}"
+          echo "Publishing experimental version ${GNOSISVPN_EXPERIMENTAL_VERSION} (published_at ${published_at})"
+          gh variable set GNOSISVPN_EXPERIMENTAL_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_EXPERIMENTAL_VERSION}"
+          gh variable set GNOSISVPN_EXPERIMENTAL_DATE --repo ${{ github.repository }} --body "${published_at}"

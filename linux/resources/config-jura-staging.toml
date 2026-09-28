@@ -1,0 +1,32 @@
+version = 6
+
+[destinations.USA]
+address = "0xd2a5416b2b7aa9a6a14807d06cf07230dbcf4d58"
+meta = { location = "Omaha", flag = "US" }
+
+[destinations.UK]
+address = "0xf02e0966db58514512d59cc975c2de217d1c1707"
+meta = { location = "London", flag = "GB" }
+
+[destinations.Brazil]
+address = "0xd87dfe2d0466830086bd5f19b7f7176e3d118cc6"
+meta = { location = "Sao Paulo", flag = "BR" }
+
+[destinations.Australia]
+address = "0x8ad068878072a7ae62b6c871d80534dbc9a5265e"
+meta = { location = "Sydney", flag = "AU" }
+
+[destinations."South Korea"]
+address = "0x71303bc942a5782a07d29ebf2ed2f913b947ebe1"
+meta = { location = "Seoul", flag = "KR" }
+
+[strategy]
+channel_capacity = "480 MiB"
+topup_capacity = "480 MiB"
+lower_capacity_threshold = "128 MiB"
+min_safe_capacity_required = "384 MiB"
+sizing_mode = "deterministic"
+
+[connection.path_planner]
+# Prune to the 3 fastest candidate paths; the client preset keeps every relayer (0).
+min_paths_anonymity_floor = 3

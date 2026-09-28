@@ -27,3 +27,19 @@ meta = { location = "Sydney", flag = "AU" }
 [destinations."South Korea"]
 address = "0xd8efe2ebe14c8cc193d5a9f5afd81276549fad67"
 meta = { location = "Seoul", flag = "KR" }
+
+# 16-core node, 16 peer limit
+[destinations.Austria]
+address = "0x210a14012535321b919653fdee8c2d5971b0e534"
+meta = { location = "Vienna", flag = "AT" }
+
+[strategy]
+channel_capacity = "480 MiB"
+topup_capacity = "480 MiB"
+lower_capacity_threshold = "128 MiB"
+min_safe_capacity_required = "384 MiB"
+sizing_mode = "deterministic"
+
+[connection.path_planner]
+# Prune to the 3 fastest candidate paths; the client preset keeps every relayer (0).
+min_paths_anonymity_floor = 3

@@ -12,8 +12,10 @@ user-friendly graphical interface for installing and configuring the Gnosis VPN 
 - **Version Tracking**: Tracks installation versions for better update management
 - **Automatic Backups**: Creates backups of binaries and configurations before updates
 - **WireGuard Integration**: Automatically detects and installs WireGuard tools if needed
-- **Network Selection**: Choose between Production (Gnosis Chain) or Jura as testnet
-- **Configuration Generation**: Creates `config.toml` with selected network destinations
+- **Network Selection**: Jura Prod, Jura Staging or Jura Dev on stable/snapshot builds; Piz Palu Dev on experimental
+  builds (each installer only offers the networks of its own line)
+- **Configuration Generation**: Creates `config.toml` for the selected network; the Jura networks ship a configured
+  destination list, Piz Palu Dev ships none and relies on the client finding exit nodes at runtime
 - **macOS Integration**: Removes quarantine attributes and sets proper permissions
 - **Management Tools**: Includes utility for managing installations and backups
 
@@ -39,7 +41,9 @@ gnosis_vpn-manager [command]
 
 The installer scripts support these environment variables:
 
-- `INSTALLER_CHOICE_NETWORK`: Network selection ("jura" or "rotsee", default: "jura")
+- `INSTALLER_CHOICE_NETWORK`: Network selection; one of the networks the installer ships (listed in the pkg's baked
+  `networks` file), defaulting to the first of them — "jura-prod" on stable/snapshot builds, "piz-palu-dev" on
+  experimental builds. A value the installer does not ship falls back to that default.
 - `INSTALLER_CHOICE_LOGLEVEL`: Log level service mode ( "debug" or "info", default: "info")
 
 ### Installation Locations

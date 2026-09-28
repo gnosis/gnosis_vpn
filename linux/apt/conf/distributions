@@ -19,3 +19,14 @@ Description: Gnosis VPN APT repository (snapshot)
 SignWith: 84F73FEA46D10972
 DebIndices: Packages Release . .gz
 Contents:
+
+Origin: GnosisVPN
+Label: GnosisVPN
+Suite: experimental
+Codename: experimental
+Architectures: amd64 arm64
+Components: experimental
+Description: Gnosis VPN APT repository (experimental)
+SignWith: 84F73FEA46D10972
+DebIndices: Packages Release . .gz
+Contents:

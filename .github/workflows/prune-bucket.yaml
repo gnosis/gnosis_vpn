@@ -1,11 +1,10 @@
 # Reusable: prunes old artifacts from gs://download.gnosisvpn.io, keeping only
-# the newest N versions per channel (N from scripts/config.sh). Deletes the
+# the newest N versions per channel (N from config/channels.sh). Deletes the
 # primary artifact plus its .asc / .sha256 sidecars for every pruned version,
 # across both the APT pool and the macOS directory of the channel.
 #
 # Callers run this ONLY after a successful publish:
-#   - build-binary.yaml: snapshot channel, needs the snapshot Linux build, macOS
-#                        build, and APT publish to have succeeded.
+#   - build-binary.yaml: snapshot and experimental, after that line's builds and APT publish.
 #   - release.yaml:      stable channel, needs the build and the stable APT
 #                        publish to have succeeded.
 name: Prune Bucket
@@ -13,18 +12,19 @@ on:
   workflow_call:
     inputs:
       channel:
-        description: 'Channel to prune (stable or snapshot)'
+        description: 'Channel to prune (stable, snapshot or experimental)'
         required: true
         type: string
   workflow_dispatch:
     inputs:
       channel:
-        description: 'Channel to prune (stable or snapshot)'
+        description: 'Channel to prune (stable, snapshot or experimental)'
         required: true
         type: choice
         options:
           - stable
           - snapshot
+          - experimental
 jobs:
   prune:
     runs-on: depot-ubuntu-22.04-4
@@ -34,9 +34,9 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@ade4bbd75f7204255c61d19c23f67d3da221e7d2 # setup-gcp-v4
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@7263182fc9a2bab22cc5a029929940914eb9748d # setup-gcp-v4
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
@@ -46,13 +46,18 @@ jobs:
         shell: bash
         run: |
           channel="${{ inputs.channel }}"
-          # Retention counts: single source of truth in scripts/config.sh.
-          source scripts/config.sh
+          # Retention counts: single source of truth in config/channels.sh.
+          source config/channels.sh
           case "$channel" in
             snapshot)
               apt_pool="pool/snapshot/g/gnosisvpn"
               macos_dir="latest"
               keep="$RETAIN_SNAPSHOT"
+              ;;
+            experimental)
+              apt_pool="pool/experimental/g/gnosisvpn"
+              macos_dir="experimental"
+              keep="$RETAIN_EXPERIMENTAL"
               ;;
             stable)
               apt_pool="pool/main/g/gnosisvpn"
@@ -60,7 +65,7 @@ jobs:
               keep="$RETAIN_STABLE"
               ;;
             *)
-              echo "Invalid channel: '$channel' (expected stable or snapshot)" >&2
+              echo "Invalid channel: '$channel' (expected stable, snapshot or experimental)" >&2
               exit 1
               ;;
           esac

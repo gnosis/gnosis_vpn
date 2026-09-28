@@ -10,9 +10,11 @@ config/
 ├── system/               # System configuration files
 │   └── com.gnosisvpn.gnosisvpnclient.plist  # LaunchD service configuration
 └── templates/           # Configuration templates
-    ├── jura.toml.template     # Jura network configuration template
-    └── rotsee.toml.template   # Rotsee network configuration template
 ```
+
+Each build ships only the templates of its installer line, selected by `GNOSISVPN_NETWORKS` (see `NETWORKS_STANDARD` /
+`NETWORKS_EXPERIMENTAL` in `config/channels.sh`): the stable and snapshot channels ship the jura networks, the
+experimental channel ships `piz-palu-dev`.
 
 ## System Configuration Files
 
@@ -36,10 +38,12 @@ TOML configuration templates for different network environments.
 
 **Available Networks:**
 
-- **jura**: Default production network
-- **rotsee**: Alternative production network
+- **jura-prod**: Default production network (stable, snapshot)
+- **jura-staging**: Staging network (stable, snapshot)
+- **jura-dev**: Development network (stable, snapshot)
+- **piz-palu-dev**: Piz Palu development network (experimental)
 
-**Template Structure:**
+**Template Structure** (Jura networks):
 
 ```toml
 version = 6
@@ -49,8 +53,11 @@ address = "0xExitNodeAddress"
 meta = { location = "City", flag = "XX" }
 ```
 
+The `[destinations.*]` tables are present in the Jura templates only. `piz-palu-dev` declares `version = 7`, ships no
+destination list and relies on the client finding exit nodes at runtime.
+
 The table key is a free-form destination id (the country name, by convention). `path` is optional and may only be
-`path = { hops = N }` with `N` in 0-3; when omitted it defaults to 1 hop, which is what both shipped configs rely on.
+`path = { hops = N }` with `N` in 0-3; when omitted it defaults to 1 hop, which is what the Jura configs rely on.
 
 The `meta` table accepts any string key-value pairs. Two keys are used by the UI:
 
@@ -67,11 +74,19 @@ These configuration files are automatically processed during installation:
 2. **System configs** are processed by postinstall scripts to set up services
 3. The installer selects appropriate templates based on the `INSTALLER_CHOICE_NETWORK` environment variable
 
+The networks a build ships are baked next to the installer's `version.txt` (read by the postinstall as
+`${SCRIPT_DIR}/networks`, first entry = default). The postinstall validates `INSTALLER_CHOICE_NETWORK` against that list
+— a choice left over from an install of the other line falls back to the default — and deletes templates from
+`/etc/gnosisvpn/templates/` that this build does not ship, since the package payload only ever adds files.
+
 ## Customization
 
 To customize the installer configuration:
 
-1. **Add new network templates**: Create new `.toml.template` files in `templates/`
+1. **Add new network templates**: create a new `.toml.template` file in `templates/`, then add the network to
+   `NETWORKS_STANDARD` or `NETWORKS_EXPERIMENTAL` in `config/channels.sh` and give it a title and description in
+   `network_title` / `network_description` in `scripts/generate-package-mac.sh`. Linux additionally needs a matching
+   `linux/resources/config-<network>.toml`.
 2. **Modify service behavior**: Edit `system/com.gnosisvpn.gnosisvpnclient.plist`
 3. **Update build process**: Modify references in `../build-pkg.sh` and `../scripts/postinstall`
 

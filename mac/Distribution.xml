@@ -8,9 +8,8 @@
     <organization>com.gnosisvpn</organization>
     <domains enable_anywhere="true"/>
 
-    <!-- Package metadata -->
-    <pkg-ref id="com.gnosisvpn.choice.network.rotsee"/>
-    <pkg-ref id="com.gnosisvpn.choice.network.jura"/>
+    <!-- Package metadata; network entries rendered by generate-package-mac.sh::render_distribution_xml -->
+__NETWORK_PKG_REF_IDS__
     <pkg-ref id="com.gnosisvpn.choice.loglevel.info"/>
     <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"/>
     <!-- The default package needs to be last to run its postinstall as last -->
@@ -85,8 +84,7 @@
     <!-- Choices outline - what the user sees -->
     <choices-outline>
         <line choice="network">
-            <line choice="jura"/>
-            <line choice="rotsee"/>
+__NETWORK_CHOICE_LINES__
         </line>
         <line choice="loglevel">
             <line choice="info"/>
@@ -113,25 +111,8 @@
             enabled="true">
     </choice>
 
-    <!-- Rotsee network sub-choice -->
-    <choice id="rotsee"
-            title="Rotsee"
-            description="Connect to VPN nodes on the Rotsee network - US, UK, India"
-            visible="true"
-            start_selected="false"
-            enabled="true">
-        <pkg-ref id="com.gnosisvpn.choice.network.rotsee"/>
-    </choice>
-
-    <!-- Jura network sub-choice -->
-    <choice id="jura"
-            title="Jura (Recommended)"
-            description="Connect to VPN nodes on the Jura network - US, UK, NL, Brazil, Australia, India, South Korea"
-            visible="true"
-            enabled="exclusiveEnabled('jura', ['rotsee','jura'])"
-            start_selected="true">
-        <pkg-ref id="com.gnosisvpn.choice.network.jura"/>
-    </choice>
+    <!-- Network sub-choices, mutually exclusive with the first pre-selected; rendered by render_distribution_xml -->
+__NETWORK_CHOICES__
 
     <!-- Service mode selection choice (parent group) -->
     <choice id="loglevel"
@@ -170,21 +151,7 @@
         #GnosisVPN.pkg
     </pkg-ref>
 
-    <pkg-ref id="com.gnosisvpn.choice.network.rotsee"
-             version="0"
-             auth="root"
-             installKBytes="0"
-             onConclusion="none">
-        #choice-network-rotsee.pkg
-    </pkg-ref>
-
-    <pkg-ref id="com.gnosisvpn.choice.network.jura"
-             version="0"
-             auth="root"
-             installKBytes="0"
-             onConclusion="none">
-        #choice-network-jura.pkg
-    </pkg-ref>
+__NETWORK_PKG_REFS__
 
     <pkg-ref id="com.gnosisvpn.choice.loglevel.info"
              version="0"

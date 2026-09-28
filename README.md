@@ -9,23 +9,41 @@ This repository collects the binary artifacts that compose the Gnosis VPN projec
 Install via the APT repository (recommended):
 
 ```bash
+curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash
+```
+
+The script prompts for `sudo` itself when it needs to add the APT repository, install the package, or manage the systemd
+service — once, up front, then caches it for the rest of the run. For non-interactive/headless use (no controlling
+terminal for a sudo password prompt, e.g. CI or provisioning) or when already running as root, pipe into `sudo bash`
+instead:
+
+```bash
 curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash
 ```
 
 The installer accepts options after `-s --`:
 
-- `--channel=<stable|snapshot>` — APT channel to subscribe to; `snapshot` is the nightly channel (default: `stable`).
-  Env var: `GNOSISVPN_CHANNEL`.
+- `--channel=<stable|snapshot|experimental>` — APT channel to subscribe to; `snapshot` is the nightly channel of the
+  standard installer line and `experimental` the nightly channel of the experimental line (default: `stable`). Env var:
+  `GNOSISVPN_CHANNEL`.
 
   ```bash
-  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --channel=snapshot
+  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=snapshot
+  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=experimental
   ```
 
-- `--network=<jura|rotsee>` — network to configure (default: `jura` on first install; omitting keeps an existing
-  choice). Env var: `GNOSISVPN_NETWORK`.
+- `--network=<name>` — network to configure. Each channel only ships the networks of its own line, so which names are
+  accepted depends on `--channel`. Env var: `GNOSISVPN_NETWORK`.
+
+  | Channel              | Networks                                | Default        |
+  | -------------------- | --------------------------------------- | -------------- |
+  | `stable`, `snapshot` | `jura-prod`, `jura-staging`, `jura-dev` | `jura-prod`    |
+  | `experimental`       | `piz-palu-dev`                          | `piz-palu-dev` |
+
+  On `stable` and `snapshot`, omitting `--network` keeps an existing choice.
 
   ```bash
-  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=rotsee
+  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --network=jura-dev
   ```
 
 - `--reset-identity` — back up the worker's config directory (`/var/lib/gnosisvpn/.config/`, holding the HOPR identity,
@@ -34,36 +52,48 @@ The installer accepts options after `-s --`:
   `GNOSISVPN_RESET_IDENTITY=true`.
 
   ```bash
-  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --reset-identity
+  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --reset-identity
   ```
 
 - `-h`, `--help` — show the installer's help and exit.
 
   ```bash
-  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --help
+  curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --help
   ```
 
-Snapshot installs and upgrades pull from `download.gnosisvpn.io` only — the IPFS mirror serves just the stable suite.
+Snapshot and experimental installs and upgrades pull from `download.gnosisvpn.io` only — the IPFS mirror serves just the
+stable suite.
 
-**Switching channels:** re-run the installer with the desired `--channel`. Switching snapshot→stable performs an
-automatic pinned downgrade to the newest stable release (snapshot versions always sort above stable ones, so plain
-`apt upgrade` would never move back on its own). Caution: a re-run without `--channel` selects the default (stable) — on
-a snapshot installation, pass `--channel=snapshot` again when re-running, e.g. to switch networks. Manually installing a
-`.deb` from the other channel (`sudo apt install ./gnosisvpn_*.deb`) re-points
-`/etc/apt/sources.list.d/gnosisvpn.sources` at that package's channel; run `sudo apt-get update` afterwards.
+**Two installer lines.** The three channels come from two lines that differ in which client and app generation they are
+built against, and therefore in which networks they ship:
 
-The installer sets up the default network (`jura`) on first install and keeps an existing choice on re-runs. To pick a
-different network — or to switch an existing installation — pass `--network` (combinable with `--channel`; see
-[.deb Installation Environment Variables](#deb-installation-environment-variables)):
+| Line         | Channels             | Networks                                | Client + app version |
+| ------------ | -------------------- | --------------------------------------- | -------------------- |
+| standard     | `stable`, `snapshot` | `jura-prod`, `jura-staging`, `jura-dev` | below `0.100.0`      |
+| experimental | `experimental`       | `piz-palu-dev`                          | `0.100.0` and above  |
+
+**Switching channels:** re-run the installer with the desired `--channel`. When the target channel's newest package is
+older than the installed one, the installer performs a pinned downgrade (plain `apt upgrade` would never move back on
+its own). Because a channel switch also switches lines, the configured network may change: if the current network is not
+shipped by the target channel, the channel's default is selected and `/etc/gnosisvpn/config.toml` is re-pointed at it. A
+round trip through the other line therefore does not preserve a non-default network choice — pass `--network` to set it
+again. Caution: a re-run without `--channel` selects the default (stable) — on a snapshot or experimental installation,
+pass that channel again when re-running, e.g. to switch networks. Manually installing a `.deb` from another channel
+(`sudo apt install ./gnosisvpn_*.deb`) re-points `/etc/apt/sources.list.d/gnosisvpn.sources` at that package's channel;
+run `sudo apt-get update` afterwards.
+
+The installer sets up the channel's default network on first install and, on the standard line, keeps an existing choice
+on re-runs. To pick a different network — or to switch an existing installation — pass `--network` (combinable with
+`--channel`; see [.deb Installation Environment Variables](#deb-installation-environment-variables)):
 
 ```bash
-curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --network=rotsee
+curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --network=jura-dev
 ```
 
 Manual repo setup (equivalent to what the installer does for the stable channel — it lists both mirrors, the IPFS/ENS
-gateway and the CDN, as independent sources of the same signed packages; for snapshot use `Suites: snapshot`,
-`Components: snapshot`, and only the `download.gnosisvpn.io` URI). The `$(dpkg --print-architecture)` command detects
-the host architecture automatically:
+gateway and the CDN, as independent sources of the same signed packages; for the other channels set both `Suites:` and
+`Components:` to the channel name — `snapshot` or `experimental` — and list only the `download.gnosisvpn.io` URI). The
+`$(dpkg --print-architecture)` command detects the host architecture automatically:
 
 ```bash
 # 1. Add the signing key
@@ -102,18 +132,19 @@ variables with `sudo env` (a plain `sudo GNOSISVPN_NETWORK=... apt install` only
 sudoers policy keeps it, which is often disabled; `sudo env` always works):
 
 ```bash
-sudo env GNOSISVPN_NETWORK=rotsee apt install ./gnosisvpn_*.deb
-sudo env GNOSISVPN_NETWORK=rotsee GNOSISVPN_HOPR_BLOKLI_URL=https://blokli.example.com apt install ./gnosisvpn_*.deb
+sudo env GNOSISVPN_NETWORK=jura-dev apt install ./gnosisvpn_*.deb
+sudo env GNOSISVPN_NETWORK=jura-dev GNOSISVPN_HOPR_BLOKLI_URL=https://blokli-jura.dev.hoprnet.link apt install ./gnosisvpn_*.deb
 ```
 
 Note: re-installing the **same version** via `apt` does nothing — the package scripts don't re-run, so environment
 variables passed this way are silently ignored. To change settings on an existing installation, re-run the installer
 script with the matching flag (or use `sudo env GNOSISVPN_...=<value> dpkg -i ./gnosisvpn_*.deb`).
 
-Installing the `.deb` directly also registers the APT source for the package's own channel (stable for release versions,
-snapshot for versions containing `+`), so subsequent `apt-get update && apt-get upgrade` picks up new releases without
-running the installer script. An existing `/etc/apt/sources.list.d/gnosisvpn.sources` is left untouched unless it tracks
-the other channel.
+Installing the `.deb` directly also registers the APT source for the package's own channel, so subsequent
+`apt-get update && apt-get upgrade` picks up new releases without running the installer script. The channel is inferred
+from the package version: a version ending in `.experimental` is experimental, any other version containing `+` is
+snapshot, and a plain `x.y.z` is stable. An existing `/etc/apt/sources.list.d/gnosisvpn.sources` is left untouched
+unless it tracks a different channel.
 
 Uninstall:
 
@@ -126,16 +157,20 @@ sudo apt remove gnosisvpn
 Direct `.deb` installs have no flags — these environment variables configure the package scripts instead (set them with
 `sudo env`, see above). They are also honored by the installer script.
 
-- `GNOSISVPN_NETWORK=<jura|rotsee>` — network configuration to use (default: `jura`); determines which configuration
-  file is symlinked to `/etc/gnosisvpn/config.toml` during installation.
+- `GNOSISVPN_NETWORK=<name>` — network configuration to use; determines which configuration file is symlinked to
+  `/etc/gnosisvpn/config.toml` during installation. Only the networks the package actually ships are accepted — they are
+  listed in `/usr/share/gnosisvpn/networks` (first entry is the default): `jura-prod jura-staging jura-dev` on the
+  standard line, `piz-palu-dev` on the experimental line. Passing a network from the other line fails the install with
+  the supported list, and if `config.toml` points at a network this package does not ship, the postinstall re-points it
+  at the default and moves the Blokli endpoint with it (unless a custom `GNOSISVPN_HOPR_BLOKLI_URL` is set).
 
   ```bash
-  sudo env GNOSISVPN_NETWORK=rotsee apt install ./gnosisvpn_*.deb
+  sudo env GNOSISVPN_NETWORK=jura-dev apt install ./gnosisvpn_*.deb
   ```
 
-- `GNOSISVPN_HOPR_BLOKLI_URL=<url>` — URL of the HOPR Blokli service (default: `https://blokli.<network>.hoprnet.link`
-  for the selected network). The effective URL is written to `/etc/gnosisvpn/gnosisvpn-dynamic.env` (which overrides the
-  packaged `/etc/gnosisvpn/gnosisvpn.env` conffile, kept empty so upgrades stay prompt-free).
+- `GNOSISVPN_HOPR_BLOKLI_URL=<url>` — URL of the HOPR Blokli service. The effective URL is written to
+  `/etc/gnosisvpn/gnosisvpn-dynamic.env` (which overrides the packaged `/etc/gnosisvpn/gnosisvpn.env` conffile, kept
+  empty so upgrades stay prompt-free).
 
   ```bash
   sudo env GNOSISVPN_HOPR_BLOKLI_URL=https://blokli.example.com apt install ./gnosisvpn_*.deb
@@ -149,6 +184,32 @@ Direct `.deb` installs have no flags — these environment variables configure t
   ```bash
   sudo env GNOSISVPN_RESET_IDENTITY=true apt install ./gnosisvpn_*.deb
   ```
+
+### Network Tuning: TCP BBR
+
+The package installs `/etc/sysctl.d/99-gnosisvpn-bbr.conf`, which selects the BBR congestion control algorithm and the
+`fq` queueing discipline system-wide:
+
+```
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+```
+
+They improve throughput and latency of traffic sent through the tunnel. The postinstall runs `sysctl --system`, so no
+reboot is needed. `default_qdisc` only applies to interfaces created after it is set; one already up keeps its queueing
+discipline. If another sysctl file or `/etc/sysctl.conf` already pins these keys, that file still wins - the postinstall
+prints the resulting values.
+
+To disable it (removing the file alone does not reset the running values):
+
+```bash
+sudo rm /etc/sysctl.d/99-gnosisvpn-bbr.conf
+sudo sysctl -w net.ipv4.tcp_congestion_control=cubic
+sudo sysctl -w net.core.default_qdisc=fq_codel
+```
+
+`cubic` and `fq_codel` are the kernel defaults. The file is a dpkg conffile: once removed, upgrades do not bring it
+back, and `sudo apt purge gnosisvpn` removes it too.
 
 ## Reporting Issues
 
@@ -211,14 +272,16 @@ just all dmg aarch64-darwin true
 The **stable** APT repo is served over IPFS via the ENS gateway at `https://download.vpn.gnosis.eth.limo/linux/apt` (see
 [IPFS deployment layout](#ipfs-deployment-layout)).
 
-The full repository — stable plus the nightly `snapshot` suite — is served from
+The full repository — stable plus the nightly `snapshot` and `experimental` suites — is served from
 `https://download.gnosisvpn.io/linux/apt`, built and signed by [`scripts/publish-apt.sh`](scripts/publish-apt.sh), which
 uses [`reprepro`](https://salsa.debian.org/brlink/reprepro) configured by
 [`linux/apt/conf/distributions`](linux/apt/conf/distributions) to assemble `Packages` indexes and sign
 `InRelease`/`Release.gpg` with the GnosisVPN GPG key. The new `InRelease` is uploaded last so the swap is atomic and apt
 clients never see a half-updated repo. Stable publishing is gated on the GitHub release job in `release.yaml`, so apt
 clients can never see a stable version that lacks a matching GitHub release. Nightly builds publish to the `snapshot`
-suite from `build-binary.yaml` right after the Linux build completes.
+and `experimental` suites from `build-binary.yaml` right after the Linux build completes. Each channel has its own
+component and pool (`main`/`pool/main`, `snapshot`/`pool/snapshot`, `experimental`/`pool/experimental`), declared in
+`linux/apt/conf/distributions`.
 
 ### IPFS deployment layout
 
@@ -259,32 +322,67 @@ download.gnosisvpn.io/
 │       │   │   ├── Release
 │       │   │   ├── Release.gpg
 │       │   │   └── main/binary-{amd64,arm64}/Packages(+.gz)
-│       │   └── snapshot/                               # same shape, component is `snapshot/` (not `main/`)
+│       │   ├── snapshot/                               # same shape, component is `snapshot/` (not `main/`)
+│       │   └── experimental/                           # same shape, component is `experimental/`
 │       └── pool/
-│           ├── main/g/gnosisvpn/      gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # stable, every release
-│           └── snapshot/g/gnosisvpn/  gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # nightly, append-only
+│           ├── main/g/gnosisvpn/          gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # stable, every release
+│           ├── snapshot/g/gnosisvpn/      gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # nightly, append-only
+│           └── experimental/g/gnosisvpn/  gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # nightly, append-only
 ├── macos/                                                  # <version> uses '-' in place of '+' (Artifact Registry compat)
-│   ├── stable/   gnosisvpn_<version>_arm64.pkg(+.sha256)
-│   └── latest/   gnosisvpn_<version>_arm64.pkg(+.sha256)   # snapshot
+│   ├── stable/         gnosisvpn_<version>_arm64.pkg(+.sha256)
+│   ├── latest/         gnosisvpn_<version>_arm64.pkg(+.sha256)   # snapshot
+│   └── experimental/   gnosisvpn_<version>_arm64.pkg(+.sha256)
 └── manifests/                                              # consumed by the client app for auto-update
-    ├── {linux-amd64,linux-arm64,macos-arm64}.json(+.asc, +.sha256)
+    ├── {linux-amd64,linux-arm64,macos-arm64}.json(+.asc, +.sha256)        # channels: stable, snapshot, experimental
     └── {linux-amd64,linux-arm64,macos-arm64}.ipfs.json(+.asc, +.sha256)   # IPFS stable-only variant
 ```
+
+The `experimental` key appears in the per-platform manifests only once the Experimental Build workflow has published
+once; it is never added to the `.ipfs.json` variants, because experimental is not mirrored to IPFS.
+
+The manifests are `schema_version` 2. Each channel entry carries `end_of_life`, a list (`[]` when nothing is announced).
+Each item says that installs of that channel with a package version `<= version` stop working at `ends_at` (RFC 3339
+UTC); with several matching items the earliest `ends_at` applies. `reason` explains why, without a call to action, which
+the app supplies:
+
+```json
+"end_of_life": [
+  {
+    "version": "0.92.0",
+    "ends_at": "2026-10-15T00:00:00Z",
+    "reason": "GnosisVPN versions up to 0.92.0 rely on legacy HOPR endpoints that are being shut down."
+  }
+]
+```
+
+### Config
+
+Pinned inputs in `config/`. The JSON files are read with `jq`; `channels.sh` is sourced by the scripts:
+
+- `channels.sh` — the per-channel retention counts, `COMPONENT_VERSION_BOUNDARY` (the client/app version that separates
+  the two installer lines) and `NETWORKS_STANDARD` / `NETWORKS_EXPERIMENTAL` (the networks each line ships)
+- `min-app-version.json` — `min_app_version` per channel, required for `stable`, `snapshot` and `experimental`; a plain
+  `x.y.z` on the date-based channels means no gate
+- `end-of-life.json` — `end_of_life` list per channel; an absent channel has none
+- `min-os.json` — minimum OS versions (`macos`, `linux_ubuntu`), written as `min_os_version` in the manifests and into
+  the macOS `Distribution.xml`
 
 ### Scripts
 
 - `common.sh` — shared utility functions (logging, version checks)
-- `config.sh` — static configuration (`MIN_OS_*`, `MIN_APP_VERSION`) used by build and manifest scripts
 - `download-binaries.sh` — downloads pre-built upstream binaries (`gnosis_vpn-client`, `gnosis_vpn-app`) from GCP
   Artifact Registry
 - `generate-changelog.ts` — aggregates merged PRs across the three repos; emits zulip/github/debian/json/rpm formats
-  (requires Deno)
+  (requires Deno). Client and app PRs come from the branch of the line being built: versions below `0.100.0` read
+  `release/hoprdv4`, the rest read `main`. The split is hardcoded in the script, matching `COMPONENT_VERSION_BOUNDARY`
+  in `config/channels.sh`, and a test keeps the two in step. Backport PRs are credited with their source PR's title,
+  type and author
 - `generate-manual.sh` — creates man pages (Linux only)
 - `generate-package.sh` — dispatcher that invokes the Linux or macOS packaging script
 - `generate-package-linux.sh` — builds the `.deb` via nfpm, GPG-signs it, writes `.asc` and `.sha256` sidecars
 - `generate-package-mac.sh` — builds the macOS `.pkg` via `productbuild` and notarizes with Apple
 - `generate-update-manifest.sh` — builds per-platform JSON manifests (`linux-amd64.json`, etc.) consumed by the client
-  app for auto-update
+  app for auto-update, taking `min_app_version`, `end_of_life` and the OS floors from `config/`
 - `publish-apt.sh` — builds and signs the APT repo (`Packages`, `InRelease`, `Release.gpg`) and publishes it to GCS
 
 ## Dependency Updates
@@ -306,8 +404,17 @@ deadlock.
 ## CI/CD workflows
 
 The diagram below shows every GitHub Actions workflow, what triggers each one (automatic vs. manual), and how they chain
-together across the **snapshot** and **stable** channels. `Build`, `Publish APT`, and `Prune Bucket` are reusable
-workflows (`workflow_call`) invoked as ordered steps by the channel pipelines; `Prune Bucket` can also be run manually.
+together across the **stable**, **snapshot** and **experimental** channels. `Build`, `Publish APT`, and `Prune Bucket`
+are reusable workflows (`workflow_call`) invoked as ordered steps by the channel pipelines; `Prune Bucket` can also be
+run manually. On the stable channel the version bump (`package.json` + release version variables) is deferred until
+`Publish APT` succeeds — until then nothing permanent touches the branch, so a failed release rolls back by just
+deleting the GitHub release and tag.
+
+`Snapshot Build` and `Experimental Build` are the two nightly pipelines. They are separate top-level workflows because
+`Update Manifests` triggers on the workflow name and because `schedule` events cannot carry inputs; their crons are
+staggered (01:00 and 02:00 UTC) so they do not queue on `Build`'s concurrency group. Each tracks its own
+`GNOSISVPN_*_PR_VERSION` repository variables for the "nothing changed, skip the build" check, and writes the version
+and date that `Update Manifests` reads for its channel.
 
 ```mermaid
 flowchart TD
@@ -319,12 +426,14 @@ flowchart TD
       trRel([Close release · manual])
       trMerge([PR merged to main · automatic])
       trSnap([daily cron · labeled-merge dispatch · manual])
+      trExp([daily cron · labeled-merge dispatch · manual])
     end
     style TRIG fill:transparent,stroke:transparent
 
     %% ---------------- Dev builds (no publish) ----------------
     trMerge --> MERGE["<b>Merge PR</b><br/>Build (pr) — build only, no publish"]
     MERGE -. "if 'snapshot-build' label · repository_dispatch" .-> NBUILD
+    MERGE -. "if 'experimental-build' label · repository_dispatch" .-> XBUILD
 
     %% ---------------- Stable channel ----------------
     trRel --> SBUILD
@@ -332,6 +441,7 @@ flowchart TD
       direction TB
       SBUILD["<b>Build</b> (release)<br/>build .deb + macOS .pkg<br/>macOS .pkg → bucket"] --> SGH["GitHub release<br/>(gates stable APT)"]
       SGH --> SAPT["<b>Publish APT</b> (stable)"]
+      SAPT --> SBUMP["<b>Bump version</b><br/>package.json + release version vars<br/>(only after APT succeeds)"]
       SAPT --> SPRUNE["<b>Prune Bucket</b> (stable)<br/>purge old APT + macOS versions"]
     end
 
@@ -343,9 +453,18 @@ flowchart TD
       NAPT --> NPRUNE["<b>Prune Bucket</b> (snapshot)<br/>purge old APT + macOS versions"]
     end
 
+    %% ---------------- Experimental channel ----------------
+    trExp --> XBUILD
+    subgraph X["Experimental Build · channel: experimental"]
+      direction TB
+      XBUILD["<b>Build</b> (experimental)<br/>build .deb + macOS .pkg<br/>macOS .pkg → bucket"] --> XAPT["<b>Publish APT</b> (experimental)"]
+      XAPT --> XPRUNE["<b>Prune Bucket</b> (experimental)<br/>purge old APT + macOS versions"]
+    end
+
     %% ---------------- Manifests → IPFS → ENS ----------------
     SPRUNE -. "on Close release completion" .-> MAN
     NPRUNE -. "on Snapshot Build completion" .-> MAN
+    XPRUNE -. "on Experimental Build completion" .-> MAN
     trMan([manual dispatch]) --> MAN["<b>Update Manifests</b><br/>manifest upload"]
     MAN -. "stable release only" .-> IPFS["<b>Publish to IPFS</b><br/>publish to IPFS (Pinata)"]
     trIpfs([manual · repository_dispatch]) --> IPFS
@@ -357,8 +476,8 @@ flowchart TD
     trPruneM([manual dispatch]) --> PRUNEM["<b>Prune Bucket</b> (manual run)"]
 
     %% ---------------- Layout only: invisible links (~~~), no semantic meaning ----------------
-    %% manifests group sits below the snapshot group
-    NPRUNE ~~~ trMan
+    %% manifests group sits below the nightly groups
+    XPRUNE ~~~ trMan
     %% attach the standalone column to the snapshot group's right so it packs far right,
     %% declared after trMan so it biases to the right of the manifests column
     NPRUNE ~~~ trPR
