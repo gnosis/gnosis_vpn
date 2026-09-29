@@ -21,16 +21,12 @@ jobs:
       actions: read
       id-token: write
     outputs:
-      # Whether this run should propose the ENS contenthash update — true only
-      # for stable releases (see the "Resolve latest run IDs" step). Consumed
-      # by the propose-ens job.
+      # Only stable releases propose ENS updates.
       from_release: ${{ steps.runs.outputs.from_release }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # Read-only token for the website repo: needed to find and download its
-      # build-downloads-<sha> artifact. Scoped to that repo alone so the App's
-      # broader rights don't leak into this job.
+      # Restrict website access to this repo and read-only permissions.
       - name: Generate GitHub App token
         id: bot-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -47,11 +43,7 @@ jobs:
           WEBSITE_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
           set -euo pipefail
-          # The website 'downloads' app is uploaded per-commit as
-          # build-downloads-<sha> (see _deploy-app.yml in the website repo), so
-          # there is no stable artifact name to filter on. Match the
-          # 'build-downloads-' prefix and take the most recent non-expired
-          # artifact built on main, capturing both its run id and exact name.
+          # Artifact names include commit SHAs, so select the newest valid main build.
           website_artifact=$(GH_TOKEN="$WEBSITE_TOKEN" gh api "repos/gnosis/gnosis_vpn-website_monorepo/actions/artifacts?per_page=100" \
             --jq '[.artifacts[]
                    | select(.expired == false)
@@ -66,19 +58,14 @@ jobs:
           website_name=$(jq -r '.name' <<<"$website_artifact")
           echo "website_run=$website_run" >> "$GITHUB_OUTPUT"
           echo "website_name=$website_name" >> "$GITHUB_OUTPUT"
-          # Binaries come from this repo's latest successful "Close release" run.
           release_run=$(GH_TOKEN="${{ github.token }}" gh run list --workflow release.yaml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
           echo "release_run=$release_run" >> "$GITHUB_OUTPUT"
-          # Manifests come from this repo's "Update Manifests" workflow: the run
-          # that dispatched us when given, its latest successful run otherwise.
           manifests_run='${{ inputs.manifests_run_id }}'
           if [ -z "$manifests_run" ]; then
             manifests_run=$(GH_TOKEN="${{ github.token }}" gh run list --workflow update-manifests.yaml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
           fi
           echo "manifests_run=$manifests_run" >> "$GITHUB_OUTPUT"
-          # ENS is proposed only for stable releases: Update Manifests dispatches
-          # this workflow with propose_ens=true after a successful "Close release".
-          # repository_dispatch (website republish) never proposes.
+          # Only release dispatches may propose the stable ENS update.
           from_release=false
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             from_release='${{ inputs.propose_ens }}'
@@ -112,32 +99,29 @@ jobs:
           manifests=./merged-build/manifests
           website=./merged-build/website
 
-          # jq -e fails on missing/null values; set -e then aborts the step.
+          # Fail early if a manifest omits a required value.
           version=$(jq -er '.channels.stable.version' "$manifests/macos-arm64.ipfs.json")
           url_mac_arm=$(jq -er '.channels.stable.download_url' "$manifests/macos-arm64.ipfs.json")
           url_linux_amd64=$(jq -er '.channels.stable.download_url' "$manifests/linux-amd64.ipfs.json")
           url_linux_arm64=$(jq -er '.channels.stable.download_url' "$manifests/linux-arm64.ipfs.json")
 
-          # All three manifests must agree on the stable version.
+          # Prevent mixing binaries from different stable releases.
           for m in linux-amd64 linux-arm64; do
             v=$(jq -er '.channels.stable.version' "$manifests/$m.ipfs.json")
             [ "$v" = "$version" ] || { echo "::error::Version mismatch: $m has $v, macos-arm64 has $version"; exit 1; }
           done
 
-          # Binaries ship in the same IPFS build, so links are origin-relative:
-          # strip the ENS host prefix (IPFS_BASE_URL in scripts/generate-update-manifest.sh).
+          # Keep links relative to this combined IPFS build.
           url_mac_arm=${url_mac_arm#download.vpn.gnosis.eth/}
           url_linux_amd64=${url_linux_amd64#download.vpn.gnosis.eth/}
           url_linux_arm64=${url_linux_arm64#download.vpn.gnosis.eth/}
 
-          # Values land inside JS template literals in the bundle and inside a
-          # sed replacement — restrict to characters safe for both.
+          # Keep values safe for JS templates and sed replacements.
           for val in "$version" "$url_mac_arm" "$url_linux_amd64" "$url_linux_arm64"; do
             [[ "$val" =~ ^[A-Za-z0-9./_+-]+$ ]] || { echo "::error::Unsafe or empty manifest value: '$val'"; exit 1; }
           done
 
-          # Tolerate a website artifact that predates the placeholders
-          # (publish-timing skew between the two repos): warn and skip.
+          # Older website builds may predate the placeholders.
           files=$(grep -rl -e '<VERSION>' -e '<URL_MAC_ARM>' -e '<URL_LINUX_AMD64>' -e '<URL_LINUX_ARM64>' "$website" || true)
           if [ -z "$files" ]; then
             echo "::warning::No placeholder tokens found in the website build — skipping substitution."
@@ -154,7 +138,6 @@ jobs:
             echo "Substituted placeholders in $f"
           done
 
-          # No token may survive.
           if grep -rn -e '<VERSION>' -e '<URL_MAC_ARM>' -e '<URL_LINUX_AMD64>' -e '<URL_LINUX_ARM64>' "$website"; then
             echo "::error::Placeholder tokens remain after substitution."
             exit 1
@@ -171,7 +154,7 @@ jobs:
             mkdir -p "./merged-build/apt/${path}"
             gsutil -m rsync -r "gs://download.gnosisvpn.io/${path}" "./merged-build/apt/${path}"
           done
-          # Keyring apt clients use to verify the repository signature.
+          # Apt clients need this keyring to verify repository signatures.
           gsutil cp "gs://download.gnosisvpn.io/linux/apt/gnosisvpn-archive-keyring.gpg" "./merged-build/apt/linux/apt/gnosisvpn-archive-keyring.gpg"
       - name: Merge Folders
         run: |
@@ -222,7 +205,6 @@ jobs:
           filebase_bucket: gnosis-vpn-downloads
   propose-ens:
     needs: [prep-ipfs, deploy-ipfs]
-    # Only propose the ENS update for stable releases.
     if: ${{ needs.prep-ipfs.outputs.from_release == 'true' }}
     runs-on: ubuntu-latest
     environment: prod
