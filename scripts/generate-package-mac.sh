@@ -576,9 +576,11 @@ build_distribution_package() {
         sed -i "s/__GNOSISVPN_APP_VERSION__/v${GNOSISVPN_APP_VERSION#v}/g" "$distribution_dir/welcome.html"
         sed -i "s/__GNOSISVPN_CLIENT_VERSION__/v${GNOSISVPN_CLIENT_VERSION#v}/g" "$distribution_dir/welcome.html"
         sed -i "s/__GNOSISVPN_TOOLKIT_VERSION__/v${GNOSISVPN_TOOLKIT_VERSION#v}/g" "$distribution_dir/welcome.html"
+        sed -i "s/__MIN_OS_MACOS__/${MIN_OS_MACOS}/g" "$distribution_dir/welcome.html"
     else
         log_warn "welcome.html not found, using default if available"
     fi
+    sed -i "s/__MIN_OS_MACOS__/${MIN_OS_MACOS}/g" "$distribution_dir/readme.html"
 
     local dist_xml_resolved="${BUILD_DIR}/Distribution.xml"
     render_distribution_xml "$DISTRIBUTION_XML" "$dist_xml_resolved"

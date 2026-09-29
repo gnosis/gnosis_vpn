@@ -67,7 +67,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@7263182fc9a2bab22cc5a029929940914eb9748d # setup-gcp-v4
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@837b94246698537325ecc664dfb22c72c0d6b8ed # setup-gcp-v4
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
@@ -121,7 +121,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@7263182fc9a2bab22cc5a029929940914eb9748d # setup-gcp-v4
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@837b94246698537325ecc664dfb22c72c0d6b8ed # setup-gcp-v4
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
@@ -200,7 +200,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@7263182fc9a2bab22cc5a029929940914eb9748d # setup-gcp-v4
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@837b94246698537325ecc664dfb22c72c0d6b8ed # setup-gcp-v4
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
@@ -269,7 +269,7 @@ jobs:
           package: gnosis_vpn
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@7263182fc9a2bab22cc5a029929940914eb9748d # setup-gcp-v4
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@837b94246698537325ecc664dfb22c72c0d6b8ed # setup-gcp-v4
         if: contains(fromJSON('["snapshot","release","experimental"]'), inputs.version_type)
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
