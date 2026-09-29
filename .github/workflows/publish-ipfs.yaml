@@ -28,6 +28,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Read-only token for the website repo: needed to find and download its
+      # build-downloads-<sha> artifact. Scoped to that repo alone so the App's
+      # broader rights don't leak into this job.
       - name: Generate GitHub App token
         id: bot-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -35,11 +38,13 @@ jobs:
           client-id: ${{ secrets.GH_APP_GNOSISVPN_CLIENT_ID }}
           private-key: ${{ secrets.GH_APP_GNOSISVPN_BOT_PRIVATE_KEY }}
           owner: gnosis
+          repositories: gnosis_vpn-website_monorepo
+          permission-contents: read
+          permission-actions: read
       - name: Resolve latest run IDs
         id: runs
         env:
-          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
-          BOT_TOKEN_READ_ONLY_WEBSITES: ${{ secrets.BOT_TOKEN_READ_ONLY_WEBSITES }}
+          WEBSITE_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
           set -euo pipefail
           # The website 'downloads' app is uploaded per-commit as
@@ -47,7 +52,7 @@ jobs:
           # there is no stable artifact name to filter on. Match the
           # 'build-downloads-' prefix and take the most recent non-expired
           # artifact built on main, capturing both its run id and exact name.
-          website_artifact=$(GH_TOKEN="$BOT_TOKEN_READ_ONLY_WEBSITES" gh api "repos/gnosis/gnosis_vpn-website_monorepo/actions/artifacts?per_page=100" \
+          website_artifact=$(GH_TOKEN="$WEBSITE_TOKEN" gh api "repos/gnosis/gnosis_vpn-website_monorepo/actions/artifacts?per_page=100" \
             --jq '[.artifacts[]
                    | select(.expired == false)
                    | select(.workflow_run.head_branch == "main")
@@ -86,7 +91,7 @@ jobs:
           path: ./merged-build/website/
           repository: gnosis/gnosis_vpn-website_monorepo
           run-id: ${{ steps.runs.outputs.website_run }}
-          github-token: ${{ secrets.BOT_TOKEN_READ_ONLY_WEBSITES }}
+          github-token: ${{ steps.bot-token.outputs.token }}
       - name: Download Binary Artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
