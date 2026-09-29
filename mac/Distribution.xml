@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
     <title>Gnosis VPN</title>
-    <allowed-os-versions>
-        <os-version min="__MIN_OS_MACOS__"/>
-    </allowed-os-versions>
+    <!-- No <allowed-os-versions>: it can pre-empt installationCheck()'s macOS dialog with Apple's generic refusal. -->
+    <installation-check script="installationCheck()"/>
     <organization>com.gnosisvpn</organization>
     <domains enable_anywhere="true"/>
 
@@ -15,10 +14,35 @@ __NETWORK_PKG_REF_IDS__
     <pkg-ref id="com.gnosisvpn.gnosisvpnclient"/>
 
     <!-- Options -->
+    <!-- Keep x86_64 enabled so Intel Macs can see the requirements dialog. -->
     <options customize="allow" require-scripts="false" hostArchitectures="x86_64,arm64"/>
 
-    <!-- JavaScript for mutual exclusion -->
+    <!-- JavaScript for system requirement checks and mutual exclusion -->
     <script><![CDATA[
+        function installationCheck() {
+            // Check architecture first so Intel users aren't told to update macOS.
+            // hw.optional.arm64 also detects Apple Silicon under Rosetta.
+            var isAppleSilicon = false;
+            try {
+                isAppleSilicon = system.sysctl('hw.optional.arm64') == 1;
+            } catch (e) {} // Ignore unavailable sysctl keys.
+            if (!isAppleSilicon) {
+                my.result.title = 'Apple Silicon Required';
+                my.result.message = 'Gnosis VPN requires a Mac with Apple Silicon (M1 or later). Intel-based Macs are not supported.';
+                my.result.type = 'Fatal';
+                return false;
+            }
+
+            if (system.compareVersions(system.version.ProductVersion, '__MIN_OS_MACOS__') < 0) {
+                my.result.title = 'macOS __MIN_OS_MACOS__ or Later Required';
+                my.result.message = 'Gnosis VPN requires macOS __MIN_OS_MACOS__ or later. You are running macOS ' + system.version.ProductVersion + '. Please update macOS in System Settings > Software Update.';
+                my.result.type = 'Fatal';
+                return false;
+            }
+
+            return true;
+        }
+
         function exclusiveEnabled(selfId, groupIds) {
             if (!choices[selfId]) {
                 return true;

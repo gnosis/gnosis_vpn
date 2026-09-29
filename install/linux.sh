@@ -418,7 +418,6 @@ To upgrade later:    sudo apt-get update && sudo apt-get install --only-upgrade 
 To switch networks:  re-run this installer with --network=<name> (see --help for
                      the networks each channel ships)
 To switch channels:  re-run this installer with --channel=<stable|snapshot|experimental>
-To reset identity:   re-run this installer with --reset-identity
 To uninstall:        sudo apt-get remove gnosisvpn
 EOF
 }
