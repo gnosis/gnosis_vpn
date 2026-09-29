@@ -231,7 +231,7 @@ The team will review all discussions and promote confirmed bugs or planned featu
 ### Requirements
 
 - [Nix](https://nixos.org) (recommended) - Provides all build dependencies
-- macOS 11.0 or later for mac packages
+- Apple Silicon Mac on the `macos` version in `config/min-os.json` or later, for mac packages
 - Xcode Command Line Tools installed: `$ xcode-select --install` for mac packages
 
 ### Quick Start
@@ -365,7 +365,7 @@ Pinned inputs in `config/`. The JSON files are read with `jq`; `channels.sh` is 
   `x.y.z` on the date-based channels means no gate
 - `end-of-life.json` — `end_of_life` list per channel; an absent channel has none
 - `min-os.json` — minimum OS versions (`macos`, `linux_ubuntu`), written as `min_os_version` in the manifests and into
-  the macOS `Distribution.xml`
+  the macOS `Distribution.xml`, `welcome.html` and `readme.html`
 
 ### Scripts
 
