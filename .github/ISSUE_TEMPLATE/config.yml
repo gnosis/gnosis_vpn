@@ -1,6 +1,7 @@
-# Disable blank issues to enforce the discussion-first policy
+# Blank issues stay disabled; structured issue forms (e.g. the Bug report form) are the
+# path for bugs, while Discussions remain the place for questions and feature ideas.
 blank_issues_enabled: false
 contact_links:
-  - name: Report a Bug or Request a Feature
+  - name: Questions & feature ideas
     url: https://github.com/gnosis/gnosis_vpn/discussions/new?category=issues-bug-reports
-    about: Use our Discussions forum for all feedback, bug reports, and feature requests.
+    about: For questions and feature discussion. To report a bug, use the Bug report form.
