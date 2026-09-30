@@ -1,5 +1,13 @@
 # Linux Packages
 
+## DNS
+
+The package declares no resolver dependency. While connected, the client scopes the tunnel DNS servers to its interface
+through systemd-resolved (`resolvectl`) or resolvconf, whichever owns `/etc/resolv.conf`. On hosts with neither, queries
+stay on the host resolver and `postinstall.sh` prints a warning. Never pull a resolver manager in as a package
+dependency: apt installs it while the network stack is running, and the resolver configuration is lost until
+NetworkManager restarts (GNO-898).
+
 ## Testing
 
 ### Prerequisites
