@@ -478,14 +478,17 @@ repair_resolver_after_resolvconf() {
     fi
 }
 
-# Tunnel DNS is only diverted when systemd-resolved or resolvconf owns /etc/resolv.conf; otherwise it stays on the host resolver.
+# Tunnel DNS only reaches applications when /etc/resolv.conf points at the systemd-resolved stub or at resolvconf.
 warn_if_dns_not_diverted() {
     if ! resolv_conf_has_nameserver; then
         echo "$LOG_PREFIX WARNING: $RESOLV_CONF has no nameserver line; name resolution on this host is broken independent of gnosisvpn."
     fi
 
-    local resolved_stub=false resolvconf_owner=false
-    if resolvectl status >/dev/null 2>&1 && grep -qsE '^nameserver[[:space:]]+127\.0\.0\.5[34]\b' "$RESOLV_CONF"; then
+    local resolved_running=false resolved_stub=false resolvconf_owner=false
+    if resolvectl status >/dev/null 2>&1; then
+        resolved_running=true
+    fi
+    if [[ $resolved_running == true ]] && grep -qsE '^nameserver[[:space:]]+127\.0\.0\.5[34]\b' "$RESOLV_CONF"; then
         resolved_stub=true
     fi
     if command -v resolvconf >/dev/null 2>&1 && [[ "$(readlink -f "$RESOLV_CONF")" == /run/resolvconf/* ]]; then
@@ -495,9 +498,14 @@ warn_if_dns_not_diverted() {
         return 0
     fi
 
-    echo "$LOG_PREFIX WARNING: Neither systemd-resolved nor resolvconf manages $RESOLV_CONF."
     echo "$LOG_PREFIX WARNING: While connected, DNS queries keep using the host resolver instead of the tunnel; with 'lan_lockdown = true' they are blocked."
-    echo "$LOG_PREFIX WARNING: To divert DNS: install and enable systemd-resolved (or resolvconf) with your package manager, restart your network manager, then reconnect."
+    if [[ $resolved_running == true ]]; then
+        echo "$LOG_PREFIX WARNING: systemd-resolved is running, but $RESOLV_CONF does not point at its local stub, so applications bypass the per-interface tunnel DNS."
+        echo "$LOG_PREFIX WARNING: To divert DNS: 'sudo ln -sf /run/systemd/resolve/stub-resolv.conf $RESOLV_CONF', then reconnect."
+    else
+        echo "$LOG_PREFIX WARNING: Neither systemd-resolved nor resolvconf manages $RESOLV_CONF."
+        echo "$LOG_PREFIX WARNING: To divert DNS: install and enable systemd-resolved (or resolvconf) with your package manager, restart your network manager, then reconnect."
+    fi
 }
 
 # Enable and start the systemd service
