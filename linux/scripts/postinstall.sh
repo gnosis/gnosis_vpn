@@ -92,7 +92,9 @@ configure_filesystem_permissions() {
 
     mkdir -p /var/log/gnosisvpn
     chown -R gnosisvpn:gnosisvpn /var/log/gnosisvpn
-    chmod -R 755 /var/log/gnosisvpn
+    chmod 755 /var/log/gnosisvpn
+    # match logrotate's create mode so the app can still read the log after a rotation
+    find /var/log/gnosisvpn -type f -exec chmod 644 {} +
 
     mkdir -p /var/lib/gnosisvpn
     chown -R gnosisvpn:gnosisvpn /var/lib/gnosisvpn
