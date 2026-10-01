@@ -191,11 +191,6 @@ parse_args() {
         exit 1
     fi
 
-    # A single-network line always forwards its selection, so a switch onto it re-points config.toml on older postinstalls too.
-    if [[ $CHANNEL == "experimental" && -z $NETWORK ]]; then
-        NETWORK="${CHANNEL_NETWORKS[0]}"
-    fi
-
     if [[ $RESET_IDENTITY != "true" && $RESET_IDENTITY != "false" ]]; then
         err "GNOSISVPN_RESET_IDENTITY must be 'true' or 'false' (got: '${RESET_IDENTITY}')"
         exit 1
