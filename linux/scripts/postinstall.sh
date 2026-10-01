@@ -454,6 +454,7 @@ resolv_conf_has_nameserver() {
 repair_resolver_after_resolvconf() {
     command -v dpkg-query >/dev/null 2>&1 || return 0
     [[ "$(dpkg-query -W -f '${db:Status-Status}' resolvconf 2>/dev/null)" == installed ]] || return 0
+    [[ "$(readlink -f "$RESOLV_CONF")" == /run/resolvconf/* ]] || return 0
     resolv_conf_has_nameserver && return 0
 
     echo "$LOG_PREFIX WARNING: $RESOLV_CONF has no nameserver; the resolvconf package pulled in by an earlier gnosisvpn release left it empty. Repairing..."
@@ -482,7 +483,7 @@ warn_if_dns_not_diverted() {
     fi
 
     local resolved_stub=false resolvconf_owner=false
-    if resolvectl status >/dev/null 2>&1 && grep -qs '^nameserver[[:space:]]*127\.0\.0\.53' "$RESOLV_CONF"; then
+    if resolvectl status >/dev/null 2>&1 && grep -qsE '^nameserver[[:space:]]+127\.0\.0\.5[34]\b' "$RESOLV_CONF"; then
         resolved_stub=true
     fi
     if command -v resolvconf >/dev/null 2>&1 && [[ "$(readlink -f "$RESOLV_CONF")" == /run/resolvconf/* ]]; then
@@ -494,7 +495,7 @@ warn_if_dns_not_diverted() {
 
     echo "$LOG_PREFIX WARNING: Neither systemd-resolved nor resolvconf manages $RESOLV_CONF."
     echo "$LOG_PREFIX WARNING: While connected, DNS queries keep using the host resolver instead of the tunnel; with 'lan_lockdown = true' they are blocked."
-    echo "$LOG_PREFIX WARNING: To divert DNS: 'apt-get install systemd-resolved && systemctl restart NetworkManager', then reconnect."
+    echo "$LOG_PREFIX WARNING: To divert DNS: install and enable systemd-resolved (or resolvconf) with your package manager, restart your network manager, then reconnect."
 }
 
 # Enable and start the systemd service
