@@ -1,0 +1,32 @@
+version = 7
+
+[destinations.USA]
+address = "0x69e63b0ff81da5968b88331b5526198ef6c2e6ac"
+meta = { location = "Omaha", flag = "US" }
+
+[destinations.UK]
+address = "0x1d8ef6206b653ee03a640d1cceefc7105199d833"
+meta = { location = "London", flag = "GB" }
+
+[destinations.Brazil]
+address = "0x8cc5af8b6adaed6961a3ffd4e4652f5041c5a985"
+meta = { location = "Sao Paulo", flag = "BR" }
+
+[destinations.Australia]
+address = "0x664bf3563b0950797dbeb7e42630e3c1d788cd30"
+meta = { location = "Sydney", flag = "AU" }
+
+[destinations."South Korea"]
+address = "0xe107ee5f32596456d4ef64d8ee525628d1c9d9b2"
+meta = { location = "Seoul", flag = "KR" }
+
+[pix_strategy]
+price_per_byte = "0.000000000000000001 wxHOPR"
+max_ssa_allocation = "0.000000001 wxHOPR"
+deposit_buffer_period = "500ms"
+max_deposit_tracking_time = "60s"
+max_deposit_retries = 3
+
+[connection.path_planner]
+# Prune to the 3 fastest candidate paths; the client preset keeps every relayer (0).
+min_paths_anonymity_floor = 3

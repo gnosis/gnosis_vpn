@@ -11,4 +11,4 @@ COMPONENT_VERSION_BOUNDARY="0.100.0"
 
 # Networks per installer line (space-separated, first = default); packages bake the list for their postinstall.
 NETWORKS_STANDARD="${NETWORKS_STANDARD:-jura-prod jura-staging jura-dev}"
-NETWORKS_EXPERIMENTAL="${NETWORKS_EXPERIMENTAL:-piz-palu-dev}"
+NETWORKS_EXPERIMENTAL="${NETWORKS_EXPERIMENTAL:-piz-palu-dev piz-palu-staging}"

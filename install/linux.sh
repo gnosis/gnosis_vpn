@@ -8,7 +8,7 @@
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=experimental
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --network=jura-dev
 #
-# Stable and snapshot ship the jura networks, experimental ships piz-palu-dev; a network is only selectable on the channel that ships it.
+# Stable and snapshot ship the jura networks, experimental ships the piz-palu networks; a network is only selectable on the channel that ships it.
 #
 # Prompts for sudo when not already root; use `sudo bash` instead for headless/non-interactive installs (no TTY for the password prompt).
 #
@@ -38,7 +38,7 @@ err() { printf '\033[0;31m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 # Networks per channel (first = default); mirrors NETWORKS_* in config/channels.sh, keep in sync.
 channel_networks() {
     case "$1" in
-    experimental) echo "piz-palu-dev" ;;
+    experimental) echo "piz-palu-dev piz-palu-staging" ;;
     *) echo "jura-prod jura-staging jura-dev" ;;
     esac
 }
@@ -48,7 +48,6 @@ canonical_network() {
     case "$1" in
     jura) echo "jura-prod" ;;
     rotsee) echo "jura-dev" ;;
-    piz-palu-staging) echo "piz-palu-dev" ;;
     *) echo "$1" ;;
     esac
 }
@@ -79,7 +78,8 @@ Options:
                                 available depends on the channel:
                                   stable, snapshot  jura-prod (default), jura-staging,
                                                     jura-dev
-                                  experimental      piz-palu-dev (default)
+                                  experimental      piz-palu-dev (default),
+                                                    piz-palu-staging
                                 On stable and snapshot, omitting this keeps an
                                 existing choice. Also configurable via
                                 GNOSISVPN_NETWORK env var.

@@ -43,7 +43,6 @@ retired_network_successor() {
     case "$1" in
     jura) echo "jura-prod" ;;
     rotsee) echo "jura-dev" ;;
-    piz-palu-staging) echo "piz-palu-dev" ;;
     esac
 }
 
@@ -53,7 +52,7 @@ remove_retired_conffiles() {
     # env var also gates rpm/pacman hosts that happen to have dpkg installed
     [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] && command -v dpkg-maintscript-helper >/dev/null 2>&1 || return 0
     local conffile
-    for conffile in config-jura.toml config-rotsee.toml config-piz-palu-staging.toml; do
+    for conffile in config-jura.toml config-rotsee.toml; do
         dpkg-maintscript-helper rm_conffile "/etc/gnosisvpn/$conffile" "" gnosisvpn -- "$@"
     done
 }
