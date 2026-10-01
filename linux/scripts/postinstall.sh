@@ -92,7 +92,9 @@ configure_filesystem_permissions() {
 
     mkdir -p /var/log/gnosisvpn
     chown -R gnosisvpn:gnosisvpn /var/log/gnosisvpn
-    chmod -R 755 /var/log/gnosisvpn
+    chmod 755 /var/log/gnosisvpn
+    # match logrotate's create mode so the app can still read the log after a rotation
+    find /var/log/gnosisvpn -type f -exec chmod 644 {} +
 
     mkdir -p /var/lib/gnosisvpn
     chown -R gnosisvpn:gnosisvpn /var/lib/gnosisvpn
@@ -444,6 +446,68 @@ print_tcp_bbr_summary() {
     echo "$LOG_PREFIX INFO: ----------------------------------------------------------------"
 }
 
+RESOLV_CONF=/etc/resolv.conf
+
+resolv_conf_has_nameserver() {
+    grep -qs '^nameserver[[:space:]]' "$RESOLV_CONF"
+}
+
+# The resolvconf dep of earlier releases (GNO-667) leaves /etc/resolv.conf empty until NetworkManager re-registers (GNO-898).
+repair_resolver_after_resolvconf() {
+    command -v dpkg-query >/dev/null 2>&1 || return 0
+    [[ "$(dpkg-query -W -f '${db:Status-Status}' resolvconf 2>/dev/null)" == installed ]] || return 0
+    [[ "$(readlink -f "$RESOLV_CONF")" == /run/resolvconf/* ]] || return 0
+    resolv_conf_has_nameserver && return 0
+
+    echo "$LOG_PREFIX WARNING: $RESOLV_CONF has no nameserver; the resolvconf package pulled in by an earlier gnosisvpn release left it empty. Repairing..."
+    # resolvconf kept the pre-install file under /run/resolvconf/interface; -u regenerates from it.
+    resolvconf -u >/dev/null 2>&1 || true
+    if ! resolv_conf_has_nameserver && systemctl is-active --quiet NetworkManager; then
+        systemctl try-restart NetworkManager || true
+        for _ in $(seq 10); do
+            resolv_conf_has_nameserver && break
+            sleep 0.5
+        done
+    fi
+
+    if resolv_conf_has_nameserver; then
+        echo "$LOG_PREFIX SUCCESS: System resolver restored"
+        echo "$LOG_PREFIX INFO: gnosisvpn no longer needs the resolvconf package; 'apt-get autoremove' removes it (restart NetworkManager afterwards)."
+    else
+        echo "$LOG_PREFIX WARNING: Could not restore $RESOLV_CONF. Run 'systemctl restart NetworkManager' or reboot. Details: https://github.com/gnosis/gnosis_vpn/issues/494"
+    fi
+}
+
+# Tunnel DNS only reaches applications when /etc/resolv.conf points at the systemd-resolved stub or at resolvconf.
+warn_if_dns_not_diverted() {
+    if ! resolv_conf_has_nameserver; then
+        echo "$LOG_PREFIX WARNING: $RESOLV_CONF has no nameserver line; name resolution on this host is broken independent of gnosisvpn."
+    fi
+
+    local resolved_running=false resolved_stub=false resolvconf_owner=false
+    if resolvectl status >/dev/null 2>&1; then
+        resolved_running=true
+    fi
+    if [[ $resolved_running == true ]] && grep -qsE '^nameserver[[:space:]]+127\.0\.0\.5[34]\b' "$RESOLV_CONF"; then
+        resolved_stub=true
+    fi
+    if command -v resolvconf >/dev/null 2>&1 && [[ "$(readlink -f "$RESOLV_CONF")" == /run/resolvconf/* ]]; then
+        resolvconf_owner=true
+    fi
+    if [[ $resolved_stub == true || $resolvconf_owner == true ]]; then
+        return 0
+    fi
+
+    echo "$LOG_PREFIX WARNING: While connected, DNS queries keep using the host resolver instead of the tunnel; with 'lan_lockdown = true' they are blocked."
+    if [[ $resolved_running == true ]]; then
+        echo "$LOG_PREFIX WARNING: systemd-resolved is running, but $RESOLV_CONF does not point at its local stub, so applications bypass the per-interface tunnel DNS."
+        echo "$LOG_PREFIX WARNING: To divert DNS: 'sudo ln -sf /run/systemd/resolve/stub-resolv.conf $RESOLV_CONF', then reconnect."
+    else
+        echo "$LOG_PREFIX WARNING: Neither systemd-resolved nor resolvconf manages $RESOLV_CONF."
+        echo "$LOG_PREFIX WARNING: To divert DNS: install and enable systemd-resolved (or resolvconf) with your package manager, restart your network manager, then reconnect."
+    fi
+}
+
 # Enable and start the systemd service
 enable_and_start_systemd_service() {
     echo "$LOG_PREFIX INFO: Setting up systemd service..."
@@ -575,6 +639,8 @@ main() {
     register_apt_repo
     reset_identity_if_requested
     configure_tcp_bbr
+    repair_resolver_after_resolvconf
+    warn_if_dns_not_diverted
     enable_and_start_systemd_service
     install_desktop_shortcut_for_user
 
