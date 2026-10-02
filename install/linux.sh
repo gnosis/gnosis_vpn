@@ -80,9 +80,10 @@ Options:
                                                     jura-dev
                                   experimental      piz-palu-dev (default),
                                                     piz-palu-staging
-                                On stable and snapshot, omitting this keeps an
-                                existing choice. Also configurable via
-                                GNOSISVPN_NETWORK env var.
+                                Omitting this keeps an existing choice that the
+                                channel ships, otherwise the channel default is
+                                used. Also configurable via GNOSISVPN_NETWORK
+                                env var.
   --reset-identity              Back up the worker config dir (/var/lib/gnosisvpn/
                                 .config: HOPR identity, safe, node db) to
                                 .config.<timestamp>.bak, so the service generates
