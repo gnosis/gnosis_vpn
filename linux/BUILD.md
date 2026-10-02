@@ -80,7 +80,7 @@ string: an `experimental` build needs a version ending in `.experimental`, and `
 one.
 
 ```bash
-# Experimental line (ships piz-palu-dev and piz-palu-staging)
+# Experimental line (ships piz-palu-dev, piz-palu-staging and piz-palu-prod)
 GNOSISVPN_CHANNEL=experimental \
   GNOSISVPN_PACKAGE_VERSION="$(date -u +%Y.%m.%d+build.%H%M%S.experimental)" \
   just package deb x86_64-linux
