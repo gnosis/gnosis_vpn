@@ -38,9 +38,10 @@ The installer accepts options after `-s --`:
   | Channel              | Networks                                | Default        |
   | -------------------- | --------------------------------------- | -------------- |
   | `stable`, `snapshot` | `jura-prod`, `jura-staging`, `jura-dev` | `jura-prod`    |
-  | `experimental`       | `piz-palu-dev`                          | `piz-palu-dev` |
+  | `experimental`       | `piz-palu-dev`, `piz-palu-staging`      | `piz-palu-dev` |
 
-  On `stable` and `snapshot`, omitting `--network` keeps an existing choice.
+  When the existing choice is shipped by the selected channel, omitting `--network` keeps it; otherwise, the installer
+  selects that channel's default.
 
   ```bash
   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --network=jura-dev
@@ -70,7 +71,7 @@ built against, and therefore in which networks they ship:
 | Line         | Channels             | Networks                                | Client + app version |
 | ------------ | -------------------- | --------------------------------------- | -------------------- |
 | standard     | `stable`, `snapshot` | `jura-prod`, `jura-staging`, `jura-dev` | below `0.100.0`      |
-| experimental | `experimental`       | `piz-palu-dev`                          | `0.100.0` and above  |
+| experimental | `experimental`       | `piz-palu-dev`, `piz-palu-staging`      | `0.100.0` and above  |
 
 **Switching channels:** re-run the installer with the desired `--channel`. When the target channel's newest package is
 older than the installed one, the installer performs a pinned downgrade (plain `apt upgrade` would never move back on
@@ -160,9 +161,10 @@ Direct `.deb` installs have no flags — these environment variables configure t
 - `GNOSISVPN_NETWORK=<name>` — network configuration to use; determines which configuration file is symlinked to
   `/etc/gnosisvpn/config.toml` during installation. Only the networks the package actually ships are accepted — they are
   listed in `/usr/share/gnosisvpn/networks` (first entry is the default): `jura-prod jura-staging jura-dev` on the
-  standard line, `piz-palu-dev` on the experimental line. Passing a network from the other line fails the install with
-  the supported list, and if `config.toml` points at a network this package does not ship, the postinstall re-points it
-  at the default and moves the Blokli endpoint with it (unless a custom `GNOSISVPN_HOPR_BLOKLI_URL` is set).
+  standard line, `piz-palu-dev piz-palu-staging` on the experimental line. Passing a network from the other line fails
+  the install with the supported list, and if `config.toml` points at a network this package does not ship, the
+  postinstall re-points it at the default and moves the Blokli endpoint with it (unless a custom
+  `GNOSISVPN_HOPR_BLOKLI_URL` is set).
 
   ```bash
   sudo env GNOSISVPN_NETWORK=jura-dev apt install ./gnosisvpn_*.deb
