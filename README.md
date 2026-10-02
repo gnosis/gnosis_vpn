@@ -40,7 +40,7 @@ The installer accepts options after `-s --`:
   | `stable`, `snapshot` | `jura-prod`, `jura-staging`, `jura-dev` | `jura-prod`    |
   | `experimental`       | `piz-palu-dev`, `piz-palu-staging`      | `piz-palu-dev` |
 
-  On `stable` and `snapshot`, omitting `--network` keeps an existing choice.
+  When the existing choice is shipped by the selected channel, omitting `--network` keeps it; otherwise, the installer selects that channel's default.
 
   ```bash
   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --network=jura-dev
