@@ -16,7 +16,7 @@ user-friendly graphical interface for installing and configuring the Gnosis VPN 
 - **Network Selection**: Jura Prod, Jura Staging or Jura Dev on stable/snapshot builds; Piz Palu Dev, Piz Palu Staging
   or Piz Palu Prod on experimental builds (each installer only offers the networks of its own line)
 - **Configuration Generation**: Creates `config.toml` for the selected network; the Jura networks ship a configured
-  destination list, the Piz Palu networks ship none and relies on the client finding exit nodes at runtime
+  destination list, the Piz Palu networks ship none and rely on the client finding exit nodes at runtime
 - **macOS Integration**: Removes quarantine attributes and sets proper permissions
 - **Management Tools**: Includes utility for managing installations and backups
 

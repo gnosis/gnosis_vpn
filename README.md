@@ -68,10 +68,10 @@ stable suite.
 **Two installer lines.** The three channels come from two lines that differ in which client and app generation they are
 built against, and therefore in which networks they ship:
 
-| Line         | Channels             | Networks                                | Client + app version |
-| ------------ | -------------------- | --------------------------------------- | -------------------- |
-| standard     | `stable`, `snapshot` | `jura-prod`, `jura-staging`, `jura-dev` | below `0.100.0`      |
-| experimental | `experimental`       | `piz-palu-dev`, `piz-palu-staging`      | `0.100.0` and above  |
+| Line         | Channels             | Networks                                            | Client + app version |
+| ------------ | -------------------- | --------------------------------------------------- | -------------------- |
+| standard     | `stable`, `snapshot` | `jura-prod`, `jura-staging`, `jura-dev`             | below `0.100.0`      |
+| experimental | `experimental`       | `piz-palu-dev`, `piz-palu-staging`, `piz-palu-prod` | `0.100.0` and above  |
 
 **Switching channels:** re-run the installer with the desired `--channel`. When the target channel's newest package is
 older than the installed one, the installer performs a pinned downgrade (plain `apt upgrade` would never move back on
