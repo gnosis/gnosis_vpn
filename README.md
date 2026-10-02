@@ -161,8 +161,9 @@ Direct `.deb` installs have no flags — these environment variables configure t
   `/etc/gnosisvpn/config.toml` during installation. Only the networks the package actually ships are accepted — they are
   listed in `/usr/share/gnosisvpn/networks` (first entry is the default): `jura-prod jura-staging jura-dev` on the
   standard line, `piz-palu-dev piz-palu-staging` on the experimental line. Passing a network from the other line fails
-  the install with the supported list, and if `config.toml` points at a network this package does not ship, the postinstall re-points it
-  at the default and moves the Blokli endpoint with it (unless a custom `GNOSISVPN_HOPR_BLOKLI_URL` is set).
+  the install with the supported list, and if `config.toml` points at a network this package does not ship, the
+  postinstall re-points it at the default and moves the Blokli endpoint with it (unless a custom
+  `GNOSISVPN_HOPR_BLOKLI_URL` is set).
 
   ```bash
   sudo env GNOSISVPN_NETWORK=jura-dev apt install ./gnosisvpn_*.deb
