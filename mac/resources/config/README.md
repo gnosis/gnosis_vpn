@@ -14,7 +14,7 @@ config/
 
 Each build ships only the templates of its installer line, selected by `GNOSISVPN_NETWORKS` (see `NETWORKS_STANDARD` /
 `NETWORKS_EXPERIMENTAL` in `config/channels.sh`): the stable and snapshot channels ship the jura networks, the
-experimental channel ships `piz-palu-dev` and `piz-palu-staging`.
+experimental channel ships `piz-palu-dev`, `piz-palu-staging` and `piz-palu-prod`.
 
 ## System Configuration Files
 
@@ -43,6 +43,7 @@ TOML configuration templates for different network environments.
 - **jura-dev**: Development network (stable, snapshot)
 - **piz-palu-dev**: Piz Palu development network (experimental)
 - **piz-palu-staging**: Piz Palu staging network (experimental)
+- **piz-palu-prod**: Piz Palu production network (experimental)
 
 **Template Structure** (Jura networks):
 
@@ -54,8 +55,8 @@ address = "0xExitNodeAddress"
 meta = { location = "City", flag = "XX" }
 ```
 
-The `[destinations.*]` tables are present in the Jura templates and in `piz-palu-staging`. `piz-palu-dev` declares
-`version = 7`, ships no destination list and relies on the client finding exit nodes at runtime.
+The `[destinations.*]` tables are present in the Jura templates only. The `piz-palu-*` networks declare `version = 7`,
+ship no destination list and rely on the client finding exit nodes at runtime.
 
 The table key is a free-form destination id (the country name, by convention). `path` is optional and may only be
 `path = { hops = N }` with `N` in 0-3; when omitted it defaults to 1 hop, which is what the Jura configs rely on.

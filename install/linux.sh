@@ -38,7 +38,7 @@ err() { printf '\033[0;31m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 # Networks per channel (first = default); mirrors NETWORKS_* in config/channels.sh, keep in sync.
 channel_networks() {
     case "$1" in
-    experimental) echo "piz-palu-dev piz-palu-staging" ;;
+    experimental) echo "piz-palu-dev piz-palu-staging piz-palu-prod" ;;
     *) echo "jura-prod jura-staging jura-dev" ;;
     esac
 }
@@ -79,7 +79,7 @@ Options:
                                   stable, snapshot  jura-prod (default), jura-staging,
                                                     jura-dev
                                   experimental      piz-palu-dev (default),
-                                                    piz-palu-staging
+                                                    piz-palu-staging, piz-palu-prod
                                 Omitting this keeps an existing choice that the
                                 channel ships, otherwise the channel default is
                                 used. Also configurable via GNOSISVPN_NETWORK

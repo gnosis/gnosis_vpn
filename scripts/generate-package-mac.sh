@@ -440,6 +440,7 @@ network_title() {
     jura-dev) echo "Jura Dev" ;;
     piz-palu-dev) echo "Piz Palu Dev" ;;
     piz-palu-staging) echo "Piz Palu Staging" ;;
+    piz-palu-prod) echo "Piz Palu Prod" ;;
     *) echo "$1" ;;
     esac
 }
@@ -450,7 +451,8 @@ network_description() {
     jura-dev) echo "Connect to VPN nodes on the Jura Dev network - US, UK, India" ;;
     jura-staging) echo "Connect to VPN nodes on the Jura Staging network - US, UK, Brazil, Australia, South Korea" ;;
     piz-palu-dev) echo "Connect to VPN nodes on the Piz Palu Dev network" ;;
-    piz-palu-staging) echo "Connect to VPN nodes on the Piz Palu Staging network - US, UK, Brazil, Australia, South Korea" ;;
+    piz-palu-staging) echo "Connect to VPN nodes on the Piz Palu Staging network" ;;
+    piz-palu-prod) echo "Connect to VPN nodes on the Piz Palu Prod network" ;;
     *) echo "Connect to VPN nodes on the $1 network" ;;
     esac
 }

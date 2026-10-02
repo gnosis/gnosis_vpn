@@ -35,10 +35,10 @@ The installer accepts options after `-s --`:
 - `--network=<name>` — network to configure. Each channel only ships the networks of its own line, so which names are
   accepted depends on `--channel`. Env var: `GNOSISVPN_NETWORK`.
 
-  | Channel              | Networks                                | Default        |
-  | -------------------- | --------------------------------------- | -------------- |
-  | `stable`, `snapshot` | `jura-prod`, `jura-staging`, `jura-dev` | `jura-prod`    |
-  | `experimental`       | `piz-palu-dev`, `piz-palu-staging`      | `piz-palu-dev` |
+  | Channel              | Networks                                            | Default        |
+  | -------------------- | --------------------------------------------------- | -------------- |
+  | `stable`, `snapshot` | `jura-prod`, `jura-staging`, `jura-dev`             | `jura-prod`    |
+  | `experimental`       | `piz-palu-dev`, `piz-palu-staging`, `piz-palu-prod` | `piz-palu-dev` |
 
   When the existing choice is shipped by the selected channel, omitting `--network` keeps it; otherwise, the installer
   selects that channel's default.
@@ -161,9 +161,9 @@ Direct `.deb` installs have no flags — these environment variables configure t
 - `GNOSISVPN_NETWORK=<name>` — network configuration to use; determines which configuration file is symlinked to
   `/etc/gnosisvpn/config.toml` during installation. Only the networks the package actually ships are accepted — they are
   listed in `/usr/share/gnosisvpn/networks` (first entry is the default): `jura-prod jura-staging jura-dev` on the
-  standard line, `piz-palu-dev piz-palu-staging` on the experimental line. Passing a network from the other line fails
-  the install with the supported list, and if `config.toml` points at a network this package does not ship, the
-  postinstall re-points it at the default and moves the Blokli endpoint with it (unless a custom
+  standard line, `piz-palu-dev piz-palu-staging piz-palu-prod` on the experimental line. Passing a network from the
+  other line fails the install with the supported list, and if `config.toml` points at a network this package does not
+  ship, the postinstall re-points it at the default and moves the Blokli endpoint with it (unless a custom
   `GNOSISVPN_HOPR_BLOKLI_URL` is set).
 
   ```bash
