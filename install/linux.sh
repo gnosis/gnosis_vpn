@@ -384,7 +384,7 @@ apt_install() {
         local network_prefix="${NETWORK%-*}"
         local network_env="${NETWORK##*-}"
         local subdomain
-        if [[ "$network_env" == "prod" ]]; then # Prod environment does not have a subdomain
+        if [[ $network_env == "prod" ]]; then # Prod environment does not have a subdomain
             subdomain="gnosisvpn.io"
         else
             subdomain="${network_env}.gnosisvpn.io"

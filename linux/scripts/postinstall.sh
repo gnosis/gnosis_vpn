@@ -116,12 +116,12 @@ configure_filesystem_permissions() {
 }
 
 get_blokli_url() {
-    # Network name is <network_prefix>-<network_env>; endpoint is derived from it. 
+    # Network name is <network_prefix>-<network_env>; endpoint is derived from it.
     local network_name="$1"
     local network_prefix="${network_name%-*}"
     local network_env="${network_name##*-}"
     local blokli_url
-    if [[ "$network_env" == "prod" ]]; then
+    if [[ $network_env == "prod" ]]; then
         blokli_url="https://blokli-${network_prefix}.gnosisvpn.io"
     else
         blokli_url="https://blokli-${network_prefix}.${network_env}.gnosisvpn.io"
