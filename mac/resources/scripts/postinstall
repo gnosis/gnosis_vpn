@@ -473,9 +473,9 @@ install_launchd_service() {
     local network_env="${INSTALLER_CHOICE_NETWORK##*-}"
     local blokli_url
     if [[ "$network_env" == "prod" ]]; then # Prod environment does not have a subdomain
-        blokli_url="https://blokli-${network_prefix}.gnosisvpn.io"
+        blokli_url="https://blokli.${network_prefix}.gnosisvpn.io"
     else
-        blokli_url="https://blokli-${network_prefix}.${network_env}.gnosisvpn.io"
+        blokli_url="https://blokli.${network_prefix}.${network_env}.gnosisvpn.io"
     fi
     sed -i '' "s|__BLOKLI_URL__|${blokli_url}|g" "$source_plist"
 

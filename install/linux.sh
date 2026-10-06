@@ -389,7 +389,7 @@ apt_install() {
         else
             subdomain="${network_env}.gnosisvpn.io"
         fi
-        local blokli_url="${GNOSISVPN_HOPR_BLOKLI_URL:-https://blokli-${network_prefix}.${subdomain}}"
+        local blokli_url="${GNOSISVPN_HOPR_BLOKLI_URL:-https://blokli.${network_prefix}.${subdomain}}"
         log "Selecting network: ${NETWORK} (Blokli endpoint: ${blokli_url})"
         install_env+=(GNOSISVPN_NETWORK="$NETWORK" GNOSISVPN_HOPR_BLOKLI_URL="$blokli_url")
     elif [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then

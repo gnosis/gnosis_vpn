@@ -122,9 +122,9 @@ get_blokli_url() {
     local network_env="${network_name##*-}"
     local blokli_url
     if [[ $network_env == "prod" ]]; then
-        blokli_url="https://blokli-${network_prefix}.gnosisvpn.io"
+        blokli_url="https://blokli.${network_prefix}.gnosisvpn.io"
     else
-        blokli_url="https://blokli-${network_prefix}.${network_env}.gnosisvpn.io"
+        blokli_url="https://blokli.${network_prefix}.${network_env}.gnosisvpn.io"
     fi
     echo "$blokli_url"
 }
