@@ -115,6 +115,20 @@ configure_filesystem_permissions() {
     echo "$LOG_PREFIX SUCCESS: Directory permissions configured"
 }
 
+get_blokli_url() {
+    # Network name is <network_prefix>-<network_env>; endpoint is derived from it. 
+    local network_name="$1"
+    local network_prefix="${network_name%-*}"
+    local network_env="${network_name##*-}"
+    local blokli_url
+    if [[ "$network_env" == "prod" ]]; then
+        blokli_url="https://blokli-${network_prefix}.gnosisvpn.io"
+    else
+        blokli_url="https://blokli-${network_prefix}.${network_env}.gnosisvpn.io"
+    fi
+    echo "$blokli_url"
+}
+
 # Point /etc/gnosisvpn/config.toml at the selected network and write its Blokli endpoint.
 configure_network_selection() {
     # Precedence: explicit GNOSISVPN_HOPR_BLOKLI_URL > derived from network > pre-existing/legacy value.
@@ -146,11 +160,9 @@ configure_network_selection() {
         return 0
     fi
 
-    # Network name is <prefix>-<env>; endpoint mirrors that split. Reject non-http(s) URLs to prevent env injection via EnvironmentFile.
-    local network_prefix="${network_name%-*}"
-    local network_env="${network_name##*-}"
-    blokli_url="https://blokli-${network_prefix}.${network_env}.hoprnet.link"
+    blokli_url=$(get_blokli_url "$network_name")
     if [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then
+        # Reject non-http(s) URLs to prevent env injection via EnvironmentFile.
         if [[ $GNOSISVPN_HOPR_BLOKLI_URL =~ ^https?://[^[:space:]]+$ ]]; then
             blokli_url="$GNOSISVPN_HOPR_BLOKLI_URL"
         else
@@ -188,7 +200,7 @@ configure_network_selection() {
                 network_name="$successor"
                 # Endpoint follows the network; skip if user overrode the URL.
                 if [[ -z ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then
-                    migrated_blokli_url="https://blokli-${successor%-*}.${successor##*-}.hoprnet.link"
+                    migrated_blokli_url="$(get_blokli_url "$successor")"
                 fi
             else
                 # Better a stale-but-readable config than a dangling symlink.
@@ -215,7 +227,7 @@ configure_network_selection() {
     # Move the endpoint with the network unless the operator chose a custom URL.
     if [[ -n $migrated_blokli_url ]]; then
         local stored_url="" migrated_from_url
-        migrated_from_url="https://blokli-${migrated_from%-*}.${migrated_from##*-}.hoprnet.link"
+        migrated_from_url="$(get_blokli_url "$migrated_from")"
         if [[ -f $dynamic_env ]]; then
             stored_url="$(grep -m1 '^GNOSISVPN_HOPR_BLOKLI_URL=' "$dynamic_env" || true)"
             stored_url="${stored_url#GNOSISVPN_HOPR_BLOKLI_URL=}"

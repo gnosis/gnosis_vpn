@@ -133,8 +133,8 @@ variables with `sudo env` (a plain `sudo GNOSISVPN_NETWORK=... apt install` only
 sudoers policy keeps it, which is often disabled; `sudo env` always works):
 
 ```bash
-sudo env GNOSISVPN_NETWORK=jura-dev apt install ./gnosisvpn_*.deb
-sudo env GNOSISVPN_NETWORK=jura-dev GNOSISVPN_HOPR_BLOKLI_URL=https://blokli-jura.dev.hoprnet.link apt install ./gnosisvpn_*.deb
+sudo env GNOSISVPN_NETWORK=piz-palu-prod apt install ./gnosisvpn_*.deb
+sudo env GNOSISVPN_NETWORK=piz-palu-prod GNOSISVPN_HOPR_BLOKLI_URL=https://blokli-piz-palu.gnosisvpn.io apt install ./gnosisvpn_*.deb
 ```
 
 Note: re-installing the **same version** via `apt` does nothing — the package scripts don't re-run, so environment
