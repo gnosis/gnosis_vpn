@@ -1282,8 +1282,8 @@ validate_service_environment() {
     if [[ $errors -eq 0 ]]; then
         log_success "Service environment validation passed"
     else
-        log_warn "Service environment validation found $errors issue(s)"
-        log_info "The service may not start properly until these issues are resolved"
+        log_error "Service environment validation failed with $errors issue(s)"
+        exit 1
     fi
 }
 
