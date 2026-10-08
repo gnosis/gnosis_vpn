@@ -24,6 +24,7 @@ set -euo pipefail
 # Source unified logging library
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/logging.sh"
+source "${SCRIPT_DIR}/logging-profile.sh"
 
 # Setup logging
 setup_logging "postinstall"
@@ -458,14 +459,10 @@ install_launchd_service() {
     # Parameterize plist based on service mode
     if [[ "$INSTALLER_CHOICE_LOGLEVEL" == "debug" ]]; then
         log_info "Enabling debug logging"
-        sed -i '' '/<key>RUST_LOG<\/key>/{n;s|<string>[^<]*</string>|<string>info,hopr_transport_session=debug,hopr_protocol_session=debug,hopr_protocol_start=debug,hopr_network_types=debug,gnosis_vpn_root=debug,gnosis_vpn_lib=debug</string>|;}' "$source_plist"
-        sed -i '' '/<key>RUST_BACKTRACE<\/key>/{n;s|<string>[^<]*</string>|<string>full</string>|;}' "$source_plist"
-    # In case the plist will not get overwritten by the one from the installer, we want to ensure it has at least info logging
     else
-        log_info "Setting info logging"
-        sed -i '' '/<key>RUST_LOG<\/key>/{n;s|<string>[^<]*</string>|<string>info</string>|;}' "$source_plist"
-        sed -i '' '/<key>RUST_BACKTRACE<\/key>/{n;s|<string>[^<]*</string>|<string>1</string>|;}' "$source_plist"
+        log_info "Using production logging"
     fi
+    configure_logging_profile "$source_plist" "$INSTALLER_CHOICE_LOGLEVEL"
     # Network names are <prefix>-<env> (env is the segment after the last
     # '-', e.g. jura-prod -> prefix=jura env=prod, piz-palu-dev ->
     # prefix=piz-palu env=dev); the Blokli endpoint mirrors that split.

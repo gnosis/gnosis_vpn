@@ -338,6 +338,7 @@ copy_scripts() {
     log_info "Copying installation scripts..."
 
     # Copy shared libraries (required by installer scripts)
+    cp "$RESOURCES_DIR/scripts/logging-profile.sh" "${BUILD_DIR}/scripts/"
     cp "$RESOURCES_DIR/scripts/logging.sh" "${BUILD_DIR}/scripts/"
     cp "$RESOURCES_DIR/scripts/process-control.sh" "${BUILD_DIR}/scripts/"
     log_success "Copied shared libraries"
