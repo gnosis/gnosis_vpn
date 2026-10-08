@@ -516,22 +516,23 @@ install_launchd_service() {
         local bootstrap_attempts=0
         local max_attempts=3
         local bootstrap_success=false
+        local bootstrap_error=""
 
         while [[ $bootstrap_attempts -lt $max_attempts ]]; do
-            if launchctl bootstrap system "$plist_path" 2>/dev/null; then
+            if bootstrap_error=$(launchctl bootstrap system "$plist_path" 2>&1); then
                 bootstrap_success=true
                 break
-            else
-                # Service might already be loaded, try to bootout first
-                if [[ $bootstrap_attempts -eq 0 ]]; then
-                    log_info "Service may already be loaded, attempting to reload..."
-                    launchctl bootout system "$plist_path" 2>/dev/null || true
-                    sleep 1
-                fi
-                ((bootstrap_attempts++))
-                if [[ $bootstrap_attempts -lt $max_attempts ]]; then
-                    sleep 2
-                fi
+            fi
+            log_warn "Bootstrap attempt $((bootstrap_attempts + 1))/$max_attempts failed: ${bootstrap_error:-no output}"
+            # Service might already be loaded, try to bootout first
+            if [[ $bootstrap_attempts -eq 0 ]]; then
+                log_info "Service may already be loaded, attempting to reload..."
+                launchctl bootout system "$plist_path" 2>/dev/null || true
+                sleep 1
+            fi
+            ((bootstrap_attempts++))
+            if [[ $bootstrap_attempts -lt $max_attempts ]]; then
+                sleep 2
             fi
         done
 
@@ -564,6 +565,12 @@ install_launchd_service() {
             fi
         else
             log_error "Failed to load Gnosis VPN service after $max_attempts attempts"
+            local launchd_state
+            if launchd_state=$(launchctl print system/com.gnosisvpn.gnosisvpnclient 2>&1); then
+                log_info "launchd job state: $(echo "$launchd_state" | grep -E 'state =|last exit code =' | sed 's/^[[:space:]]*//' | paste -sd ';' -)"
+            else
+                log_info "launchd job state: not loaded ($(echo "$launchd_state" | paste -sd ' ' -))"
+            fi
             exit 1
         fi
     else
