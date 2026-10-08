@@ -78,7 +78,7 @@
         <key>RUST_LOG</key>
         <string>info,hopr_transport=debug,hopr_network_graph=debug</string>
         <key>RUST_BACKTRACE</key>
-        <string>1</string>
+        <string>full</string>
         <key>TMPDIR</key>
         <string>/Library/Application Support/GnosisVPN</string>
     </dict>
