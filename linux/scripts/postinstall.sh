@@ -244,10 +244,14 @@ configure_network_selection() {
     # The hoprnet.link endpoints were retired in favour of gnosisvpn.io; any other (custom) URL is kept.
     # TODO: remove by January 2027.
     local moved_from_hoprnet=""
-    if [[ -z ${GNOSISVPN_HOPR_BLOKLI_URL:-} && -f $dynamic_env ]]; then
-        local current_url
-        current_url="$(grep -m1 '^GNOSISVPN_HOPR_BLOKLI_URL=' "$dynamic_env" || true)"
-        current_url="${current_url#GNOSISVPN_HOPR_BLOKLI_URL=}"
+if [[ -z ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then
+        local current_url=""
+        if [[ -f $dynamic_env ]]; then
+            current_url="$(grep -m1 '^GNOSISVPN_HOPR_BLOKLI_URL=' "$dynamic_env" || true)"
+            current_url="${current_url#GNOSISVPN_HOPR_BLOKLI_URL=}"
+        else
+            current_url="$legacy_url"
+        fi
         if [[ $current_url =~ ^https://blokli-(jura|piz-palu)\.(dev|staging|prod)\.hoprnet\.link$ ]]; then
             blokli_url="$(get_blokli_url "$network_name")"
             echo "$LOG_PREFIX INFO: Migrating Blokli endpoint off hoprnet.link: ${current_url} -> ${blokli_url}"
