@@ -130,7 +130,7 @@ test_build_structure() {
         "[[ \"\$(cat '${BUILD_DIR}/scripts/networks' 2>/dev/null)\" == '${GNOSISVPN_NETWORKS}' ]]"
 
     # Scripts
-    local scripts=("postinstall" "preinstall" "uninstall.sh" "logging.sh" "logging-profile.sh")
+    local scripts=("postinstall" "preinstall" "uninstall.sh" "logging.sh")
     for script in "${scripts[@]}"; do
         run_test "Script '$script' exists" "[[ -f '${BUILD_DIR}/scripts/$script' ]]"
     done
@@ -259,29 +259,6 @@ test_file_syntax() {
     echo ""
 }
 
-test_logging_mode_selection() {
-    log_info "Testing installer logging mode selection..."
-
-    local plist_src="$SCRIPT_DIR/resources/config/system/com.gnosisvpn.gnosisvpnclient.plist"
-    local debug_plist info_plist
-    # shellcheck disable=SC1091
-    source "$SCRIPT_DIR/resources/scripts/logging-profile.sh"
-    debug_plist="$(mktemp)"
-    info_plist="$(mktemp)"
-    cp "$plist_src" "$debug_plist"
-    cp "$plist_src" "$info_plist"
-
-    configure_logging_profile "$debug_plist" "debug"
-    run_test "Debug mode replaces production logging directives" \
-        "grep -q '<string>info,hopr_transport_session=debug,hopr_protocol_session=debug,hopr_protocol_start=debug,hopr_network_types=debug,gnosis_vpn_root=debug,gnosis_vpn_lib=debug</string>' '$debug_plist' && grep -q '<string>full</string>' '$debug_plist'"
-
-    configure_logging_profile "$info_plist" "info"
-    run_test "Info mode preserves production logging directives" \
-        "grep -q '<string>info,hopr_transport=debug,hopr_network_graph=debug</string>' '$info_plist' && grep -q '<string>1</string>' '$info_plist'"
-
-    rm -f "$debug_plist" "$info_plist"
-}
-
 # Report
 print_summary() {
     echo "=========================================="
@@ -307,7 +284,6 @@ main() {
     test_build_structure
     test_signing
     test_file_syntax
-    test_logging_mode_selection
     print_summary
 }
 

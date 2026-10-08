@@ -76,9 +76,9 @@
         <key>GNOSISVPN_HOPR_BLOKLI_URL</key>
         <string>https://blokli-__NETWORK_PREFIX__.__NETWORK_ENV__.hoprnet.link</string>
         <key>RUST_LOG</key>
-        <string>info,hopr_transport=debug,hopr_network_graph=debug</string>
+        <string>info</string>
         <key>RUST_BACKTRACE</key>
-        <string>full</string>
+        <string>1</string>
         <key>TMPDIR</key>
         <string>/Library/Application Support/GnosisVPN</string>
     </dict>
