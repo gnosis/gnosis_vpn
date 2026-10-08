@@ -274,7 +274,7 @@ test_logging_mode_selection() {
 
     configure_logging_profile "$debug_plist" "debug"
     run_test "Debug mode applies debug logging directives" \
-        "grep -q '<string>info,hopr_transport_session=debug,hopr_protocol_session=debug,hopr_protocol_start=debug,hopr_network_types=debug,gnosis_vpn_root=debug,gnosis_vpn_lib=debug</string>' '$debug_plist' && grep -q '<string>full</string>' '$debug_plist'"
+        "grep -q '<string>info,hopr_transport_session=debug,hopr_protocol_session=debug,hopr_protocol_start=debug,hopr_network_types=debug,gnosis_vpn_root=debug,gnosis_vpn_lib=debug,hopr_transport=debug,hopr_network_graph=debug</string>' '$debug_plist' && grep -q '<string>full</string>' '$debug_plist'"
 
     configure_logging_profile "$standard_plist" "info"
     run_test "Standard mode preserves production logging directives" \
