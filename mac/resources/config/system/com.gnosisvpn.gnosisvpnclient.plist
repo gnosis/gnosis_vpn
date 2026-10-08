@@ -75,10 +75,11 @@
         <string>/Library/Logs/GnosisVPN/gnosisvpn.log</string>
         <key>GNOSISVPN_HOPR_BLOKLI_URL</key>
         <string>https://blokli-__NETWORK_PREFIX__.__NETWORK_ENV__.hoprnet.link</string>
+        <!-- RUST_LOG placeholder is filled in by postinstall from the installer log level choice -->
         <key>RUST_LOG</key>
-        <string>info,hopr_transport=debug,hopr_network_graph=debug</string>
+        <string>__RUST_LOG__</string>
         <key>RUST_BACKTRACE</key>
-        <string>1</string>
+        <string>full</string>
         <key>TMPDIR</key>
         <string>/Library/Application Support/GnosisVPN</string>
     </dict>
