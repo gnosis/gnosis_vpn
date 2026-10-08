@@ -244,7 +244,7 @@ configure_network_selection() {
     # The hoprnet.link endpoints were retired in favour of gnosisvpn.io; any other (custom) URL is kept.
     # TODO: remove by January 2027.
     local moved_from_hoprnet=""
-if [[ -z ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then
+    if [[ -z ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then
         local current_url=""
         if [[ -f $dynamic_env ]]; then
             current_url="$(grep -m1 '^GNOSISVPN_HOPR_BLOKLI_URL=' "$dynamic_env" || true)"
