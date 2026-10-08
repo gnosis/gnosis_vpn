@@ -248,7 +248,7 @@ configure_network_selection() {
         local current_url
         current_url="$(grep -m1 '^GNOSISVPN_HOPR_BLOKLI_URL=' "$dynamic_env" || true)"
         current_url="${current_url#GNOSISVPN_HOPR_BLOKLI_URL=}"
-        if [[ $current_url == *hoprnet.link* ]]; then
+        if [[ $current_url =~ ^https://blokli-(jura|piz-palu)\.(dev|staging|prod)\.hoprnet\.link$ ]]; then
             blokli_url="$(get_blokli_url "$network_name")"
             echo "$LOG_PREFIX INFO: Migrating Blokli endpoint off hoprnet.link: ${current_url} -> ${blokli_url}"
             moved_from_hoprnet="true"
