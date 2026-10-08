@@ -117,7 +117,6 @@ Environment variables:
                                --reset-identity
   GNOSISVPN_HOPR_BLOKLI_URL    Custom Blokli endpoint; defaults to the one
                                matching the chosen network
-                               (https://blokli-<prefix>.<env>.hoprnet.link
 EOF
 }
 
@@ -384,7 +383,13 @@ apt_install() {
         # Derive the endpoint for older postinstalls that don't compute it themselves.
         local network_prefix="${NETWORK%-*}"
         local network_env="${NETWORK##*-}"
-        local blokli_url="${GNOSISVPN_HOPR_BLOKLI_URL:-https://blokli-${network_prefix}.${network_env}.hoprnet.link}"
+        local subdomain
+        if [[ $network_env == "prod" ]]; then # Prod environment does not have a subdomain
+            subdomain="gnosisvpn.io"
+        else
+            subdomain="${network_env}.gnosisvpn.io"
+        fi
+        local blokli_url="${GNOSISVPN_HOPR_BLOKLI_URL:-https://blokli.${network_prefix}.${subdomain}}"
         log "Selecting network: ${NETWORK} (Blokli endpoint: ${blokli_url})"
         install_env+=(GNOSISVPN_NETWORK="$NETWORK" GNOSISVPN_HOPR_BLOKLI_URL="$blokli_url")
     elif [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]]; then

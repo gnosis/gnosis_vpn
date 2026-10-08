@@ -468,7 +468,13 @@ install_launchd_service() {
     # prefix=piz-palu env=dev); the Blokli endpoint mirrors that split.
     local network_prefix="${INSTALLER_CHOICE_NETWORK%-*}"
     local network_env="${INSTALLER_CHOICE_NETWORK##*-}"
-    sed -i '' "s|__RUST_LOG__|${rust_log}|g; s|__NETWORK_PREFIX__|${network_prefix}|g; s|__NETWORK_ENV__|${network_env}|g" "$source_plist"
+    local blokli_url
+    if [[ "$network_env" == "prod" ]]; then # Prod environment does not have a subdomain
+        blokli_url="https://blokli.${network_prefix}.gnosisvpn.io"
+    else
+        blokli_url="https://blokli.${network_prefix}.${network_env}.gnosisvpn.io"
+    fi
+    sed -i '' "s|__RUST_LOG__|${rust_log}|g; s|__BLOKLI_URL__|${blokli_url}|g;" "$source_plist"
 
     # Handle existing service (for updates/reinstalls)
     local service_was_running=false
