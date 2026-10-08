@@ -530,7 +530,7 @@ install_launchd_service() {
                 launchctl bootout system "$plist_path" 2>/dev/null || true
                 sleep 1
             fi
-            ((bootstrap_attempts++))
+            bootstrap_attempts=$((bootstrap_attempts + 1))
             if [[ $bootstrap_attempts -lt $max_attempts ]]; then
                 sleep 2
             fi
@@ -595,7 +595,7 @@ verify_plist_deployment() {
     # Check if plist file exists
     if [[ ! -f "$plist_path" ]]; then
         log_error "Plist file not found at: $plist_path"
-        ((errors++))
+        errors=$((errors + 1))
     else
         log_success "Plist file exists: $plist_path"
 
@@ -627,7 +627,7 @@ verify_plist_deployment() {
             log_success "Plist syntax is valid"
         else
             log_error "Plist syntax is invalid"
-            ((errors++))
+            errors=$((errors + 1))
         fi
     fi
 
@@ -1225,7 +1225,7 @@ validate_service_environment() {
 
         if [[ ! -d "$dir_path" ]]; then
             log_error "Required directory missing: $dir_path"
-            ((errors++))
+            errors=$((errors + 1))
         else
             # Check ownership
             local actual_owner
@@ -1255,13 +1255,13 @@ validate_service_environment() {
     local binary_path="/usr/local/bin/gnosis_vpn-worker"
     if [[ ! -f "$binary_path" ]]; then
         log_error "Binary not found: $binary_path"
-        ((errors++))
+        errors=$((errors + 1))
     else
         if sudo -u gnosisvpn test -x "$binary_path"; then
             log_success "✓ Binary is executable by gnosisvpn user"
         else
             log_error "Binary is not executable by gnosisvpn user: $binary_path"
-            ((errors++))
+            errors=$((errors + 1))
         fi
     fi
 
@@ -1269,13 +1269,13 @@ validate_service_environment() {
     local config_path="/etc/gnosisvpn/config.toml"
     if [[ ! -f "$config_path" ]]; then
         log_error "Config file not found: $config_path"
-        ((errors++))
+        errors=$((errors + 1))
     else
         if sudo -u gnosisvpn test -r "$config_path"; then
             log_success "✓ Config file is readable by gnosisvpn user"
         else
             log_error "Config file is not readable by gnosisvpn user: $config_path"
-            ((errors++))
+            errors=$((errors + 1))
         fi
     fi
 
