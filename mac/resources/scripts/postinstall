@@ -34,6 +34,9 @@ TARGET_VOLUME="${2:-/}"
 MOUNTPOINT="${3:-/}"
 ROOT_DIR="${4:-/}"
 
+readonly PRODUCTION_RUST_LOG="info,hopr_transport=debug,hopr_network_graph=debug"
+readonly DEBUG_RUST_LOG="info,hopr_transport_session=debug,hopr_protocol_session=debug,hopr_protocol_start=debug,hopr_network_types=debug,gnosis_vpn_root=debug,gnosis_vpn_lib=debug,hopr_transport=debug,hopr_network_graph=debug"
+
 # Path joining function to avoid double slashes
 join_path() {
     local base="$1"
@@ -455,16 +458,10 @@ install_launchd_service() {
     #     plist_path="${SCRIPT_DIR}/../config/system/${plist_name}"
     # fi
 
-    # Parameterize plist based on service mode
+    local rust_log="$PRODUCTION_RUST_LOG"
     if [[ "$INSTALLER_CHOICE_LOGLEVEL" == "debug" ]]; then
         log_info "Enabling debug logging"
-        sed -i '' '/<key>RUST_LOG<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>info,hopr_transport_session=debug,hopr_protocol_session=debug,hopr_protocol_start=debug,hopr_network_types=debug,gnosis_vpn_root=debug,gnosis_vpn_lib=debug</string>|;}' "$source_plist"
-        sed -i '' '/<key>RUST_BACKTRACE<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>full</string>|;}' "$source_plist"
-    # In case the plist will not get overwritten by the one from the installer, we want to ensure it has at least info logging
-    else
-        log_info "Setting info logging"
-        sed -i '' '/<key>RUST_LOG<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>info</string>|;}' "$source_plist"
-        sed -i '' '/<key>RUST_BACKTRACE<\/key>/{n;s|<string>[a-zA-Z0-9_-]*</string>|<string>1</string>|;}' "$source_plist"
+        rust_log="$DEBUG_RUST_LOG"
     fi
     # Network names are <prefix>-<env> (env is the segment after the last
     # '-', e.g. jura-prod -> prefix=jura env=prod, piz-palu-dev ->
@@ -477,7 +474,7 @@ install_launchd_service() {
     else
         blokli_url="https://blokli.${network_prefix}.${network_env}.gnosisvpn.io"
     fi
-    sed -i '' "s|__BLOKLI_URL__|${blokli_url}|g" "$source_plist"
+    sed -i '' "s|__RUST_LOG__|${rust_log}|g; s|__BLOKLI_URL__|${blokli_url}|g;" "$source_plist"
 
     # Handle existing service (for updates/reinstalls)
     local service_was_running=false
@@ -522,22 +519,23 @@ install_launchd_service() {
         local bootstrap_attempts=0
         local max_attempts=3
         local bootstrap_success=false
+        local bootstrap_error=""
 
         while [[ $bootstrap_attempts -lt $max_attempts ]]; do
-            if launchctl bootstrap system "$plist_path" 2>/dev/null; then
+            if bootstrap_error=$(launchctl bootstrap system "$plist_path" 2>&1); then
                 bootstrap_success=true
                 break
-            else
-                # Service might already be loaded, try to bootout first
-                if [[ $bootstrap_attempts -eq 0 ]]; then
-                    log_info "Service may already be loaded, attempting to reload..."
-                    launchctl bootout system "$plist_path" 2>/dev/null || true
-                    sleep 1
-                fi
-                ((bootstrap_attempts++))
-                if [[ $bootstrap_attempts -lt $max_attempts ]]; then
-                    sleep 2
-                fi
+            fi
+            log_warn "Bootstrap attempt $((bootstrap_attempts + 1))/$max_attempts failed: ${bootstrap_error:-no output}"
+            # Service might already be loaded, try to bootout first
+            if [[ $bootstrap_attempts -eq 0 ]]; then
+                log_info "Service may already be loaded, attempting to reload..."
+                launchctl bootout system "$plist_path" 2>/dev/null || true
+                sleep 1
+            fi
+            bootstrap_attempts=$((bootstrap_attempts + 1))
+            if [[ $bootstrap_attempts -lt $max_attempts ]]; then
+                sleep 2
             fi
         done
 
@@ -570,6 +568,12 @@ install_launchd_service() {
             fi
         else
             log_error "Failed to load Gnosis VPN service after $max_attempts attempts"
+            local launchd_state
+            if launchd_state=$(launchctl print system/com.gnosisvpn.gnosisvpnclient 2>&1); then
+                log_info "launchd job state: $(echo "$launchd_state" | grep -E 'state =|last exit code =' | sed 's/^[[:space:]]*//' | paste -sd ';' -)"
+            else
+                log_info "launchd job state: not loaded ($(echo "$launchd_state" | paste -sd ' ' -))"
+            fi
             exit 1
         fi
     else
@@ -594,7 +598,7 @@ verify_plist_deployment() {
     # Check if plist file exists
     if [[ ! -f "$plist_path" ]]; then
         log_error "Plist file not found at: $plist_path"
-        ((errors++))
+        errors=$((errors + 1))
     else
         log_success "Plist file exists: $plist_path"
 
@@ -626,7 +630,7 @@ verify_plist_deployment() {
             log_success "Plist syntax is valid"
         else
             log_error "Plist syntax is invalid"
-            ((errors++))
+            errors=$((errors + 1))
         fi
     fi
 
@@ -1224,7 +1228,7 @@ validate_service_environment() {
 
         if [[ ! -d "$dir_path" ]]; then
             log_error "Required directory missing: $dir_path"
-            ((errors++))
+            errors=$((errors + 1))
         else
             # Check ownership
             local actual_owner
@@ -1254,13 +1258,13 @@ validate_service_environment() {
     local binary_path="/usr/local/bin/gnosis_vpn-worker"
     if [[ ! -f "$binary_path" ]]; then
         log_error "Binary not found: $binary_path"
-        ((errors++))
+        errors=$((errors + 1))
     else
         if sudo -u gnosisvpn test -x "$binary_path"; then
             log_success "✓ Binary is executable by gnosisvpn user"
         else
             log_error "Binary is not executable by gnosisvpn user: $binary_path"
-            ((errors++))
+            errors=$((errors + 1))
         fi
     fi
 
@@ -1268,21 +1272,21 @@ validate_service_environment() {
     local config_path="/etc/gnosisvpn/config.toml"
     if [[ ! -f "$config_path" ]]; then
         log_error "Config file not found: $config_path"
-        ((errors++))
+        errors=$((errors + 1))
     else
         if sudo -u gnosisvpn test -r "$config_path"; then
             log_success "✓ Config file is readable by gnosisvpn user"
         else
             log_error "Config file is not readable by gnosisvpn user: $config_path"
-            ((errors++))
+            errors=$((errors + 1))
         fi
     fi
 
     if [[ $errors -eq 0 ]]; then
         log_success "Service environment validation passed"
     else
-        log_warn "Service environment validation found $errors issue(s)"
-        log_info "The service may not start properly until these issues are resolved"
+        log_error "Service environment validation failed with $errors issue(s)"
+        exit 1
     fi
 }
 
