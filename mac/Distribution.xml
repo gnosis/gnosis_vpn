@@ -122,16 +122,16 @@ __NETWORK_CHOICES__
             description="Install with standard logging configuration"
             visible="true"
             enabled="exclusiveEnabled('info', ['debug','info'])"
-            start_selected="false">
+            start_selected="true">
         <pkg-ref id="com.gnosisvpn.choice.loglevel.info"/>
     </choice>
 
     <!-- Debug mode sub-choice -->
     <choice id="debug"
-            title="Debug Mode (Recommended for now)"
+            title="Debug Mode"
             description="Install with debug logging enabled - useful for troubleshooting"
             visible="true"
-            start_selected="true"
+            start_selected="false"
             enabled="exclusiveEnabled('debug', ['debug','info'])">
         <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"/>
     </choice>
