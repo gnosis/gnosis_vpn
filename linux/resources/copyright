@@ -7,6 +7,12 @@ Copyright: 2024-2025 Maelcum Inc
 Comment: Statically linked to libyaml to ensure compatibility across distributions.
 License: GPL-3.0+
 
+Files: usr/share/gnosisvpn/geoip.mmdb
+Copyright: IPinfo, https://ipinfo.io
+Comment: Country-only, IPv4-only extract of the IPinfo Lite database, modified
+ by Gnosis Ltd. IP address data is powered by IPinfo, https://ipinfo.io.
+License: CC-BY-SA-4.0
+
 License: GPL-3.0+
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -23,3 +29,7 @@ License: GPL-3.0+
  .
  On Debian systems, the complete text of the GNU General Public License
  version 3 can be found in /usr/share/common-licenses/GPL-3.
+
+License: CC-BY-SA-4.0
+ Creative Commons Attribution-ShareAlike 4.0 International. The full licence
+ text is at https://creativecommons.org/licenses/by-sa/4.0/legalcode

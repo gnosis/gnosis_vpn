@@ -97,11 +97,62 @@ jobs:
           INPUT_APP_VERSION: ${{ inputs.app_version }}
           INPUT_TOOLKIT_VERSION: ${{ inputs.toolkit_version }}
         run: ./scripts/resolve-build-versions.sh
+  geoip:
+    name: GeoIP database
+    runs-on: depot-ubuntu-22.04-4
+    if: needs.setup.outputs.SKIP_BUILDING != 'true'
+    needs: setup
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      # "ipinfo-lite" only for a fresh trim; the platform jobs do not care, the bucket upload does.
+      SOURCE: ${{ steps.stage.outputs.SOURCE }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Nix
+        uses: hoprnet/hopr-workflows/actions/setup-nix@21a781128e2796400ae2f17c955dc602c8bc1400 # setup-nix-v2.1.0
+        with:
+          cachix_cache_name: gnosis-vpn
+          cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: Stage country database
+        id: stage
+        env:
+          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN }}
+        run: |
+          nix develop -c ./scripts/fetch-geoip.sh
+          source=$(cat build/geoip/source)
+          echo "SOURCE=${source}" | tee -a "$GITHUB_OUTPUT"
+          if [[ "${source}" != "ipinfo-lite" ]]; then
+            echo "::warning::GeoIP database is the bucket's last published copy; the IPinfo Lite refresh did not run or failed"
+          fi
+      - name: Upload database
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: geoip.mmdb
+          path: ./build/geoip/geoip.mmdb
+      - name: Setup GCP
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@837b94246698537325ecc664dfb22c72c0d6b8ed # setup-gcp-v4
+        if: contains(fromJSON('["snapshot","release","experimental"]'), inputs.version_type) && steps.stage.outputs.SOURCE == 'ipinfo-lite'
+        with:
+          workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
+          service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
+          install_sdk: true
+      - name: Publish into bucket
+        # Only a fresh trim is published: re-uploading the fallback would stamp a new date on stale data.
+        if: contains(fromJSON('["snapshot","release","experimental"]'), inputs.version_type) && steps.stage.outputs.SOURCE == 'ipinfo-lite'
+        run: |
+          dated="gs://download.gnosisvpn.io/geoip/geoip-country-$(date -u +%Y%m%d).mmdb"
+          gsutil -h "Cache-Control:public, max-age=3600" cp ./build/geoip/geoip.mmdb "${dated}"
+          gsutil -h "Cache-Control:public, max-age=3600" cp "${dated}" "gs://download.gnosisvpn.io/geoip/latest.mmdb"
   linux:
     runs-on: ${{ matrix.runner }}
     name: Build Linux ${{ matrix.nix }}
     if: needs.setup.outputs.SKIP_BUILDING != 'true'
-    needs: setup
+    needs:
+      - setup
+      - geoip
     permissions:
       contents: read
       id-token: write
@@ -135,12 +186,19 @@ jobs:
         run: |
           echo "${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY }}" > /tmp/gnosis_vpn_gpg_key.asc
           chmod 600 /tmp/gnosis_vpn_gpg_key.asc
+      - name: Download GeoIP database
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: geoip.mmdb
+          path: ${{ runner.temp }}/geoip
       - name: Build Linux package
         shell: bash
         run: |
           nix develop -c just all ${{ matrix.distribution }} ${{ matrix.nix }} true
         env:
           GH_TOKEN: ${{ github.token }}
+          # Outside ./build, which `just download` wipes; `just geoip` copies it from here.
+          GNOSISVPN_GEOIP_DB: ${{ runner.temp }}/geoip/geoip.mmdb
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
           GNOSISVPN_CLIENT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
           GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}
@@ -191,7 +249,9 @@ jobs:
   mac:
     runs-on: macos-15
     name: Build Mac
-    needs: setup
+    needs:
+      - setup
+      - geoip
     permissions:
       contents: read
       id-token: write
@@ -210,6 +270,11 @@ jobs:
         with:
           cachix_cache_name: gnosis-vpn
           cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: Download GeoIP database
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: geoip.mmdb
+          path: ${{ runner.temp }}/geoip
       - name: Create mac installer package
         shell: bash
         run: |
@@ -220,6 +285,7 @@ jobs:
           nix develop -c just all dmg aarch64-darwin true
         env:
           GH_TOKEN: ${{ github.token }}
+          GNOSISVPN_GEOIP_DB: ${{ runner.temp }}/geoip/geoip.mmdb
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
           GNOSISVPN_CLIENT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
           GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}

@@ -5,6 +5,10 @@ export GNOSISVPN_PACKAGE_VERSION := env_var_or_default('GNOSISVPN_PACKAGE_VERSIO
 download distribution arch:
     ./scripts/download-binaries.sh --distribution {{ distribution }} --architecture {{ arch }}
 
+# Stage the country GeoIP database the packages ship: a fresh IPinfo Lite trim with IPINFO_TOKEN, else the bucket's last good copy
+geoip:
+    ./scripts/fetch-geoip.sh
+
 # Generate changelog
 changelog:
     ./scripts/generate-changelog.ts
@@ -28,6 +32,7 @@ all distribution arch sign="false":
     #!/usr/bin/env bash
     set -o errexit -o nounset -o pipefail
     just download {{ distribution }} {{ arch }}
+    just geoip
     if [[ "{{ arch }}" =~ ^(x86_64-linux|aarch64-linux)$ ]]; then
         just changelog
         just manual

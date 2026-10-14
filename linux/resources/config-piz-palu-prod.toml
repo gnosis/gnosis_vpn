@@ -1,5 +1,8 @@
 version = 7
 
+# Each exit's country, derived from its announced address; shipped by this package.
+geoip_db = "/usr/share/gnosisvpn/geoip.mmdb"
+
 [pix_strategy]
 price_per_byte = "0.000000000000000001 wxHOPR"
 max_ssa_allocation = "0.000000001 wxHOPR"

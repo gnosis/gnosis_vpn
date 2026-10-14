@@ -190,6 +190,12 @@ check_platform_prerequisites() {
         fi
     done
 
+    if [[ ! -f "${BUILD_DIR}/geoip/geoip.mmdb" ]]; then
+        log_error "GeoIP database not found: ${BUILD_DIR}/geoip/geoip.mmdb"
+        log_error "Run 'just geoip' first"
+        missing=$((missing + 1))
+    fi
+
     local network
     for network in ${GNOSISVPN_NETWORKS}; do
         if [[ ! -f "$RESOURCES_DIR/config/templates/${network}.toml.template" ]]; then
@@ -256,6 +262,14 @@ prepare_build_dir() {
             exit 1
         fi
     done
+
+    # Country database the piz-palu templates name as geoip_db, with its CC BY-SA notice beside it.
+    local share_dir="${BUILD_DIR}/app-contents/rootfs/usr/local/share/gnosisvpn"
+    mkdir -p "${share_dir}"
+    cp "${BUILD_DIR}/geoip/geoip.mmdb" "${share_dir}/geoip.mmdb"
+    cp "${SCRIPT_DIR}/geoip/NOTICE" "${share_dir}/geoip.NOTICE"
+    chmod 0644 "${share_dir}/geoip.mmdb" "${share_dir}/geoip.NOTICE"
+    log_success "GeoIP database staged"
 
     log_success "Build directory prepared"
 }

@@ -61,6 +61,7 @@
             gzip
             gh
             deno
+            go
             google-cloud-sdk
           ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             dpkg
