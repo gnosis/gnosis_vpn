@@ -263,7 +263,7 @@ prepare_build_dir() {
         fi
     done
 
-    # Country database the piz-palu templates name as geoip_db, with its CC BY-SA notice beside it.
+    # Country database at the client's default geoip_db path, with its CC BY-SA notice beside it.
     local share_dir="${BUILD_DIR}/app-contents/rootfs/usr/local/share/gnosisvpn"
     mkdir -p "${share_dir}"
     cp "${BUILD_DIR}/geoip/geoip.mmdb" "${share_dir}/geoip.mmdb"

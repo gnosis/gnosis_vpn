@@ -276,8 +276,8 @@ just all dmg aarch64-darwin true
 
 Every package ships a country-only, IPv4-only extract of the free [IPinfo Lite](https://ipinfo.io/lite) database (CC
 BY-SA 4.0, about 6 MB) at `/usr/share/gnosisvpn/geoip.mmdb` (Linux) or `/usr/local/share/gnosisvpn/geoip.mmdb` (macOS).
-The experimental client reads it through the `geoip_db` key of the piz-palu configs to show each exit's country from its
-announced address.
+Those are the client's built-in `geoip_db` defaults, so the shipped configs do not name the file; the experimental
+client reads it to show each exit's country from its announced address.
 
 `just geoip` stages the file at `build/geoip/geoip.mmdb`:
 
