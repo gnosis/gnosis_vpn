@@ -20,14 +20,18 @@ BUCKET_LATEST_URL="https://download.gnosisvpn.io/geoip/latest.mmdb"
 FLEET_PROBES=(185.9.1.9 185.9.1.25 185.9.1.41 185.9.1.57 185.9.1.73 185.9.1.89 185.9.1.105 89.58.60.202)
 
 copy_prebuilt() {
-    cp "${GNOSISVPN_GEOIP_DB}" "${GEOIP_DB}"
+    mkdir -p "${GEOIP_DIR}"
+    # Reusing the already staged database must not copy it onto itself.
+    if [[ ! ${GNOSISVPN_GEOIP_DB} -ef ${GEOIP_DB} ]]; then
+        cp "${GNOSISVPN_GEOIP_DB}" "${GEOIP_DB}"
+    fi
     echo "prebuilt" >"${GEOIP_SOURCE}"
     log_success "GeoIP database taken from ${GNOSISVPN_GEOIP_DB}"
 }
 
-# The token travels in a header only: a URL lands in logs and process lists.
+# Header via stdin: argv, URL included, is visible in process lists.
 ipinfo_get() {
-    curl -fsSL --retry 3 -H "Authorization: Bearer ${IPINFO_TOKEN}" "$@"
+    curl -fsSL --retry 3 -H @- "$@" <<<"Authorization: Bearer ${IPINFO_TOKEN}"
 }
 
 build_from_ipinfo() {
@@ -60,15 +64,18 @@ fetch_from_bucket() {
 }
 
 main() {
-    rm -rf "${GEOIP_DIR}"
-    mkdir -p "${GEOIP_DIR}"
     if [[ -n ${GNOSISVPN_GEOIP_DB:-} ]]; then
         copy_prebuilt
-    elif [[ -z ${IPINFO_TOKEN:-} ]]; then
-        fetch_from_bucket
-    elif ! build_from_ipinfo; then
-        log_warn "IPinfo Lite download, checksum or trim failed; falling back to the bucket"
-        fetch_from_bucket
+    else
+        # A prebuilt input may live in here, so only downloads start from a clean directory.
+        rm -rf "${GEOIP_DIR}"
+        mkdir -p "${GEOIP_DIR}"
+        if [[ -z ${IPINFO_TOKEN:-} ]]; then
+            fetch_from_bucket
+        elif ! build_from_ipinfo; then
+            log_warn "IPinfo Lite download, checksum or trim failed; falling back to the bucket"
+            fetch_from_bucket
+        fi
     fi
     echo "GeoIP database: ${GEOIP_DB} ($(du -h "${GEOIP_DB}" | cut -f1), source: $(cat "${GEOIP_SOURCE}"))"
 }
