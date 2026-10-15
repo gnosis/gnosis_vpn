@@ -101,7 +101,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     name: Build Linux ${{ matrix.nix }}
     if: needs.setup.outputs.SKIP_BUILDING != 'true'
-    needs: setup
+    needs:
+      - setup
     permissions:
       contents: read
       id-token: write
@@ -191,7 +192,8 @@ jobs:
   mac:
     runs-on: macos-15
     name: Build Mac
-    needs: setup
+    needs:
+      - setup
     permissions:
       contents: read
       id-token: write
