@@ -3,3 +3,6 @@ Creative Commons Attribution-ShareAlike 4.0 (https://creativecommons.org/license
 
 geoip.mmdb is a country-only, IPv4-only extract of the IPinfo Lite database,
 modified by Gnosis Ltd. and distributed under the same licence.
+
+The database is read offline on this device to show each exit's country;
+GnosisVPN sends no IP addresses to IPinfo.
