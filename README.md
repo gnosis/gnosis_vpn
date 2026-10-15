@@ -281,16 +281,18 @@ announced address.
 
 `just geoip` stages the file at `build/geoip/geoip.mmdb`:
 
-1. `GNOSISVPN_GEOIP_DB=<path>` copies a prebuilt file (CI builds it once per run and hands it to the platform jobs).
-1. With `IPINFO_TOKEN` set (repository secret, free IPinfo account) it downloads today's IPinfo Lite, verifies the
-   SHA-256 against IPinfo's checksum endpoint and trims it with `scripts/geoip` (Go, in the dev shell), checking the
-   jura-prod exits resolve like the full file.
-1. Otherwise, or when any of that fails, it downloads `https://download.gnosisvpn.io/geoip/latest.mmdb`, the last trim
-   CI published, and warns. A package is never blocked on IPinfo.
+1. `GNOSISVPN_GEOIP_DB=<path>` copies a prebuilt file (local or offline builds).
+1. Otherwise it downloads `https://download.gnosisvpn.io/geoip/latest.mmdb`, the bucket's daily trim. This is what every
+   CI build does; a package build never talks to IPinfo.
+1. With `IPINFO_TOKEN` set (free IPinfo account) it instead downloads today's IPinfo Lite, verifies the SHA-256 against
+   IPinfo's checksum endpoint and trims it with `scripts/geoip` (Go, in the dev shell), checking the jura-prod exits
+   resolve like the full file. When any of that fails it warns and takes the bucket copy.
 
-Snapshot, experimental and release runs publish a fresh trim as
-`gs://download.gnosisvpn.io/geoip/geoip-country-<YYYYMMDD>.mmdb` and overwrite `latest.mmdb`; a fallback copy is never
-republished. The attribution notice ships beside the file as `geoip.NOTICE` and in the Debian copyright file.
+The `Update GeoIP` workflow (`.github/workflows/update-geoip.yaml`) runs the token path daily at 22:00 UTC, and on
+manual dispatch, with the `IPINFO_TOKEN` repository secret. It publishes the fresh trim as
+`gs://download.gnosisvpn.io/geoip/geoip-country-<YYYYMMDD>.mmdb`, overwrites `latest.mmdb` and keeps the newest 30 dated
+copies. The run fails rather than republishing the bucket's own copy. The attribution notice ships beside the file as
+`geoip.NOTICE` and in the Debian copyright file.
 
 ### APT repository
 

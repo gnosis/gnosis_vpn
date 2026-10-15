@@ -1,0 +1,51 @@
+# Daily because IPinfo rebuilds Lite daily: trims it and publishes to gs://download.gnosisvpn.io/geoip/, where every build fetches it.
+name: Update GeoIP
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 22 * * *' # Done before the 01:00 UTC snapshot nightly even with GitHub's up-to-3h delay, so the nightlies ship the fresh file.
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: update-geoip
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: depot-ubuntu-22.04-4
+    name: Refresh country database
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Nix
+        uses: hoprnet/hopr-workflows/actions/setup-nix@21a781128e2796400ae2f17c955dc602c8bc1400 # setup-nix-v2.1.0
+        with:
+          cachix_cache_name: gnosis-vpn
+          cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: Fetch and trim IPinfo Lite
+        env:
+          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN }}
+        run: |
+          nix develop -c ./scripts/fetch-geoip.sh
+          # The script falls back to the bucket's own copy; republishing that would stamp a new date on stale data.
+          source=$(cat build/geoip/source)
+          if [[ "${source}" != "ipinfo-lite" ]]; then
+            echo "::error::No fresh IPinfo Lite trim (got '${source}'): IPINFO_TOKEN unset or the download, checksum or trim failed"
+            exit 1
+          fi
+      - name: Setup GCP
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@837b94246698537325ecc664dfb22c72c0d6b8ed # setup-gcp-v4
+        with:
+          workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
+          service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
+          install_sdk: true
+      - name: Publish into bucket
+        run: |
+          dated="gs://download.gnosisvpn.io/geoip/geoip-country-$(date -u +%Y%m%d).mmdb"
+          gsutil -h "Cache-Control:public, max-age=3600" cp ./build/geoip/geoip.mmdb "${dated}"
+          gsutil -h "Cache-Control:public, max-age=3600" cp "${dated}" "gs://download.gnosisvpn.io/geoip/latest.mmdb"
+      - name: Prune dated copies
+        # Best effort: a failed cleanup must not turn a successful refresh red.
+        continue-on-error: true
+        run: |
+          gsutil ls "gs://download.gnosisvpn.io/geoip/geoip-country-*.mmdb" | sort | head -n -30 | xargs -r gsutil rm

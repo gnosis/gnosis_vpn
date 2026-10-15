@@ -5,7 +5,7 @@ export GNOSISVPN_PACKAGE_VERSION := env_var_or_default('GNOSISVPN_PACKAGE_VERSIO
 download distribution arch:
     ./scripts/download-binaries.sh --distribution {{ distribution }} --architecture {{ arch }}
 
-# Stage the country GeoIP database the packages ship: a fresh IPinfo Lite trim with IPINFO_TOKEN, else the bucket's last good copy
+# Stage the country GeoIP database the packages ship: the bucket's daily trim, or a fresh IPinfo Lite trim when IPINFO_TOKEN is set
 geoip:
     ./scripts/fetch-geoip.sh
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Stage the country GeoIP database the packages ship at build/geoip/geoip.mmdb.
-# A prebuilt file (GNOSISVPN_GEOIP_DB) wins, then a fresh IPinfo Lite trim (IPINFO_TOKEN), then the bucket's last good copy.
+# A prebuilt file (GNOSISVPN_GEOIP_DB) wins, then a fresh IPinfo Lite trim (IPINFO_TOKEN), else the bucket's daily trim.
 #
 
 set -euo pipefail
@@ -11,9 +11,10 @@ source "${SCRIPT_DIR}/common.sh"
 
 GEOIP_DIR="${BUILD_DIR}/geoip"
 GEOIP_DB="${GEOIP_DIR}/geoip.mmdb"
-# Written beside the database so CI only republishes a fresh trim, never the bucket's own copy.
+# Written beside the database so update-geoip.yaml only republishes a fresh trim, never the bucket's own copy.
 GEOIP_SOURCE="${GEOIP_DIR}/source"
 IPINFO_URL="https://ipinfo.io/data/ipinfo_lite.mmdb"
+# Refreshed daily by update-geoip.yaml; what every build ships.
 BUCKET_LATEST_URL="https://download.gnosisvpn.io/geoip/latest.mmdb"
 # The jura-prod exits inside one BYOIP /24 plus the Vienna exit: the lookups this database exists for.
 FLEET_PROBES=(185.9.1.9 185.9.1.25 185.9.1.41 185.9.1.57 185.9.1.73 185.9.1.89 185.9.1.105 89.58.60.202)
@@ -48,9 +49,12 @@ build_from_ipinfo() {
     log_success "GeoIP database built from today's IPinfo Lite"
 }
 
-fetch_last_good() {
-    log_info "Downloading the last published GeoIP database from ${BUCKET_LATEST_URL}..."
-    curl -fsSL --retry 3 -o "${GEOIP_DB}" "${BUCKET_LATEST_URL}" || return 1
+fetch_from_bucket() {
+    log_info "Downloading the daily GeoIP database from ${BUCKET_LATEST_URL}..."
+    curl -fsSL --retry 3 -o "${GEOIP_DB}" "${BUCKET_LATEST_URL}" || {
+        log_error "No GeoIP database available: ${BUCKET_LATEST_URL} failed"
+        exit 1
+    }
     echo "bucket-latest" >"${GEOIP_SOURCE}"
     log_success "GeoIP database taken from the bucket"
 }
@@ -60,14 +64,11 @@ main() {
     mkdir -p "${GEOIP_DIR}"
     if [[ -n ${GNOSISVPN_GEOIP_DB:-} ]]; then
         copy_prebuilt
-    elif [[ -n ${IPINFO_TOKEN:-} ]] && build_from_ipinfo; then
-        :
-    else
-        log_warn "No fresh IPinfo Lite trim (token unset or the download, checksum or trim failed); falling back to the bucket"
-        fetch_last_good || {
-            log_error "No GeoIP database available: IPinfo and ${BUCKET_LATEST_URL} both failed"
-            exit 1
-        }
+    elif [[ -z ${IPINFO_TOKEN:-} ]]; then
+        fetch_from_bucket
+    elif ! build_from_ipinfo; then
+        log_warn "IPinfo Lite download, checksum or trim failed; falling back to the bucket"
+        fetch_from_bucket
     fi
     echo "GeoIP database: ${GEOIP_DB} ($(du -h "${GEOIP_DB}" | cut -f1), source: $(cat "${GEOIP_SOURCE}"))"
 }
