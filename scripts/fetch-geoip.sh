@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Stage the country GeoIP database the packages ship at build/geoip/geoip.mmdb.
 # A prebuilt file (GNOSISVPN_GEOIP_DB) wins, then a fresh IPinfo Lite trim (IPINFO_TOKEN), else the bucket's daily trim.
