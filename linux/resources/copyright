@@ -10,7 +10,7 @@ License: GPL-3.0+
 Files: usr/share/gnosisvpn/geoip.mmdb
 Copyright: IPinfo, https://ipinfo.io
 Comment: Country-only, IPv4-only extract of the IPinfo Lite database, modified
- by Gnosis Ltd. IP address data is powered by IPinfo, https://ipinfo.io.
+ by Gnosis VPN. IP address data is powered by IPinfo, https://ipinfo.io.
 License: CC-BY-SA-4.0
 
 License: GPL-3.0+

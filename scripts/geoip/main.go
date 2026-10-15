@@ -92,7 +92,7 @@ func bounds(subnet *net.IPNet) (uint32, uint32) {
 func writeCountryDb(path string, spans []span) {
 	writer, err := mmdbwriter.New(mmdbwriter.Options{
 		DatabaseType:            "GnosisVPN-Country",
-		Description:             map[string]string{"en": "Country-only IPv4 extract of IPinfo Lite (CC BY-SA 4.0), modified by Gnosis Ltd."},
+		Description:             map[string]string{"en": "Country-only IPv4 extract of IPinfo Lite (CC BY-SA 4.0), modified by Gnosis VPN"},
 		Languages:               []string{"en"},
 		IPVersion:               4,
 		RecordSize:              24,
