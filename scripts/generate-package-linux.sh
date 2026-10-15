@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Safe default values
 : "${GNOSISVPN_GPG_PRIVATE_KEY_PATH:=./gnosisvpn-private-key.asc}"

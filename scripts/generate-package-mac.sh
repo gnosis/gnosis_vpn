@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Build script for Gnosis VPN macOS PKG installer
 #
