@@ -22,6 +22,7 @@ PKG_ID="com.gnosisvpn.gnosisvpnclient"
 BIN_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/gnosisvpn"
 LOG_DIR="/Library/Logs/GnosisVPN"
+SHARE_DIR="/usr/local/share/gnosisvpn"
 
 # Logging functions
 log_info() {
@@ -273,6 +274,21 @@ remove_logs() {
     echo ""
 }
 
+# Remove the GeoIP database and its notice
+remove_geoip_data() {
+    log_info "Removing GeoIP database..."
+    if [[ ! -d $SHARE_DIR ]]; then
+        log_warn "GeoIP directory not found"
+        echo ""
+        return
+    fi
+    rm -f "$SHARE_DIR/geoip.mmdb" "$SHARE_DIR/geoip.NOTICE"
+    # Anything else in there is not ours to delete.
+    rmdir "$SHARE_DIR" 2>/dev/null || log_warn "Kept non-empty $SHARE_DIR"
+    log_success "Removed GeoIP database"
+    echo ""
+}
+
 # Forget package receipt
 forget_package() {
     log_info "Removing package receipt..."
@@ -333,6 +349,13 @@ verify_uninstall() {
         errors=$((errors + 1))
     fi
 
+    for file in "$SHARE_DIR/geoip.mmdb" "$SHARE_DIR/geoip.NOTICE"; do
+        if [[ -f $file ]]; then
+            log_error "GeoIP file still exists: $file"
+            errors=$((errors + 1))
+        fi
+    done
+
     if pkgutil --pkgs | grep -q "^${PKG_ID}$"; then
         log_error "Package receipt still exists: $PKG_ID"
         errors=$((errors + 1))
@@ -391,6 +414,7 @@ print_summary() {
     echo "  ✓ System directories (/Library/Application Support/GnosisVPN)"
     echo "  ✓ Configuration (backed up to ~/gnosis-vpn-config-backup-*)"
     echo "  ✓ Service logs"
+    echo "  ✓ GeoIP database"
     echo "  ✓ Installation logs"
     echo "  ✓ Package receipt"
     echo "  ✓ LaunchServices registrations"
@@ -411,6 +435,7 @@ main() {
     remove_ui_app
     remove_config
     remove_logs
+    remove_geoip_data
     cleanup_system_directories
     remove_sudo_privileges
     remove_system_user
