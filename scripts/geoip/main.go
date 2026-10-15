@@ -1,4 +1,5 @@
 // Trims the IPinfo Lite MMDB to an IPv4 country-only database and proves the extract against the full file.
+// Go because MaxMind's mmdbwriter is the only maintained MMDB writer; readers exist for Rust, writers do not.
 //
 //	geoip-trim <ipinfo_lite.mmdb> <geoip.mmdb> [ip ...]
 package main
