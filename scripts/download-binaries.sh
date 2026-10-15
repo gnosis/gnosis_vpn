@@ -110,8 +110,7 @@ parse_args() {
         log_info "Parameter '--app-version' set to 'latest', using version ${GNOSISVPN_APP_VERSION}"
     fi
 
-    # The toolkit publishes a gnosis_vpn-update binary for every architecture we
-    # package, so its version is resolved on all of them
+    # The toolkit publishes both of its binaries for every packaged architecture, so its version is resolved on all
     if [[ -z $GNOSISVPN_TOOLKIT_VERSION ]]; then
         GNOSISVPN_TOOLKIT_VERSION=$(get_latest_release "gnosis/gnosis_vpn-toolkit")
         log_info "Parameter '--toolkit-version' not specified, defaulting to latest release"
@@ -139,6 +138,21 @@ prepare_build_dir() {
     log_success "Build directory prepared"
 }
 
+# The updater feeds the app's Updates tab; the migrator moves the legacy identity during postinstall.
+download_toolkit_binaries() {
+    local arch="$1" artifact
+    for artifact in gnosis_vpn-update gnosis_vpn-migrate; do
+        echo "Downloading gnosis_vpn-toolkit:${GNOSISVPN_TOOLKIT_VERSION}:${artifact}-${arch}"
+        gcloud artifacts files download --destination="${BINARY_DIR}" \
+            "gnosis_vpn-toolkit:${GNOSISVPN_TOOLKIT_VERSION}:${artifact}-${arch}" --local-filename="${artifact}" || {
+            log_error "Toolkit ${GNOSISVPN_TOOLKIT_VERSION} has no ${artifact}-${arch}; pass --toolkit-version with one that does"
+            exit 1
+        }
+        chmod 755 "${BINARY_DIR}/${artifact}"
+        echo "Downloaded binary: ${BINARY_DIR}/${artifact}"
+    done
+}
+
 # Download binaries from GCP
 download_linux_binaries() {
     log_info "Downloading Linux binaries from GCP Artifact Registry..."
@@ -150,16 +164,7 @@ download_linux_binaries() {
         # Set execute permissions on downloaded binaries
         chmod +x "${BINARY_DIR}/${artifact}"
     done
-    # The app reads the installed package version and update manifests from this
-    # binary; without it the Updates tab can only tell the user to reinstall.
-    echo "Downloading gnosis_vpn-toolkit:${GNOSISVPN_TOOLKIT_VERSION}:gnosis_vpn-update-${GNOSISVPN_ARCHITECTURE}"
-    gcloud artifacts files download --destination="${BINARY_DIR}" \
-        "gnosis_vpn-toolkit:${GNOSISVPN_TOOLKIT_VERSION}:gnosis_vpn-update-${GNOSISVPN_ARCHITECTURE}" --local-filename=gnosis_vpn-update || {
-        log_error "Toolkit ${GNOSISVPN_TOOLKIT_VERSION} has no gnosis_vpn-update-${GNOSISVPN_ARCHITECTURE}; pass --toolkit-version with one that does"
-        exit 1
-    }
-    chmod 755 "${BINARY_DIR}/gnosis_vpn-update"
-    echo "Downloaded binary: ${BINARY_DIR}/gnosis_vpn-update"
+    download_toolkit_binaries "${GNOSISVPN_ARCHITECTURE}"
     echo "Downloading gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}"
     gcloud artifacts files download --destination="${BINARY_DIR}" \
         "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-${GNOSISVPN_ARCHITECTURE}.${GNOSISVPN_DISTRIBUTION}" --local-filename="gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}"
@@ -177,11 +182,7 @@ download_darwin_binaries() {
         chmod 755 "${BINARY_DIR}/${artifact}"
         echo "Downloaded binary: ${BINARY_DIR}/${artifact}"
     done
-    echo "Downloading gnosis_vpn-toolkit:${GNOSISVPN_TOOLKIT_VERSION}:gnosis_vpn-update-aarch64-darwin"
-    gcloud artifacts files download --destination="${BINARY_DIR}" \
-        "gnosis_vpn-toolkit:${GNOSISVPN_TOOLKIT_VERSION}:gnosis_vpn-update-aarch64-darwin" --local-filename=gnosis_vpn-update
-    chmod 755 "${BINARY_DIR}/gnosis_vpn-update"
-    echo "Downloaded binary: ${BINARY_DIR}/gnosis_vpn-update"
+    download_toolkit_binaries aarch64-darwin
     echo "Downloading gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-aarch64-darwin.dmg"
     gcloud artifacts files download --destination="${BINARY_DIR}" \
         "gnosis_vpn-app:${GNOSISVPN_APP_VERSION}:gnosis_vpn-app-aarch64-darwin.dmg" --local-filename=gnosis_vpn-app.dmg
