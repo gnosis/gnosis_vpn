@@ -62,7 +62,7 @@ contents:
   - src: ./build/download/gnosis_vpn-worker
     dst: /usr/bin/gnosis_vpn-worker
     file_info:
-      mode: 0750
+      mode: 0755
   - src: ./build/download/gnosis_vpn-ctl
     dst: /usr/bin/gnosis_vpn-ctl
     file_info:
