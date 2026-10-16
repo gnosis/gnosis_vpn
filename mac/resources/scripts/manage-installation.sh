@@ -59,16 +59,16 @@ check_permissions() {
         return 0
     fi
 
-    # Check if user is in gnosisvpn group
+    # The gnosisvpn group is the sudoers principal for service control
     local current_user
     current_user=$(id -un)
 
     if groups "$current_user" | grep -q '\bgnosisvpn\b'; then
-        log_info "User '$current_user' is in gnosisvpn group - using sudo privileges"
+        log_info "User '$current_user' is in the gnosisvpn permission group - using sudo privileges"
         return 0
     else
-        log_error "This command requires root privileges or membership in 'gnosisvpn' group"
-        log_info "Please run with sudo or ask an administrator to add you to the gnosisvpn group:"
+        log_error "This command requires root privileges or membership in the 'gnosisvpn' permission group"
+        log_info "Please run with sudo or ask an administrator to add you to the group:"
         log_info "  sudo dseditgroup -o edit -a $current_user -t user gnosisvpn"
         exit 1
     fi
@@ -298,29 +298,16 @@ show_status() {
 
     echo ""
 
-    # System user and group status
-    log_info "System user and group status:"
-    if dscl . -read "/Users/gnosisvpn" >/dev/null 2>&1; then
-        local uid gid
-        local uid
-        uid=$(dscl . -read "/Users/gnosisvpn" UniqueID 2>/dev/null | awk '{print $2}' || echo "unknown")
-        local gid
-        gid=$(dscl . -read "/Users/gnosisvpn" PrimaryGroupID 2>/dev/null | awk '{print $2}' || echo "unknown")
-        log_success "System user 'gnosisvpn' exists (UID: $uid, GID: $gid)"
-    else
-        log_warn "System user 'gnosisvpn' not found (service runs as root)"
-    fi
-
+    # Permission group status (the service runs as root, the worker as the requesting user)
+    log_info "Permission group status:"
     if dscl . -read "/Groups/gnosisvpn" >/dev/null 2>&1; then
         local group_gid members
-        local group_gid
         group_gid=$(dscl . -read "/Groups/gnosisvpn" PrimaryGroupID 2>/dev/null | awk '{print $2}' || echo "unknown")
-        local members
         members=$(dscl . -read "/Groups/gnosisvpn" GroupMembership 2>/dev/null | cut -d' ' -f2- || echo "none")
-        log_success "System group 'gnosisvpn' exists (GID: $group_gid)"
+        log_success "Permission group 'gnosisvpn' exists (GID: $group_gid)"
         log_info "  Group members: $members"
     else
-        log_warn "System group 'gnosisvpn' not found"
+        log_warn "Permission group 'gnosisvpn' not found"
     fi
 
     echo ""

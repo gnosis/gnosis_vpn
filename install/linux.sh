@@ -84,11 +84,15 @@ Options:
                                 channel ships, otherwise the channel default is
                                 used. Also configurable via GNOSISVPN_NETWORK
                                 env var.
-  --reset-identity              Back up the worker config dir (/var/lib/gnosisvpn/
-                                .config: HOPR identity, safe, node db) to
-                                .config.<timestamp>.bak, so the service generates
-                                a fresh identity on next start. The network
-                                selection and Blokli endpoint are kept.
+  --reset-identity              Move the legacy single-user identity dir
+                                (/var/lib/gnosisvpn/.config: HOPR identity, safe,
+                                node db) aside to .config.<timestamp>.bak. Only
+                                the legacy layout: it does nothing to migrated,
+                                per-user identities. To reset one of those, stop
+                                the client and move
+                                ~/.local/share/gnosisvpn/networks/<network>/
+                                aside as that user. The network selection and
+                                Blokli endpoint are kept.
                                 Also configurable via GNOSISVPN_RESET_IDENTITY.
   -h, --help                    Show this help and exit.
 
@@ -398,7 +402,7 @@ apt_install() {
     fi
     # Delegate identity reset to postinstall (reset_identity_if_requested) so it runs before the service starts.
     if [[ $RESET_IDENTITY == "true" ]]; then
-        log "Reset identity requested — the package postinstall will back up the current identity and generate a fresh one."
+        log "Reset identity requested — the package postinstall will move the legacy identity aside (per-user identities are not touched)."
         install_env+=(GNOSISVPN_RESET_IDENTITY=true)
     fi
     ${SUDO} env "${install_env[@]}" apt-get install "${apt_opts[@]}" "$package"

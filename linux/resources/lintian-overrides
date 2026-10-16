@@ -2,6 +2,7 @@
 gnosisvpn: shared-library-lacks-prerequisites usr/bin/gnosis_vpn-worker
 gnosisvpn: shared-library-lacks-prerequisites usr/bin/gnosis_vpn-ctl
 gnosisvpn: shared-library-lacks-prerequisites usr/bin/gnosis_vpn-update
+gnosisvpn: shared-library-lacks-prerequisites usr/bin/gnosis_vpn-migrate
 gnosisvpn: embedded-library libyaml usr/bin/gnosis_vpn-worker
 
 # Tauri app bundles assets in /usr/lib/<app-name>/ - this is standard for Tauri applications

@@ -253,7 +253,7 @@ prepare_build_dir() {
     fi
 
     # Copy binaries
-    for binary in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl gnosis_vpn-update; do
+    for binary in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl gnosis_vpn-update gnosis_vpn-migrate; do
         if [[ -f "${BUILD_DIR}/download/${binary}" ]]; then
             cp "${BUILD_DIR}/download/${binary}" "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/${binary}"
             log_success "Copied binary: ${binary}"

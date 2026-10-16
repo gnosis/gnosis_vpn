@@ -72,17 +72,7 @@ if [[ -d /usr/share/doc/gnosisvpn ]]; then
     rm -rf /usr/share/doc/gnosisvpn
 fi
 
-# Remove user and group
-if getent passwd gnosisvpn >/dev/null 2>&1; then
-    echo "$LOG_PREFIX INFO: Removing user 'gnosisvpn'..."
-    userdel gnosisvpn 2>/dev/null || true
-fi
-
-if getent group gnosisvpn >/dev/null 2>&1; then
-    echo "$LOG_PREFIX INFO: Removing group 'gnosisvpn'..."
-    groupdel gnosisvpn 2>/dev/null || true
-fi
-
+# Per-user identities (~/.local/share/gnosisvpn) are the user's data: never touched, not even on purge.
 if [[ $IS_PURGE == "true" ]]; then
     echo "$LOG_PREFIX INFO: Performing complete removal (purge)..."
 
@@ -99,7 +89,7 @@ if [[ $IS_PURGE == "true" ]]; then
     echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=cubic"
     echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=fq_codel"
 
-    # Remove state directory
+    # Updater state and legacy identity backups
     if [[ -d /var/lib/gnosisvpn ]]; then
         echo "$LOG_PREFIX INFO: Removing state directory: /var/lib/gnosisvpn"
         rm -rf /var/lib/gnosisvpn
@@ -128,6 +118,7 @@ else
     echo "$LOG_PREFIX INFO: State data: /var/lib/gnosisvpn"
     echo "$LOG_PREFIX INFO: Logs: /var/log/gnosisvpn"
 fi
+echo "$LOG_PREFIX INFO: Per-user identities under ~/.local/share/gnosisvpn are never removed by the package"
 echo "$LOG_PREFIX SUCCESS: Complete removal finished"
 echo "$LOG_PREFIX SUCCESS: Post-uninstall completed successfully"
 exit 0

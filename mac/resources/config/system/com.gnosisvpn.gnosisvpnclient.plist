@@ -44,7 +44,7 @@
     <key>UserName</key>
     <string>root</string>
     <key>GroupName</key>
-    <string>gnosisvpn</string>
+    <string>wheel</string>
 
     <!-- Working Directory -->
     <key>WorkingDirectory</key>
@@ -65,10 +65,6 @@
         <string>/etc/gnosisvpn/config.toml</string>
         <key>GNOSISVPN_WORKER_BINARY</key>
         <string>/usr/local/bin/gnosis_vpn-worker</string>
-        <key>GNOSISVPN_WORKER_USER</key>
-        <string>gnosisvpn</string>
-        <key>GNOSISVPN_HOME</key>
-        <string>/Library/Application Support/GnosisVPN</string>
         <key>GNOSISVPN_PID_FILE</key>
         <string>/var/run/gnosisvpn.pid</string>
         <key>GNOSISVPN_LOG_FILE</key>
