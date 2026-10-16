@@ -478,7 +478,7 @@ EOF
 }
 
 # TODO: remove by December 2027.
-# Only after an OK migration; DAppNode lacks the passwd package, so a missing userdel/groupdel only warns.
+# Only after an OK migration; a host without userdel/groupdel must warn, not abort the postinstall under set -e.
 remove_legacy_account() {
     [[ $MIGRATION_OK == true ]] || return 0
     if getent passwd gnosisvpn >/dev/null 2>&1; then
