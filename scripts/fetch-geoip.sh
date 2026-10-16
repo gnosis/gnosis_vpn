@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Stage the country GeoIP database the packages ship at build/geoip/geoip.mmdb.
+# Stage the country GeoIP database experimental-line packages ship at build/geoip/geoip.mmdb.
 # A prebuilt file (GNOSISVPN_GEOIP_DB) wins, then a fresh IPinfo Lite trim (IPINFO_TOKEN), else the bucket's daily trim.
 #
 
@@ -14,7 +14,7 @@ GEOIP_DB="${GEOIP_DIR}/geoip.mmdb"
 # Written beside the database so update-geoip.yaml only republishes a fresh trim, never the bucket's own copy.
 GEOIP_SOURCE="${GEOIP_DIR}/source"
 IPINFO_URL="https://ipinfo.io/data/ipinfo_lite.mmdb"
-# Refreshed daily by update-geoip.yaml; what every build ships.
+# Refreshed daily by update-geoip.yaml; what every build that ships the database takes.
 BUCKET_LATEST_URL="https://download.gnosisvpn.io/geoip/latest.mmdb"
 # The jura-prod exits inside one BYOIP /24 plus the Vienna exit: the lookups this database exists for.
 FLEET_PROBES=(185.9.1.9 185.9.1.25 185.9.1.41 185.9.1.57 185.9.1.73 185.9.1.89 185.9.1.105 89.58.60.202)

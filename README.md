@@ -289,8 +289,8 @@ runs it only when the build ships it, and the package scripts fail the build whe
 disagree with that decision.
 
 1. `GNOSISVPN_GEOIP_DB=<path>` copies a prebuilt file (local or offline builds).
-1. Otherwise it downloads `https://download.gnosisvpn.io/geoip/latest.mmdb`, the bucket's daily trim. This is what every
-   CI build does; a package build never talks to IPinfo.
+1. Otherwise it downloads `https://download.gnosisvpn.io/geoip/latest.mmdb`, the bucket's daily trim. This is what the
+   experimental CI builds do; a package build never talks to IPinfo.
 1. With `IPINFO_TOKEN` set (free IPinfo account) it instead downloads today's IPinfo Lite, verifies the SHA-256 against
    IPinfo's checksum endpoint and trims it with `scripts/geoip` (Go, in the dev shell), checking the jura-prod exits
    resolve like the full file. When any of that fails it warns and takes the bucket copy.

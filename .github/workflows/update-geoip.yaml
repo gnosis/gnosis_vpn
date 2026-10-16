@@ -1,9 +1,9 @@
-# Daily because IPinfo rebuilds Lite daily: trims it and publishes to gs://download.gnosisvpn.io/geoip/, where every build fetches it.
+# Daily because IPinfo rebuilds Lite daily: trims it and publishes to gs://download.gnosisvpn.io/geoip/, where experimental-line builds fetch it.
 name: Update GeoIP
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 22 * * *' # Done before the 01:00 UTC snapshot nightly even with GitHub's up-to-3h delay, so the nightlies ship the fresh file.
+    - cron: '0 22 * * *' # Done before the 02:00 UTC experimental nightly even with GitHub's up-to-3h delay, so it ships the fresh file.
 permissions:
   contents: read
   id-token: write
