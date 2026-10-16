@@ -419,17 +419,35 @@ reset_identity_if_requested() {
 }
 
 # The desktop user, or nothing when unknown; root never owns a worker, so every root hit falls through.
+# Class "user" only: the display manager's greeter also holds seat0 and must never receive the identity.
+first_human_session_user() {
+    local id key value uid name seat class
+    for id in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
+        uid="" name="" seat="" class=""
+        while IFS='=' read -r key value; do
+            case $key in
+            User) uid=$value ;;
+            Name) name=$value ;;
+            Seat) seat=$value ;;
+            Class) class=$value ;;
+            esac
+        done < <(loginctl show-session "$id" -p User -p Name -p Seat -p Class 2>/dev/null)
+        [[ $class == "user" && ${uid:-0} -ge 1000 && $name != "root" ]] || continue
+        [[ -z $seat || $seat == "seat0" ]] || continue
+        echo "$name"
+        return 0
+    done
+    return 0
+}
+
 resolve_installing_user() {
     local user="${SUDO_USER:-}"
     if [[ -z $user || $user == "root" ]]; then
         user="${USER:-}"
     fi
-    # PackageKit installs run as root with no SUDO_USER; fall back to the active graphical session owner.
-    if [[ -z $user || $user == "root" ]]; then
-        if command -v loginctl >/dev/null 2>&1; then
-            user="$(loginctl list-sessions --no-legend 2>/dev/null |
-                awk '$3 != "root" && ($4 == "seat0" || $4 == "-") {print $3; exit}' || true)"
-        fi
+    # PackageKit installs run as root with no SUDO_USER; fall back to a human's logind session.
+    if [[ -z $user || $user == "root" ]] && command -v loginctl >/dev/null 2>&1; then
+        user="$(first_human_session_user)"
     fi
     if [[ -z $user || $user == "root" ]]; then
         return 0
