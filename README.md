@@ -242,7 +242,7 @@ The team will review all discussions and promote confirmed bugs or planned featu
 
 ```bash
 just download deb x86_64-linux
-just geoip
+just geoip # only for an experimental-line client, see GeoIP database below
 just changelog
 just manual
 just package deb x86_64-linux true
@@ -254,7 +254,7 @@ just all deb x86_64-linux true
 
 ```bash
 just download deb aarch64-linux
-just geoip
+just geoip # only for an experimental-line client, see GeoIP database below
 just changelog
 just manual
 just package deb aarch64-linux true
@@ -266,7 +266,7 @@ just all deb aarch64-linux true
 
 ```bash
 just download dmg aarch64-darwin
-just geoip
+just geoip # only for an experimental-line client, see GeoIP database below
 just package dmg aarch64-darwin true
 # Or execute all commands together with
 just all dmg aarch64-darwin true
@@ -274,16 +274,23 @@ just all dmg aarch64-darwin true
 
 ### GeoIP database
 
-Every package ships a country-only, IPv4-only extract of the free [IPinfo Lite](https://ipinfo.io/lite) database (CC
-BY-SA 4.0, about 6 MB) at `/usr/share/gnosisvpn/geoip.mmdb` (Linux) or `/usr/local/share/gnosisvpn/geoip.mmdb` (macOS).
-Those are the client's built-in `geoip_db` defaults, so the shipped configs do not name the file; the experimental
-client reads it to show each exit's country from its announced address.
+Experimental-line packages ship a country-only, IPv4-only extract of the free [IPinfo Lite](https://ipinfo.io/lite)
+database (CC BY-SA 4.0, about 6 MB) at `/usr/share/gnosisvpn/geoip.mmdb` (Linux) or
+`/usr/local/share/gnosisvpn/geoip.mmdb` (macOS). Those are the client's built-in `geoip_db` defaults, so the shipped
+configs do not name the file; the experimental client reads it to show each exit's country from its announced address.
+Standard-line (stable, snapshot) packages leave the file, its notice and its copyright stanza out, since that client has
+no GeoIP lookup.
 
-`just geoip` stages the file at `build/geoip/geoip.mmdb`:
+Whether a build ships the file follows the packaged client, not the publishing channel: `GNOSISVPN_CLIENT_VERSION` at or
+above the line boundary in `config/channels.sh` ships it, and only when no numeric client version is set does
+`GNOSISVPN_CHANNEL=experimental` decide. A client from the boundary on refuses to start without the file, so a local
+build should export the client version it packages. `just geoip` stages the file at `build/geoip/geoip.mmdb`; `just all`
+runs it only when the build ships it, and the package scripts fail the build when the finished package's contents
+disagree with that decision.
 
 1. `GNOSISVPN_GEOIP_DB=<path>` copies a prebuilt file (local or offline builds).
-1. Otherwise it downloads `https://download.gnosisvpn.io/geoip/latest.mmdb`, the bucket's daily trim. This is what every
-   CI build does; a package build never talks to IPinfo.
+1. Otherwise it downloads `https://download.gnosisvpn.io/geoip/latest.mmdb`, the bucket's daily trim. This is what the
+   experimental CI builds do; a package build never talks to IPinfo.
 1. With `IPINFO_TOKEN` set (free IPinfo account) it instead downloads today's IPinfo Lite, verifies the SHA-256 against
    IPinfo's checksum endpoint and trims it with `scripts/geoip` (Go, in the dev shell), checking the jura-prod exits
    resolve like the full file. When any of that fails it warns and takes the bucket copy.

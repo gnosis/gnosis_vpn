@@ -1,0 +1,13 @@
+  # Country-only IPv4 extract of IPinfo Lite (CC BY-SA 4.0), staged by scripts/fetch-geoip.sh, at the client's default geoip_db path.
+  - src: ./build/geoip/geoip.mmdb
+    dst: /usr/share/gnosisvpn/geoip.mmdb
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  - src: ./scripts/geoip/NOTICE
+    dst: /usr/share/gnosisvpn/geoip.NOTICE
+    file_info:
+      mode: 0644
+      owner: root
+      group: root

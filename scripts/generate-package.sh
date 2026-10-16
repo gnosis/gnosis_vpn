@@ -26,7 +26,10 @@ experimental) : "${GNOSISVPN_NETWORKS:=${NETWORKS_EXPERIMENTAL}}" ;;
 *) : "${GNOSISVPN_NETWORKS:=${NETWORKS_STANDARD}}" ;;
 esac
 validate_network_names "${GNOSISVPN_NETWORKS}" || exit 1
-export GNOSISVPN_CHANNEL GNOSISVPN_NETWORKS
+# Decided once here; the platform scripts, their prerequisite checks and the package assertions all read this flag.
+GNOSISVPN_SHIP_GEOIP=false
+if ships_geoip; then GNOSISVPN_SHIP_GEOIP=true; fi
+export GNOSISVPN_CHANNEL GNOSISVPN_NETWORKS GNOSISVPN_SHIP_GEOIP
 
 # shellcheck disable=SC2317
 cleanup() {

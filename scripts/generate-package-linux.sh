@@ -76,11 +76,7 @@ check_platform_prerequisites() {
         log_error "Run 'just download ${GNOSISVPN_DISTRIBUTION} ${GNOSISVPN_ARCHITECTURE}' first"
         missing=$((missing + 1))
     fi
-    if [[ ! -f "${BUILD_DIR}/geoip/geoip.mmdb" ]]; then
-        log_error "GeoIP database not found: ${BUILD_DIR}/geoip/geoip.mmdb"
-        log_error "Run 'just geoip' first"
-        missing=$((missing + 1))
-    fi
+    check_geoip_staged || missing=$((missing + 1))
     if [[ ! -f "${BUILD_DIR}/changelog/changelog.gz" ]]; then
         log_error "Changelog not found at ${BUILD_DIR}/changelog/changelog.gz"
         log_error "Run 'just changelog' first"
@@ -183,6 +179,12 @@ generate_nfpm_config() {
         rm -f "${SCRIPT_DIR}/../linux/nfpm.yaml.backup"
     fi
     rm -f "$nfpm_app_contents" "$nfpm_network_configs"
+    cp "${SCRIPT_DIR}/../linux/resources/copyright" "${BUILD_DIR}/resources/copyright"
+    render_geoip_placeholder "${SCRIPT_DIR}/../linux/nfpm.yaml" "${SCRIPT_DIR}/../linux/resources/nfpm-geoip.yaml"
+    render_geoip_placeholder "${BUILD_DIR}/resources/copyright" "${SCRIPT_DIR}/../linux/resources/copyright-geoip"
+    if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
+        log_success "GeoIP database left out ($(geoip_decision_basis))"
+    fi
     log_success "Generated nfpm configuration for ${GNOSISVPN_DISTRIBUTION} (${nfpm_arch}), networks: ${GNOSISVPN_NETWORKS}"
 }
 
@@ -194,6 +196,7 @@ generate_package() {
         --config "${SCRIPT_DIR}/../linux/nfpm.yaml" \
         --packager "${GNOSISVPN_DISTRIBUTION}" \
         --target "${BUILD_DIR}/packages/${PKG_NAME}"
+    dpkg-deb -c "${BUILD_DIR}/packages/${PKG_NAME}" | assert_geoip_shipped "${PKG_NAME}"
     log_success "Package created: ${BUILD_DIR}/packages/${PKG_NAME}"
 }
 

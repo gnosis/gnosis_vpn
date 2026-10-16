@@ -38,6 +38,78 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $*" >&2
 }
 
+# A missing placeholder would silently ship the wrong file; fail the build instead.
+assert_not_mentioned() {
+    local pattern="$1"
+    shift
+    local file
+    for file in "$@"; do
+        if grep -qi -- "${pattern}" "${file}"; then
+            log_error "'${pattern}' still mentioned in ${file}; a marker or stanza the package script deletes has drifted"
+            exit 1
+        fi
+    done
+}
+
+# Clients from the boundary on refuse to start without the database, so the client version decides; channel is the fallback. Needs config/channels.sh.
+ships_geoip() {
+    if version_core_is_numeric "${GNOSISVPN_CLIENT_VERSION:-}"; then
+        version_core_ge "${GNOSISVPN_CLIENT_VERSION}" "${COMPONENT_VERSION_BOUNDARY}"
+    else
+        [[ ${GNOSISVPN_CHANNEL:-} == "experimental" ]]
+    fi
+}
+
+# For log lines: what ships_geoip based its decision on.
+geoip_decision_basis() {
+    echo "client '${GNOSISVPN_CLIENT_VERSION:-unknown}', channel '${GNOSISVPN_CHANNEL:-(none)}'"
+}
+
+# Prerequisite shared by the platform scripts: a build that ships the database must have staged it.
+check_geoip_staged() {
+    [[ ${GNOSISVPN_SHIP_GEOIP} == true ]] || return 0
+    [[ -f "${BUILD_DIR}/geoip/geoip.mmdb" ]] && return 0
+    log_error "GeoIP database not found: ${BUILD_DIR}/geoip/geoip.mmdb"
+    log_error "Run 'just geoip' first"
+    return 1
+}
+
+# Replaces the one GEOIP_PLACEHOLDER line of FILE with FRAGMENT, or drops it when GeoIP stays out; a range delete could instead truncate silently.
+GEOIP_PLACEHOLDER="__GNOSIS_VPN_GEOIP__"
+render_geoip_placeholder() {
+    local file="$1" fragment="$2"
+    if [[ "$(grep -c -- "${GEOIP_PLACEHOLDER}" "${file}")" != "1" ]]; then
+        log_error "${file} must contain exactly one ${GEOIP_PLACEHOLDER} line"
+        exit 1
+    fi
+    if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
+        fragment=/dev/null
+    fi
+    sed -i.backup "/${GEOIP_PLACEHOLDER}/{
+    r ${fragment}
+    d
+    }" "${file}"
+    rm -f "${file}.backup"
+    if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
+        assert_not_mentioned 'geoip\.' "${file}"
+    elif ! grep -qi 'geoip\.' "${file}"; then
+        log_error "GeoIP fragment ${fragment} left no trace in ${file}"
+        exit 1
+    fi
+}
+
+# Checks the published artifact, not the nfpm/pkgbuild inputs; file list on stdin, no `grep -q` since it would SIGPIPE the lister under pipefail.
+assert_geoip_shipped() {
+    local package="$1"
+    local shipped=false
+    if grep '/gnosisvpn/geoip\.mmdb$' >/dev/null; then shipped=true; fi
+    if [[ ${shipped} != "${GNOSISVPN_SHIP_GEOIP}" ]]; then
+        log_error "${package} ships geoip.mmdb: ${shipped}; expected ${GNOSISVPN_SHIP_GEOIP} ($(geoip_decision_basis))"
+        exit 1
+    fi
+    log_success "${package} ships geoip.mmdb: ${shipped}, as expected ($(geoip_decision_basis))"
+}
+
 # Validate version syntax
 check_version_syntax() {
     local version="$1"
