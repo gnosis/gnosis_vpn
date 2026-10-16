@@ -38,6 +38,19 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $*" >&2
 }
 
+# Marker-based deletions are silent no-ops when a marker drifts; fail the build instead of shipping the leftovers.
+assert_not_mentioned() {
+    local pattern="$1"
+    shift
+    local file
+    for file in "$@"; do
+        if grep -qi -- "${pattern}" "${file}"; then
+            log_error "'${pattern}' still mentioned in ${file}; a marker or stanza the package script deletes has drifted"
+            exit 1
+        fi
+    done
+}
+
 # Validate version syntax
 check_version_syntax() {
     local version="$1"

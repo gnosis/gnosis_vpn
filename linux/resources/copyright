@@ -12,6 +12,8 @@ Copyright: IPinfo, https://ipinfo.io
 Comment: Country-only, IPv4-only extract of the IPinfo Lite database, modified
  by Gnosis VPN. IP address data is powered by IPinfo, https://ipinfo.io.
 License: CC-BY-SA-4.0
+ Creative Commons Attribution-ShareAlike 4.0 International. The full licence
+ text is at https://creativecommons.org/licenses/by-sa/4.0/legalcode
 
 License: GPL-3.0+
  This program is free software: you can redistribute it and/or modify
@@ -29,7 +31,3 @@ License: GPL-3.0+
  .
  On Debian systems, the complete text of the GNU General Public License
  version 3 can be found in /usr/share/common-licenses/GPL-3.
-
-License: CC-BY-SA-4.0
- Creative Commons Attribution-ShareAlike 4.0 International. The full licence
- text is at https://creativecommons.org/licenses/by-sa/4.0/legalcode

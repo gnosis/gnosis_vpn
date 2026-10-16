@@ -264,9 +264,10 @@ prepare_build_dir() {
         fi
     done
 
-    # Country database at the client's default geoip_db path, with its CC BY-SA notice beside it.
+    # Country database at the client's default geoip_db path; cleared first so a standard-line build drops what an earlier experimental build staged.
+    local share_dir="${BUILD_DIR}/app-contents/rootfs/usr/local/share/gnosisvpn"
+    rm -f "${share_dir}/geoip.mmdb" "${share_dir}/geoip.NOTICE"
     if [[ ${GNOSISVPN_CHANNEL} == "experimental" ]]; then
-        local share_dir="${BUILD_DIR}/app-contents/rootfs/usr/local/share/gnosisvpn"
         mkdir -p "${share_dir}"
         cp "${BUILD_DIR}/geoip/geoip.mmdb" "${share_dir}/geoip.mmdb"
         cp "${SCRIPT_DIR}/geoip/NOTICE" "${share_dir}/geoip.NOTICE"
@@ -606,6 +607,7 @@ build_distribution_package() {
     sed -i "s/__MIN_OS_MACOS__/${MIN_OS_MACOS}/g" "$distribution_dir/readme.html"
     if [[ ${GNOSISVPN_CHANNEL} != "experimental" ]]; then
         sed -i '/__GEOIP_BEGIN__/,/__GEOIP_END__/d' "$distribution_dir/readme.html"
+        assert_not_mentioned 'geoip\.' "$distribution_dir/readme.html"
     fi
 
     local dist_xml_resolved="${BUILD_DIR}/Distribution.xml"
