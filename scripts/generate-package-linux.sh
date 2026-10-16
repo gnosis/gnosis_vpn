@@ -76,7 +76,8 @@ check_platform_prerequisites() {
         log_error "Run 'just download ${GNOSISVPN_DISTRIBUTION} ${GNOSISVPN_ARCHITECTURE}' first"
         missing=$((missing + 1))
     fi
-    if [[ ! -f "${BUILD_DIR}/geoip/geoip.mmdb" ]]; then
+    # Only the experimental (v5) client reads the GeoIP database.
+    if [[ ${GNOSISVPN_CHANNEL} == "experimental" ]] && [[ ! -f "${BUILD_DIR}/geoip/geoip.mmdb" ]]; then
         log_error "GeoIP database not found: ${BUILD_DIR}/geoip/geoip.mmdb"
         log_error "Run 'just geoip' first"
         missing=$((missing + 1))
@@ -183,6 +184,13 @@ generate_nfpm_config() {
         rm -f "${SCRIPT_DIR}/../linux/nfpm.yaml.backup"
     fi
     rm -f "$nfpm_app_contents" "$nfpm_network_configs"
+    cp "${SCRIPT_DIR}/../linux/resources/copyright" "${BUILD_DIR}/resources/copyright"
+    if [[ ${GNOSISVPN_CHANNEL} != "experimental" ]]; then
+        sed -i.backup '/__GEOIP_BEGIN__/,/__GEOIP_END__/d' "${SCRIPT_DIR}/../linux/nfpm.yaml"
+        sed -i.backup '/^Files: usr\/share\/gnosisvpn\/geoip.mmdb$/,/^$/d' "${BUILD_DIR}/resources/copyright"
+        rm -f "${SCRIPT_DIR}/../linux/nfpm.yaml.backup" "${BUILD_DIR}/resources/copyright.backup"
+        log_success "GeoIP database left out: channel '${GNOSISVPN_CHANNEL:-(none)}' is not experimental"
+    fi
     log_success "Generated nfpm configuration for ${GNOSISVPN_DISTRIBUTION} (${nfpm_arch}), networks: ${GNOSISVPN_NETWORKS}"
 }
 
