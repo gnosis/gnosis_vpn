@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Resolve the package / client / app / toolkit versions for a build and write
 # them as GitHub Actions step outputs.

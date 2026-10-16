@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Resolve the newest registry version of a package that is complete across all
 # target architectures.
