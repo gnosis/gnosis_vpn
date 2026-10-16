@@ -32,7 +32,10 @@ all distribution arch sign="false":
     #!/usr/bin/env bash
     set -o errexit -o nounset -o pipefail
     just download {{ distribution }} {{ arch }}
-    just geoip
+    # Only the experimental client reads it; standard-line builds must not depend on the GeoIP bucket.
+    if [[ "${GNOSISVPN_CHANNEL:-}" == "experimental" ]]; then
+        just geoip
+    fi
     if [[ "{{ arch }}" =~ ^(x86_64-linux|aarch64-linux)$ ]]; then
         just changelog
         just manual

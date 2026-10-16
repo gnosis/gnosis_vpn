@@ -203,6 +203,7 @@ generate_package() {
         --config "${SCRIPT_DIR}/../linux/nfpm.yaml" \
         --packager "${GNOSISVPN_DISTRIBUTION}" \
         --target "${BUILD_DIR}/packages/${PKG_NAME}"
+    dpkg-deb -c "${BUILD_DIR}/packages/${PKG_NAME}" | assert_geoip_shipped "${PKG_NAME}"
     log_success "Package created: ${BUILD_DIR}/packages/${PKG_NAME}"
 }
 

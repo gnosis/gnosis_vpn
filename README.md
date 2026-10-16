@@ -281,7 +281,8 @@ configs do not name the file; the experimental client reads it to show each exit
 Standard-line (stable, snapshot) packages leave the file, its notice and its copyright stanza out, since that client has
 no GeoIP lookup.
 
-`just geoip` stages the file at `build/geoip/geoip.mmdb`:
+`just geoip` stages the file at `build/geoip/geoip.mmdb`; `just all` runs it only for `GNOSISVPN_CHANNEL=experimental`,
+and the package scripts fail the build when the finished package's contents disagree with the channel.
 
 1. `GNOSISVPN_GEOIP_DB=<path>` copies a prebuilt file (local or offline builds).
 1. Otherwise it downloads `https://download.gnosisvpn.io/geoip/latest.mmdb`, the bucket's daily trim. This is what every

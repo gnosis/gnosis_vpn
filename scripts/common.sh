@@ -51,6 +51,19 @@ assert_not_mentioned() {
     done
 }
 
+# Checks the published artifact, not the nfpm/pkgbuild inputs; file list on stdin, no `grep -q` since it would SIGPIPE the lister under pipefail.
+assert_geoip_shipped() {
+    local package="$1"
+    local expected=false shipped=false
+    if [[ ${GNOSISVPN_CHANNEL:-} == "experimental" ]]; then expected=true; fi
+    if grep '/gnosisvpn/geoip\.mmdb$' >/dev/null; then shipped=true; fi
+    if [[ ${shipped} != "${expected}" ]]; then
+        log_error "${package} ships geoip.mmdb: ${shipped}; channel '${GNOSISVPN_CHANNEL:-(none)}' expects ${expected}"
+        exit 1
+    fi
+    log_success "${package} ships geoip.mmdb: ${shipped}, as channel '${GNOSISVPN_CHANNEL:-(none)}' expects"
+}
+
 # Validate version syntax
 check_version_syntax() {
     local version="$1"

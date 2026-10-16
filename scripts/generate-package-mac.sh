@@ -391,6 +391,7 @@ build_component_package() {
         local size
         size=$(du -h "${BUILD_DIR}/packages/$COMPONENT_PKG" | cut -f1)
         log_success "Component package created: $COMPONENT_PKG ($size)"
+        pkgutil --payload-files "${BUILD_DIR}/packages/$COMPONENT_PKG" | assert_geoip_shipped "$COMPONENT_PKG"
     else
         log_error "Failed to create component package"
         exit 1
