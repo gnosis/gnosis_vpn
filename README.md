@@ -242,6 +242,7 @@ The team will review all discussions and promote confirmed bugs or planned featu
 
 ```bash
 just download deb x86_64-linux
+just geoip
 just changelog
 just manual
 just package deb x86_64-linux true
@@ -253,6 +254,7 @@ just all deb x86_64-linux true
 
 ```bash
 just download deb aarch64-linux
+just geoip
 just changelog
 just manual
 just package deb aarch64-linux true
@@ -264,10 +266,33 @@ just all deb aarch64-linux true
 
 ```bash
 just download dmg aarch64-darwin
+just geoip
 just package dmg aarch64-darwin true
 # Or execute all commands together with
 just all dmg aarch64-darwin true
 ```
+
+### GeoIP database
+
+Every package ships a country-only, IPv4-only extract of the free [IPinfo Lite](https://ipinfo.io/lite) database (CC
+BY-SA 4.0, about 6 MB) at `/usr/share/gnosisvpn/geoip.mmdb` (Linux) or `/usr/local/share/gnosisvpn/geoip.mmdb` (macOS).
+Those are the client's built-in `geoip_db` defaults, so the shipped configs do not name the file; the experimental
+client reads it to show each exit's country from its announced address.
+
+`just geoip` stages the file at `build/geoip/geoip.mmdb`:
+
+1. `GNOSISVPN_GEOIP_DB=<path>` copies a prebuilt file (local or offline builds).
+1. Otherwise it downloads `https://download.gnosisvpn.io/geoip/latest.mmdb`, the bucket's daily trim. This is what every
+   CI build does; a package build never talks to IPinfo.
+1. With `IPINFO_TOKEN` set (free IPinfo account) it instead downloads today's IPinfo Lite, verifies the SHA-256 against
+   IPinfo's checksum endpoint and trims it with `scripts/geoip` (Go, in the dev shell), checking the jura-prod exits
+   resolve like the full file. When any of that fails it warns and takes the bucket copy.
+
+The `Update GeoIP` workflow (`.github/workflows/update-geoip.yaml`) runs the token path daily at 22:00 UTC, and on
+manual dispatch, with the `IPINFO_TOKEN` repository secret. It publishes the fresh trim as
+`gs://download.gnosisvpn.io/geoip/geoip-country-<YYYYMMDD>.mmdb`, overwrites `latest.mmdb` and keeps the newest 30 dated
+copies. The run fails rather than republishing the bucket's own copy. The attribution notice ships beside the file as
+`geoip.NOTICE` and in the Debian copyright file.
 
 ### APT repository
 

@@ -76,6 +76,11 @@ check_platform_prerequisites() {
         log_error "Run 'just download ${GNOSISVPN_DISTRIBUTION} ${GNOSISVPN_ARCHITECTURE}' first"
         missing=$((missing + 1))
     fi
+    if [[ ! -f "${BUILD_DIR}/geoip/geoip.mmdb" ]]; then
+        log_error "GeoIP database not found: ${BUILD_DIR}/geoip/geoip.mmdb"
+        log_error "Run 'just geoip' first"
+        missing=$((missing + 1))
+    fi
     if [[ ! -f "${BUILD_DIR}/changelog/changelog.gz" ]]; then
         log_error "Changelog not found at ${BUILD_DIR}/changelog/changelog.gz"
         log_error "Run 'just changelog' first"

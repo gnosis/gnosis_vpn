@@ -56,7 +56,8 @@ meta = { location = "City", flag = "XX" }
 ```
 
 The `[destinations.*]` tables are present in the Jura templates only. The `piz-palu-*` networks declare `version = 7`,
-ship no destination list and rely on the client finding exit nodes at runtime.
+ship no destination list and rely on the client finding exit nodes at runtime. The bundled country database is not named
+either: the client defaults to `/usr/local/share/gnosisvpn/geoip.mmdb`, where `generate-package-mac.sh` puts it.
 
 The table key is a free-form destination id (the country name, by convention). `path` is optional and may only be
 `path = { hops = N }` with `N` in 0-3; when omitted it defaults to 1 hop, which is what the Jura configs rely on.
