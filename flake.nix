@@ -31,7 +31,7 @@
 
           settings.formatter.deno.excludes = [ "*.yaml" "*.yml" ];
 
-          settings.formatter.yamlfmt.excludes = [ "linux/nfpm-template.yaml" ];
+          settings.formatter.yamlfmt.excludes = [ "linux/nfpm-template.yaml" "linux/resources/nfpm-geoip.yaml" ];
 
           settings.formatter.yamlfmt.settings = {
             formatter.type = "basic";
@@ -48,6 +48,11 @@
         formatter = treefmtEval.config.build.wrapper;
         checks = {
           formatting = treefmtEval.config.build.check self;
+          geoip-render = pkgs.runCommand "geoip-render" { } ''
+            cd ${self}
+            ${pkgs.bash}/bin/bash scripts/check-geoip-render.sh
+            touch $out
+          '';
         };
 
         devShells.default = pkgs.mkShell {

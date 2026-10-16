@@ -180,11 +180,9 @@ generate_nfpm_config() {
     fi
     rm -f "$nfpm_app_contents" "$nfpm_network_configs"
     cp "${SCRIPT_DIR}/../linux/resources/copyright" "${BUILD_DIR}/resources/copyright"
+    render_geoip_placeholder "${SCRIPT_DIR}/../linux/nfpm.yaml" "${SCRIPT_DIR}/../linux/resources/nfpm-geoip.yaml"
+    render_geoip_placeholder "${BUILD_DIR}/resources/copyright" "${SCRIPT_DIR}/../linux/resources/copyright-geoip"
     if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
-        sed -i.backup '/__GEOIP_BEGIN__/,/__GEOIP_END__/d' "${SCRIPT_DIR}/../linux/nfpm.yaml"
-        sed -i.backup '/^Files: usr\/share\/gnosisvpn\/geoip.mmdb$/,/^$/d' "${BUILD_DIR}/resources/copyright"
-        rm -f "${SCRIPT_DIR}/../linux/nfpm.yaml.backup" "${BUILD_DIR}/resources/copyright.backup"
-        assert_not_mentioned 'geoip\.' "${SCRIPT_DIR}/../linux/nfpm.yaml" "${BUILD_DIR}/resources/copyright"
         log_success "GeoIP database left out ($(geoip_decision_basis))"
     fi
     log_success "Generated nfpm configuration for ${GNOSISVPN_DISTRIBUTION} (${nfpm_arch}), networks: ${GNOSISVPN_NETWORKS}"

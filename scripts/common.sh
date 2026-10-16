@@ -38,7 +38,7 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $*" >&2
 }
 
-# Marker-based deletions are silent no-ops when a marker drifts; fail the build instead of shipping the leftovers.
+# A missing placeholder would silently ship the wrong file; fail the build instead.
 assert_not_mentioned() {
     local pattern="$1"
     shift
@@ -72,6 +72,30 @@ check_geoip_staged() {
     log_error "GeoIP database not found: ${BUILD_DIR}/geoip/geoip.mmdb"
     log_error "Run 'just geoip' first"
     return 1
+}
+
+# Replaces the one GEOIP_PLACEHOLDER line of FILE with FRAGMENT, or drops it when GeoIP stays out; a range delete could instead truncate silently.
+GEOIP_PLACEHOLDER="__GNOSIS_VPN_GEOIP__"
+render_geoip_placeholder() {
+    local file="$1" fragment="$2"
+    if [[ "$(grep -c -- "${GEOIP_PLACEHOLDER}" "${file}")" != "1" ]]; then
+        log_error "${file} must contain exactly one ${GEOIP_PLACEHOLDER} line"
+        exit 1
+    fi
+    if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
+        fragment=/dev/null
+    fi
+    sed -i.backup "/${GEOIP_PLACEHOLDER}/{
+    r ${fragment}
+    d
+    }" "${file}"
+    rm -f "${file}.backup"
+    if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
+        assert_not_mentioned 'geoip\.' "${file}"
+    elif ! grep -qi 'geoip\.' "${file}"; then
+        log_error "GeoIP fragment ${fragment} left no trace in ${file}"
+        exit 1
+    fi
 }
 
 # Checks the published artifact, not the nfpm/pkgbuild inputs; file list on stdin, no `grep -q` since it would SIGPIPE the lister under pipefail.

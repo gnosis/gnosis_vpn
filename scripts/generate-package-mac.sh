@@ -601,10 +601,7 @@ build_distribution_package() {
         log_warn "welcome.html not found, using default if available"
     fi
     sed -i "s/__MIN_OS_MACOS__/${MIN_OS_MACOS}/g" "$distribution_dir/readme.html"
-    if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
-        sed -i '/__GEOIP_BEGIN__/,/__GEOIP_END__/d' "$distribution_dir/readme.html"
-        assert_not_mentioned 'geoip\.' "$distribution_dir/readme.html"
-    fi
+    render_geoip_placeholder "$distribution_dir/readme.html" "${RESOURCES_DIR}/readme-geoip.html"
 
     local dist_xml_resolved="${BUILD_DIR}/Distribution.xml"
     render_distribution_xml "$DISTRIBUTION_XML" "$dist_xml_resolved"
