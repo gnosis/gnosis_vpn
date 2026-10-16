@@ -75,6 +75,10 @@ both (see `build-binary.yaml`); a local build without them gets the standard lin
 from `config/channels.sh`, and is baked into the package as `/usr/share/gnosisvpn/networks` so the postinstall can pick
 a default and re-point `/etc/gnosisvpn/config.toml` after a channel switch.
 
+Whether the package ships the GeoIP database (`/usr/share/gnosisvpn/geoip.mmdb`) follows the packaged client:
+`GNOSISVPN_CLIENT_VERSION` at or above `COMPONENT_VERSION_BOUNDARY` ships it, and `GNOSISVPN_CHANNEL=experimental` only
+decides when no numeric client version is set. See "GeoIP database" in the top-level README.
+
 The build refuses a channel/version mismatch, because the installed package infers its APT suite from its own version
 string: an `experimental` build needs a version ending in `.experimental`, and `stable`/`snapshot` builds must not have
 one.

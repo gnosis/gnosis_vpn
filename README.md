@@ -242,7 +242,7 @@ The team will review all discussions and promote confirmed bugs or planned featu
 
 ```bash
 just download deb x86_64-linux
-just geoip
+just geoip # only for an experimental-line client, see GeoIP database below
 just changelog
 just manual
 just package deb x86_64-linux true
@@ -254,7 +254,7 @@ just all deb x86_64-linux true
 
 ```bash
 just download deb aarch64-linux
-just geoip
+just geoip # only for an experimental-line client, see GeoIP database below
 just changelog
 just manual
 just package deb aarch64-linux true
@@ -266,7 +266,7 @@ just all deb aarch64-linux true
 
 ```bash
 just download dmg aarch64-darwin
-just geoip
+just geoip # only for an experimental-line client, see GeoIP database below
 just package dmg aarch64-darwin true
 # Or execute all commands together with
 just all dmg aarch64-darwin true
@@ -281,8 +281,12 @@ configs do not name the file; the experimental client reads it to show each exit
 Standard-line (stable, snapshot) packages leave the file, its notice and its copyright stanza out, since that client has
 no GeoIP lookup.
 
-`just geoip` stages the file at `build/geoip/geoip.mmdb`; `just all` runs it only for `GNOSISVPN_CHANNEL=experimental`,
-and the package scripts fail the build when the finished package's contents disagree with the channel.
+Whether a build ships the file follows the packaged client, not the publishing channel: `GNOSISVPN_CLIENT_VERSION` at or
+above the line boundary in `config/channels.sh` ships it, and only when no numeric client version is set does
+`GNOSISVPN_CHANNEL=experimental` decide. A client from the boundary on refuses to start without the file, so a local
+build should export the client version it packages. `just geoip` stages the file at `build/geoip/geoip.mmdb`; `just all`
+runs it only when the build ships it, and the package scripts fail the build when the finished package's contents
+disagree with that decision.
 
 1. `GNOSISVPN_GEOIP_DB=<path>` copies a prebuilt file (local or offline builds).
 1. Otherwise it downloads `https://download.gnosisvpn.io/geoip/latest.mmdb`, the bucket's daily trim. This is what every

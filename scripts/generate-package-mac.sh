@@ -190,12 +190,7 @@ check_platform_prerequisites() {
         fi
     done
 
-    # Only the experimental (v5) client reads the GeoIP database.
-    if [[ ${GNOSISVPN_CHANNEL} == "experimental" ]] && [[ ! -f "${BUILD_DIR}/geoip/geoip.mmdb" ]]; then
-        log_error "GeoIP database not found: ${BUILD_DIR}/geoip/geoip.mmdb"
-        log_error "Run 'just geoip' first"
-        missing=$((missing + 1))
-    fi
+    check_geoip_staged || missing=$((missing + 1))
 
     local network
     for network in ${GNOSISVPN_NETWORKS}; do
@@ -267,14 +262,14 @@ prepare_build_dir() {
     # Country database at the client's default geoip_db path; cleared first so a standard-line build drops what an earlier experimental build staged.
     local share_dir="${BUILD_DIR}/app-contents/rootfs/usr/local/share/gnosisvpn"
     rm -f "${share_dir}/geoip.mmdb" "${share_dir}/geoip.NOTICE"
-    if [[ ${GNOSISVPN_CHANNEL} == "experimental" ]]; then
+    if [[ ${GNOSISVPN_SHIP_GEOIP} == true ]]; then
         mkdir -p "${share_dir}"
         cp "${BUILD_DIR}/geoip/geoip.mmdb" "${share_dir}/geoip.mmdb"
         cp "${SCRIPT_DIR}/geoip/NOTICE" "${share_dir}/geoip.NOTICE"
         chmod 0644 "${share_dir}/geoip.mmdb" "${share_dir}/geoip.NOTICE"
         log_success "GeoIP database staged"
     else
-        log_success "GeoIP database left out: channel '${GNOSISVPN_CHANNEL:-(none)}' is not experimental"
+        log_success "GeoIP database left out ($(geoip_decision_basis))"
     fi
 
     log_success "Build directory prepared"
@@ -606,7 +601,7 @@ build_distribution_package() {
         log_warn "welcome.html not found, using default if available"
     fi
     sed -i "s/__MIN_OS_MACOS__/${MIN_OS_MACOS}/g" "$distribution_dir/readme.html"
-    if [[ ${GNOSISVPN_CHANNEL} != "experimental" ]]; then
+    if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
         sed -i '/__GEOIP_BEGIN__/,/__GEOIP_END__/d' "$distribution_dir/readme.html"
         assert_not_mentioned 'geoip\.' "$distribution_dir/readme.html"
     fi

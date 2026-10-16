@@ -51,17 +51,39 @@ assert_not_mentioned() {
     done
 }
 
+# Clients from the boundary on refuse to start without the database, so the client version decides; channel is the fallback. Needs config/channels.sh.
+ships_geoip() {
+    if version_core_is_numeric "${GNOSISVPN_CLIENT_VERSION:-}"; then
+        version_core_ge "${GNOSISVPN_CLIENT_VERSION}" "${COMPONENT_VERSION_BOUNDARY}"
+    else
+        [[ ${GNOSISVPN_CHANNEL:-} == "experimental" ]]
+    fi
+}
+
+# For log lines: what ships_geoip based its decision on.
+geoip_decision_basis() {
+    echo "client '${GNOSISVPN_CLIENT_VERSION:-unknown}', channel '${GNOSISVPN_CHANNEL:-(none)}'"
+}
+
+# Prerequisite shared by the platform scripts: a build that ships the database must have staged it.
+check_geoip_staged() {
+    [[ ${GNOSISVPN_SHIP_GEOIP} == true ]] || return 0
+    [[ -f "${BUILD_DIR}/geoip/geoip.mmdb" ]] && return 0
+    log_error "GeoIP database not found: ${BUILD_DIR}/geoip/geoip.mmdb"
+    log_error "Run 'just geoip' first"
+    return 1
+}
+
 # Checks the published artifact, not the nfpm/pkgbuild inputs; file list on stdin, no `grep -q` since it would SIGPIPE the lister under pipefail.
 assert_geoip_shipped() {
     local package="$1"
-    local expected=false shipped=false
-    if [[ ${GNOSISVPN_CHANNEL:-} == "experimental" ]]; then expected=true; fi
+    local shipped=false
     if grep '/gnosisvpn/geoip\.mmdb$' >/dev/null; then shipped=true; fi
-    if [[ ${shipped} != "${expected}" ]]; then
-        log_error "${package} ships geoip.mmdb: ${shipped}; channel '${GNOSISVPN_CHANNEL:-(none)}' expects ${expected}"
+    if [[ ${shipped} != "${GNOSISVPN_SHIP_GEOIP}" ]]; then
+        log_error "${package} ships geoip.mmdb: ${shipped}; expected ${GNOSISVPN_SHIP_GEOIP} ($(geoip_decision_basis))"
         exit 1
     fi
-    log_success "${package} ships geoip.mmdb: ${shipped}, as channel '${GNOSISVPN_CHANNEL:-(none)}' expects"
+    log_success "${package} ships geoip.mmdb: ${shipped}, as expected ($(geoip_decision_basis))"
 }
 
 # Validate version syntax
