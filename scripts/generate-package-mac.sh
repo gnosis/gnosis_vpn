@@ -192,6 +192,15 @@ check_platform_prerequisites() {
 
     check_geoip_staged || missing=$((missing + 1))
 
+    # welcome.html prints them; under `set -u` an unset one would abort only after the component pkgs are built.
+    local version_var
+    for version_var in GNOSISVPN_APP_VERSION GNOSISVPN_CLIENT_VERSION GNOSISVPN_TOOLKIT_VERSION; do
+        if [[ -z ${!version_var:-} ]]; then
+            log_error "${version_var} is not set; export the component versions 'just download' resolved (see its summary)"
+            missing=$((missing + 1))
+        fi
+    done
+
     local network
     for network in ${GNOSISVPN_NETWORKS}; do
         if [[ ! -f "$RESOURCES_DIR/config/templates/${network}.toml.template" ]]; then
@@ -231,6 +240,11 @@ prepare_build_dir() {
     echo "${GNOSISVPN_NETWORKS}" >"${BUILD_DIR}/scripts/networks"
     chmod 0644 "${BUILD_DIR}/scripts/networks"
     log_success "Networks baked into installer scripts: ${GNOSISVPN_NETWORKS}"
+
+    # The Installer never removes payload files, so the postinstall needs this to drop a database an earlier experimental pkg left.
+    echo "${GNOSISVPN_SHIP_GEOIP}" >"${BUILD_DIR}/scripts/geoip"
+    chmod 0644 "${BUILD_DIR}/scripts/geoip"
+    log_success "GeoIP decision baked into installer scripts: ${GNOSISVPN_SHIP_GEOIP}"
 
     # Copy the shipped networks' templates into the payload, clearing any left by a build of the other line.
     local templates_dst="${BUILD_DIR}/app-contents/rootfs/etc/gnosisvpn/templates"

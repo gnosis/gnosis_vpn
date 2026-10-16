@@ -129,6 +129,16 @@ test_build_structure() {
     run_test "Baked networks file says '${GNOSISVPN_NETWORKS}'" \
         "[[ \"\$(cat '${BUILD_DIR}/scripts/networks' 2>/dev/null)\" == '${GNOSISVPN_NETWORKS}' ]]"
 
+    # The payload must match the baked decision; a stale experimental stage would otherwise ship in a standard pkg.
+    local share_dir="$rootfs/usr/local/share/gnosisvpn"
+    SHIPS_GEOIP="$(cat "${BUILD_DIR}/scripts/geoip" 2>/dev/null || true)"
+    run_test "Baked geoip file says true or false" "[[ '${SHIPS_GEOIP}' =~ ^(true|false)$ ]]"
+    if [[ ${SHIPS_GEOIP} == true ]]; then
+        run_test "GeoIP database and notice in payload" "[[ -f '${share_dir}/geoip.mmdb' && -f '${share_dir}/geoip.NOTICE' ]]"
+    else
+        run_test "No GeoIP files in payload" "[[ ! -e '${share_dir}/geoip.mmdb' && ! -e '${share_dir}/geoip.NOTICE' ]]"
+    fi
+
     # Scripts
     local scripts=("postinstall" "preinstall" "uninstall.sh" "logging.sh")
     for script in "${scripts[@]}"; do
@@ -226,35 +236,35 @@ test_file_syntax() {
         log_test "Skipping rendered Distribution.xml checks (build/Distribution.xml not found)"
     fi
 
-    # HTML Validation
-    # Providing a tool to check syntax as requested
-    local html_files=("welcome.html" "readme.html" "conclusion.html")
-    local resource_dir="$SCRIPT_DIR/resources/distribution" # welcome.html might be here in source or just generated in build
-
-    # Check source files if they exist (welcome.html might be a template in source)
-    for html in "${html_files[@]}"; do
-        local file_path="$resource_dir/$html"
-        # Check if it's a template instead if the html file doesn't exist
-        if [[ ! -f $file_path && -f "$SCRIPT_DIR/resources/${html}.template" ]]; then
-            file_path="$SCRIPT_DIR/resources/${html}.template"
-        fi
-
-        # Also check just mac/resources/ if not in distribution/
-        if [[ ! -f $file_path && -f "$SCRIPT_DIR/resources/$html" ]]; then
-            file_path="$SCRIPT_DIR/resources/$html"
-        fi
-
-        if [[ -f $file_path ]]; then
-            if command -v tidy >/dev/null; then
-                # tidy -e : show errors only, -q : quiet
-                run_test "HTML syntax '$html' (tidy)" "tidy -e -q '$file_path' 2>/dev/null"
-            elif command -v xmllint >/dev/null; then
-                run_test "HTML syntax '$html' (xmllint)" "xmllint --html --noout '$file_path' 2>/dev/null"
-            else
-                log_test "Skipping HTML syntax check for '$html' (no tool found)"
-            fi
+    # HTML syntax of the installer pages: the sources, plus the rendered copies productbuild actually ships.
+    local html_paths=()
+    local html
+    for html in welcome.html readme.html conclusion.html; do
+        [[ -f "$SCRIPT_DIR/resources/distribution/$html" ]] && html_paths+=("$SCRIPT_DIR/resources/distribution/$html")
+        [[ -f "${BUILD_DIR}/distribution/$html" ]] && html_paths+=("${BUILD_DIR}/distribution/$html")
+    done
+    local file_path
+    for file_path in "${html_paths[@]}"; do
+        if command -v tidy >/dev/null; then
+            # tidy -e : show errors only, -q : quiet
+            run_test "HTML syntax '$file_path' (tidy)" "tidy -e -q '$file_path' 2>/dev/null"
+        elif command -v xmllint >/dev/null; then
+            run_test "HTML syntax '$file_path' (xmllint)" "xmllint --html --noout '$file_path' 2>/dev/null"
+        else
+            log_test "Skipping HTML syntax check for '$file_path' (no tool found)"
         fi
     done
+
+    # The rendered readme must agree with the payload about the GeoIP database.
+    local rendered_readme="${BUILD_DIR}/distribution/readme.html"
+    if [[ -f $rendered_readme ]]; then
+        run_test "Rendered readme has no unrendered placeholder" "! grep -q '__GNOSIS_VPN_' '$rendered_readme'"
+        if [[ ${SHIPS_GEOIP:-} == true ]]; then
+            run_test "Rendered readme lists the GeoIP database" "grep -q 'geoip.mmdb' '$rendered_readme'"
+        else
+            run_test "Rendered readme does not mention GeoIP" "! grep -qi 'geoip' '$rendered_readme'"
+        fi
+    fi
 
     echo ""
 }

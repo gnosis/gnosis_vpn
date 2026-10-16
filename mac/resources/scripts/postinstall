@@ -1007,6 +1007,20 @@ update_binaries() {
     setup_management_script
 }
 
+# The Installer never removes payload files, so a Mac moving off the experimental line keeps a never-refreshed database unless we drop it.
+remove_unshipped_geoip() {
+    local ships_geoip
+    # Packages built before the flag existed shipped the database on every line, so keep it for them.
+    ships_geoip="$(cat "${SCRIPT_DIR}/geoip" 2>/dev/null || echo true)"
+    [[ "$ships_geoip" == "false" ]] || return 0
+    local file
+    for file in "${UI_STAGING_DIR}/geoip.mmdb" "${UI_STAGING_DIR}/geoip.NOTICE"; do
+        [[ -f "$file" ]] || continue
+        log_info "Removing GeoIP file this installer does not ship: $file"
+        rm -f "$file"
+    done
+}
+
 # Set proper file permissions
 set_permissions() {
     log_info "Setting permissions..."
@@ -1395,6 +1409,7 @@ main() {
 
     # Update binaries (incrementally for updates, full for fresh installs)
     update_binaries "$installation_type" "$TARGET_VOLUME"
+    remove_unshipped_geoip
 
     # Setup configuration files and create symlink
     setup_configuration_files
