@@ -182,6 +182,11 @@ configure_network_selection() {
         current="$(basename "$(readlink /etc/gnosisvpn/config.toml)")"
         current="${current#config-}"
         current="${current%.toml}"
+        # The kept link is the user's network; the message and Blokli URL below must follow it, not the default.
+        if is_shipped_network "$current" && [[ -f /etc/gnosisvpn/config-${current}.toml ]]; then
+            network_name="$current"
+            [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]] || blokli_url="$(get_blokli_url "$current")"
+        fi
         successor="$(retired_network_successor "$current")"
         # A rename to a network this line does not ship is no use; fall through to the default.
         if [[ -n $successor ]] && ! is_shipped_network "$successor"; then
