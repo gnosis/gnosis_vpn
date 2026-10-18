@@ -24,6 +24,7 @@ CONFIG_DIR="/etc/gnosisvpn"
 LOG_DIR="/Library/Logs/GnosisVPN"
 SHARE_DIR="/usr/local/share/gnosisvpn"
 STATE_DIR="/Library/Application Support/GnosisVPN"
+CACHE_DIR="/Library/Caches/GnosisVPN"
 
 # Logging functions
 log_info() {
@@ -67,6 +68,8 @@ confirm_uninstall() {
     echo "  - Configuration: $CONFIG_DIR/"
     echo "  - Service logs: $LOG_DIR"
     echo "  - Installation logs: $LOG_DIR/installer"
+    echo "  - Installer choices: $STATE_DIR/installer"
+    echo "  - Update downloads: $CACHE_DIR"
     echo "  - Package receipt: $PKG_ID"
     echo ""
     echo "Left in place: per-user identities under ~/Library/Application Support/GnosisVPN/ and $STATE_DIR (updater state, legacy identity backups)"
@@ -125,10 +128,13 @@ remove_system_group() {
 cleanup_system_directories() {
     log_info "Cleaning up system directories..."
 
-    if [[ -d $LOG_DIR ]]; then
-        log_info "Removing directory: $LOG_DIR"
-        rm -rf "$LOG_DIR"
-    fi
+    local dir
+    for dir in "$LOG_DIR" "$CACHE_DIR" "$STATE_DIR/installer"; do
+        if [[ -d $dir ]]; then
+            log_info "Removing directory: $dir"
+            rm -rf "$dir"
+        fi
+    done
 
     # Remove log rotation config
     local logrotate_conf="/etc/newsyslog.d/gnosisvpn.conf"
@@ -351,7 +357,7 @@ verify_uninstall() {
     fi
 
     # Check system directories removal
-    local system_dirs=("$LOG_DIR")
+    local system_dirs=("$LOG_DIR" "$CACHE_DIR" "$STATE_DIR/installer")
     for dir in "${system_dirs[@]}"; do
         if [[ -d $dir ]]; then
             log_error "System directory still exists: $dir"

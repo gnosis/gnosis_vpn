@@ -116,7 +116,7 @@ is_shipped_network() {
 }
 
 load_installer_choices() {
-    local choice_dir="/Library/Logs/GnosisVPN/installer"
+    local choice_dir="${INSTALLED_LIB_DIR_PATH}/installer"
     local network_choice_file="${choice_dir}/network_choice"
     local loglevel_choice_file="${choice_dir}/loglevel_choice"
 
@@ -366,6 +366,8 @@ resolve_console_user() {
 # Moves the legacy "$INSTALLED_LIB_DIR_PATH/.config" identity into the console user's home; a failure keeps the service unloaded.
 migrate_legacy_identity() {
     log_section "Identity migration"
+    # Moves the previous release's updater files into their current dirs; a failure is logged, never blocking.
+    "$BIN_DIR/gnosis_vpn-migrate" layout || log_warn "layout relocation reported problems, see ${MIGRATE_LOG}"
     if [[ -z "$CURRENT_USER" ]]; then
         log_warn "No console user known — the legacy identity (if any) stays in ${INSTALLED_LIB_DIR_PATH}/.config"
         log_warn "Migrate it later with: sudo gnosis_vpn-migrate identity --user <name>"

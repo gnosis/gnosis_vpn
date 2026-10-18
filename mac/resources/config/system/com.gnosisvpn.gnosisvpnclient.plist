@@ -76,8 +76,6 @@
         <string>__RUST_LOG__</string>
         <key>RUST_BACKTRACE</key>
         <string>full</string>
-        <key>TMPDIR</key>
-        <string>/Library/Application Support/GnosisVPN</string>
     </dict>
 
     <!-- Security -->

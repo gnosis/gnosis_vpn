@@ -421,7 +421,7 @@ build_choice_packages() {
         cat >"$temp_scripts_dir/postinstall" <<EOF
 #!/bin/bash
 set -euo pipefail
-CHOICE_DIR="/Library/Logs/GnosisVPN/installer"
+CHOICE_DIR="/Library/Application Support/GnosisVPN/installer"
 mkdir -p "\$CHOICE_DIR"
 chmod 755 "\$CHOICE_DIR"
 echo "INSTALLER_CHOICE_${choice_type_uppercase}=\"${choice_value}\"" > "\$CHOICE_DIR/${choice_type}_choice"

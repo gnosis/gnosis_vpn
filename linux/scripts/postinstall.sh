@@ -470,6 +470,9 @@ migrate_legacy_identity() {
         return 0
     fi
 
+    # Moves the previous release's app settings and logs into their current dirs; a failure is logged, never blocking.
+    /usr/bin/gnosis_vpn-migrate layout --user "$MIGRATION_USER" || echo "$LOG_PREFIX WARNING: layout relocation reported problems, see $MIGRATE_LOG" >&2
+
     echo "$LOG_PREFIX INFO: Migrating the legacy identity to user '${MIGRATION_USER}' (the desktop/console user)..."
     if /usr/bin/gnosis_vpn-migrate identity --user "$MIGRATION_USER"; then
         MIGRATION_OK=true
