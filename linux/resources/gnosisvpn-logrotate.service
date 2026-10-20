@@ -1,0 +1,10 @@
+[Unit]
+Description=Gnosis VPN log rotation
+Documentation=https://docs.vpn.gnosis.eth.limo/
+After=gnosisvpn.service
+
+[Service]
+Type=oneshot
+# Distros keep logrotate's state file in different places, so this run tracks its own.
+StateDirectory=gnosisvpn-logrotate
+ExecStart=/usr/sbin/logrotate --state /var/lib/gnosisvpn-logrotate/status /etc/logrotate.d/gnosisvpn

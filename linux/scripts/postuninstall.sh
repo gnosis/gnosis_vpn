@@ -91,6 +91,7 @@ if [[ $IS_PURGE == "true" ]]; then
         echo "$LOG_PREFIX INFO: Removing logrotate configuration"
         rm -f /etc/logrotate.d/gnosisvpn
     fi
+    rm -rf /var/lib/gnosisvpn-logrotate
 
     # rm -f unconditionally: dpkg or the admin may have removed it already.
     rm -f /etc/sysctl.d/99-gnosisvpn-bbr.conf

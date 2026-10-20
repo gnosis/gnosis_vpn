@@ -206,6 +206,12 @@ test_file_syntax() {
         log_test "Skipping plutil check (not found)"
     fi
 
+    local newsyslog_plist_src="$SCRIPT_DIR/resources/config/system/com.gnosisvpn.newsyslog.plist"
+    run_test "Log rotation timer plist exists" "[[ -f '$newsyslog_plist_src' ]]"
+    if command -v plutil >/dev/null; then
+        run_test "Log rotation timer plist syntax valid" "plutil -lint '$newsyslog_plist_src' >/dev/null"
+    fi
+
     # Distribution XML Validation (removed greps)
     local dist_xml="$SCRIPT_DIR/Distribution.xml"
     run_test "Distribution XML exists" "[[ -f '$dist_xml' ]]"

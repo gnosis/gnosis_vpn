@@ -34,6 +34,13 @@ if systemctl is-enabled --quiet gnosisvpn.service 2>/dev/null; then
     echo "$LOG_PREFIX SUCCESS: Service disabled successfully"
 fi
 
+# Stop log rotation timer
+if systemctl is-active --quiet gnosisvpn-logrotate.timer 2>/dev/null || systemctl is-enabled --quiet gnosisvpn-logrotate.timer 2>/dev/null; then
+    echo "$LOG_PREFIX INFO: Disabling gnosisvpn-logrotate.timer..."
+    deb-systemd-invoke stop gnosisvpn-logrotate.timer || true
+    deb-systemd-helper disable gnosisvpn-logrotate.timer || true
+fi
+
 # Kill any remaining gnosisvpn processes
 if pgrep -x gnosis_vpn-root >/dev/null 2>&1; then
     echo "$LOG_PREFIX INFO: Terminating remaining gnosis_vpn-root processes..."

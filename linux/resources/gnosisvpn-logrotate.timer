@@ -1,0 +1,11 @@
+[Unit]
+Description=Check the Gnosis VPN log size every minute
+# maxsize in logrotate.conf only bites when logrotate runs, and distros run it daily.
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

@@ -42,6 +42,7 @@ overrides:
       - glib2
   archlinux:
     depends:
+      - logrotate
       - webkit2gtk-4.1
       - gtk3
       - libayatana-appindicator
@@ -124,6 +125,10 @@ __GNOSIS_VPN_GEOIP__
       group: root
   - src: ./linux/resources/gnosisvpn.service
     dst: /usr/lib/systemd/system/gnosisvpn.service
+  - src: ./linux/resources/gnosisvpn-logrotate.service
+    dst: /usr/lib/systemd/system/gnosisvpn-logrotate.service
+  - src: ./linux/resources/gnosisvpn-logrotate.timer
+    dst: /usr/lib/systemd/system/gnosisvpn-logrotate.timer
   # Rendered by generate-package-linux.sh: the GeoIP stanza is spliced in only when the build ships the database.
   - src: ./build/resources/copyright
     dst: /usr/share/doc/gnosisvpn/copyright
