@@ -34,7 +34,7 @@ TARGET_VOLUME="${2:-/}"
 MOUNTPOINT="${3:-/}"
 ROOT_DIR="${4:-/}"
 
-readonly PRODUCTION_RUST_LOG="info"
+readonly PRODUCTION_RUST_LOG="info,hopr_transport=debug"
 readonly DEBUG_RUST_LOG="info,hopr_transport_session=debug,hopr_protocol_session=debug,hopr_protocol_start=debug,hopr_network_types=debug,gnosis_vpn_root=debug,gnosis_vpn_lib=debug,hopr_transport=debug,hopr_network_graph=debug"
 
 # Path joining function to avoid double slashes
@@ -1327,6 +1327,23 @@ copy_logs_rotation_conf() {
         log_warn "Log rotation config not found: $src_conf"
         ls -alR "${SCRIPT_DIR}/config/system/" || true
         ls -alR "${SCRIPT_DIR}/../config/system/" || true
+    fi
+
+    local plist_name="com.gnosisvpn.newsyslog.plist"
+    local src_plist="${SCRIPT_DIR}/config/system/${plist_name}"
+    local dest_plist="/Library/LaunchDaemons/${plist_name}"
+    if [[ -f "$src_plist" ]]; then
+        launchctl bootout system "$dest_plist" 2>/dev/null || true
+        cp "$src_plist" "$dest_plist"
+        chmod 644 "$dest_plist"
+        chown root:wheel "$dest_plist"
+        if launchctl bootstrap system "$dest_plist" 2>/dev/null; then
+            log_success "Installed log rotation timer: $dest_plist"
+        else
+            log_warn "Could not load log rotation timer: $dest_plist"
+        fi
+    else
+        log_warn "Log rotation timer not found: $src_plist"
     fi
 }
 

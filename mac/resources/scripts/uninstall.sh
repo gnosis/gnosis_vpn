@@ -63,6 +63,7 @@ confirm_uninstall() {
     echo "This will remove:"
     echo "  - Binaries: $BIN_DIR/gnosis_vpn-root, $BIN_DIR/gnosis_vpn-worker, $BIN_DIR/gnosis_vpn-ctl, $BIN_DIR/gnosis_vpn-update, $BIN_DIR/gnosis_vpn-manager"
     echo "  - Launchd service: /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
+    echo "  - Log rotation timer: /Library/LaunchDaemons/com.gnosisvpn.newsyslog.plist"
     echo "  - Configuration: $CONFIG_DIR/"
     echo "  - Service logs: $LOG_DIR"
     echo "  - Installation logs: $LOG_DIR/installer"
@@ -151,6 +152,15 @@ cleanup_system_directories() {
             rm -rf "$dir"
         fi
     done
+
+    # Remove log rotation timer
+    local newsyslog_plist="/Library/LaunchDaemons/com.gnosisvpn.newsyslog.plist"
+    if [[ -f $newsyslog_plist ]]; then
+        log_info "Removing log rotation timer: $newsyslog_plist"
+        launchctl bootout system "$newsyslog_plist" 2>/dev/null || true
+        rm -f "$newsyslog_plist"
+        log_success "Log rotation timer removed"
+    fi
 
     # Remove log rotation config
     local logrotate_conf="/etc/newsyslog.d/gnosisvpn.conf"
@@ -341,6 +351,11 @@ verify_uninstall() {
 
     if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
         log_error "Launchd service is still loaded"
+        errors=$((errors + 1))
+    fi
+
+    if [[ -f "/Library/LaunchDaemons/com.gnosisvpn.newsyslog.plist" ]]; then
+        log_error "Log rotation timer still exists: /Library/LaunchDaemons/com.gnosisvpn.newsyslog.plist"
         errors=$((errors + 1))
     fi
 

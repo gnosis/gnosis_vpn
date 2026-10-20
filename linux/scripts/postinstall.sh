@@ -556,6 +556,8 @@ enable_and_start_systemd_service() {
     # Clear start-limit counter; a prior crash-loop would otherwise reject the start for StartLimitIntervalSec.
     systemctl reset-failed gnosisvpn.service 2>/dev/null || true
     systemctl start gnosisvpn.service || true
+    echo "$LOG_PREFIX INFO: Enabling gnosisvpn-logrotate.timer..."
+    systemctl enable --now gnosisvpn-logrotate.timer || true
 
     sleep 2
 

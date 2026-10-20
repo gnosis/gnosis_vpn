@@ -38,6 +38,8 @@ fi
 # Reload systemd after service file removal
 echo "$LOG_PREFIX INFO: Reloading systemd daemon..."
 deb-systemd-helper daemon-reload || true
+# The unit files are gone; drop what systemd still remembers about them.
+systemctl reset-failed gnosisvpn-logrotate.timer gnosisvpn-logrotate.service 2>/dev/null || true
 
 # Check if this is a complete purge
 IS_PURGE=false
@@ -91,6 +93,8 @@ if [[ $IS_PURGE == "true" ]]; then
         echo "$LOG_PREFIX INFO: Removing logrotate configuration"
         rm -f /etc/logrotate.d/gnosisvpn
     fi
+    rm -rf /var/lib/gnosisvpn-logrotate
+    deb-systemd-helper purge gnosisvpn-logrotate.timer 2>/dev/null || true
 
     # rm -f unconditionally: dpkg or the admin may have removed it already.
     rm -f /etc/sysctl.d/99-gnosisvpn-bbr.conf
