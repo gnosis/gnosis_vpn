@@ -1021,6 +1021,22 @@ remove_unshipped_geoip() {
     done
 }
 
+# TODO: remove by June 2027.
+# Reads $VERSION_FILE before save_version_info overwrites it; date-based snapshot versions and legacy installs keep the log.
+remove_pre_0_96_log() {
+    local previous_version core major minor
+    previous_version=$(cat "$VERSION_FILE" 2>/dev/null || true)
+    core="${previous_version#v}"
+    core="${core%%+*}"
+    [[ "$core" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 0
+    IFS=. read -r major minor _ <<<"$core"
+    ((10#$major == 0 && 10#$minor < 96)) || return 0
+    local log_file="$INSTALLED_LOG_DIR_PATH/gnosisvpn.log"
+    [[ -f "$log_file" ]] || return 0
+    log_info "Upgrading from $previous_version (below 0.96.0) — removing $log_file"
+    rm -f "$log_file"
+}
+
 # Set proper file permissions
 set_permissions() {
     log_info "Setting permissions..."
@@ -1427,6 +1443,7 @@ main() {
     # Update binaries (incrementally for updates, full for fresh installs)
     update_binaries "$installation_type" "$TARGET_VOLUME"
     remove_unshipped_geoip
+    remove_pre_0_96_log
 
     # Setup configuration files and create symlink
     setup_configuration_files
