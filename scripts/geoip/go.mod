@@ -1,6 +1,6 @@
 module github.com/gnosis/gnosis_vpn/scripts/geoip
 
-go 1.27.1
+go 1.27.2
 
 require (
 	github.com/maxmind/mmdbwriter v1.2.0
