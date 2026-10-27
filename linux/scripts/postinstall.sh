@@ -429,22 +429,33 @@ reset_identity_if_requested() {
     # Leave gnosisvpn-dynamic.env intact; it holds GNOSISVPN_HOPR_BLOKLI_URL — deleting it would leave the service with an empty URL (clap rejects that).
 }
 
-# The desktop user, or nothing when unknown; root never owns a worker, so every root hit falls through.
 # Class "user" only: the display manager's greeter also holds seat0 and must never receive the identity.
-first_human_session_user() {
-    local id key value uid name seat class
+session_human_user() {
+    local key value uid="" name="" class=""
+    while IFS='=' read -r key value; do
+        case $key in
+        User) uid=$value ;;
+        Name) name=$value ;;
+        Class) class=$value ;;
+        esac
+    done < <(loginctl show-session "$1" -p User -p Name -p Class 2>/dev/null)
+    [[ $class == "user" && ${uid:-0} -ge 1000 && $name != "root" ]] || return 0
+    echo "$name"
+}
+
+# The desktop user, or nothing when unknown; with fast user switching only seat0's active session is the one at the keyboard.
+active_human_session_user() {
+    if loginctl show-seat seat0 >/dev/null 2>&1; then
+        local active
+        active="$(loginctl show-seat seat0 -p ActiveSession --value 2>/dev/null || true)"
+        [[ -z $active ]] || session_human_user "$active"
+        return 0
+    fi
+    # Headless hosts have no seat0, so any human (e.g. ssh) session is the best guess.
+    local id name
     for id in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
-        uid="" name="" seat="" class=""
-        while IFS='=' read -r key value; do
-            case $key in
-            User) uid=$value ;;
-            Name) name=$value ;;
-            Seat) seat=$value ;;
-            Class) class=$value ;;
-            esac
-        done < <(loginctl show-session "$id" -p User -p Name -p Seat -p Class 2>/dev/null)
-        [[ $class == "user" && ${uid:-0} -ge 1000 && $name != "root" ]] || continue
-        [[ -z $seat || $seat == "seat0" ]] || continue
+        name="$(session_human_user "$id")"
+        [[ -z $name ]] && continue
         echo "$name"
         return 0
     done
@@ -458,7 +469,7 @@ resolve_installing_user() {
     fi
     # PackageKit installs run as root with no SUDO_USER; fall back to a human's logind session.
     if [[ -z $user || $user == "root" ]] && command -v loginctl >/dev/null 2>&1; then
-        user="$(first_human_session_user)"
+        user="$(active_human_session_user)"
     fi
     if [[ -z $user || $user == "root" ]]; then
         return 0
@@ -485,12 +496,15 @@ migrate_legacy_identity() {
     /usr/bin/gnosis_vpn-migrate layout --user "$MIGRATION_USER" || echo "$LOG_PREFIX WARNING: layout relocation reported problems, see $MIGRATE_LOG" >&2
 
     echo "$LOG_PREFIX INFO: Migrating the legacy identity to user '${MIGRATION_USER}' (the desktop/console user)..."
-    if /usr/bin/gnosis_vpn-migrate identity --user "$MIGRATION_USER"; then
+    local migrate_status=0
+    /usr/bin/gnosis_vpn-migrate identity --user "$MIGRATION_USER" || migrate_status=$?
+    # On success too: otherwise a stale failure copy outlives the log the old rpm %postun deletes.
+    cp -f "$MIGRATE_LOG" "$MIGRATE_LOG_COPY" 2>/dev/null || true
+    if [[ $migrate_status -eq 0 ]]; then
         MIGRATION_OK=true
         return 0
     fi
     MIGRATION_FAILED=true
-    cp -f "$MIGRATE_LOG" "$MIGRATE_LOG_COPY" 2>/dev/null || true
     echo "$LOG_PREFIX ERROR: Identity migration failed — gnosisvpn.service will be installed but not started" >&2
 }
 
@@ -513,6 +527,11 @@ EOF
 # Only after an OK migration; a host without userdel/groupdel must warn, not abort the postinstall under set -e.
 remove_legacy_account() {
     [[ $MIGRATION_OK == true ]] || return 0
+    # A locally modified logrotate conffile survives the upgrade; its old create owner would stop rotation once the account is gone.
+    if [[ -f /etc/logrotate.d/gnosisvpn ]] && grep -qE '^[[:space:]]*create[[:space:]]+[0-7]+[[:space:]]+gnosisvpn[[:space:]]+gnosisvpn' /etc/logrotate.d/gnosisvpn; then
+        echo "$LOG_PREFIX INFO: Re-owning the logrotate create rule in /etc/logrotate.d/gnosisvpn to root"
+        sed -i -E 's/^([[:space:]]*create[[:space:]]+[0-7]+[[:space:]]+)gnosisvpn[[:space:]]+gnosisvpn/\1root root/' /etc/logrotate.d/gnosisvpn
+    fi
     if getent passwd gnosisvpn >/dev/null 2>&1; then
         if command -v userdel >/dev/null 2>&1; then
             echo "$LOG_PREFIX INFO: Removing the legacy service user 'gnosisvpn'..."
