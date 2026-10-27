@@ -19,8 +19,6 @@ MIGRATION_FAILED=false
 MIGRATION_STATUS=0
 MIGRATION_USER=""
 MIGRATE_LOG=/var/log/gnosisvpn/migrate.log
-# The previous package's rpm %postun deletes /var/log/gnosisvpn after this script, so a copy lives where it survives.
-MIGRATE_LOG_COPY=/var/lib/gnosisvpn/migrate.log
 
 # TODO: remove by December 2027.
 retired_network_successor() {
@@ -394,7 +392,7 @@ EOF
     echo "$LOG_PREFIX INFO: Run 'sudo apt-get update' to refresh the package cache"
 }
 
-# Backs up the worker config dir so the service gets a fresh identity on next start.
+# Moves the legacy identity aside through the toolkit so the service gets a fresh identity on next start.
 reset_identity_if_requested() {
     if [[ -z ${GNOSISVPN_RESET_IDENTITY:-} || ${GNOSISVPN_RESET_IDENTITY} == "false" ]]; then
         return 0
@@ -409,23 +407,9 @@ reset_identity_if_requested() {
         systemctl stop gnosisvpn.service || true
     fi
 
-    # Back up rather than delete; service recreates it on next start.
-    local config_dir=/var/lib/gnosisvpn/.config
-    if [[ -d $config_dir ]]; then
-        # Bump numeric suffix to avoid colliding with a same-second backup (fatal under set -e).
-        local ts backup n
-        ts="$(date +%Y%m%d%H%M%S)"
-        backup="${config_dir}.${ts}.bak"
-        n=1
-        while [[ -e $backup ]]; do
-            backup="${config_dir}.${ts}.${n}.bak"
-            n=$((n + 1))
-        done
-        echo "$LOG_PREFIX INFO: Backing up worker config directory: $config_dir -> $backup"
-        mv "$config_dir" "$backup"
-    else
-        echo "$LOG_PREFIX INFO: No worker config found at $config_dir — nothing to back up"
-    fi
+    # The toolkit owns legacy moves (GNO-810): start-clean renames .config to .config.<ts>.bak and locks it down to 0700.
+    echo "$LOG_PREFIX INFO: Moving the legacy identity aside (gnosis_vpn-migrate start-clean)..."
+    /usr/bin/gnosis_vpn-migrate start-clean
 
     # Leave gnosisvpn-dynamic.env intact; it holds GNOSISVPN_HOPR_BLOKLI_URL — deleting it would leave the service with an empty URL (clap rejects that).
 }
@@ -446,24 +430,11 @@ session_human_user() {
 
 # The desktop user, or nothing when unknown; with fast user switching only seat0's active session is the one at the keyboard.
 active_human_session_user() {
-    local active name
+    local active
     active="$(loginctl show-seat seat0 -p ActiveSession --value 2>/dev/null || true)"
-    if [[ -n $active ]]; then
-        name="$(session_human_user "$active")"
-        if [[ -n $name ]]; then
-            echo "$name"
-            return 0
-        fi
-    fi
-    # seat0 always exists; nobody at the keyboard (headless host, greeter) makes any human session, e.g. ssh, the best guess.
-    local id
-    for id in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
-        name="$(session_human_user "$id")"
-        [[ -z $name ]] && continue
-        echo "$name"
-        return 0
-    done
-    return 0
+    [[ -n $active ]] || return 0
+    # Nobody at the keyboard (headless host, greeter) defers the migration; an ssh session must never receive the identity.
+    session_human_user "$active"
 }
 
 resolve_installing_user() {
@@ -483,7 +454,7 @@ resolve_installing_user() {
 
 # Moves the legacy /var/lib/gnosisvpn/.config identity into the installing user's home; a failure keeps the service stopped.
 migrate_legacy_identity() {
-    # preinstall stops it too; repeated so the migration never runs against a live service whatever the hook order.
+    # preinstall stops it too; repeated so the migration never runs against a live service.
     if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet gnosisvpn.service 2>/dev/null; then
         echo "$LOG_PREFIX INFO: Stopping gnosisvpn.service before the identity migration..."
         systemctl stop gnosisvpn.service || true
@@ -502,8 +473,6 @@ migrate_legacy_identity() {
 
     echo "$LOG_PREFIX INFO: Migrating the legacy identity to user '${MIGRATION_USER}' (the desktop/console user)..."
     /usr/bin/gnosis_vpn-migrate identity --user "$MIGRATION_USER" || MIGRATION_STATUS=$?
-    # On success too: otherwise a stale failure copy outlives the log the old rpm %postun deletes.
-    cp -f "$MIGRATE_LOG" "$MIGRATE_LOG_COPY" 2>/dev/null || true
     if [[ $MIGRATION_STATUS -eq 0 ]]; then
         MIGRATION_OK=true
         return 0
@@ -525,7 +494,7 @@ print_migration_failure() {
     cat >&2 <<EOF
 
 Identity migration failed — see the toolkit output above.
-Log: ${MIGRATE_LOG}   (also: ${MIGRATE_LOG_COPY})
+Log: ${MIGRATE_LOG}
 The service was installed but left disabled and NOT started. Choose one:
   1. ${keep_legacy}
   2. Send the logs to support:        sudo gnosis_vpn-migrate upload-log

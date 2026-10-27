@@ -16,11 +16,6 @@ homepage: https://vpn.gnosis.eth.limo/
 rpm:
   signature:
     key_file: ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}
-# The generic hooks below map to pacman's install/remove only; without these, no script runs on upgrade.
-archlinux:
-  scripts:
-    preupgrade: ./linux/scripts/preinstall.sh
-    postupgrade: ./linux/scripts/postinstall.sh
 overrides:
   deb:
     depends:

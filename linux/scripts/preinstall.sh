@@ -30,12 +30,7 @@ fi
 if command -v systemctl >/dev/null 2>&1; then
     if systemctl is-active --quiet gnosisvpn 2>/dev/null; then
         echo "$LOG_PREFIX INFO: Stopping existing gnosisvpn service..."
-        # deb-systemd-invoke honours policy-rc.d; rpm %pre and pacman pre_upgrade have only systemctl.
-        if command -v deb-systemd-invoke >/dev/null 2>&1; then
-            deb-systemd-invoke stop gnosisvpn || true
-        else
-            systemctl stop gnosisvpn || true
-        fi
+        deb-systemd-invoke stop gnosisvpn || true
     fi
 fi
 

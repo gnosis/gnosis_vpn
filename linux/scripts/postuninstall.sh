@@ -72,7 +72,7 @@ fi
 if [[ $IS_PURGE == "true" ]]; then
     echo "$LOG_PREFIX INFO: Performing complete removal (purge)..."
 
-    # Purge only: the rpm %postun of the outgoing package runs after the new %post, so an upgrade must keep the live log.
+    # Purge only: logs survive a plain remove (promised below) and the old postrm that dpkg runs during an upgrade.
     if [[ -d /var/log/gnosisvpn ]]; then
         echo "$LOG_PREFIX INFO: Removing log directory: /var/log/gnosisvpn"
         rm -rf /var/log/gnosisvpn

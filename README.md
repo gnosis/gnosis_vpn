@@ -190,9 +190,8 @@ sudo systemctl enable --now gnosisvpn
 When the failure is a conflict (the user already has an identity for that network, exit code 75), the block offers
 `identity --user <name> --replace` (keep the legacy identity) and a bare `start-clean` (keep the current one) instead.
 
-The migrate log is `/var/log/gnosisvpn/migrate.log`, with a copy in `/var/lib/gnosisvpn/migrate.log` that survives an
-rpm upgrade (the previous package's `%postun` deletes the log directory). `gnosis_vpn-migrate identity` is idempotent: a
-re-run after a successful migration reports `AlreadyMigrated`.
+The migrate log is `/var/log/gnosisvpn/migrate.log`. `gnosis_vpn-migrate identity` is idempotent: a re-run after a
+successful migration reports `AlreadyMigrated`.
 
 ### .deb Installation Environment Variables
 
