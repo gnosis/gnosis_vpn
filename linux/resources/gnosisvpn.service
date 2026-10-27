@@ -40,11 +40,10 @@ CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETUID 
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETUID CAP_SETGID CAP_DAC_OVERRIDE CAP_CHOWN
 
 # File system protection
-# Per-user identities live under the requesting user's home; "-" ignores a missing path, other home roots need an entry.
-ProtectSystem=strict
+# full, not strict: the worker writes its identity under the requesting user's home, wherever that home is mounted
+ProtectSystem=full
 ProtectHome=no
 PrivateTmp=yes
-ReadWritePaths=/var/log/gnosisvpn -/home -/var/home
 
 # Resource limits
 LimitNOFILE=65536

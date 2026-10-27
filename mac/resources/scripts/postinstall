@@ -1469,7 +1469,8 @@ main() {
     # Install UI application before the service so BTM can associate the daemon with it
     install_ui_application
 
-    # Between "old service stopped" (preinstall) and "new service started" (next step)
+    # preinstall never stops the daemon: boot it out here so the migration never runs against a live worker
+    uninstall_launchd_service
     migrate_legacy_identity
     # TODO: remove the removal code by December 2027 (see remove_legacy_account).
     remove_legacy_account
