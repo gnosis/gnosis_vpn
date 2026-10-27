@@ -172,18 +172,23 @@ Releases before this layout ran the worker as a `gnosisvpn` system user with one
 moving that identity into the installing user's layout (`SUDO_USER`, else the owner of the graphical session; root is
 never a candidate) and renaming the legacy directory to `.config.migrated-<timestamp>`. The `gnosisvpn` user and group
 are removed once the migration reports success. When the installing user cannot be determined (headless installs), the
-migration is skipped with a warning, the service starts and the legacy identity stays intact; run the command by hand
-later.
+migration is skipped with a warning, the service starts and the legacy identity stays intact; run
+`sudo gnosis_vpn-migrate identity --user <name> --replace` by hand later (`--replace` because a connection made in the
+meantime may already have created a per-user identity).
 
-If the migration fails, the package install still succeeds, but the service is enabled and **not** started, so a fresh
-identity cannot shadow the legacy one. The output ends with three ways forward, then the start command:
+If the migration fails, the package install still succeeds, but the service is disabled and **not** started, so neither
+the install nor the next boot can create a fresh identity that shadows the legacy one. The output ends with three ways
+forward, then the start command:
 
 ```bash
 sudo gnosis_vpn-migrate identity --user <name>      # retry after fixing the cause
 sudo gnosis_vpn-migrate upload-log                  # send /var/log/gnosisvpn/migrate.log to support
 sudo gnosis_vpn-migrate start-clean --user <name>   # give up on the legacy identity, start fresh
-sudo systemctl start gnosisvpn
+sudo systemctl enable --now gnosisvpn
 ```
+
+When the failure is a conflict (the user already has an identity for that network, exit code 75), the block offers
+`identity --user <name> --replace` (keep the legacy identity) and a bare `start-clean` (keep the current one) instead.
 
 The migrate log is `/var/log/gnosisvpn/migrate.log`, with a copy in `/var/lib/gnosisvpn/migrate.log` that survives an
 rpm upgrade (the previous package's `%postun` deletes the log directory). `gnosis_vpn-migrate identity` is idempotent: a

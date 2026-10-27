@@ -62,12 +62,6 @@ arch)
     ;;
 esac
 
-# Remove log directory
-if [[ -d /var/log/gnosisvpn ]]; then
-    echo "$LOG_PREFIX INFO: Removing log directory: /var/log/gnosisvpn"
-    rm -rf /var/log/gnosisvpn
-fi
-
 # Remove documentation directory
 if [[ -d /usr/share/doc/gnosisvpn ]]; then
     echo "$LOG_PREFIX INFO: Removing documentation directory: /usr/share/doc/gnosisvpn"
@@ -77,6 +71,12 @@ fi
 # Per-user identities (~/.local/share/gnosisvpn) are the user's data: never touched, not even on purge.
 if [[ $IS_PURGE == "true" ]]; then
     echo "$LOG_PREFIX INFO: Performing complete removal (purge)..."
+
+    # Purge only: the rpm %postun of the outgoing package runs after the new %post, so an upgrade must keep the live log.
+    if [[ -d /var/log/gnosisvpn ]]; then
+        echo "$LOG_PREFIX INFO: Removing log directory: /var/log/gnosisvpn"
+        rm -rf /var/log/gnosisvpn
+    fi
 
     # logrotate.d is a dpkg conffile — only delete on purge to avoid dpkg treating the removal as intentional.
     if [[ -f /etc/logrotate.d/gnosisvpn ]]; then

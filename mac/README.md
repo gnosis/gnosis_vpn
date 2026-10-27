@@ -72,17 +72,23 @@ Releases before the per-user layout ran the worker as a `gnosisvpn` system user 
 `gnosis_vpn-migrate identity --user <console user>` after the old service was stopped and before the new one is loaded,
 moving that identity into the console user's layout and renaming the legacy directory to `.config.migrated-<timestamp>`.
 The `gnosisvpn` user is removed once the migration succeeds; the group stays. Without a console session the migration is
-skipped with a warning, the service starts, and the legacy identity stays intact for a manual run.
+skipped with a warning, the service starts, and the legacy identity stays intact for a manual
+`sudo gnosis_vpn-migrate identity --user <name> --replace` (`--replace` because a connection made in the meantime may
+already have created a per-user identity).
 
-If the migration fails, Installer.app still reports success, but the launchd plist is installed **without** being
-bootstrapped, and `postinstall.log` ends with three ways forward, then the start command:
+If the migration fails, Installer.app still reports success, but the launchd service is installed **disabled** and not
+bootstrapped, so neither the install nor the next boot can create a fresh identity that shadows the legacy one.
+`postinstall.log` ends with three ways forward, then the start command:
 
 ```bash
 sudo gnosis_vpn-migrate identity --user <name>      # retry after fixing the cause
 sudo gnosis_vpn-migrate upload-log                  # send the migrate + installer logs to support
 sudo gnosis_vpn-migrate start-clean --user <name>   # give up on the legacy identity, start fresh
-sudo launchctl bootstrap system /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist
+sudo launchctl enable system/com.gnosisvpn.gnosisvpnclient && sudo launchctl bootstrap system /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist
 ```
+
+When the failure is a conflict (the user already has an identity for that network, exit code 75), the block offers
+`identity --user <name> --replace` (keep the legacy identity) and a bare `start-clean` (keep the current one) instead.
 
 `gnosis_vpn-migrate identity` is idempotent, so re-running the pkg after a failure is safe.
 

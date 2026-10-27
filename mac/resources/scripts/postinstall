@@ -71,12 +71,14 @@ UI_TARGET_APP="$(join_path "$TARGET_VOLUME" "/Applications/Gnosis VPN.app")"
 INSTALLED_LOG_DIR_PATH="/Library/Logs/GnosisVPN"
 INSTALLED_LIB_DIR_PATH="/Library/Application Support/GnosisVPN"
 LAUNCHD_PLIST_PATH="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
+LAUNCHD_SERVICE="system/com.gnosisvpn.gnosisvpnclient"
 
 # Set by migrate_legacy_identity; gate the service bootstrap and the legacy account removal.
 MIGRATION_OK=false
 MIGRATION_FAILED=false
+MIGRATION_STATUS=0
 MIGRATE_LOG="${INSTALLED_LOG_DIR_PATH}/installer/migrate.log"
-# Console user; set by set_permissions, reused by the validation probes and the migration.
+# Console user, resolved once in main: group membership, the migration, the validation probes and the app launch share it.
 CURRENT_USER=""
 
 # Rollback mechanism
@@ -297,8 +299,7 @@ create_system_group() {
     log_info "Creating dedicated system group for Gnosis VPN..."
 
     local groupname="gnosisvpn"
-    local current_user
-    current_user=$(logname 2>/dev/null || who am i | awk '{print $1}' || echo "unknown")
+    local current_user="$CURRENT_USER"
 
     # Find next available system GID (typically 200-499 range for system groups)
     local gid
@@ -319,7 +320,9 @@ create_system_group() {
         local group_members
         group_members=$(dscl . -read "/Groups/$groupname" GroupMembership 2>/dev/null | cut -d' ' -f2- || echo "")
 
-        if [[ "$group_members" == *"$current_user"* ]]; then
+        if [[ -z "$current_user" ]]; then
+            log_warn "No console user detected; add yours later with: sudo dseditgroup -o edit -a <name> -t user gnosisvpn"
+        elif [[ "$group_members" == *"$current_user"* ]]; then
             log_info "Current user '$current_user' is already in group '$groupname'"
         else
             log_info "Adding current user '$current_user' to existing group '$groupname'"
@@ -339,12 +342,12 @@ create_system_group() {
     dscl . -create "/Groups/$groupname" RecordName "$groupname"
 
     # Add current user to the group
-    if [[ "$current_user" != "unknown" ]] && [[ "$current_user" != "root" ]]; then
+    if [[ -n "$current_user" ]]; then
         log_info "Adding current user '$current_user' to group '$groupname'"
         dseditgroup -o edit -a "$current_user" -t user "$groupname"
         log_success "User '$current_user' added to group '$groupname'"
     else
-        log_warn "Could not determine current user or user is root - skipping group membership"
+        log_warn "No console user detected; add yours later with: sudo dseditgroup -o edit -a <name> -t user gnosisvpn"
     fi
 
     log_success "System group '$groupname' created successfully (GID: $gid)"
@@ -370,13 +373,15 @@ migrate_legacy_identity() {
     "$BIN_DIR/gnosis_vpn-migrate" layout || log_warn "layout relocation reported problems, see ${MIGRATE_LOG}"
     if [[ -z "$CURRENT_USER" ]]; then
         log_warn "No console user known — the legacy identity (if any) stays in ${INSTALLED_LIB_DIR_PATH}/.config"
-        log_warn "Migrate it later with: sudo gnosis_vpn-migrate identity --user <name>"
+        # --replace: by then a connection may have created a per-user identity that must give way to the legacy one.
+        log_warn "Migrate it later with: sudo gnosis_vpn-migrate identity --user <name> --replace"
         return 0
     fi
 
     log_info "Migrating the legacy identity to user '${CURRENT_USER}' (the console user)..."
-    # `if !` keeps the ERR trap (rollback) out of the toolkit's non-zero exit.
-    if ! "$BIN_DIR/gnosis_vpn-migrate" identity --user "$CURRENT_USER"; then
+    # The `||` list keeps the ERR trap (rollback) out of the toolkit's non-zero exit.
+    "$BIN_DIR/gnosis_vpn-migrate" identity --user "$CURRENT_USER" || MIGRATION_STATUS=$?
+    if [[ $MIGRATION_STATUS -ne 0 ]]; then
         MIGRATION_FAILED=true
         log_error "Identity migration failed — the service will be installed but not started"
         return 0
@@ -385,18 +390,25 @@ migrate_legacy_identity() {
     log_success "Identity migration done"
 }
 
-# Shared wording with the Linux postinstall; the start command must stay the last line.
+# Shared wording with the Linux postinstall; the start command must stay the last user-facing line.
 print_migration_failure() {
     [[ "$MIGRATION_FAILED" == true ]] || return 0
+    local keep_legacy="Retry after fixing the cause:   sudo gnosis_vpn-migrate identity --user ${CURRENT_USER}"
+    local fresh_start="Start with a fresh identity:     sudo gnosis_vpn-migrate start-clean --user ${CURRENT_USER}"
+    # Exit 75: the user already has an identity; start-clean --user would move it aside and the next start would create a third.
+    if [[ $MIGRATION_STATUS -eq 75 ]]; then
+        keep_legacy="Keep the legacy identity:        sudo gnosis_vpn-migrate identity --user ${CURRENT_USER} --replace"
+        fresh_start="Keep the current identity:       sudo gnosis_vpn-migrate start-clean"
+    fi
     cat <<EOF
 
 Identity migration failed — see the toolkit output above.
 Log: ${MIGRATE_LOG}
-The service was installed but NOT started. Choose one:
-  1. Retry after fixing the cause:   sudo gnosis_vpn-migrate identity --user ${CURRENT_USER}
+The service was installed but left disabled and NOT loaded. Choose one:
+  1. ${keep_legacy}
   2. Send the logs to support:        sudo gnosis_vpn-migrate upload-log
-  3. Start with a fresh identity:     sudo gnosis_vpn-migrate start-clean --user ${CURRENT_USER}
-Then start the service:               sudo launchctl bootstrap system ${LAUNCHD_PLIST_PATH}
+  3. ${fresh_start}
+Then start the service:               sudo launchctl enable ${LAUNCHD_SERVICE} && sudo launchctl bootstrap system ${LAUNCHD_PLIST_PATH}
 EOF
 }
 
@@ -495,15 +507,17 @@ install_launchd_service() {
 
         log_success "Plist configured and validated successfully"
 
-        # Starting now would generate a fresh identity and turn the retry path into a conflict.
+        # Starting now, or at the next boot, would generate a fresh identity and turn the retry path into a conflict.
         if [[ "$MIGRATION_FAILED" == true ]]; then
-            launchctl enable system/com.gnosisvpn.gnosisvpnclient 2>/dev/null || true
+            launchctl disable "$LAUNCHD_SERVICE" 2>/dev/null || true
             log_warn "Not loading the service: the identity migration failed (see the end of this output)"
             return 0
         fi
 
         # Load and start the service
         log_info "Loading Gnosis VPN service..."
+        # A failed migration on an earlier run left the service disabled, and bootstrap refuses a disabled service.
+        launchctl enable "$LAUNCHD_SERVICE" 2>/dev/null || true
 
         # Try to bootstrap the service
         local bootstrap_attempts=0
@@ -1044,15 +1058,6 @@ set_permissions() {
     chmod -R 755 "$INSTALLED_LOG_DIR_PATH"
     log_info "Log directory permissions updated: $INSTALLED_LOG_DIR_PATH"
 
-    # Group membership grants the console user the sudoers rules (service control, self-update).
-    CURRENT_USER=$(resolve_console_user)
-    if [[ -n "$CURRENT_USER" ]]; then
-        log_info "Current user detected: $CURRENT_USER"
-        dseditgroup -o edit -a "$CURRENT_USER" -t user gnosisvpn
-    else
-        log_warn "No console user detected; add yours later with: sudo dseditgroup -o edit -a <name> -t user gnosisvpn"
-    fi
-
     # Not recursive: the legacy .config inside keeps its owner until migrated, and the updater state lives here.
     local state_dir="$INSTALLED_LIB_DIR_PATH"
     chown root:wheel "$state_dir"
@@ -1134,7 +1139,11 @@ print_summary() {
 
     echo ""
     log_info "Service Management:"
-    log_info "  The VPN service will start automatically at boot"
+    if [[ "$MIGRATION_FAILED" == true ]]; then
+        log_warn "  The VPN service is left disabled and NOT loaded: the identity migration failed (see below)"
+    else
+        log_info "  The VPN service will start automatically at boot"
+    fi
     log_info "  sudo launchctl kickstart system/com.gnosisvpn.gnosisvpnclient  # Restart service"
     log_info "  sudo launchctl bootout system/com.gnosisvpn.gnosisvpnclient    # Stop service"
     log_info "  gnosis_vpn-ctl status                           # Check VPN status"
@@ -1149,7 +1158,9 @@ print_summary() {
     echo ""
     log_info "Log file: $INSTALLER_LOG_FILE"
 
-    if [[ "$installation_type" == "update" ]]; then
+    if [[ "$MIGRATION_FAILED" == true ]]; then
+        log_warn "Files installed, but the service is down until the identity migration is resolved (see below)"
+    elif [[ "$installation_type" == "update" ]]; then
         log_success "Update completed successfully!"
     else
         log_success "Installation completed successfully!"
@@ -1364,9 +1375,8 @@ launch_app() {
         log_info "Scheduling Gnosis VPN UI launch after installer wizard closes..."
         local app_path="$UI_TARGET_APP"
 
-        # Detect the current logged-in user so we open the app in their session
-        local current_user
-        current_user=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }' || true)
+        # Open the app in the console user's session
+        local current_user="$CURRENT_USER"
         if [[ -z "$current_user" ]]; then
             log_warn "No logged-in console user detected; skipping UI launch"
             return 0
@@ -1429,6 +1439,9 @@ main() {
     backup_config "$installation_type"
     copy_uninstall
 
+    # Group membership grants the console user the sudoers rules (service control, self-update).
+    CURRENT_USER=$(resolve_console_user)
+    log_info "Console user detected: ${CURRENT_USER:-none}"
     # Permission group (sudoers principal); no service account exists anymore
     create_system_group
 
@@ -1479,11 +1492,11 @@ main() {
 
     # Print summary
     print_summary "$installation_type"
-    # Installer.app still reports success; this block (postinstall.log) is the only place the user learns why the service is down.
-    print_migration_failure
 
     # Launch UI application (best-effort; guarded internally so it cannot fail)
     launch_app
+    # Installer.app still reports success; this block (postinstall.log) is the only place the user learns why the service is down.
+    print_migration_failure
 
     # Save version information. Must stay after every step that can fail:
     # a failed install would otherwise leave version.txt claiming the new
