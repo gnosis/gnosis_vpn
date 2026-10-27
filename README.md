@@ -165,8 +165,14 @@ under `~/.local/share/gnosisvpn/` are each user's own data and are never touched
 The package creates no service account. `gnosisvpn.service` runs `gnosis_vpn-root` as root; the root process spawns
 `gnosis_vpn-worker` as whichever user asks for a connection, and that worker keeps its HOPR identity, safe and node
 database under the user's own home (`~/.local/share/gnosisvpn/networks/<network>/`). `/var/lib/gnosisvpn` only holds
-updater state and legacy backups. The systemd unit uses `ProtectSystem=full` (read-only `/usr`, `/boot`, `/etc`), so a
-home mounted anywhere outside those trees is writable for the worker.
+updater state and legacy backups. The systemd unit therefore allows writes under `/home` and `/var/home`
+(`ReadWritePaths`); a user whose home lives elsewhere needs that path added via a drop-in:
+
+```sh
+sudo systemctl edit gnosisvpn
+# [Service]
+# ReadWritePaths=<home root>
+```
 
 Releases before this layout ran the worker as a `gnosisvpn` system user with one shared identity in
 `/var/lib/gnosisvpn/.config/`. On upgrade, `postinstall.sh` runs `gnosis_vpn-migrate identity --user <name>` (from the
