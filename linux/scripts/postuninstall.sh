@@ -35,6 +35,24 @@ if [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] && command -v dpkg-maintscript-helper >/d
     done
 fi
 
+# The legacy identity is the Safe's only key (GNO-1005): purge parks .config and every .bak/.migrated copy root-only instead of deleting.
+preserve_legacy_identity() {
+    shopt -s nullglob
+    local entries=(/var/lib/gnosisvpn/.config*)
+    shopt -u nullglob
+    [[ ${#entries[@]} -gt 0 ]] || return 0
+
+    local backup_dir
+    backup_dir="/var/backups/gnosisvpn/$(date +%Y%m%d-%H%M%S)"
+    install -d -m 700 -o root -g root /var/backups/gnosisvpn "$backup_dir"
+    mv "${entries[@]}" "$backup_dir/"
+    # The legacy files belonged to the retired gnosisvpn account; its UID may be reused by a later account.
+    chown -R root:root "$backup_dir"
+
+    echo "$LOG_PREFIX WARNING: The legacy HOPR identity (the Safe's only key) was NOT deleted" >&2
+    echo "$LOG_PREFIX WARNING: It was moved to $backup_dir (root only); delete it by hand once the Safe is drained" >&2
+}
+
 # Reload systemd after service file removal
 echo "$LOG_PREFIX INFO: Reloading systemd daemon..."
 deb-systemd-helper daemon-reload || true
@@ -93,10 +111,10 @@ if [[ $IS_PURGE == "true" ]]; then
     echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=cubic"
     echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=fq_codel"
 
-    # Updater state and legacy identity backups
-    if [[ -d /var/lib/gnosisvpn ]]; then
-        echo "$LOG_PREFIX INFO: Removing state directory: /var/lib/gnosisvpn"
-        rm -rf /var/lib/gnosisvpn
+    preserve_legacy_identity
+    # Whatever is left is unknown to this script; it stays rather than risk a key (GNO-1005).
+    if [[ -d /var/lib/gnosisvpn ]] && ! rmdir /var/lib/gnosisvpn 2>/dev/null; then
+        echo "$LOG_PREFIX INFO: /var/lib/gnosisvpn is not empty and was kept; inspect and remove it by hand"
     fi
 
     # Remove configuration directory (including backups)
@@ -105,7 +123,7 @@ if [[ $IS_PURGE == "true" ]]; then
         rm -rf /etc/gnosisvpn
     fi
 
-    # Remove desktop shortcuts for all users
+    # TODO: remove by December 2027. Shortcuts written by releases before the per-user layout; rm -f never follows symlinks.
     echo "$LOG_PREFIX INFO: Removing desktop shortcuts for all users..."
     for user_home in /home/*; do
         if [[ -d "$user_home/Desktop" ]]; then

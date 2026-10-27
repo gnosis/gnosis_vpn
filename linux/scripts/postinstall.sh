@@ -428,28 +428,14 @@ session_human_user() {
     echo "$name"
 }
 
-# The desktop user, or nothing when unknown; with fast user switching only seat0's active session is the one at the keyboard.
-active_human_session_user() {
+# seat0's active session only, like the macOS console user: SUDO_USER/USER would hand the identity to whoever ran apt over ssh.
+resolve_installing_user() {
+    command -v loginctl >/dev/null 2>&1 || return 0
     local active
     active="$(loginctl show-seat seat0 -p ActiveSession --value 2>/dev/null || true)"
+    # Nobody at the keyboard (headless host, greeter) defers the migration.
     [[ -n $active ]] || return 0
-    # Nobody at the keyboard (headless host, greeter) defers the migration; an ssh session must never receive the identity.
     session_human_user "$active"
-}
-
-resolve_installing_user() {
-    local user="${SUDO_USER:-}"
-    if [[ -z $user || $user == "root" ]]; then
-        user="${USER:-}"
-    fi
-    # PackageKit installs run as root with no SUDO_USER; fall back to a human's logind session.
-    if [[ -z $user || $user == "root" ]] && command -v loginctl >/dev/null 2>&1; then
-        user="$(active_human_session_user)"
-    fi
-    if [[ -z $user || $user == "root" ]]; then
-        return 0
-    fi
-    echo "$user"
 }
 
 # Moves the legacy /var/lib/gnosisvpn/.config identity into the installing user's home; a failure keeps the service stopped.
@@ -462,7 +448,7 @@ migrate_legacy_identity() {
 
     MIGRATION_USER="$(resolve_installing_user)"
     if [[ -z $MIGRATION_USER ]]; then
-        echo "$LOG_PREFIX WARNING: Cannot tell which user is installing — the legacy identity (if any) stays in /var/lib/gnosisvpn/.config" >&2
+        echo "$LOG_PREFIX WARNING: Nobody is logged in at the desktop (seat0): the legacy identity (if any) stays in /var/lib/gnosisvpn/.config" >&2
         # --replace: by then a connection may have created a per-user identity that must give way to the legacy one.
         echo "$LOG_PREFIX WARNING: Migrate it later with: sudo gnosis_vpn-migrate identity --user <name> --replace" >&2
         return 0
@@ -672,87 +658,6 @@ enable_and_start_systemd_service() {
     echo "$LOG_PREFIX INFO: Service status: $(systemctl is-enabled gnosisvpn.service 2>/dev/null || echo 'unknown')"
 }
 
-# Create desktop shortcut for a user
-install_desktop_shortcut_for_user() {
-    local target_user
-    target_user="$(resolve_installing_user)"
-
-    if [ -z "$target_user" ]; then
-        echo "$LOG_PREFIX INFO: No desktop user identified, skipping desktop shortcut"
-        return
-    fi
-
-    # loginctl may yield a user absent from passwd; keep non-fatal so set -e doesn't abort postinstall.
-    local user_home
-    user_home=$(getent passwd "$target_user" | cut -d: -f6) || true
-
-    if [ -z "$user_home" ]; then
-        echo "$LOG_PREFIX WARNING: Could not find home directory for user $target_user"
-        return
-    fi
-
-    local desktop_dir="$user_home/Desktop"
-
-    if [ ! -d "$desktop_dir" ]; then
-        echo "$LOG_PREFIX INFO: Desktop directory not found for $target_user, skipping shortcut"
-        return
-    fi
-
-    # Strip spaces from filename
-    local dest_file="$desktop_dir/GnosisVPN.desktop"
-
-    # Copy the desktop file to the user's Desktop
-    if ! cp "/usr/share/applications/Gnosis VPN.desktop" "$dest_file" 2>/dev/null; then
-        echo "$LOG_PREFIX WARNING: Failed to copy desktop file"
-        return
-    fi
-
-    # Make it executable (required for desktop shortcuts)
-    chown "$target_user":"$target_user" "$dest_file"
-    chmod +x "$dest_file"
-
-    # Try to mark as trusted if tools are available (optional, not in dependencies)
-    local trusted_set=false
-
-    # Try to find user's DBUS session to make gio work
-    local user_dbus_addr=""
-    if [ -d "/run/user/$(id -u "$target_user")" ]; then
-        user_dbus_addr="unix:path=/run/user/$(id -u "$target_user")/bus"
-    fi
-
-    # Try to set metadata using gio (should be available from package dependencies)
-    # We capture output because gio might return exit code 0 even if it prints "not supported"
-    local gio_output=""
-
-    if [ -n "$user_dbus_addr" ]; then
-        # Try with explicit DBus session address
-        # We append || true to prevent script exit on failure due to set -e
-        gio_output=$(sudo -u "$target_user" DBUS_SESSION_BUS_ADDRESS="$user_dbus_addr" gio set "$dest_file" metadata::trusted true 2>&1 || true)
-        if [[ -z $gio_output ]]; then
-            trusted_set=true
-        else
-            echo "$LOG_PREFIX INFO: Could not set trusted metadata via gio for $target_user: $gio_output"
-        fi
-    fi
-
-    # Fallback/Retry without explicit address if it failed above
-    if [ "$trusted_set" = false ]; then
-        gio_output=$(sudo -u "$target_user" gio set "$dest_file" metadata::trusted true 2>&1 || true)
-        if [[ -z $gio_output ]]; then
-            trusted_set=true
-        else
-            echo "$LOG_PREFIX INFO: Could not set trusted metadata via gio for $target_user: $gio_output"
-        fi
-    fi
-
-    echo "$LOG_PREFIX INFO: Desktop shortcut created for $target_user"
-
-    # Inform user they may need to trust manually
-    if [ "$trusted_set" = false ]; then
-        echo "$LOG_PREFIX INFO: Right-click the desktop icon and select 'Allow Launching' if prompted."
-    fi
-}
-
 # Main execution
 main() {
     # TODO: remove the removal code by December 2027 (see remove_retired_conffiles).
@@ -777,7 +682,6 @@ main() {
     repair_resolver_after_resolvconf
     warn_if_dns_not_diverted
     enable_and_start_systemd_service
-    install_desktop_shortcut_for_user
 
     echo "$LOG_PREFIX SUCCESS: Post-installation completed successfully"
     print_tcp_bbr_summary

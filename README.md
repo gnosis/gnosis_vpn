@@ -155,8 +155,10 @@ Uninstall:
 sudo apt remove gnosisvpn
 ```
 
-`remove` keeps `/etc/gnosisvpn` and `/var/lib/gnosisvpn`; `purge` removes them. Per-user identities under
-`~/.local/share/gnosisvpn/` are each user's own data and are never touched by install, remove or purge.
+`remove` keeps `/etc/gnosisvpn` and `/var/lib/gnosisvpn`; `purge` removes `/etc/gnosisvpn` and moves the legacy identity
+directory and its backups (`/var/lib/gnosisvpn/.config*`) to `/var/backups/gnosisvpn/<timestamp>/`, readable by root
+only. The package never deletes key material: delete that backup by hand once the Safe is drained. Per-user identities
+under `~/.local/share/gnosisvpn/` are each user's own data and are never touched by install, remove or purge.
 
 ### Per-user layout and identity migration
 
@@ -169,12 +171,12 @@ updater state and legacy backups. The systemd unit therefore allows writes under
 Releases before this layout ran the worker as a `gnosisvpn` system user with one shared identity in
 `/var/lib/gnosisvpn/.config/`. On upgrade, `postinstall.sh` runs `gnosis_vpn-migrate identity --user <name>` (from the
 [toolkit](https://github.com/gnosis/gnosis_vpn-toolkit)) between stopping the old service and starting the new one,
-moving that identity into the installing user's layout (`SUDO_USER`, else the owner of the graphical session; root is
-never a candidate) and renaming the legacy directory to `.config.migrated-<timestamp>`. The `gnosisvpn` user and group
-are removed once the migration reports success. When the installing user cannot be determined (headless installs), the
-migration is skipped with a warning, the service starts and the legacy identity stays intact; run
-`sudo gnosis_vpn-migrate identity --user <name> --replace` by hand later (`--replace` because a connection made in the
-meantime may already have created a per-user identity).
+moving that identity into the layout of the user logged in at the desktop (the active logind session on `seat0`; neither
+`SUDO_USER` nor an ssh session nor root is a candidate) and renaming the legacy directory to
+`.config.migrated-<timestamp>`. The `gnosisvpn` user and group are removed once the migration reports success. When
+nobody is logged in at the desktop (headless installs, `ssh` upgrades), the migration is skipped with a warning, the
+service starts and the legacy identity stays intact; run `sudo gnosis_vpn-migrate identity --user <name> --replace` by
+hand later (`--replace` because a connection made in the meantime may already have created a per-user identity).
 
 If the migration fails, the package install still succeeds, but the service is disabled and **not** started, so neither
 the install nor the next boot can create a fresh identity that shadows the legacy one. The output ends with three ways
