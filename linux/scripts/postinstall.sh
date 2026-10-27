@@ -438,6 +438,14 @@ resolve_installing_user() {
     session_human_user "$active"
 }
 
+# Same lock-down as the toolkit's migration (GNO-1006): the old package left the key and password world-readable (775).
+lock_down_legacy_identity() {
+    local legacy_config=/var/lib/gnosisvpn/.config
+    [[ -d $legacy_config && ! -L $legacy_config ]] || return 0
+    chown root:root "$legacy_config"
+    chmod 700 "$legacy_config"
+}
+
 # Moves the legacy /var/lib/gnosisvpn/.config identity into the installing user's home; a failure keeps the service stopped.
 migrate_legacy_identity() {
     # preinstall stops it too; repeated so the migration never runs against a live service.
@@ -451,6 +459,7 @@ migrate_legacy_identity() {
         echo "$LOG_PREFIX WARNING: Nobody is logged in at the desktop (seat0): the legacy identity (if any) stays in /var/lib/gnosisvpn/.config" >&2
         # --replace: by then a connection may have created a per-user identity that must give way to the legacy one.
         echo "$LOG_PREFIX WARNING: Migrate it later with: sudo gnosis_vpn-migrate identity --user <name> --replace" >&2
+        lock_down_legacy_identity
         return 0
     fi
 

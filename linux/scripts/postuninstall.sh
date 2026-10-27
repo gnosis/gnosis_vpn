@@ -46,8 +46,8 @@ preserve_legacy_identity() {
     backup_dir="/var/backups/gnosisvpn/$(date +%Y%m%d-%H%M%S)"
     install -d -m 700 -o root -g root /var/backups/gnosisvpn "$backup_dir"
     mv "${entries[@]}" "$backup_dir/"
-    # The legacy files belonged to the retired gnosisvpn account; its UID may be reused by a later account.
-    chown -R root:root "$backup_dir"
+    # The retired gnosisvpn UID may be reused by a later account; -h so a symlink the worker planted cannot re-own its target.
+    chown -Rh root:root "$backup_dir"
 
     echo "$LOG_PREFIX WARNING: The legacy HOPR identity (the Safe's only key) was NOT deleted" >&2
     echo "$LOG_PREFIX WARNING: It was moved to $backup_dir (root only); delete it by hand once the Safe is drained" >&2
