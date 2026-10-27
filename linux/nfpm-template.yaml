@@ -47,6 +47,7 @@ overrides:
       - glib2
   archlinux:
     depends:
+      - logrotate
       - webkit2gtk-4.1
       - gtk3
       - libayatana-appindicator
@@ -110,19 +111,8 @@ contents:
       mode: 0644
   # One `type: config` entry per network in GNOSISVPN_NETWORKS, rendered by generate-package-linux.sh.
 __GNOSIS_VPN_NETWORK_CONFIGS__
-  # Country-only IPv4 extract of IPinfo Lite (CC BY-SA 4.0), staged by scripts/fetch-geoip.sh, at the client's default geoip_db path.
-  - src: ./build/geoip/geoip.mmdb
-    dst: /usr/share/gnosisvpn/geoip.mmdb
-    file_info:
-      mode: 0644
-      owner: root
-      group: root
-  - src: ./scripts/geoip/NOTICE
-    dst: /usr/share/gnosisvpn/geoip.NOTICE
-    file_info:
-      mode: 0644
-      owner: root
-      group: root
+  # GeoIP database entries from linux/resources/, spliced by generate-package-linux.sh only when the build ships it.
+__GNOSIS_VPN_GEOIP__
   # Networks this package ships (space-separated, first = default); NOT a conffile, every upgrade must replace it.
   - src: ./build/resources/networks
     dst: /usr/share/gnosisvpn/networks
@@ -147,7 +137,12 @@ __GNOSIS_VPN_NETWORK_CONFIGS__
       group: root
   - src: ./linux/resources/gnosisvpn.service
     dst: /usr/lib/systemd/system/gnosisvpn.service
-  - src: ./linux/resources/copyright
+  - src: ./linux/resources/gnosisvpn-logrotate.service
+    dst: /usr/lib/systemd/system/gnosisvpn-logrotate.service
+  - src: ./linux/resources/gnosisvpn-logrotate.timer
+    dst: /usr/lib/systemd/system/gnosisvpn-logrotate.timer
+  # Rendered by generate-package-linux.sh: the GeoIP stanza is spliced in only when the build ships the database.
+  - src: ./build/resources/copyright
     dst: /usr/share/doc/gnosisvpn/copyright
   - src: ./linux/resources/gnosisvpn.metainfo.xml
     dst: /usr/share/metainfo/com.gnosisvpn.gnosisvpnclient.metainfo.xml

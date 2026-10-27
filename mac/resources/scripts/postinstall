@@ -38,7 +38,7 @@ TARGET_VOLUME="${2:-/}"
 MOUNTPOINT="${3:-/}"
 ROOT_DIR="${4:-/}"
 
-readonly PRODUCTION_RUST_LOG="info"
+readonly PRODUCTION_RUST_LOG="info,hopr_transport=debug"
 readonly DEBUG_RUST_LOG="info,hopr_transport_session=debug,hopr_protocol_session=debug,hopr_protocol_start=debug,hopr_network_types=debug,gnosis_vpn_root=debug,gnosis_vpn_lib=debug,hopr_transport=debug,hopr_network_graph=debug"
 
 # Path joining function to avoid double slashes
@@ -998,6 +998,36 @@ update_binaries() {
     setup_management_script
 }
 
+# The Installer never removes payload files, so a Mac moving off the experimental line keeps a never-refreshed database unless we drop it.
+remove_unshipped_geoip() {
+    local ships_geoip
+    # Packages built before the flag existed shipped the database on every line, so keep it for them.
+    ships_geoip="$(cat "${SCRIPT_DIR}/geoip" 2>/dev/null || echo true)"
+    [[ "$ships_geoip" == "false" ]] || return 0
+    local file
+    for file in "${UI_STAGING_DIR}/geoip.mmdb" "${UI_STAGING_DIR}/geoip.NOTICE"; do
+        [[ -f "$file" ]] || continue
+        log_info "Removing GeoIP file this installer does not ship: $file"
+        rm -f "$file"
+    done
+}
+
+# TODO: remove by June 2027.
+# Reads $VERSION_FILE before save_version_info overwrites it; date-based snapshot versions and legacy installs keep the log.
+remove_pre_0_96_log() {
+    local previous_version core major minor
+    previous_version=$(cat "$VERSION_FILE" 2>/dev/null || true)
+    core="${previous_version#v}"
+    core="${core%%+*}"
+    [[ "$core" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 0
+    IFS=. read -r major minor _ <<<"$core"
+    ((10#$major == 0 && 10#$minor < 96)) || return 0
+    local log_file="$INSTALLED_LOG_DIR_PATH/gnosisvpn.log"
+    [[ -f "$log_file" ]] || return 0
+    log_info "Upgrading from $previous_version (below 0.96.0) — removing $log_file"
+    rm -f "$log_file"
+}
+
 # Everything is root-owned and world-readable: the worker runs as any user and only reads here.
 set_permissions() {
     log_info "Setting permissions..."
@@ -1308,6 +1338,23 @@ copy_logs_rotation_conf() {
         ls -alR "${SCRIPT_DIR}/config/system/" || true
         ls -alR "${SCRIPT_DIR}/../config/system/" || true
     fi
+
+    local plist_name="com.gnosisvpn.newsyslog.plist"
+    local src_plist="${SCRIPT_DIR}/config/system/${plist_name}"
+    local dest_plist="/Library/LaunchDaemons/${plist_name}"
+    if [[ -f "$src_plist" ]]; then
+        launchctl bootout system "$dest_plist" 2>/dev/null || true
+        cp "$src_plist" "$dest_plist"
+        chmod 644 "$dest_plist"
+        chown root:wheel "$dest_plist"
+        if launchctl bootstrap system "$dest_plist" 2>/dev/null; then
+            log_success "Installed log rotation timer: $dest_plist"
+        else
+            log_warn "Could not load log rotation timer: $dest_plist"
+        fi
+    else
+        log_warn "Log rotation timer not found: $src_plist"
+    fi
 }
 
 # Launching the UI is a convenience: it must never fail the install, so every
@@ -1387,6 +1434,8 @@ main() {
 
     # Update binaries (incrementally for updates, full for fresh installs)
     update_binaries "$installation_type" "$TARGET_VOLUME"
+    remove_unshipped_geoip
+    remove_pre_0_96_log
 
     # Setup configuration files and create symlink
     setup_configuration_files

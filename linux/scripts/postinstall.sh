@@ -95,6 +95,17 @@ remove_legacy_env_keys() {
     fi
 }
 
+# TODO: remove by June 2027.
+# Only dpkg passes the previous version (`configure <old-version>`); rpm/pacman upgrades keep the log.
+remove_pre_0_96_log() {
+    [[ ${1:-} == "configure" && -n ${2:-} ]] || return 0
+    dpkg --compare-versions "$2" lt 0.96.0 2>/dev/null || return 0
+    local log_file=/var/log/gnosisvpn/gnosisvpn.log
+    [[ -f $log_file ]] || return 0
+    echo "$LOG_PREFIX INFO: Upgrading from $2 (below 0.96.0) — removing $log_file"
+    rm -f "$log_file"
+}
+
 get_blokli_url() {
     # Network name is <network_prefix>-<network_env>; endpoint is derived from it.
     local network_name="$1"
@@ -643,6 +654,8 @@ enable_and_start_systemd_service() {
     # Clear start-limit counter; a prior crash-loop would otherwise reject the start for StartLimitIntervalSec.
     systemctl reset-failed gnosisvpn.service 2>/dev/null || true
     systemctl start gnosisvpn.service || true
+    echo "$LOG_PREFIX INFO: Enabling gnosisvpn-logrotate.timer..."
+    systemctl enable --now gnosisvpn-logrotate.timer || true
 
     sleep 2
 
@@ -744,6 +757,8 @@ main() {
     configure_filesystem_permissions
     # TODO: remove the removal code by December 2027 (see remove_legacy_env_keys).
     remove_legacy_env_keys
+    # TODO: remove the removal code by June 2027 (see remove_pre_0_96_log).
+    remove_pre_0_96_log "$@"
     configure_network_selection
     # TODO: remove the removal code by December 2026 (see remove_legacy_apt_mirror).
     remove_legacy_apt_mirror
@@ -765,5 +780,5 @@ main() {
     print_migration_failure
 }
 
-# Args forwarded for dpkg-maintscript-helper (see remove_retired_conffiles).
+# Args forwarded for dpkg-maintscript-helper and the previous version (see remove_retired_conffiles, remove_pre_0_96_log).
 main "$@"

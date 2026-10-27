@@ -190,11 +190,16 @@ check_platform_prerequisites() {
         fi
     done
 
-    if [[ ! -f "${BUILD_DIR}/geoip/geoip.mmdb" ]]; then
-        log_error "GeoIP database not found: ${BUILD_DIR}/geoip/geoip.mmdb"
-        log_error "Run 'just geoip' first"
-        missing=$((missing + 1))
-    fi
+    check_geoip_staged || missing=$((missing + 1))
+
+    # welcome.html prints them; under `set -u` an unset one would abort only after the component pkgs are built.
+    local version_var
+    for version_var in GNOSISVPN_APP_VERSION GNOSISVPN_CLIENT_VERSION GNOSISVPN_TOOLKIT_VERSION; do
+        if [[ -z ${!version_var:-} ]]; then
+            log_error "${version_var} is not set; export the component versions 'just download' resolved (see its summary)"
+            missing=$((missing + 1))
+        fi
+    done
 
     local network
     for network in ${GNOSISVPN_NETWORKS}; do
@@ -236,6 +241,11 @@ prepare_build_dir() {
     chmod 0644 "${BUILD_DIR}/scripts/networks"
     log_success "Networks baked into installer scripts: ${GNOSISVPN_NETWORKS}"
 
+    # The Installer never removes payload files, so the postinstall needs this to drop a database an earlier experimental pkg left.
+    echo "${GNOSISVPN_SHIP_GEOIP}" >"${BUILD_DIR}/scripts/geoip"
+    chmod 0644 "${BUILD_DIR}/scripts/geoip"
+    log_success "GeoIP decision baked into installer scripts: ${GNOSISVPN_SHIP_GEOIP}"
+
     # Copy the shipped networks' templates into the payload, clearing any left by a build of the other line.
     local templates_dst="${BUILD_DIR}/app-contents/rootfs/etc/gnosisvpn/templates"
     rm -f "${templates_dst}"/*.template
@@ -263,13 +273,18 @@ prepare_build_dir() {
         fi
     done
 
-    # Country database at the client's default geoip_db path, with its CC BY-SA notice beside it.
+    # Country database at the client's default geoip_db path; cleared first so a standard-line build drops what an earlier experimental build staged.
     local share_dir="${BUILD_DIR}/app-contents/rootfs/usr/local/share/gnosisvpn"
-    mkdir -p "${share_dir}"
-    cp "${BUILD_DIR}/geoip/geoip.mmdb" "${share_dir}/geoip.mmdb"
-    cp "${SCRIPT_DIR}/geoip/NOTICE" "${share_dir}/geoip.NOTICE"
-    chmod 0644 "${share_dir}/geoip.mmdb" "${share_dir}/geoip.NOTICE"
-    log_success "GeoIP database staged"
+    rm -f "${share_dir}/geoip.mmdb" "${share_dir}/geoip.NOTICE"
+    if [[ ${GNOSISVPN_SHIP_GEOIP} == true ]]; then
+        mkdir -p "${share_dir}"
+        cp "${BUILD_DIR}/geoip/geoip.mmdb" "${share_dir}/geoip.mmdb"
+        cp "${SCRIPT_DIR}/geoip/NOTICE" "${share_dir}/geoip.NOTICE"
+        chmod 0644 "${share_dir}/geoip.mmdb" "${share_dir}/geoip.NOTICE"
+        log_success "GeoIP database staged"
+    else
+        log_success "GeoIP database left out ($(geoip_decision_basis))"
+    fi
 
     log_success "Build directory prepared"
 }
@@ -385,6 +400,7 @@ build_component_package() {
         local size
         size=$(du -h "${BUILD_DIR}/packages/$COMPONENT_PKG" | cut -f1)
         log_success "Component package created: $COMPONENT_PKG ($size)"
+        pkgutil --payload-files "${BUILD_DIR}/packages/$COMPONENT_PKG" | assert_geoip_shipped "$COMPONENT_PKG"
     else
         log_error "Failed to create component package"
         exit 1
@@ -599,6 +615,7 @@ build_distribution_package() {
         log_warn "welcome.html not found, using default if available"
     fi
     sed -i "s/__MIN_OS_MACOS__/${MIN_OS_MACOS}/g" "$distribution_dir/readme.html"
+    render_geoip_placeholder "$distribution_dir/readme.html" "${RESOURCES_DIR}/readme-geoip.html"
 
     local dist_xml_resolved="${BUILD_DIR}/Distribution.xml"
     render_distribution_xml "$DISTRIBUTION_XML" "$dist_xml_resolved"
