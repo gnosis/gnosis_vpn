@@ -473,6 +473,8 @@ migrate_legacy_identity() {
         return 0
     fi
     MIGRATION_FAILED=true
+    # The old postrm already freed the service uid; the key must not wait for a retry to leave it.
+    lock_down_legacy_identity
     echo "$LOG_PREFIX ERROR: Identity migration failed — gnosisvpn.service will be installed but not started" >&2
 }
 

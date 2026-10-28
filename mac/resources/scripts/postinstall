@@ -366,6 +366,14 @@ resolve_console_user() {
     echo "$user"
 }
 
+# Same lock-down as the toolkit's migration (GNO-1006): the old service account owned the key and password.
+lock_down_legacy_identity() {
+    local legacy_config="${INSTALLED_LIB_DIR_PATH}/.config"
+    [[ -d "$legacy_config" && ! -L "$legacy_config" ]] || return 0
+    chown root:wheel "$legacy_config"
+    chmod 700 "$legacy_config"
+}
+
 # Moves the legacy "$INSTALLED_LIB_DIR_PATH/.config" identity into the console user's home; a failure keeps the service unloaded.
 migrate_legacy_identity() {
     log_section "Identity migration"
@@ -375,6 +383,7 @@ migrate_legacy_identity() {
         log_warn "No console user known — the legacy identity (if any) stays in ${INSTALLED_LIB_DIR_PATH}/.config"
         # --replace: by then a connection may have created a per-user identity that must give way to the legacy one.
         log_warn "Migrate it later with: sudo gnosis_vpn-migrate identity --user <name> --replace"
+        lock_down_legacy_identity
         return 0
     fi
 
@@ -383,6 +392,7 @@ migrate_legacy_identity() {
     "$BIN_DIR/gnosis_vpn-migrate" identity --user "$CURRENT_USER" || MIGRATION_STATUS=$?
     if [[ $MIGRATION_STATUS -ne 0 ]]; then
         MIGRATION_FAILED=true
+        lock_down_legacy_identity
         log_error "Identity migration failed — the service will be installed but not started"
         return 0
     fi
