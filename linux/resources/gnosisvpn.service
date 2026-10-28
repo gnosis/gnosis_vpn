@@ -48,7 +48,6 @@ ReadWritePaths=/var/log/gnosisvpn -/home -/var/home
 
 # Resource limits
 LimitNOFILE=65536
-LimitNPROC=512
 
 [Install]
 WantedBy=multi-user.target
