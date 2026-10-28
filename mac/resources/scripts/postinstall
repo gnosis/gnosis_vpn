@@ -117,35 +117,38 @@ is_shipped_network() {
     return 1
 }
 
+# Never sourced: the old service account owned this tree and could have planted code in it.
+read_choice() {
+    local file="$1" key="$2" line=""
+    [[ -f "$file" && ! -L "$file" ]] || return 0
+    IFS= read -r line <"$file" || true
+    [[ "$line" == "${key}="* ]] || return 0
+    line="${line#"${key}="}"
+    line="${line#\"}"
+    echo "${line%\"}"
+}
+
 load_installer_choices() {
     local choice_dir="${INSTALLED_LIB_DIR_PATH}/installer"
-    local network_choice_file="${choice_dir}/network_choice"
-    local loglevel_choice_file="${choice_dir}/loglevel_choice"
+    local network loglevel
 
-    INSTALLER_CHOICE_NETWORK="$DEFAULT_NETWORK"
-    INSTALLER_CHOICE_LOGLEVEL="info"
-
-    if [[ -f "$network_choice_file" ]]; then
-        log_info "Loading network choice from $network_choice_file"
-        # shellcheck disable=SC1090
-        source "$network_choice_file"
-    else
-        log_warn "Network choice file not found, defaulting to ${DEFAULT_NETWORK}"
-    fi
-
+    network="$(read_choice "${choice_dir}/network_choice" INSTALLER_CHOICE_NETWORK)"
     # The choice file persists between installs, so it can name a network from the other line.
-    if ! is_shipped_network "$INSTALLER_CHOICE_NETWORK"; then
-        log_warn "Network choice '${INSTALLER_CHOICE_NETWORK}' is not shipped by this installer (${SHIPPED_NETWORKS[*]}) — using ${DEFAULT_NETWORK}"
+    if is_shipped_network "$network"; then
+        INSTALLER_CHOICE_NETWORK="$network"
+    else
+        log_warn "No valid network choice for this installer (${SHIPPED_NETWORKS[*]}), using ${DEFAULT_NETWORK}"
         INSTALLER_CHOICE_NETWORK="$DEFAULT_NETWORK"
     fi
 
-    if [[ -f "$loglevel_choice_file" ]]; then
-        log_info "Loading log level choice from $loglevel_choice_file"
-        # shellcheck disable=SC1090
-        source "$loglevel_choice_file"
-    else
-        log_warn "Log level choice file not found, defaulting to info"
-    fi
+    loglevel="$(read_choice "${choice_dir}/loglevel_choice" INSTALLER_CHOICE_LOGLEVEL)"
+    case "$loglevel" in
+    debug | info) INSTALLER_CHOICE_LOGLEVEL="$loglevel" ;;
+    *)
+        log_warn "No valid log level choice, using info"
+        INSTALLER_CHOICE_LOGLEVEL="info"
+        ;;
+    esac
 }
 
 # Rollback functions
