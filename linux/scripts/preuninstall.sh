@@ -16,6 +16,11 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+# rpm runs the old %preun after the new %post on upgrade ($1 >= 1); stopping here would kill the new service.
+if [[ ${1:-} =~ ^[0-9]+$ && $1 -ge 1 ]]; then
+    exit 0
+fi
+
 # Stop service
 if systemctl is-active --quiet gnosisvpn.service 2>/dev/null; then
     echo "$LOG_PREFIX INFO: Stopping gnosisvpn.service service..."

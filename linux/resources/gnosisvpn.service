@@ -33,6 +33,10 @@ SyslogIdentifier=gnosisvpn
 RuntimeDirectory=gnosisvpn
 RuntimeDirectoryMode=0755
 
+# /var/log/gnosisvpn: systemd recreates it if missing, a deleted log dir must not keep the service down
+LogsDirectory=gnosisvpn
+LogsDirectoryMode=0755
+
 # Security hardening for VPN service
 # VPN needs CAP_NET_ADMIN for tunnel management
 # CAP_SETUID/CAP_SETGID needed to spawn the worker as the requesting user
@@ -44,7 +48,7 @@ AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETUID CA
 ProtectSystem=strict
 ProtectHome=no
 PrivateTmp=yes
-ReadWritePaths=/var/log/gnosisvpn -/home -/var/home
+ReadWritePaths=-/home -/var/home
 
 # Resource limits
 LimitNOFILE=65536
