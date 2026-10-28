@@ -56,10 +56,41 @@ After installation, files are located at:
   - `gnosis_vpn-worker` - VPN worker binary
   - `gnosis_vpn-ctl` - Control utility
   - `gnosis_vpn-update` - Self-updater utility
+  - `gnosis_vpn-migrate` - Legacy identity migration (run by the installer, and by hand after a failed migration)
 - Application: `/Applications/Gnosis VPN.app`
 - Configuration: `/etc/gnosisvpn/config.toml`
+- Per-user identity: `~/Library/Application Support/GnosisVPN/networks/<network>/` (each user's own data)
+- Updater state, legacy identity backups: `/Library/Application Support/GnosisVPN/`
 - Logs Pre-install: `/Library/Logs/GnosisVPN/installer/preinstall.log`
 - Logs Post-install: `/Library/Logs/GnosisVPN/installer/postinstall.log`
+- Logs Identity migration: `/Library/Logs/GnosisVPN/installer/migrate.log`
+
+### Identity Migration on Upgrade
+
+Releases before the per-user layout ran the worker as a `gnosisvpn` system user with one shared identity in
+`/Library/Application Support/GnosisVPN/.config/`. On upgrade, `postinstall` runs
+`gnosis_vpn-migrate identity --user <console user>` after the old service was stopped and before the new one is loaded,
+moving that identity into the console user's layout and renaming the legacy directory to `.config.migrated-<timestamp>`.
+The `gnosisvpn` user is removed once the migration succeeds; the group stays. Without a console session the migration is
+skipped with a warning, the service starts, and the legacy identity stays intact for a manual
+`sudo gnosis_vpn-migrate identity --user <name> --replace` (`--replace` because a connection made in the meantime may
+already have created a per-user identity).
+
+If the migration fails, Installer.app still reports success, but the launchd service is installed **disabled** and not
+bootstrapped, so neither the install nor the next boot can create a fresh identity that shadows the legacy one.
+`postinstall.log` ends with three ways forward, then the start command:
+
+```bash
+sudo gnosis_vpn-migrate identity --user <name>      # retry after fixing the cause
+sudo gnosis_vpn-migrate upload-log                  # send the migrate + installer logs to support
+sudo gnosis_vpn-migrate start-clean --user <name>   # give up on the legacy identity, start fresh
+sudo launchctl enable system/com.gnosisvpn.gnosisvpnclient && sudo launchctl bootstrap system /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist
+```
+
+When the failure is a conflict (the user already has an identity for that network, exit code 75), the block offers
+`identity --user <name> --replace` (keep the legacy identity) and a bare `start-clean` (keep the current one) instead.
+
+`gnosis_vpn-migrate identity` is idempotent, so re-running the pkg after a failure is safe.
 
 ## Uninstallation
 
@@ -72,6 +103,9 @@ cd mac
 sudo ./uninstall.sh
 ```
 
+Per-user identities under `~/Library/Application Support/GnosisVPN/` and the updater state in
+`/Library/Application Support/GnosisVPN/` are left in place.
+
 ## Security
 
 - Scripts run with root privileges during installation
@@ -80,23 +114,18 @@ sudo ./uninstall.sh
 - App binary is packaged directly into the PKG
 - No personal information is collected or transmitted
 
-### System User and Group Management
+### Accounts and Permission Group
 
-The installer creates dedicated system credentials for enhanced security:
+No service account exists. `gnosis_vpn-root` runs as `root` under launchd and spawns `gnosis_vpn-worker` as whichever
+user asks for a connection; that worker keeps its identity under the user's own home.
 
-- **System User**: `gnosisvpn` (UID: 200-499 range)
-  - Hidden from login window and Users & Groups preferences
-  - Home directory: In Linux: `/var/lib/gnosisvpn` and in Mac `/Library/Application Support/GnosisVPN`
-  - Shell: `/bin/bash` (no interactive login)
-  - Used to run some VPN binaries with minimal privileges. The `gnosis_vpn-root` binary will be running as `root`.
-
-- **System Group**: `gnosisvpn` (GID: 200-499 range)
-  - Contains the current user and system user
-  - Provides group-based access to VPN configuration and logs
-  - Enables non-root users to manage the service
+- **Permission Group**: `gnosisvpn` (GID: 200-499 range)
+  - The sudoers principal: `/etc/sudoers.d/gnosis-vpn` lets members run the `launchctl` service commands and the
+    self-updater without a password
+  - The installer adds the console user; other users join with `sudo dseditgroup -o edit -a <name> -t user gnosisvpn`
 
 - **Permission Structure**:
-  - Configuration files: `root:gnosisvpn` with group read access
-  - Binaries: `root:gnosisvpn` with group execute access
-  - Log directories: `gnosisvpn:gnosisvpn` for service logging
-  - Runtime directories: Home directory
+  - Configuration files: `root:wheel`, world-readable (`644`)
+  - Binaries: `root:wheel`; `gnosis_vpn-root` is `750`, everything else `755`
+  - `/Library/Logs/GnosisVPN`, `/Library/Application Support/GnosisVPN`: `root:wheel 755`
+  - Per-user identity: `~/Library/Application Support/GnosisVPN/networks/<network>/`, owned by that user

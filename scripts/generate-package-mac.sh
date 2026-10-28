@@ -263,7 +263,7 @@ prepare_build_dir() {
     fi
 
     # Copy binaries
-    for binary in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl gnosis_vpn-update; do
+    for binary in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl gnosis_vpn-update gnosis_vpn-migrate; do
         if [[ -f "${BUILD_DIR}/download/${binary}" ]]; then
             cp "${BUILD_DIR}/download/${binary}" "${BUILD_DIR}/app-contents/rootfs/usr/local/bin/${binary}"
             log_success "Copied binary: ${binary}"
@@ -437,9 +437,13 @@ build_choice_packages() {
         cat >"$temp_scripts_dir/postinstall" <<EOF
 #!/bin/bash
 set -euo pipefail
-CHOICE_DIR="/Library/Logs/GnosisVPN/installer"
+CHOICE_DIR="/Library/Application Support/GnosisVPN/installer"
+# The old service account owned this tree; never follow a symlink it may have planted.
+if [[ -L "\$CHOICE_DIR" ]]; then rm -f "\$CHOICE_DIR"; fi
 mkdir -p "\$CHOICE_DIR"
+chown root:wheel "\$CHOICE_DIR"
 chmod 755 "\$CHOICE_DIR"
+rm -f "\$CHOICE_DIR/${choice_type}_choice"
 echo "INSTALLER_CHOICE_${choice_type_uppercase}=\"${choice_value}\"" > "\$CHOICE_DIR/${choice_type}_choice"
 chmod 600 "\$CHOICE_DIR/${choice_type}_choice"
 EOF

@@ -69,13 +69,15 @@ check_platform_prerequisites() {
         log_error "Run 'just download ${GNOSISVPN_DISTRIBUTION} ${GNOSISVPN_ARCHITECTURE}' first"
         missing=$((missing + 1))
     fi
-    # Named separately from the client binaries above: it comes from the toolkit, so it is the
-    # one that goes missing when the resolved toolkit version predates the Linux artifacts.
-    if [[ ! -f "${BINARY_DIR}/gnosis_vpn-update" ]]; then
-        log_error "Updater not found: ${BINARY_DIR}/gnosis_vpn-update"
-        log_error "Run 'just download ${GNOSISVPN_DISTRIBUTION} ${GNOSISVPN_ARCHITECTURE}' first"
-        missing=$((missing + 1))
-    fi
+    # Named separately from the client binaries: these go missing when the toolkit version predates the Linux artifacts.
+    local toolkit_binary
+    for toolkit_binary in gnosis_vpn-update gnosis_vpn-migrate; do
+        if [[ ! -f "${BINARY_DIR}/${toolkit_binary}" ]]; then
+            log_error "Toolkit binary not found: ${BINARY_DIR}/${toolkit_binary}"
+            log_error "Run 'just download ${GNOSISVPN_DISTRIBUTION} ${GNOSISVPN_ARCHITECTURE}' first"
+            missing=$((missing + 1))
+        fi
+    done
     check_geoip_staged || missing=$((missing + 1))
     if [[ ! -f "${BUILD_DIR}/changelog/changelog.gz" ]]; then
         log_error "Changelog not found at ${BUILD_DIR}/changelog/changelog.gz"

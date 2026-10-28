@@ -98,7 +98,7 @@ test_build_structure() {
     run_test "Packages directory exists" "[[ -d '${BUILD_DIR}/packages' ]]"
 
     # Binaries presence
-    local binaries=("gnosis_vpn-root" "gnosis_vpn-worker" "gnosis_vpn-ctl" "gnosis_vpn-update")
+    local binaries=("gnosis_vpn-root" "gnosis_vpn-worker" "gnosis_vpn-ctl" "gnosis_vpn-update" "gnosis_vpn-migrate")
     for bin in "${binaries[@]}"; do
         run_test "Binary '$bin' exists" "[[ -f '$rootfs/usr/local/bin/$bin' ]]"
         run_test "Binary '$bin' is executable" "[[ -x '$rootfs/usr/local/bin/$bin' ]]"

@@ -151,12 +151,15 @@ main() {
         fi
     }
 
-    # Every packaged architecture downloads its updater, so a tag missing one fails the matrix.
-    local toolkit_files=(gnosis_vpn-update-x86_64-linux gnosis_vpn-update-aarch64-linux gnosis_vpn-update-aarch64-darwin)
+    # Every packaged architecture downloads its updater and migrator, so a tag missing one fails the matrix.
+    local toolkit_files=(
+        gnosis_vpn-update-x86_64-linux gnosis_vpn-update-aarch64-linux gnosis_vpn-update-aarch64-darwin
+        gnosis_vpn-migrate-x86_64-linux gnosis_vpn-migrate-aarch64-linux gnosis_vpn-migrate-aarch64-darwin
+    )
     require_complete_toolkit() {
         local version="$1"
         "${SCRIPT_DIR}/resolve-registry-version.sh" --only-version "${version}" gnosis_vpn-toolkit "${toolkit_files[@]}" >/dev/null || {
-            log_error "Toolkit ${version} lacks an updater for every packaged architecture; pass a toolkit_version that has them."
+            log_error "Toolkit ${version} lacks gnosis_vpn-update or gnosis_vpn-migrate for a packaged architecture; pass a toolkit_version that has both."
             exit 1
         }
     }

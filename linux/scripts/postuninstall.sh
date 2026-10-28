@@ -35,6 +35,24 @@ if [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] && command -v dpkg-maintscript-helper >/d
     done
 fi
 
+# The legacy identity is the Safe's only key (GNO-1005): purge parks .config and every .bak/.migrated copy root-only instead of deleting.
+preserve_legacy_identity() {
+    shopt -s nullglob
+    local entries=(/var/lib/gnosisvpn/.config*)
+    shopt -u nullglob
+    [[ ${#entries[@]} -gt 0 ]] || return 0
+
+    local backup_dir
+    backup_dir="/var/backups/gnosisvpn/$(date +%Y%m%d-%H%M%S)"
+    install -d -m 700 -o root -g root /var/backups/gnosisvpn "$backup_dir"
+    mv "${entries[@]}" "$backup_dir/"
+    # The retired gnosisvpn UID may be reused by a later account; -h so a symlink the worker planted cannot re-own its target.
+    chown -Rh root:root "$backup_dir"
+
+    echo "$LOG_PREFIX WARNING: The legacy HOPR identity (the Safe's only key) was NOT deleted" >&2
+    echo "$LOG_PREFIX WARNING: It was moved to $backup_dir (root only); delete it by hand once the Safe is drained" >&2
+}
+
 # Reload systemd after service file removal
 echo "$LOG_PREFIX INFO: Reloading systemd daemon..."
 deb-systemd-helper daemon-reload || true
@@ -62,31 +80,21 @@ arch)
     ;;
 esac
 
-# Remove log directory
-if [[ -d /var/log/gnosisvpn ]]; then
-    echo "$LOG_PREFIX INFO: Removing log directory: /var/log/gnosisvpn"
-    rm -rf /var/log/gnosisvpn
-fi
-
 # Remove documentation directory
 if [[ -d /usr/share/doc/gnosisvpn ]]; then
     echo "$LOG_PREFIX INFO: Removing documentation directory: /usr/share/doc/gnosisvpn"
     rm -rf /usr/share/doc/gnosisvpn
 fi
 
-# Remove user and group
-if getent passwd gnosisvpn >/dev/null 2>&1; then
-    echo "$LOG_PREFIX INFO: Removing user 'gnosisvpn'..."
-    userdel gnosisvpn 2>/dev/null || true
-fi
-
-if getent group gnosisvpn >/dev/null 2>&1; then
-    echo "$LOG_PREFIX INFO: Removing group 'gnosisvpn'..."
-    groupdel gnosisvpn 2>/dev/null || true
-fi
-
+# Per-user identities (~/.local/share/gnosisvpn) are the user's data: never touched, not even on purge.
 if [[ $IS_PURGE == "true" ]]; then
     echo "$LOG_PREFIX INFO: Performing complete removal (purge)..."
+
+    # Purge only: logs survive a plain remove (promised below) and the old postrm that dpkg runs during an upgrade.
+    if [[ -d /var/log/gnosisvpn ]]; then
+        echo "$LOG_PREFIX INFO: Removing log directory: /var/log/gnosisvpn"
+        rm -rf /var/log/gnosisvpn
+    fi
 
     # logrotate.d is a dpkg conffile — only delete on purge to avoid dpkg treating the removal as intentional.
     if [[ -f /etc/logrotate.d/gnosisvpn ]]; then
@@ -103,10 +111,10 @@ if [[ $IS_PURGE == "true" ]]; then
     echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=cubic"
     echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=fq_codel"
 
-    # Remove state directory
-    if [[ -d /var/lib/gnosisvpn ]]; then
-        echo "$LOG_PREFIX INFO: Removing state directory: /var/lib/gnosisvpn"
-        rm -rf /var/lib/gnosisvpn
+    preserve_legacy_identity
+    # Whatever is left is unknown to this script; it stays rather than risk a key (GNO-1005).
+    if [[ -d /var/lib/gnosisvpn ]] && ! rmdir /var/lib/gnosisvpn 2>/dev/null; then
+        echo "$LOG_PREFIX INFO: /var/lib/gnosisvpn is not empty and was kept; inspect and remove it by hand"
     fi
 
     # Remove configuration directory (including backups)
@@ -115,7 +123,7 @@ if [[ $IS_PURGE == "true" ]]; then
         rm -rf /etc/gnosisvpn
     fi
 
-    # Remove desktop shortcuts for all users
+    # TODO: remove by December 2027. Shortcuts written by releases before the per-user layout; rm -f never follows symlinks.
     echo "$LOG_PREFIX INFO: Removing desktop shortcuts for all users..."
     for user_home in /home/*; do
         if [[ -d "$user_home/Desktop" ]]; then
@@ -132,6 +140,7 @@ else
     echo "$LOG_PREFIX INFO: State data: /var/lib/gnosisvpn"
     echo "$LOG_PREFIX INFO: Logs: /var/log/gnosisvpn"
 fi
+echo "$LOG_PREFIX INFO: Per-user identities under ~/.local/share/gnosisvpn are never removed by the package"
 echo "$LOG_PREFIX SUCCESS: Complete removal finished"
 echo "$LOG_PREFIX SUCCESS: Post-uninstall completed successfully"
 exit 0

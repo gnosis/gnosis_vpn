@@ -1,9 +1,10 @@
 # Gnosis VPN Service Management
-# Allow members of gnosisvpn group to manage the Gnosis VPN service
-# without requiring a password
+# gnosisvpn is a permission group only (no service account): members manage the service without a password.
 
 # Allow gnosisvpn group members to control the Gnosis VPN service
 %gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl bootstrap system /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist
+# A failed identity migration leaves the service disabled; the app runs enable, then bootstrap.
+%gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl enable system/com.gnosisvpn.gnosisvpnclient
 %gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl bootout system /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist
 %gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl kickstart system/com.gnosisvpn.gnosisvpnclient
 %gnosisvpn ALL=(root) NOPASSWD: /bin/launchctl kill SIGTERM system/com.gnosisvpn.gnosisvpnclient

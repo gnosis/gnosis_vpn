@@ -47,9 +47,11 @@ The installer accepts options after `-s --`:
   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --network=jura-dev
   ```
 
-- `--reset-identity` — back up the worker's config directory (`/var/lib/gnosisvpn/.config/`, holding the HOPR identity,
-  safe, and node database) by renaming it to `.config.<timestamp>.bak`, so the service generates a fresh identity on
-  restart. The network selection and Blokli endpoint (`/etc/gnosisvpn/gnosisvpn-dynamic.env`) are kept. Env var:
+- `--reset-identity` — move the **legacy** single-user identity directory (`/var/lib/gnosisvpn/.config/`, holding the
+  HOPR identity, safe, and node database) aside to `.config.<timestamp>.bak`. It covers the legacy layout only and does
+  nothing to migrated, per-user identities (see [Per-user layout](#per-user-layout-and-identity-migration)); to reset
+  one of those, stop the client and move `~/.local/share/gnosisvpn/networks/<network>/` aside as that user. The network
+  selection and Blokli endpoint (`/etc/gnosisvpn/gnosisvpn-dynamic.env`) are kept. Env var:
   `GNOSISVPN_RESET_IDENTITY=true`.
 
   ```bash
@@ -153,6 +155,52 @@ Uninstall:
 sudo apt remove gnosisvpn
 ```
 
+`remove` keeps `/etc/gnosisvpn` and `/var/lib/gnosisvpn`; `purge` removes `/etc/gnosisvpn` and moves the legacy identity
+directory and its backups (`/var/lib/gnosisvpn/.config*`) to `/var/backups/gnosisvpn/<timestamp>/`, readable by root
+only. The package never deletes key material: delete that backup by hand once the Safe is drained. Per-user identities
+under `~/.local/share/gnosisvpn/` are each user's own data and are never touched by install, remove or purge.
+
+### Per-user layout and identity migration
+
+The package creates no service account. `gnosisvpn.service` runs `gnosis_vpn-root` as root; the root process spawns
+`gnosis_vpn-worker` as whichever user asks for a connection, and that worker keeps its HOPR identity, safe and node
+database under the user's own home (`~/.local/share/gnosisvpn/networks/<network>/`). `/var/lib/gnosisvpn` only holds
+updater state and legacy backups. The systemd unit therefore allows writes under `/home` and `/var/home`
+(`ReadWritePaths`); a user whose home lives elsewhere needs that path added via a drop-in:
+
+```sh
+sudo systemctl edit gnosisvpn
+# [Service]
+# ReadWritePaths=<home root>
+```
+
+Releases before this layout ran the worker as a `gnosisvpn` system user with one shared identity in
+`/var/lib/gnosisvpn/.config/`. On upgrade, `postinstall.sh` runs `gnosis_vpn-migrate identity --user <name>` (from the
+[toolkit](https://github.com/gnosis/gnosis_vpn-toolkit)) between stopping the old service and starting the new one,
+moving that identity into the layout of the user logged in at the desktop (the active logind session on `seat0`; neither
+`SUDO_USER` nor an ssh session nor root is a candidate) and renaming the legacy directory to
+`.config.migrated-<timestamp>`. The `gnosisvpn` user and group are removed once the migration reports success. When
+nobody is logged in at the desktop (headless installs, `ssh` upgrades), the migration is skipped with a warning, the
+service starts and the legacy identity stays intact; run `sudo gnosis_vpn-migrate identity --user <name> --replace` by
+hand later (`--replace` because a connection made in the meantime may already have created a per-user identity).
+
+If the migration fails, the package install still succeeds, but the service is disabled and **not** started, so neither
+the install nor the next boot can create a fresh identity that shadows the legacy one. The output ends with three ways
+forward, then the start command:
+
+```bash
+sudo gnosis_vpn-migrate identity --user <name>      # retry after fixing the cause
+sudo gnosis_vpn-migrate upload-log                  # send /var/log/gnosisvpn/migrate.log to support
+sudo gnosis_vpn-migrate start-clean --user <name>   # give up on the legacy identity, start fresh
+sudo systemctl enable --now gnosisvpn
+```
+
+When the failure is a conflict (the user already has an identity for that network, exit code 75), the block offers
+`identity --user <name> --replace` (keep the legacy identity) and a bare `start-clean` (keep the current one) instead.
+
+The migrate log is `/var/log/gnosisvpn/migrate.log`. `gnosis_vpn-migrate identity` is idempotent: a re-run after a
+successful migration reports `AlreadyMigrated`.
+
 ### .deb Installation Environment Variables
 
 Direct `.deb` installs have no flags — these environment variables configure the package scripts instead (set them with
@@ -178,10 +226,11 @@ Direct `.deb` installs have no flags — these environment variables configure t
   sudo env GNOSISVPN_HOPR_BLOKLI_URL=https://blokli.example.com apt install ./gnosisvpn_*.deb
   ```
 
-- `GNOSISVPN_RESET_IDENTITY=true` — back up the worker's config directory (`/var/lib/gnosisvpn/.config/`, holding the
-  HOPR identity, safe, and node database) by renaming it to `.config.<timestamp>.bak` before the service starts, so a
-  fresh identity is generated. The network selection and Blokli endpoint (`/etc/gnosisvpn/gnosisvpn-dynamic.env`) are
-  kept (default: `false`).
+- `GNOSISVPN_RESET_IDENTITY=true` — move the **legacy** single-user identity directory (`/var/lib/gnosisvpn/.config/`,
+  holding the HOPR identity, safe, and node database) aside to `.config.<timestamp>.bak` before the service starts. It
+  does nothing to migrated, per-user identities; to reset one of those, stop the client and move
+  `~/.local/share/gnosisvpn/networks/<network>/` aside as that user. The network selection and Blokli endpoint
+  (`/etc/gnosisvpn/gnosisvpn-dynamic.env`) are kept (default: `false`).
 
   ```bash
   sudo env GNOSISVPN_RESET_IDENTITY=true apt install ./gnosisvpn_*.deb

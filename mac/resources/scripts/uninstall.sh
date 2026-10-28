@@ -23,6 +23,8 @@ BIN_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/gnosisvpn"
 LOG_DIR="/Library/Logs/GnosisVPN"
 SHARE_DIR="/usr/local/share/gnosisvpn"
+STATE_DIR="/Library/Application Support/GnosisVPN"
+CACHE_DIR="/Library/Caches/GnosisVPN"
 
 # Logging functions
 log_info() {
@@ -61,13 +63,17 @@ print_banner() {
 # Confirm uninstallation
 confirm_uninstall() {
     echo "This will remove:"
-    echo "  - Binaries: $BIN_DIR/gnosis_vpn-root, $BIN_DIR/gnosis_vpn-worker, $BIN_DIR/gnosis_vpn-ctl, $BIN_DIR/gnosis_vpn-update, $BIN_DIR/gnosis_vpn-manager"
+    echo "  - Binaries: $BIN_DIR/gnosis_vpn-root, $BIN_DIR/gnosis_vpn-worker, $BIN_DIR/gnosis_vpn-ctl, $BIN_DIR/gnosis_vpn-update, $BIN_DIR/gnosis_vpn-migrate, $BIN_DIR/gnosis_vpn-manager"
     echo "  - Launchd service: /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
     echo "  - Log rotation timer: /Library/LaunchDaemons/com.gnosisvpn.newsyslog.plist"
     echo "  - Configuration: $CONFIG_DIR/"
     echo "  - Service logs: $LOG_DIR"
     echo "  - Installation logs: $LOG_DIR/installer"
+    echo "  - Installer choices: $STATE_DIR/installer"
+    echo "  - Update downloads: $CACHE_DIR"
     echo "  - Package receipt: $PKG_ID"
+    echo ""
+    echo "Left in place: per-user identities under ~/Library/Application Support/GnosisVPN/ and $STATE_DIR (updater state, legacy identity backups)"
     echo ""
     read -p "Are you sure you want to uninstall Gnosis VPN? [y/N] " -n 1 -r
     echo
@@ -91,25 +97,7 @@ remove_launchd_service() {
     echo ""
 }
 
-# Remove system user
-remove_system_user() {
-    log_info "Removing system user..."
-
-    local username="gnosisvpn"
-
-    if dscl . -read "/Users/$username" >/dev/null 2>&1; then
-        log_info "Found system user: $username"
-
-        # Delete the user
-        dscl . -delete "/Users/$username"
-        log_success "Removed system user: $username"
-
-    else
-        log_info "No system user '$username' found"
-    fi
-}
-
-# Remove system group
+# Remove the permission group (sudoers principal)
 remove_system_group() {
     log_info "Removing system group..."
 
@@ -137,16 +125,12 @@ remove_system_group() {
     fi
 }
 
-# Clean up system directories created for the service
+# Clean up system files created for the service; $STATE_DIR and per-user identities stay (user data)
 cleanup_system_directories() {
     log_info "Cleaning up system directories..."
 
-    local directories=(
-        "/Library/Application Support/GnosisVPN/.config/gnosisvpn-hopr.db"
-        "$LOG_DIR"
-    )
-
-    for dir in "${directories[@]}"; do
+    local dir
+    for dir in "$LOG_DIR" "$CACHE_DIR" "$STATE_DIR/installer"; do
         if [[ -d $dir ]]; then
             log_info "Removing directory: $dir"
             rm -rf "$dir"
@@ -224,7 +208,7 @@ remove_binaries() {
 
     local removed=0
 
-    for binary in "gnosis_vpn-root" "gnosis_vpn-worker" "gnosis_vpn-ctl" "gnosis_vpn-update" "gnosis_vpn-manager"; do
+    for binary in "gnosis_vpn-root" "gnosis_vpn-worker" "gnosis_vpn-ctl" "gnosis_vpn-update" "gnosis_vpn-migrate" "gnosis_vpn-manager"; do
         if [[ -f "$BIN_DIR/$binary" ]]; then
             rm -f "$BIN_DIR/$binary"
             log_success "Removed $BIN_DIR/$binary"
@@ -339,6 +323,11 @@ verify_uninstall() {
         errors=$((errors + 1))
     fi
 
+    if [[ -f "$BIN_DIR/gnosis_vpn-migrate" ]]; then
+        log_error "Binary still exists: $BIN_DIR/gnosis_vpn-migrate"
+        errors=$((errors + 1))
+    fi
+
     if [[ -f "$BIN_DIR/gnosis_vpn-manager" ]]; then
         log_error "Management script still exists: $BIN_DIR/gnosis_vpn-manager"
         errors=$((errors + 1))
@@ -376,12 +365,6 @@ verify_uninstall() {
         errors=$((errors + 1))
     fi
 
-    # Check system user removal
-    if dscl . -read "/Users/gnosisvpn" >/dev/null 2>&1; then
-        log_error "System user still exists: gnosisvpn"
-        errors=$((errors + 1))
-    fi
-
     # Check system group removal
     if dscl . -read "/Groups/gnosisvpn" >/dev/null 2>&1; then
         log_error "System group still exists: gnosisvpn"
@@ -389,7 +372,7 @@ verify_uninstall() {
     fi
 
     # Check system directories removal
-    local system_dirs=("$LOG_DIR")
+    local system_dirs=("$LOG_DIR" "$CACHE_DIR" "$STATE_DIR/installer")
     for dir in "${system_dirs[@]}"; do
         if [[ -d $dir ]]; then
             log_error "System directory still exists: $dir"
@@ -424,15 +407,18 @@ print_summary() {
     echo "  ✓ Binaries"
     echo "  ✓ UI Application (if installed)"
     echo "  ✓ Launchd service"
-    echo "  ✓ System user and group (gnosisvpn)"
+    echo "  ✓ System group (gnosisvpn)"
     echo "  ✓ Sudo privileges configuration"
-    echo "  ✓ System directories (/Library/Application Support/GnosisVPN)"
     echo "  ✓ Configuration (backed up to ~/gnosis-vpn-config-backup-*)"
     echo "  ✓ Service logs"
     echo "  ✓ GeoIP database"
     echo "  ✓ Installation logs"
     echo "  ✓ Package receipt"
     echo "  ✓ LaunchServices registrations"
+    echo ""
+    echo "Left in place:"
+    echo "  - Per-user identities: ~/Library/Application Support/GnosisVPN/ (each user's own data)"
+    echo "  - $STATE_DIR (updater state, legacy identity backups)"
     echo ""
     echo "To reinstall, download and run the installer again."
     echo "=========================================="
@@ -453,7 +439,6 @@ main() {
     remove_geoip_data
     cleanup_system_directories
     remove_sudo_privileges
-    remove_system_user
     remove_system_group
     forget_package
     verify_uninstall

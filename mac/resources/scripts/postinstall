@@ -8,6 +8,10 @@
 # - Backup of existing configuration (if present)
 # - Final permission adjustments
 # - Optional convenience symlinks
+# - Migration of the legacy single-user identity into the console user's home
+#
+# No service account: root spawns the worker as the requesting user; the gnosisvpn group is only the sudoers principal.
+# Rollback after the migration ran is safe: gnosis_vpn-migrate identity is idempotent, re-running the pkg works.
 #
 # Arguments:
 #   $1: Full path to the installation package
@@ -66,6 +70,16 @@ UI_TARGET_APP="$(join_path "$TARGET_VOLUME" "/Applications/Gnosis VPN.app")"
 
 INSTALLED_LOG_DIR_PATH="/Library/Logs/GnosisVPN"
 INSTALLED_LIB_DIR_PATH="/Library/Application Support/GnosisVPN"
+LAUNCHD_PLIST_PATH="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
+LAUNCHD_SERVICE="system/com.gnosisvpn.gnosisvpnclient"
+
+# Set by migrate_legacy_identity; gate the service bootstrap and the legacy account removal.
+MIGRATION_OK=false
+MIGRATION_FAILED=false
+MIGRATION_STATUS=0
+MIGRATE_LOG="${INSTALLED_LOG_DIR_PATH}/installer/migrate.log"
+# Console user, resolved once in main: group membership, the migration, the validation probes and the app launch share it.
+CURRENT_USER=""
 
 # Rollback mechanism
 ROLLBACK_STEPS=()
@@ -103,35 +117,38 @@ is_shipped_network() {
     return 1
 }
 
+# Never sourced: the old service account owned this tree and could have planted code in it.
+read_choice() {
+    local file="$1" key="$2" line=""
+    [[ -f "$file" && ! -L "$file" ]] || return 0
+    IFS= read -r line <"$file" || true
+    [[ "$line" == "${key}="* ]] || return 0
+    line="${line#"${key}="}"
+    line="${line#\"}"
+    echo "${line%\"}"
+}
+
 load_installer_choices() {
-    local choice_dir="/Library/Logs/GnosisVPN/installer"
-    local network_choice_file="${choice_dir}/network_choice"
-    local loglevel_choice_file="${choice_dir}/loglevel_choice"
+    local choice_dir="${INSTALLED_LIB_DIR_PATH}/installer"
+    local network loglevel
 
-    INSTALLER_CHOICE_NETWORK="$DEFAULT_NETWORK"
-    INSTALLER_CHOICE_LOGLEVEL="info"
-
-    if [[ -f "$network_choice_file" ]]; then
-        log_info "Loading network choice from $network_choice_file"
-        # shellcheck disable=SC1090
-        source "$network_choice_file"
-    else
-        log_warn "Network choice file not found, defaulting to ${DEFAULT_NETWORK}"
-    fi
-
+    network="$(read_choice "${choice_dir}/network_choice" INSTALLER_CHOICE_NETWORK)"
     # The choice file persists between installs, so it can name a network from the other line.
-    if ! is_shipped_network "$INSTALLER_CHOICE_NETWORK"; then
-        log_warn "Network choice '${INSTALLER_CHOICE_NETWORK}' is not shipped by this installer (${SHIPPED_NETWORKS[*]}) — using ${DEFAULT_NETWORK}"
+    if is_shipped_network "$network"; then
+        INSTALLER_CHOICE_NETWORK="$network"
+    else
+        log_warn "No valid network choice for this installer (${SHIPPED_NETWORKS[*]}), using ${DEFAULT_NETWORK}"
         INSTALLER_CHOICE_NETWORK="$DEFAULT_NETWORK"
     fi
 
-    if [[ -f "$loglevel_choice_file" ]]; then
-        log_info "Loading log level choice from $loglevel_choice_file"
-        # shellcheck disable=SC1090
-        source "$loglevel_choice_file"
-    else
-        log_warn "Log level choice file not found, defaulting to info"
-    fi
+    loglevel="$(read_choice "${choice_dir}/loglevel_choice" INSTALLER_CHOICE_LOGLEVEL)"
+    case "$loglevel" in
+    debug | info) INSTALLER_CHOICE_LOGLEVEL="$loglevel" ;;
+    *)
+        log_warn "No valid log level choice, using info"
+        INSTALLER_CHOICE_LOGLEVEL="info"
+        ;;
+    esac
 }
 
 # Rollback functions
@@ -265,70 +282,27 @@ save_version_info() {
     log_success "Version saved to $VERSION_FILE"
 }
 
-# Create dedicated system user for Gnosis VPN service
-create_system_user() {
-    log_info "Creating dedicated system user for Gnosis VPN service..."
-
-    local username="gnosisvpn"
-    local fullname="Gnosis VPN Service"
-    local homedir="$INSTALLED_LIB_DIR_PATH"
-    local shell="/bin/bash"
-
-    # Find next available system UID (typically 200-499 range for system users)
-    local uid
-    for uid in {200..499}; do
-        if ! dscl . -read "/Users/$username" UniqueID >/dev/null 2>&1 && \
-           [[ -z "$(dscl . -search /Users UniqueID "$uid")" ]]; then
-            break
-        fi
-    done
-
-    # Check if user already exists
-    if dscl . -read "/Users/$username" >/dev/null 2>&1; then
-        log_info "System user '$username' already exists"
-
-        # Verify it's configured correctly
-        local existing_uid
-        existing_uid=$(dscl . -read "/Users/$username" UniqueID | awk '{print $2}')
-        local existing_home
-        existing_home=$(dscl . -read "/Users/$username" NFSHomeDirectory | cut -d' ' -f2-)
-
-        log_info "Existing user details: UID=$existing_uid, Home=$existing_home"
-
-        # Ensure home directory exists and has correct permissions
-        if [[ ! -d "$existing_home" ]]; then
-            log_info "Creating missing home directory: $existing_home"
-            mkdir -p "$existing_home"
-            chown "$username:gnosisvpn" "$existing_home"
-            chmod 750 "$existing_home"
-        fi
-
+# TODO: remove by December 2027.
+# The single-user layout's service account; only after an OK migration, the group stays as sudoers principal.
+remove_legacy_account() {
+    [[ "$MIGRATION_OK" == true ]] || return 0
+    if ! dscl . -read "/Users/gnosisvpn" >/dev/null 2>&1; then
         return 0
     fi
-
-    log_info "Creating system user: $username (UID: $uid)"
-
-    # Create the user record
-    dscl . -create "/Users/$username"
-    dscl . -create "/Users/$username" UserShell "$shell"
-    dscl . -create "/Users/$username" RealName "$fullname"
-    dscl . -create "/Users/$username" UniqueID "$uid"
-    dscl . -create "/Users/$username" PrimaryGroupID 20  # staff group initially
-    dscl . -create "/Users/$username" NFSHomeDirectory "$homedir"
-
-    # Hide user from login window and Users & Groups preferences
-    dscl . -create "/Users/$username" IsHidden 1
-
-    log_success "System user '$username' created successfully (UID: $uid)"
+    log_info "Removing the legacy service user 'gnosisvpn'..."
+    if dscl . -delete "/Users/gnosisvpn"; then
+        log_success "Legacy service user removed"
+    else
+        log_warn "Could not remove user 'gnosisvpn'; remove it by hand: sudo dscl . -delete /Users/gnosisvpn"
+    fi
 }
 
-# Create dedicated group for Gnosis VPN operations
+# Create the permission group for Gnosis VPN operations (sudoers principal, holds the console user)
 create_system_group() {
     log_info "Creating dedicated system group for Gnosis VPN..."
 
     local groupname="gnosisvpn"
-    local current_user
-    current_user=$(logname 2>/dev/null || who am i | awk '{print $1}' || echo "unknown")
+    local current_user="$CURRENT_USER"
 
     # Find next available system GID (typically 200-499 range for system groups)
     local gid
@@ -349,7 +323,9 @@ create_system_group() {
         local group_members
         group_members=$(dscl . -read "/Groups/$groupname" GroupMembership 2>/dev/null | cut -d' ' -f2- || echo "")
 
-        if [[ "$group_members" == *"$current_user"* ]]; then
+        if [[ -z "$current_user" ]]; then
+            log_warn "No console user detected; add yours later with: sudo dseditgroup -o edit -a <name> -t user gnosisvpn"
+        elif [[ "$group_members" == *"$current_user"* ]]; then
             log_info "Current user '$current_user' is already in group '$groupname'"
         else
             log_info "Adding current user '$current_user' to existing group '$groupname'"
@@ -369,52 +345,84 @@ create_system_group() {
     dscl . -create "/Groups/$groupname" RecordName "$groupname"
 
     # Add current user to the group
-    if [[ "$current_user" != "unknown" ]] && [[ "$current_user" != "root" ]]; then
+    if [[ -n "$current_user" ]]; then
         log_info "Adding current user '$current_user' to group '$groupname'"
         dseditgroup -o edit -a "$current_user" -t user "$groupname"
-        # ===
-        # Critical Network Entitlements Needed:
-        dseditgroup -o edit -a "$groupname" -t user _networkd
-        # com.apple.developer.networking.networkextension - For VPN/tunnel creation
-        # com.apple.security.network.server - For binding to sockets
-        # com.apple.security.network.client - For outbound connections
-        # com.apple.developer.system-extension.install - For system extensions
-        # ===
-
         log_success "User '$current_user' added to group '$groupname'"
     else
-        log_warn "Could not determine current user or user is root - skipping group membership"
+        log_warn "No console user detected; add yours later with: sudo dseditgroup -o edit -a <name> -t user gnosisvpn"
     fi
 
     log_success "System group '$groupname' created successfully (GID: $gid)"
 }
 
-# Update system user's primary group to gnosisvpn
-update_user_group() {
-    log_info "Updating system user's primary group..."
+# The desktop user; root never owns a worker, so root yields "" like a missing console session.
+resolve_console_user() {
+    local user
+    user=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }' || true)
+    if [[ -z "$user" ]]; then
+        user=$(stat -f %Su /dev/console 2>/dev/null || true)
+    fi
+    if [[ "$user" == "root" ]]; then
+        user=""
+    fi
+    echo "$user"
+}
 
-    local username="gnosisvpn"
-    local groupname="gnosisvpn"
+# Same lock-down as the toolkit's migration (GNO-1006): the old service account owned the key and password.
+lock_down_legacy_identity() {
+    local legacy_config="${INSTALLED_LIB_DIR_PATH}/.config"
+    [[ -d "$legacy_config" && ! -L "$legacy_config" ]] || return 0
+    chown root:wheel "$legacy_config"
+    chmod 700 "$legacy_config"
+}
 
-    # Get group GID
-    local gid
-    if ! gid=$(dscl . -read "/Groups/$groupname" PrimaryGroupID 2>/dev/null | awk '{print $2}'); then
-        log_error "Could not find GID for group '$groupname'"
-        return 1
+# Moves the legacy "$INSTALLED_LIB_DIR_PATH/.config" identity into the console user's home; a failure keeps the service unloaded.
+migrate_legacy_identity() {
+    log_section "Identity migration"
+    # Moves the previous release's updater files into their current dirs; a failure is logged, never blocking.
+    "$BIN_DIR/gnosis_vpn-migrate" layout || log_warn "layout relocation reported problems, see ${MIGRATE_LOG}"
+    if [[ -z "$CURRENT_USER" ]]; then
+        log_warn "No console user known — the legacy identity (if any) stays in ${INSTALLED_LIB_DIR_PATH}/.config"
+        # --replace: by then a connection may have created a per-user identity that must give way to the legacy one.
+        log_warn "Migrate it later with: sudo gnosis_vpn-migrate identity --user <name> --replace"
+        lock_down_legacy_identity
+        return 0
     fi
 
-    # Update user's primary group
-    dscl . -create "/Users/$username" PrimaryGroupID "$gid"
-
-    # Update home directory ownership
-    local homedir
-    homedir=$(dscl . -read "/Users/$username" NFSHomeDirectory | cut -d' ' -f2-)
-    if [[ -d "$homedir" ]]; then
-        chown "$username:$groupname" "$homedir"
-        log_info "Updated home directory ownership: $homedir"
+    log_info "Migrating the legacy identity to user '${CURRENT_USER}' (the console user)..."
+    # The `||` list keeps the ERR trap (rollback) out of the toolkit's non-zero exit.
+    "$BIN_DIR/gnosis_vpn-migrate" identity --user "$CURRENT_USER" || MIGRATION_STATUS=$?
+    if [[ $MIGRATION_STATUS -ne 0 ]]; then
+        MIGRATION_FAILED=true
+        lock_down_legacy_identity
+        log_error "Identity migration failed — the service will be installed but not started"
+        return 0
     fi
+    MIGRATION_OK=true
+    log_success "Identity migration done"
+}
 
-    log_success "User '$username' primary group updated to '$groupname' (GID: $gid)"
+# Shared wording with the Linux postinstall; the start command must stay the last user-facing line.
+print_migration_failure() {
+    [[ "$MIGRATION_FAILED" == true ]] || return 0
+    local keep_legacy="Retry after fixing the cause:   sudo gnosis_vpn-migrate identity --user ${CURRENT_USER}"
+    local fresh_start="Start with a fresh identity:     sudo gnosis_vpn-migrate start-clean --user ${CURRENT_USER}"
+    # Exit 75: the user already has an identity; start-clean --user would move it aside and the next start would create a third.
+    if [[ $MIGRATION_STATUS -eq 75 ]]; then
+        keep_legacy="Keep the legacy identity:        sudo gnosis_vpn-migrate identity --user ${CURRENT_USER} --replace"
+        fresh_start="Keep the current identity:       sudo gnosis_vpn-migrate start-clean"
+    fi
+    cat <<EOF
+
+Identity migration failed — see the toolkit output above.
+Log: ${MIGRATE_LOG}
+The service was installed but left disabled and NOT loaded. Choose one:
+  1. ${keep_legacy}
+  2. Send the logs to support:        sudo gnosis_vpn-migrate upload-log
+  3. ${fresh_start}
+Then start the service:               sudo launchctl enable ${LAUNCHD_SERVICE} && sudo launchctl bootstrap system ${LAUNCHD_PLIST_PATH}
+EOF
 }
 
 # Configure plist with runtime values
@@ -512,8 +520,17 @@ install_launchd_service() {
 
         log_success "Plist configured and validated successfully"
 
+        # Starting now, or at the next boot, would generate a fresh identity and turn the retry path into a conflict.
+        if [[ "$MIGRATION_FAILED" == true ]]; then
+            launchctl disable "$LAUNCHD_SERVICE" 2>/dev/null || true
+            log_warn "Not loading the service: the identity migration failed (see the end of this output)"
+            return 0
+        fi
+
         # Load and start the service
         log_info "Loading Gnosis VPN service..."
+        # A failed migration on an earlier run left the service disabled, and bootstrap refuses a disabled service.
+        launchctl enable "$LAUNCHD_SERVICE" 2>/dev/null || true
 
         # Try to bootstrap the service
         local bootstrap_attempts=0
@@ -695,13 +712,23 @@ uninstall_launchd_service() {
 
     local plist_path="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
 
-    if [[ -f "$plist_path" ]]; then
-        # Stop and unload the service
-        launchctl bootout system "$plist_path" 2>/dev/null || true
-        log_success "Service stopped"
-    else
+    if [[ ! -f "$plist_path" ]]; then
         log_info "No existing service found"
+        return 0
     fi
+    launchctl bootout system "$plist_path" 2>/dev/null || true
+
+    # bootout returns before launchd has reaped the job; the identity migration must not race its last writes.
+    local attempts=0
+    while launchctl print "$LAUNCHD_SERVICE" >/dev/null 2>&1; do
+        if [[ $attempts -ge 20 ]]; then
+            log_warn "Service still loaded 10s after bootout, continuing"
+            return 0
+        fi
+        sleep 0.5
+        attempts=$((attempts + 1))
+    done
+    log_success "Service stopped"
 }
 
 # Check service status
@@ -937,8 +964,9 @@ create_config_symlink() {
 copy_uninstall() {
     log_info "Copying uninstall script..."
     mkdir -p "$INSTALLED_LIB_DIR_PATH"
-    cp "${SCRIPT_DIR}/uninstall.sh" "$INSTALLED_LIB_DIR_PATH/uninstall.sh"
-    cp "${SCRIPT_DIR}/process-control.sh" "$INSTALLED_LIB_DIR_PATH/process-control.sh"
+    # install, not cp: cp onto an existing file keeps the old owner (the deleted gnosisvpn uid).
+    install -o root -g wheel -m 755 "${SCRIPT_DIR}/uninstall.sh" "$INSTALLED_LIB_DIR_PATH/uninstall.sh"
+    install -o root -g wheel -m 644 "${SCRIPT_DIR}/process-control.sh" "$INSTALLED_LIB_DIR_PATH/process-control.sh"
     log_success "Uninstall script copied to $INSTALLED_LIB_DIR_PATH/uninstall.sh"
 }
 
@@ -965,7 +993,8 @@ update_binaries() {
     local installation_type="$1"
 
     log_info "Updating binaries..."
-    binaries_array=(gnosis_vpn-root:root:wheel:750 gnosis_vpn-worker:root:gnosisvpn:750 gnosis_vpn-ctl:gnosisvpn:gnosisvpn:755 gnosis_vpn-update:root:wheel:755)
+    # Worker and ctl run as any user; root stays root-only; the two toolkit tools are installer/updater-run.
+    binaries_array=(gnosis_vpn-root:root:wheel:750 gnosis_vpn-worker:root:wheel:755 gnosis_vpn-ctl:root:wheel:755 gnosis_vpn-update:root:wheel:755 gnosis_vpn-migrate:root:wheel:755)
 
     # For fresh installations, just copy all binaries
     if [[ "$installation_type" == "fresh" ]]; then
@@ -1037,36 +1066,26 @@ remove_pre_0_96_log() {
     rm -f "$log_file"
 }
 
-# Set proper file permissions
+# Everything is root-owned and world-readable: the worker runs as any user and only reads here.
 set_permissions() {
     log_info "Setting permissions..."
 
-    local username="gnosisvpn"
-    local groupname="gnosisvpn"
-
-    # Set ownership and permissions for configuration directory
     mkdir -p "$CONFIG_DIR"
-    chown -R root:$groupname "$CONFIG_DIR"
-    chmod -R g+r "$CONFIG_DIR"
+    chown -R root:wheel "$CONFIG_DIR"
+    chmod 755 "$CONFIG_DIR"
+    chmod -R a+r "$CONFIG_DIR"
     chmod 644 "$CONFIG_FILE" 2>/dev/null || true
     log_info "Configuration directory permissions updated: $CONFIG_DIR"
 
-    # Set ownership and permissions for log directory
     mkdir -p "$INSTALLED_LOG_DIR_PATH"
-    chown -R $username:$groupname "$INSTALLED_LOG_DIR_PATH"
+    chown -R root:wheel "$INSTALLED_LOG_DIR_PATH"
     chmod -R 755 "$INSTALLED_LOG_DIR_PATH"
     log_info "Log directory permissions updated: $INSTALLED_LOG_DIR_PATH"
 
-    # add current user to the gnosisvpn group to allow interactions with binaries without privilige escalation
-    CURRENT_USER=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }')
-    log_info "Current user detected: $CURRENT_USER"
-    dseditgroup -o edit -a "$CURRENT_USER" -t user gnosisvpn
-
-    # Create and set permissions for state directory
+    # Not recursive: the legacy .config inside keeps its owner until migrated, and the updater state lives here.
     local state_dir="$INSTALLED_LIB_DIR_PATH"
-    chown -R $username:$groupname "$state_dir"
-    chmod -R 700 "$state_dir"
-    chmod 755 "$state_dir/uninstall.sh"
+    chown root:wheel "$state_dir"
+    chmod 755 "$state_dir"
     log_info "State directory created: $state_dir"
     log_success "Permissions and ownership set"
 }
@@ -1077,7 +1096,7 @@ verify_path() {
 
     # Binaries are already in /usr/local/bin which is typically in PATH
     log_success "Binaries installed to $BIN_DIR (typically in PATH)"
-    log_info "You should be able to run 'gnosis_vpn-root', 'gnosis_vpn-worker', 'gnosis_vpn-ctl' and 'gnosis_vpn-update' from anywhere"
+    log_info "You should be able to run 'gnosis_vpn-root', 'gnosis_vpn-worker', 'gnosis_vpn-ctl', 'gnosis_vpn-update' and 'gnosis_vpn-migrate' from anywhere"
 }
 
 # Verify installation
@@ -1086,7 +1105,7 @@ verify_installation() {
 
     local errors=0
 
-    for binary in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl gnosis_vpn-update; do
+    for binary in gnosis_vpn-root gnosis_vpn-worker gnosis_vpn-ctl gnosis_vpn-update gnosis_vpn-migrate; do
         if [[ ! -x "$BIN_DIR/${binary}" ]]; then
             log_error "$BIN_DIR/${binary} binary not found or not executable"
             errors=$((errors + 1))
@@ -1143,7 +1162,11 @@ print_summary() {
 
     echo ""
     log_info "Service Management:"
-    log_info "  The VPN service will start automatically at boot"
+    if [[ "$MIGRATION_FAILED" == true ]]; then
+        log_warn "  The VPN service is left disabled and NOT loaded: the identity migration failed (see below)"
+    else
+        log_info "  The VPN service will start automatically at boot"
+    fi
     log_info "  sudo launchctl kickstart system/com.gnosisvpn.gnosisvpnclient  # Restart service"
     log_info "  sudo launchctl bootout system/com.gnosisvpn.gnosisvpnclient    # Stop service"
     log_info "  gnosis_vpn-ctl status                           # Check VPN status"
@@ -1158,7 +1181,9 @@ print_summary() {
     echo ""
     log_info "Log file: $INSTALLER_LOG_FILE"
 
-    if [[ "$installation_type" == "update" ]]; then
+    if [[ "$MIGRATION_FAILED" == true ]]; then
+        log_warn "Files installed, but the service is down until the identity migration is resolved (see below)"
+    elif [[ "$installation_type" == "update" ]]; then
         log_success "Update completed successfully!"
     else
         log_success "Installation completed successfully!"
@@ -1249,8 +1274,8 @@ validate_service_environment() {
 
     # Check required directories exist with proper ownership
     local required_dirs=(
-        "$INSTALLED_LIB_DIR_PATH:gnosisvpn:gnosisvpn:750"
-        "$INSTALLED_LOG_DIR_PATH:gnosisvpn:gnosisvpn:755"
+        "$INSTALLED_LIB_DIR_PATH:root:wheel:755"
+        "$INSTALLED_LOG_DIR_PATH:root:wheel:755"
     )
 
     for dir_spec in "${required_dirs[@]}"; do
@@ -1284,31 +1309,35 @@ validate_service_environment() {
         fi
     done
 
-    # Check that binary exists and is executable by gnosisvpn user
+    # The worker runs as the console user, so probe as that user; without one there is nobody to probe as.
     local binary_path="/usr/local/bin/gnosis_vpn-worker"
+    local config_path="/etc/gnosisvpn/config.toml"
     if [[ ! -f "$binary_path" ]]; then
         log_error "Binary not found: $binary_path"
         errors=$((errors + 1))
-    else
-        if sudo -u gnosisvpn test -x "$binary_path"; then
-            log_success "✓ Binary is executable by gnosisvpn user"
-        else
-            log_error "Binary is not executable by gnosisvpn user: $binary_path"
-            errors=$((errors + 1))
-        fi
     fi
-
-    # Check that config file exists and is readable by gnosisvpn user
-    local config_path="/etc/gnosisvpn/config.toml"
     if [[ ! -f "$config_path" ]]; then
         log_error "Config file not found: $config_path"
         errors=$((errors + 1))
+    fi
+    if [[ -z "$CURRENT_USER" ]]; then
+        log_warn "No console user known; skipping the worker/config access probes"
     else
-        if sudo -u gnosisvpn test -r "$config_path"; then
-            log_success "✓ Config file is readable by gnosisvpn user"
-        else
-            log_error "Config file is not readable by gnosisvpn user: $config_path"
-            errors=$((errors + 1))
+        if [[ -f "$binary_path" ]]; then
+            if sudo -u "$CURRENT_USER" test -x "$binary_path"; then
+                log_success "✓ Binary is executable by user '$CURRENT_USER'"
+            else
+                log_error "Binary is not executable by user '$CURRENT_USER': $binary_path"
+                errors=$((errors + 1))
+            fi
+        fi
+        if [[ -f "$config_path" ]]; then
+            if sudo -u "$CURRENT_USER" test -r "$config_path"; then
+                log_success "✓ Config file is readable by user '$CURRENT_USER'"
+            else
+                log_error "Config file is not readable by user '$CURRENT_USER': $config_path"
+                errors=$((errors + 1))
+            fi
         fi
     fi
 
@@ -1324,8 +1353,7 @@ setup_management_script() {
     if [[ -f "${SCRIPT_DIR}/manage-installation.sh" ]]; then
         cp "${SCRIPT_DIR}/manage-installation.sh" "$BIN_DIR/gnosis_vpn-manager"
         chmod 755 "$BIN_DIR/gnosis_vpn-manager"
-        chown root:gnosisvpn "$BIN_DIR/gnosis_vpn-manager" 2>/dev/null || true
-        log_info "Management script installed with gnosisvpn group"
+        chown root:wheel "$BIN_DIR/gnosis_vpn-manager" 2>/dev/null || true
         log_success "Installed management script: gnosis_vpn-manager"
     fi
 }
@@ -1370,9 +1398,8 @@ launch_app() {
         log_info "Scheduling Gnosis VPN UI launch after installer wizard closes..."
         local app_path="$UI_TARGET_APP"
 
-        # Detect the current logged-in user so we open the app in their session
-        local current_user
-        current_user=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && !/loginwindow/ { print $3 }' || true)
+        # Open the app in the console user's session
+        local current_user="$CURRENT_USER"
         if [[ -z "$current_user" ]]; then
             log_warn "No logged-in console user detected; skipping UI launch"
             return 0
@@ -1435,10 +1462,11 @@ main() {
     backup_config "$installation_type"
     copy_uninstall
 
-    # Create system user and group
+    # Group membership grants the console user the sudoers rules (service control, self-update).
+    CURRENT_USER=$(resolve_console_user)
+    log_info "Console user detected: ${CURRENT_USER:-none}"
+    # Permission group (sudoers principal); no service account exists anymore
     create_system_group
-    create_system_user
-    update_user_group
 
     # Update binaries (incrementally for updates, full for fresh installs)
     update_binaries "$installation_type" "$TARGET_VOLUME"
@@ -1464,6 +1492,12 @@ main() {
     # Install UI application before the service so BTM can associate the daemon with it
     install_ui_application
 
+    # preinstall stops it too; repeated so the migration never runs against a live worker
+    uninstall_launchd_service
+    migrate_legacy_identity
+    # TODO: remove the removal code by December 2027 (see remove_legacy_account).
+    remove_legacy_account
+
     # Install launchd service
     install_launchd_service "$installation_type"
 
@@ -1485,6 +1519,8 @@ main() {
 
     # Launch UI application (best-effort; guarded internally so it cannot fail)
     launch_app
+    # Installer.app still reports success; this block (postinstall.log) is the only place the user learns why the service is down.
+    print_migration_failure
 
     # Save version information. Must stay after every step that can fail:
     # a failed install would otherwise leave version.txt claiming the new

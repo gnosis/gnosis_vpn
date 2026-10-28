@@ -2,7 +2,8 @@
 #
 # Gnosis VPN Post-Installation Script
 #
-# Creates system user/group and configures the service after files are installed.
+# Configures the service after files are installed; no service account: root spawns the worker as the requesting user.
+# Upgrades move the legacy identity into the installing user's home (gnosis_vpn-migrate) before the service starts.
 # Compatible with: deb (apt/dpkg), rpm (yum/dnf), archlinux (pacman)
 #
 # Networks shipped are baked into /usr/share/gnosisvpn/networks (first = default); consult that, not the files on disk.
@@ -12,31 +13,12 @@ set -euo pipefail
 
 LOG_PREFIX="[GnosisVPN postinstall]"
 
-# Create system user and group for service
-create_system_user_and_group() {
-    # Create group if it doesn't exist
-    if ! getent group gnosisvpn >/dev/null 2>&1; then
-        echo "$LOG_PREFIX INFO: Creating group 'gnosisvpn'..."
-        groupadd --system gnosisvpn
-        echo "$LOG_PREFIX SUCCESS: Group 'gnosisvpn' created successfully"
-    else
-        echo "$LOG_PREFIX INFO: Group 'gnosisvpn' already exists"
-    fi
-
-    # Create user if it doesn't exist
-    if ! getent passwd gnosisvpn >/dev/null 2>&1; then
-        echo "$LOG_PREFIX INFO: Creating system user 'gnosisvpn'..."
-        useradd --system \
-            --gid gnosisvpn \
-            --home-dir /var/lib/gnosisvpn \
-            --shell /usr/sbin/nologin \
-            --comment "Gnosis VPN Service User" \
-            gnosisvpn
-        echo "$LOG_PREFIX SUCCESS: User 'gnosisvpn' created successfully"
-    else
-        echo "$LOG_PREFIX INFO: User 'gnosisvpn' already exists"
-    fi
-}
+# Set by migrate_legacy_identity; gate the service start and the legacy account removal.
+MIGRATION_OK=false
+MIGRATION_FAILED=false
+MIGRATION_STATUS=0
+MIGRATION_USER=""
+MIGRATE_LOG=/var/log/gnosisvpn/migrate.log
 
 # TODO: remove by December 2027.
 retired_network_successor() {
@@ -77,42 +59,39 @@ is_shipped_network() {
     return 1
 }
 
-# Configure ownership and permissions for directories and binaries
+# Root-owned, world-readable: the worker runs as any user and only reads here; binaries keep nfpm's root:root 755.
 configure_filesystem_permissions() {
     echo "$LOG_PREFIX INFO: Setting up directory permissions..."
 
     # nfpm may have created it with a numeric UID; fix ownership here.
     mkdir -p /etc/gnosisvpn
-    # root-owned so the unprivileged worker cannot replace files loaded by the root service
-    chown root:gnosisvpn /etc/gnosisvpn
+    chown root:root /etc/gnosisvpn
     chmod 755 /etc/gnosisvpn
-    chown gnosisvpn:gnosisvpn /etc/gnosisvpn/*.toml 2>/dev/null || true
+    chown root:root /etc/gnosisvpn/*.toml 2>/dev/null || true
     chmod 644 /etc/gnosisvpn/*.toml 2>/dev/null || true
 
     mkdir -p /var/log/gnosisvpn
-    chown -R gnosisvpn:gnosisvpn /var/log/gnosisvpn
+    chown -R root:root /var/log/gnosisvpn
     chmod 755 /var/log/gnosisvpn
     # match logrotate's create mode so the app can still read the log after a rotation
     find /var/log/gnosisvpn -type f -exec chmod 644 {} +
 
+    # Updater state and legacy identity backups; not recursive, the legacy .config keeps its owner until migrated.
     mkdir -p /var/lib/gnosisvpn
-    chown -R gnosisvpn:gnosisvpn /var/lib/gnosisvpn
-    chmod -R 775 /var/lib/gnosisvpn
-
-    # nfpm installs binaries before the user exists; fix ownership here.
-    if [[ -f /usr/bin/gnosis_vpn-worker ]]; then
-        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-worker
-    fi
-    if [[ -f /usr/bin/gnosis_vpn-ctl ]]; then
-        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-ctl
-    fi
-    if [[ -f /usr/bin/gnosis_vpn-app ]]; then
-        chown gnosisvpn:gnosisvpn /usr/bin/gnosis_vpn-app
-    fi
-    # gnosis_vpn-update is deliberately absent: it stays root-owned, as on macOS,
-    # so the service account cannot swap a binary that runs privileged elsewhere.
+    chown root:root /var/lib/gnosisvpn
+    chmod 755 /var/lib/gnosisvpn
 
     echo "$LOG_PREFIX SUCCESS: Directory permissions configured"
+}
+
+# TODO: remove by December 2027.
+# A locally modified gnosisvpn.env survives --force-confold; its old keys would pin the service to a deleted account.
+remove_legacy_env_keys() {
+    [[ -f /etc/gnosisvpn/gnosisvpn.env ]] || return 0
+    if grep -qE '^(GNOSISVPN_WORKER_USER|HOME)=' /etc/gnosisvpn/gnosisvpn.env; then
+        echo "$LOG_PREFIX INFO: Removing GNOSISVPN_WORKER_USER and HOME from /etc/gnosisvpn/gnosisvpn.env (multi-user layout)"
+        sed -i -E '/^(GNOSISVPN_WORKER_USER|HOME)=/d' /etc/gnosisvpn/gnosisvpn.env
+    fi
 }
 
 # TODO: remove by June 2027.
@@ -413,7 +392,7 @@ EOF
     echo "$LOG_PREFIX INFO: Run 'sudo apt-get update' to refresh the package cache"
 }
 
-# Backs up the worker config dir so the service gets a fresh identity on next start.
+# Moves the legacy identity aside through the toolkit so the service gets a fresh identity on next start.
 reset_identity_if_requested() {
     if [[ -z ${GNOSISVPN_RESET_IDENTITY:-} || ${GNOSISVPN_RESET_IDENTITY} == "false" ]]; then
         return 0
@@ -428,25 +407,128 @@ reset_identity_if_requested() {
         systemctl stop gnosisvpn.service || true
     fi
 
-    # Back up rather than delete; service recreates it on next start.
-    local config_dir=/var/lib/gnosisvpn/.config
-    if [[ -d $config_dir ]]; then
-        # Bump numeric suffix to avoid colliding with a same-second backup (fatal under set -e).
-        local ts backup n
-        ts="$(date +%Y%m%d%H%M%S)"
-        backup="${config_dir}.${ts}.bak"
-        n=1
-        while [[ -e $backup ]]; do
-            backup="${config_dir}.${ts}.${n}.bak"
-            n=$((n + 1))
-        done
-        echo "$LOG_PREFIX INFO: Backing up worker config directory: $config_dir -> $backup"
-        mv "$config_dir" "$backup"
-    else
-        echo "$LOG_PREFIX INFO: No worker config found at $config_dir — nothing to back up"
-    fi
+    # The toolkit owns legacy moves (GNO-810): start-clean renames .config to .config.<ts>.bak and locks it down to 0700.
+    echo "$LOG_PREFIX INFO: Moving the legacy identity aside (gnosis_vpn-migrate start-clean)..."
+    /usr/bin/gnosis_vpn-migrate start-clean
 
     # Leave gnosisvpn-dynamic.env intact; it holds GNOSISVPN_HOPR_BLOKLI_URL — deleting it would leave the service with an empty URL (clap rejects that).
+}
+
+# Class user* only (user, user-early): the display manager's greeter also holds seat0 and must never receive the identity.
+session_human_user() {
+    local key value uid="" name="" class=""
+    while IFS='=' read -r key value; do
+        case $key in
+        User) uid=$value ;;
+        Name) name=$value ;;
+        Class) class=$value ;;
+        esac
+    done < <(loginctl show-session "$1" -p User -p Name -p Class 2>/dev/null)
+    [[ $class == user* && ${uid:-0} -ge 1000 && $name != "root" ]] || return 0
+    echo "$name"
+}
+
+# seat0's active session only, like the macOS console user: SUDO_USER/USER would hand the identity to whoever ran apt over ssh.
+resolve_installing_user() {
+    command -v loginctl >/dev/null 2>&1 || return 0
+    local active
+    active="$(loginctl show-seat seat0 -p ActiveSession --value 2>/dev/null || true)"
+    # Nobody at the keyboard (headless host, greeter) defers the migration.
+    [[ -n $active ]] || return 0
+    session_human_user "$active"
+}
+
+# Same lock-down as the toolkit's migration (GNO-1006): the old package left the key and password world-readable (775).
+lock_down_legacy_identity() {
+    local legacy_config=/var/lib/gnosisvpn/.config
+    [[ -d $legacy_config && ! -L $legacy_config ]] || return 0
+    chown root:root "$legacy_config"
+    chmod 700 "$legacy_config"
+}
+
+# Moves the legacy /var/lib/gnosisvpn/.config identity into the installing user's home; a failure keeps the service stopped.
+migrate_legacy_identity() {
+    # preinstall stops it too; repeated so the migration never runs against a live service.
+    if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet gnosisvpn.service 2>/dev/null; then
+        echo "$LOG_PREFIX INFO: Stopping gnosisvpn.service before the identity migration..."
+        systemctl stop gnosisvpn.service || true
+    fi
+
+    MIGRATION_USER="$(resolve_installing_user)"
+    if [[ -z $MIGRATION_USER ]]; then
+        echo "$LOG_PREFIX WARNING: Nobody is logged in at the desktop (seat0): the legacy identity (if any) stays in /var/lib/gnosisvpn/.config" >&2
+        # --replace: by then a connection may have created a per-user identity that must give way to the legacy one.
+        echo "$LOG_PREFIX WARNING: Migrate it later with: sudo gnosis_vpn-migrate identity --user <name> --replace" >&2
+        lock_down_legacy_identity
+        return 0
+    fi
+
+    # Moves the previous release's app settings and logs into their current dirs; a failure is logged, never blocking.
+    /usr/bin/gnosis_vpn-migrate layout --user "$MIGRATION_USER" || echo "$LOG_PREFIX WARNING: layout relocation reported problems, see $MIGRATE_LOG" >&2
+
+    echo "$LOG_PREFIX INFO: Migrating the legacy identity to user '${MIGRATION_USER}' (the desktop/console user)..."
+    /usr/bin/gnosis_vpn-migrate identity --user "$MIGRATION_USER" || MIGRATION_STATUS=$?
+    if [[ $MIGRATION_STATUS -eq 0 ]]; then
+        MIGRATION_OK=true
+        return 0
+    fi
+    MIGRATION_FAILED=true
+    # The old postrm already freed the service uid; the key must not wait for a retry to leave it.
+    lock_down_legacy_identity
+    echo "$LOG_PREFIX ERROR: Identity migration failed — gnosisvpn.service will be installed but not started" >&2
+}
+
+# Shared wording with the macOS postinstall; the start command must stay the last line.
+print_migration_failure() {
+    [[ $MIGRATION_FAILED == true ]] || return 0
+    local keep_legacy="Retry after fixing the cause:   sudo gnosis_vpn-migrate identity --user ${MIGRATION_USER}"
+    local fresh_start="Start with a fresh identity:     sudo gnosis_vpn-migrate start-clean --user ${MIGRATION_USER}"
+    # Exit 75: the user already has an identity; start-clean --user would move it aside and the next start would create a third.
+    if [[ $MIGRATION_STATUS -eq 75 ]]; then
+        keep_legacy="Keep the legacy identity:        sudo gnosis_vpn-migrate identity --user ${MIGRATION_USER} --replace"
+        fresh_start="Keep the current identity:       sudo gnosis_vpn-migrate start-clean"
+    fi
+    cat >&2 <<EOF
+
+Identity migration failed — see the toolkit output above.
+Log: ${MIGRATE_LOG}
+The service was installed but left disabled and NOT started. Choose one:
+  1. ${keep_legacy}
+  2. Send the logs to support:        sudo gnosis_vpn-migrate upload-log
+  3. ${fresh_start}
+Then start the service:               sudo systemctl enable --now gnosisvpn
+EOF
+}
+
+# TODO: remove by December 2027.
+# Unconditional: the previous package's postrm drops the account on every upgrade, and a kept conffile naming it would stop rotation.
+reown_legacy_logrotate_rule() {
+    [[ -f /etc/logrotate.d/gnosisvpn ]] || return 0
+    grep -qE '^[[:space:]]*create[[:space:]]+[0-7]+[[:space:]]+gnosisvpn[[:space:]]+gnosisvpn' /etc/logrotate.d/gnosisvpn || return 0
+    echo "$LOG_PREFIX INFO: Re-owning the logrotate create rule in /etc/logrotate.d/gnosisvpn to root"
+    sed -i -E 's/^([[:space:]]*create[[:space:]]+[0-7]+[[:space:]]+)gnosisvpn[[:space:]]+gnosisvpn/\1root root/' /etc/logrotate.d/gnosisvpn
+}
+
+# TODO: remove by December 2027.
+# Only after an OK migration; a host without userdel/groupdel must warn, not abort the postinstall under set -e.
+remove_legacy_account() {
+    [[ $MIGRATION_OK == true ]] || return 0
+    if getent passwd gnosisvpn >/dev/null 2>&1; then
+        if command -v userdel >/dev/null 2>&1; then
+            echo "$LOG_PREFIX INFO: Removing the legacy service user 'gnosisvpn'..."
+            userdel gnosisvpn 2>/dev/null || echo "$LOG_PREFIX WARNING: Could not remove user 'gnosisvpn'; remove it by hand" >&2
+        else
+            echo "$LOG_PREFIX WARNING: userdel not found; the legacy user 'gnosisvpn' stays (harmless)" >&2
+        fi
+    fi
+    if getent group gnosisvpn >/dev/null 2>&1; then
+        if command -v groupdel >/dev/null 2>&1; then
+            echo "$LOG_PREFIX INFO: Removing the legacy group 'gnosisvpn'..."
+            groupdel gnosisvpn 2>/dev/null || echo "$LOG_PREFIX WARNING: Could not remove group 'gnosisvpn'; remove it by hand" >&2
+        else
+            echo "$LOG_PREFIX WARNING: groupdel not found; the legacy group 'gnosisvpn' stays (harmless)" >&2
+        fi
+    fi
 }
 
 # Conffile: deleting it is the documented opt-out. dpkg keeps it deleted; rpm/pacman reinstate it on upgrade.
@@ -560,15 +642,21 @@ enable_and_start_systemd_service() {
     systemctl daemon-reload || true
 
     # Enable and start service
-    echo "$LOG_PREFIX INFO: Enabling gnosisvpn.service..."
     systemctl unmask gnosisvpn.service || true
+    echo "$LOG_PREFIX INFO: Enabling gnosisvpn-logrotate.timer..."
+    systemctl enable --now gnosisvpn-logrotate.timer || true
+    # Starting now, or at the next boot, would generate a fresh identity and turn the retry path into a conflict.
+    if [[ $MIGRATION_FAILED == true ]]; then
+        echo "$LOG_PREFIX WARNING: Not enabling or starting gnosisvpn.service: the identity migration failed (see the end of this output)"
+        systemctl disable gnosisvpn.service || true
+        return 0
+    fi
+    echo "$LOG_PREFIX INFO: Enabling gnosisvpn.service..."
     systemctl enable gnosisvpn.service || true
     echo "$LOG_PREFIX INFO: Starting gnosisvpn.service..."
     # Clear start-limit counter; a prior crash-loop would otherwise reject the start for StartLimitIntervalSec.
     systemctl reset-failed gnosisvpn.service 2>/dev/null || true
     systemctl start gnosisvpn.service || true
-    echo "$LOG_PREFIX INFO: Enabling gnosisvpn-logrotate.timer..."
-    systemctl enable --now gnosisvpn-logrotate.timer || true
 
     sleep 2
 
@@ -581,120 +669,35 @@ enable_and_start_systemd_service() {
     echo "$LOG_PREFIX INFO: Service status: $(systemctl is-enabled gnosisvpn.service 2>/dev/null || echo 'unknown')"
 }
 
-# Create desktop shortcut for a user
-install_desktop_shortcut_for_user() {
-    local target_user="${SUDO_USER:-}"
-
-    if [ -z "$target_user" ] || [ "$target_user" = "root" ]; then
-        target_user="${USER:-}"
-    fi
-
-    # Fall back to the active graphical session owner (PackageKit installs run as root with no SUDO_USER).
-    if [ -z "$target_user" ] || [ "$target_user" = "root" ]; then
-        if command -v loginctl >/dev/null 2>&1; then
-            target_user="$(loginctl list-sessions --no-legend 2>/dev/null |
-                awk '$3 != "root" && ($4 == "seat0" || $4 == "-") {print $3; exit}' || true)"
-        fi
-    fi
-
-    if [ -z "$target_user" ] || [ "$target_user" = "root" ]; then
-        echo "$LOG_PREFIX INFO: No desktop user identified, skipping desktop shortcut"
-        return
-    fi
-
-    # loginctl may yield a user absent from passwd; keep non-fatal so set -e doesn't abort postinstall.
-    local user_home
-    user_home=$(getent passwd "$target_user" | cut -d: -f6) || true
-
-    if [ -z "$user_home" ]; then
-        echo "$LOG_PREFIX WARNING: Could not find home directory for user $target_user"
-        return
-    fi
-
-    local desktop_dir="$user_home/Desktop"
-
-    if [ ! -d "$desktop_dir" ]; then
-        echo "$LOG_PREFIX INFO: Desktop directory not found for $target_user, skipping shortcut"
-        return
-    fi
-
-    # Strip spaces from filename
-    local dest_file="$desktop_dir/GnosisVPN.desktop"
-
-    # Copy the desktop file to the user's Desktop
-    if ! cp "/usr/share/applications/Gnosis VPN.desktop" "$dest_file" 2>/dev/null; then
-        echo "$LOG_PREFIX WARNING: Failed to copy desktop file"
-        return
-    fi
-
-    # Make it executable (required for desktop shortcuts)
-    chown "$target_user":"$target_user" "$dest_file"
-    chmod +x "$dest_file"
-
-    # Try to mark as trusted if tools are available (optional, not in dependencies)
-    local trusted_set=false
-
-    # Try to find user's DBUS session to make gio work
-    local user_dbus_addr=""
-    if [ -d "/run/user/$(id -u "$target_user")" ]; then
-        user_dbus_addr="unix:path=/run/user/$(id -u "$target_user")/bus"
-    fi
-
-    # Try to set metadata using gio (should be available from package dependencies)
-    # We capture output because gio might return exit code 0 even if it prints "not supported"
-    local gio_output=""
-
-    if [ -n "$user_dbus_addr" ]; then
-        # Try with explicit DBus session address
-        # We append || true to prevent script exit on failure due to set -e
-        gio_output=$(sudo -u "$target_user" DBUS_SESSION_BUS_ADDRESS="$user_dbus_addr" gio set "$dest_file" metadata::trusted true 2>&1 || true)
-        if [[ -z $gio_output ]]; then
-            trusted_set=true
-        else
-            echo "$LOG_PREFIX INFO: Could not set trusted metadata via gio for $target_user: $gio_output"
-        fi
-    fi
-
-    # Fallback/Retry without explicit address if it failed above
-    if [ "$trusted_set" = false ]; then
-        gio_output=$(sudo -u "$target_user" gio set "$dest_file" metadata::trusted true 2>&1 || true)
-        if [[ -z $gio_output ]]; then
-            trusted_set=true
-        else
-            echo "$LOG_PREFIX INFO: Could not set trusted metadata via gio for $target_user: $gio_output"
-        fi
-    fi
-
-    echo "$LOG_PREFIX INFO: Desktop shortcut created for $target_user"
-
-    # Inform user they may need to trust manually
-    if [ "$trusted_set" = false ]; then
-        echo "$LOG_PREFIX INFO: Right-click the desktop icon and select 'Allow Launching' if prompted."
-    fi
-}
-
 # Main execution
 main() {
-    create_system_user_and_group
     # TODO: remove the removal code by December 2027 (see remove_retired_conffiles).
     remove_retired_conffiles "$@"
     load_shipped_networks
     configure_filesystem_permissions
+    # TODO: remove the removal code by December 2027 (see remove_legacy_env_keys).
+    remove_legacy_env_keys
     # TODO: remove the removal code by June 2027 (see remove_pre_0_96_log).
     remove_pre_0_96_log "$@"
     configure_network_selection
     # TODO: remove the removal code by December 2026 (see remove_legacy_apt_mirror).
     remove_legacy_apt_mirror
     register_apt_repo
+    # --reset-identity moves the legacy dir aside first, so the migration then finds nothing to migrate.
     reset_identity_if_requested
+    migrate_legacy_identity
+    # TODO: remove the removal code by December 2027 (see reown_legacy_logrotate_rule, remove_legacy_account).
+    reown_legacy_logrotate_rule
+    remove_legacy_account
     configure_tcp_bbr
     repair_resolver_after_resolvconf
     warn_if_dns_not_diverted
     enable_and_start_systemd_service
-    install_desktop_shortcut_for_user
 
     echo "$LOG_PREFIX SUCCESS: Post-installation completed successfully"
     print_tcp_bbr_summary
+    # Last on purpose: its final line is the start command the user has to run.
+    print_migration_failure
 }
 
 # Args forwarded for dpkg-maintscript-helper and the previous version (see remove_retired_conffiles, remove_pre_0_96_log).
