@@ -712,13 +712,23 @@ uninstall_launchd_service() {
 
     local plist_path="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
 
-    if [[ -f "$plist_path" ]]; then
-        # Stop and unload the service
-        launchctl bootout system "$plist_path" 2>/dev/null || true
-        log_success "Service stopped"
-    else
+    if [[ ! -f "$plist_path" ]]; then
         log_info "No existing service found"
+        return 0
     fi
+    launchctl bootout system "$plist_path" 2>/dev/null || true
+
+    # bootout returns before launchd has reaped the job; the identity migration must not race its last writes.
+    local attempts=0
+    while launchctl print "$LAUNCHD_SERVICE" >/dev/null 2>&1; do
+        if [[ $attempts -ge 20 ]]; then
+            log_warn "Service still loaded 10s after bootout, continuing"
+            return 0
+        fi
+        sleep 0.5
+        attempts=$((attempts + 1))
+    done
+    log_success "Service stopped"
 }
 
 # Check service status
@@ -1482,7 +1492,7 @@ main() {
     # Install UI application before the service so BTM can associate the daemon with it
     install_ui_application
 
-    # preinstall never stops the daemon: boot it out here so the migration never runs against a live worker
+    # preinstall stops it too; repeated so the migration never runs against a live worker
     uninstall_launchd_service
     migrate_legacy_identity
     # TODO: remove the removal code by December 2027 (see remove_legacy_account).
