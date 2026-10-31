@@ -481,7 +481,7 @@ network_title() {
 
 network_description() {
     case "$1" in
-    jura-prod) echo "Connect to VPN nodes on the Jura Prod network - US, UK, NL, Brazil, Australia, India, South Korea" ;;
+    jura-prod) echo "Connect to VPN nodes on the Jura Prod network - US, UK, NL, Brazil, Australia, South Korea" ;;
     jura-dev) echo "Connect to VPN nodes on the Jura Dev network - US, UK, India" ;;
     jura-staging) echo "Connect to VPN nodes on the Jura Staging network - US, UK, Brazil, Australia, South Korea" ;;
     piz-palu-dev) echo "Connect to VPN nodes on the Piz Palu Dev network" ;;

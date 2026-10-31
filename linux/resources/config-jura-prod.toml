@@ -16,10 +16,6 @@ meta = { location = "Amsterdam", flag = "NL" }
 address = "0x12b78461da59E8317C61bD249EA0DEA2aA9527de"
 meta = { location = "Sao Paulo", flag = "BR" }
 
-[destinations.India]
-address = "0x1062696f8eec5b71bfa6be7e52df1d7457428106"
-meta = { location = "Mumbai", flag = "IN" }
-
 [destinations.Australia]
 address = "0x64885d2d2bc9df7b415aac184e020c632d715dff"
 meta = { location = "Sydney", flag = "AU" }
