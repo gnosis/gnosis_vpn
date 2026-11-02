@@ -1,7 +1,7 @@
 version = 7
 
 [pix_strategy]
-price_per_byte = "0.000000001 wxHOPR"
+price_per_byte = "1 000 000 000 wei wxHOPR"
 max_ssa_allocation = "1 wxHOPR"
 deposit_buffer_period = "500ms"
 max_deposit_tracking_time = "60s"
