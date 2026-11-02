@@ -110,6 +110,40 @@ assert_geoip_shipped() {
     log_success "${package} ships geoip.mmdb: ${shipped}, as expected ($(geoip_decision_basis))"
 }
 
+# Renamed or replaced networks that neither installer line ships any more, one per line. Needs config/channels.sh.
+retired_networks() {
+    local pair network
+    for pair in ${NETWORK_RENAMES} ${NETWORK_SUCCESSORS}; do
+        network="${pair%%:*}"
+        case " ${NETWORKS_STANDARD} ${NETWORKS_EXPERIMENTAL} " in
+        *" ${network} "*) ;;
+        *) echo "${network}" ;;
+        esac
+    done
+}
+
+# Copies the Linux maintainer scripts with the retired conffiles filled in; preinst, postinst and postrm must name the same set.
+RETIRED_CONFFILES_PLACEHOLDER="__RETIRED_CONFFILES__"
+render_maintainer_scripts() {
+    local src_dir="$1" dst_dir="$2" conffiles="" network script
+    for network in $(retired_networks); do
+        conffiles="${conffiles:+${conffiles} }config-${network}.toml"
+    done
+    mkdir -p "${dst_dir}"
+    for script in preinstall.sh postinstall.sh postuninstall.sh; do
+        if [[ "$(grep -c -- "${RETIRED_CONFFILES_PLACEHOLDER}" "${src_dir}/${script}")" != "1" ]]; then
+            log_error "${src_dir}/${script} must contain exactly one ${RETIRED_CONFFILES_PLACEHOLDER} line"
+            exit 1
+        fi
+    done
+    for script in "${src_dir}"/*.sh; do
+        sed "s|${RETIRED_CONFFILES_PLACEHOLDER}|${conffiles}|" "${script}" >"${dst_dir}/$(basename "${script}")"
+        chmod 0755 "${dst_dir}/$(basename "${script}")"
+    done
+    assert_not_mentioned "${RETIRED_CONFFILES_PLACEHOLDER}" "${dst_dir}"/*.sh
+    log_success "Maintainer scripts rendered; conffiles removed on upgrade: ${conffiles:-none}"
+}
+
 # Validate version syntax
 check_version_syntax() {
     local version="$1"

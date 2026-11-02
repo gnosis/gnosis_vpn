@@ -53,6 +53,11 @@
             ${pkgs.bash}/bin/bash scripts/check-geoip-render.sh
             touch $out
           '';
+          network-retirement = pkgs.runCommand "network-retirement" { } ''
+            cd ${self}
+            ${pkgs.bash}/bin/bash scripts/check-network-retirement.sh
+            touch $out
+          '';
         };
 
         devShells.default = pkgs.mkShell {

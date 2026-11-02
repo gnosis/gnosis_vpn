@@ -52,6 +52,15 @@ canonical_network() {
     esac
 }
 
+# Networks replaced by a new one; mirrors NETWORK_SUCCESSORS in config/channels.sh, keep in sync.
+network_successor() {
+    case "$1" in
+    jura-prod) echo "piz-palu-prod" ;;
+    jura-staging) echo "piz-palu-staging" ;;
+    jura-dev) echo "piz-palu-dev" ;;
+    esac
+}
+
 in_list() {
     local needle="$1" item
     shift
@@ -181,6 +190,13 @@ parse_args() {
     [[ $NETWORK == "$old_network" ]] || log "Network '${old_network}' was renamed to '${NETWORK}' — using '${NETWORK}'"
 
     read -r -a CHANNEL_NETWORKS <<<"$(channel_networks "$CHANNEL")"
+    # A replaced network moves to its successor where the channel ships that instead.
+    local successor
+    successor="$(network_successor "$NETWORK")"
+    if [[ -n $successor ]] && ! in_list "$NETWORK" "${CHANNEL_NETWORKS[@]}" && in_list "$successor" "${CHANNEL_NETWORKS[@]}"; then
+        log "Network '${NETWORK}' is replaced by '${successor}' on the '${CHANNEL}' channel — using '${successor}'"
+        NETWORK="$successor"
+    fi
     if [[ -n $NETWORK ]] && ! in_list "$NETWORK" "${CHANNEL_NETWORKS[@]}"; then
         err "--network must be one of '${CHANNEL_NETWORKS[*]}' on the '${CHANNEL}' channel (got: '${NETWORK}')"
         # Point at the channel that does ship it, when there is one.
@@ -357,12 +373,17 @@ apt_install() {
 
     # A channel switch leaves the old line's config behind as an obsolete conffile; install.sh ships ahead of the postinstalls that detect that.
     if [[ -z $NETWORK && -L /etc/gnosisvpn/config.toml ]]; then
-        local current_network
+        local current_network successor
         current_network="$(basename "$(readlink /etc/gnosisvpn/config.toml)")"
         current_network="${current_network#config-}"
         current_network="${current_network%.toml}"
         if ! in_list "$(canonical_network "$current_network")" "${CHANNEL_NETWORKS[@]}"; then
-            NETWORK="${CHANNEL_NETWORKS[0]}"
+            successor="$(network_successor "$(canonical_network "$current_network")")"
+            if [[ -n $successor ]] && in_list "$successor" "${CHANNEL_NETWORKS[@]}"; then
+                NETWORK="$successor"
+            else
+                NETWORK="${CHANNEL_NETWORKS[0]}"
+            fi
             log "Current network '${current_network}' is not shipped on the '${CHANNEL}' channel; selecting ${NETWORK} (pass --network to choose another)."
         fi
     fi

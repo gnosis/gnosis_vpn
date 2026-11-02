@@ -148,6 +148,9 @@ generate_nfpm_config() {
     # Bake the shipped network list so postinstall.sh needs no hardcoded names.
     echo "${GNOSISVPN_NETWORKS}" >"${BUILD_DIR}/resources/networks"
     log_success "Generated networks file: ${GNOSISVPN_NETWORKS}"
+    echo "${NETWORK_SUCCESSORS}" >"${BUILD_DIR}/resources/network-successors"
+    log_success "Generated network successors file: ${NETWORK_SUCCESSORS}"
+    render_maintainer_scripts "${SCRIPT_DIR}/../linux/scripts" "${BUILD_DIR}/linux-scripts"
     # Dearmor the public key so the postinstall can register the APT source
     # without needing gnupg as a package dependency on the target host.
     gpg --dearmor <"${SCRIPT_DIR}/../gnosisvpn-public-key.asc" \

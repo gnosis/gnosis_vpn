@@ -19,22 +19,27 @@ MIGRATION_FAILED=false
 MIGRATION_STATUS=0
 MIGRATION_USER=""
 MIGRATE_LOG=/var/log/gnosisvpn/migrate.log
+# Set by configure_network_selection when the install leaves a replaced network; its per-user identities follow.
+SOURCE_NETWORK=""
+SWITCH_FAILED=false
 
-# TODO: remove by December 2027.
-retired_network_successor() {
+# TODO: remove by December 2027. Pre-rename names of the same networks (NETWORK_RENAMES in config/channels.sh).
+renamed_network() {
     case "$1" in
     jura) echo "jura-prod" ;;
     rotsee) echo "jura-dev" ;;
+    *) echo "$1" ;;
     esac
 }
 
-# TODO: remove by December 2027.
+# Networks no installer line ships any more, filled in by generate-package-linux.sh.
+RETIRED_CONFFILES="__RETIRED_CONFFILES__"
 # rm_conffile must appear in pre/post/postun to coordinate the dpkg helper; DPKG_MAINTSCRIPT_NAME gates non-dpkg hosts.
 remove_retired_conffiles() {
     # env var also gates rpm/pacman hosts that happen to have dpkg installed
     [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] && command -v dpkg-maintscript-helper >/dev/null 2>&1 || return 0
     local conffile
-    for conffile in config-jura.toml config-rotsee.toml; do
+    for conffile in $RETIRED_CONFFILES; do
         dpkg-maintscript-helper rm_conffile "/etc/gnosisvpn/$conffile" "" gnosisvpn -- "$@"
     done
 }
@@ -57,6 +62,43 @@ is_shipped_network() {
         [[ $network == "$candidate" ]] && return 0
     done
     return 1
+}
+
+# Replaced networks (`old:new`), baked by generate-package-linux.sh.
+NETWORK_SUCCESSORS=()
+load_network_successors() {
+    if [[ -r /usr/share/gnosisvpn/network-successors ]]; then
+        read -r -a NETWORK_SUCCESSORS </usr/share/gnosisvpn/network-successors || true
+    fi
+}
+
+network_successor() {
+    local pair
+    for pair in "${NETWORK_SUCCESSORS[@]}"; do
+        if [[ ${pair%%:*} == "$1" ]]; then
+            echo "${pair#*:}"
+            return 0
+        fi
+    done
+}
+
+# The shipped network an install on a renamed or replaced one moves to; empty when this package ships none.
+shipped_successor() {
+    local network
+    network="$(renamed_network "$1")"
+    is_shipped_network "$network" || network="$(network_successor "$network")"
+    if [[ -n $network ]] && is_shipped_network "$network"; then
+        echo "$network"
+    fi
+}
+
+# The network the config.toml symlink names; empty for a regular file or none.
+linked_network() {
+    [[ -L /etc/gnosisvpn/config.toml ]] || return 0
+    local network
+    network="$(basename "$(readlink /etc/gnosisvpn/config.toml)")"
+    network="${network#config-}"
+    echo "${network%.toml}"
 }
 
 # Root-owned, world-readable: the worker runs as any user and only reads here; binaries keep nfpm's root:root 755.
@@ -122,15 +164,17 @@ get_blokli_url() {
 # Point /etc/gnosisvpn/config.toml at the selected network and write its Blokli endpoint.
 configure_network_selection() {
     # Precedence: explicit GNOSISVPN_HOPR_BLOKLI_URL > derived from network > pre-existing/legacy value.
-    local network_name blokli_url default_network="${SHIPPED_NETWORKS[0]}"
+    local network_name blokli_url default_network="${SHIPPED_NETWORKS[0]}" previous_network
     network_name="${GNOSISVPN_NETWORK:-$default_network}"
+    # Read before any link below changes: the previous install's per-user state is filed under this network.
+    previous_network="$(linked_network)"
 
-    # Accept retired names, but only when the successor is one this package ships.
+    # Accept renamed or replaced names, but only when what replaces them ships in this package.
     if ! is_shipped_network "$network_name"; then
         local successor
-        successor="$(retired_network_successor "$network_name")"
-        if [[ -n $successor ]] && is_shipped_network "$successor"; then
-            echo "$LOG_PREFIX INFO: Network '${network_name}' was renamed to '${successor}' — using '${successor}'"
+        successor="$(shipped_successor "$network_name")"
+        if [[ -n $successor ]]; then
+            echo "$LOG_PREFIX INFO: Network '${network_name}' is now '${successor}' — using '${successor}'"
             network_name="$successor"
         fi
     fi
@@ -168,24 +212,15 @@ configure_network_selection() {
     # Check -L before -e: a dangling link (retired target just deregistered) must migrate, not be reset to default.
     elif [[ -L /etc/gnosisvpn/config.toml ]]; then
         # Repoint only symlinks; an admin-placed regular file is left alone.
-        local current successor
-        current="$(basename "$(readlink /etc/gnosisvpn/config.toml)")"
-        current="${current#config-}"
-        current="${current%.toml}"
-        # The kept link is the user's network; the message and Blokli URL below must follow it, not the default.
+        local current="$previous_network" successor=""
         if is_shipped_network "$current" && [[ -f /etc/gnosisvpn/config-${current}.toml ]]; then
+            # The kept link is the user's network; the message and Blokli URL below must follow it, not the default.
             network_name="$current"
             [[ -n ${GNOSISVPN_HOPR_BLOKLI_URL:-} ]] || blokli_url="$(get_blokli_url "$current")"
-        fi
-        successor="$(retired_network_successor "$current")"
-        # A rename to a network this line does not ship is no use; fall through to the default.
-        if [[ -n $successor ]] && ! is_shipped_network "$successor"; then
-            successor=""
-        fi
-        # Not shipped by this package, or the target is gone: fall back to the resolved default.
-        if [[ -z $successor ]] &&
-            { ! is_shipped_network "$current" || [[ ! -f /etc/gnosisvpn/config-${current}.toml ]]; }; then
-            successor="$network_name"
+        else
+            # Not shipped by this package, or the target is gone: what replaces it, else the resolved default.
+            is_shipped_network "$current" || successor="$(shipped_successor "$current")"
+            successor="${successor:-$network_name}"
         fi
         if [[ -n $successor && $successor != "$current" ]]; then
             if [[ -f /etc/gnosisvpn/config-${successor}.toml ]]; then
@@ -204,6 +239,16 @@ configure_network_selection() {
         fi
     elif [[ ! -e /etc/gnosisvpn/config.toml ]]; then
         ln -sf /etc/gnosisvpn/config-"$network_name".toml /etc/gnosisvpn/config.toml
+    fi
+
+    # Leaving a replaced network (not a rename): its per-user identities follow to the linked one in migrate_legacy_identity.
+    local previous_canonical linked
+    previous_canonical="$(renamed_network "$previous_network")"
+    linked="$(linked_network)"
+    if [[ -n $previous_canonical && -n $linked && $linked != "$previous_canonical" ]] &&
+        ! is_shipped_network "$previous_canonical" && [[ -n "$(network_successor "$previous_canonical")" ]]; then
+        SOURCE_NETWORK="$previous_canonical"
+        echo "$LOG_PREFIX INFO: Leaving network '${SOURCE_NETWORK}' for '${linked}'; identities move along after the legacy migration"
     fi
 
     # Overrides go here, not in the dpkg conffile gnosisvpn.env (editing it triggers interactive upgrade prompts).
@@ -446,12 +491,18 @@ lock_down_legacy_identity() {
     chmod 700 "$legacy_config"
 }
 
-# Moves the legacy /var/lib/gnosisvpn/.config identity into the installing user's home; a failure keeps the service stopped.
+# Moves the legacy /var/lib/gnosisvpn/.config identity into the installing user's home, then off a replaced network; a failure keeps the service stopped.
 migrate_legacy_identity() {
     # preinstall stops it too; repeated so the migration never runs against a live service.
     if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet gnosisvpn.service 2>/dev/null; then
         echo "$LOG_PREFIX INFO: Stopping gnosisvpn.service before the identity migration..."
         systemctl stop gnosisvpn.service || true
+    fi
+
+    # A toolkit from before the network switch knows neither switch-network nor identity --network.
+    if [[ -n $SOURCE_NETWORK ]] && ! /usr/bin/gnosis_vpn-migrate switch-network --help >/dev/null 2>&1; then
+        echo "$LOG_PREFIX WARNING: This gnosis_vpn-migrate cannot move identities off '${SOURCE_NETWORK}'; they stay there" >&2
+        SOURCE_NETWORK=""
     fi
 
     MIGRATION_USER="$(resolve_installing_user)"
@@ -460,32 +511,65 @@ migrate_legacy_identity() {
         # --replace: by then a connection may have created a per-user identity that must give way to the legacy one.
         echo "$LOG_PREFIX WARNING: Migrate it later with: sudo gnosis_vpn-migrate identity --user <name> --replace" >&2
         lock_down_legacy_identity
+        switch_network_if_left
         return 0
     fi
 
     # Moves the previous release's app settings and logs into their current dirs; a failure is logged, never blocking.
     /usr/bin/gnosis_vpn-migrate layout --user "$MIGRATION_USER" || echo "$LOG_PREFIX WARNING: layout relocation reported problems, see $MIGRATE_LOG" >&2
 
+    # Onto the network the legacy identity was used on, next to its safe; switch_network_if_left moves it on from there.
+    local network_args=()
+    [[ -z $SOURCE_NETWORK ]] || network_args=(--network "$SOURCE_NETWORK")
     echo "$LOG_PREFIX INFO: Migrating the legacy identity to user '${MIGRATION_USER}' (the desktop/console user)..."
-    /usr/bin/gnosis_vpn-migrate identity --user "$MIGRATION_USER" || MIGRATION_STATUS=$?
-    if [[ $MIGRATION_STATUS -eq 0 ]]; then
-        MIGRATION_OK=true
+    /usr/bin/gnosis_vpn-migrate identity --user "$MIGRATION_USER" "${network_args[@]}" || MIGRATION_STATUS=$?
+    if [[ $MIGRATION_STATUS -ne 0 ]]; then
+        MIGRATION_FAILED=true
+        # The old postrm already freed the service uid; the key must not wait for a retry to leave it.
+        lock_down_legacy_identity
+        echo "$LOG_PREFIX ERROR: Identity migration failed — gnosisvpn.service will be installed but not started" >&2
         return 0
     fi
+    MIGRATION_OK=true
+    switch_network_if_left
+}
+
+# Every user's identity on the replaced network follows to the new one; the old safe stays behind, backed up.
+switch_network_if_left() {
+    [[ -n $SOURCE_NETWORK ]] || return 0
+    echo "$LOG_PREFIX INFO: Moving every user's identity off network '${SOURCE_NETWORK}'..."
+    /usr/bin/gnosis_vpn-migrate switch-network --from "$SOURCE_NETWORK" && return 0
+    SWITCH_FAILED=true
     MIGRATION_FAILED=true
-    # The old postrm already freed the service uid; the key must not wait for a retry to leave it.
-    lock_down_legacy_identity
-    echo "$LOG_PREFIX ERROR: Identity migration failed — gnosisvpn.service will be installed but not started" >&2
+    echo "$LOG_PREFIX ERROR: Moving identities off '${SOURCE_NETWORK}' failed — gnosisvpn.service will be installed but not started" >&2
 }
 
 # Shared wording with the macOS postinstall; the start command must stay the last line.
 print_migration_failure() {
     [[ $MIGRATION_FAILED == true ]] || return 0
-    local keep_legacy="Retry after fixing the cause:   sudo gnosis_vpn-migrate identity --user ${MIGRATION_USER}"
+    local switch_step="sudo gnosis_vpn-migrate switch-network --from ${SOURCE_NETWORK}"
+    if [[ $SWITCH_FAILED == true ]]; then
+        cat >&2 <<EOF
+
+Moving identities off network '${SOURCE_NETWORK}' failed — see the toolkit output above.
+Log: ${MIGRATE_LOG}
+The service was installed but left disabled and NOT started. Choose one:
+  1. Retry after fixing the cause:   ${switch_step}
+  2. Send the logs to support:        sudo gnosis_vpn-migrate upload-log
+Then start the service:               sudo systemctl enable --now gnosisvpn
+EOF
+        return 0
+    fi
+    local network_arg="" then_switch=""
+    if [[ -n $SOURCE_NETWORK ]]; then
+        network_arg=" --network ${SOURCE_NETWORK}"
+        then_switch=$'\n'"Then move the identities along:       ${switch_step}"
+    fi
+    local keep_legacy="Retry after fixing the cause:   sudo gnosis_vpn-migrate identity --user ${MIGRATION_USER}${network_arg}"
     local fresh_start="Start with a fresh identity:     sudo gnosis_vpn-migrate start-clean --user ${MIGRATION_USER}"
     # Exit 75: the user already has an identity; start-clean --user would move it aside and the next start would create a third.
     if [[ $MIGRATION_STATUS -eq 75 ]]; then
-        keep_legacy="Keep the legacy identity:        sudo gnosis_vpn-migrate identity --user ${MIGRATION_USER} --replace"
+        keep_legacy="Keep the legacy identity:        sudo gnosis_vpn-migrate identity --user ${MIGRATION_USER}${network_arg} --replace"
         fresh_start="Keep the current identity:       sudo gnosis_vpn-migrate start-clean"
     fi
     cat >&2 <<EOF
@@ -495,7 +579,7 @@ Log: ${MIGRATE_LOG}
 The service was installed but left disabled and NOT started. Choose one:
   1. ${keep_legacy}
   2. Send the logs to support:        sudo gnosis_vpn-migrate upload-log
-  3. ${fresh_start}
+  3. ${fresh_start}${then_switch}
 Then start the service:               sudo systemctl enable --now gnosisvpn
 EOF
 }
@@ -671,9 +755,9 @@ enable_and_start_systemd_service() {
 
 # Main execution
 main() {
-    # TODO: remove the removal code by December 2027 (see remove_retired_conffiles).
     remove_retired_conffiles "$@"
     load_shipped_networks
+    load_network_successors
     configure_filesystem_permissions
     # TODO: remove the removal code by December 2027 (see remove_legacy_env_keys).
     remove_legacy_env_keys

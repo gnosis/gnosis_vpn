@@ -41,7 +41,8 @@ The installer accepts options after `-s --`:
   | `experimental`       | `piz-palu-dev`, `piz-palu-staging`, `piz-palu-prod` | `piz-palu-dev` |
 
   When the existing choice is shipped by the selected channel, omitting `--network` keeps it; otherwise, the installer
-  selects that channel's default.
+  selects the network that replaces it there (`jura-<env>` → `piz-palu-<env>`, see
+  [Moving off a replaced network](#moving-off-a-replaced-network-jura--piz-palu)), or that channel's default.
 
   ```bash
   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --network=jura-dev
@@ -78,10 +79,11 @@ built against, and therefore in which networks they ship:
 **Switching channels:** re-run the installer with the desired `--channel`. When the target channel's newest package is
 older than the installed one, the installer performs a pinned downgrade (plain `apt upgrade` would never move back on
 its own). Because a channel switch also switches lines, the configured network may change: if the current network is not
-shipped by the target channel, the channel's default is selected and `/etc/gnosisvpn/config.toml` is re-pointed at it. A
-round trip through the other line therefore does not preserve a non-default network choice — pass `--network` to set it
-again. Caution: a re-run without `--channel` selects the default (stable) — on a snapshot or experimental installation,
-pass that channel again when re-running, e.g. to switch networks. Manually installing a `.deb` from another channel
+shipped by the target channel, its piz-palu replacement (for a jura network moving to the experimental line) or else the
+channel's default is selected and `/etc/gnosisvpn/config.toml` is re-pointed at it. The way back to the standard line
+has no such mapping, so a round trip does not preserve a non-default network choice — pass `--network` to set it again.
+Caution: a re-run without `--channel` selects the default (stable) — on a snapshot or experimental installation, pass
+that channel again when re-running, e.g. to switch networks. Manually installing a `.deb` from another channel
 (`sudo apt install ./gnosisvpn_*.deb`) re-points `/etc/apt/sources.list.d/gnosisvpn.sources` at that package's channel;
 run `sudo apt-get update` afterwards.
 
@@ -163,10 +165,11 @@ under `~/.local/share/gnosisvpn/` are each user's own data and are never touched
 ### Per-user layout and identity migration
 
 The package creates no service account. `gnosisvpn.service` runs `gnosis_vpn-root` as root; the root process spawns
-`gnosis_vpn-worker` as whichever user asks for a connection, and that worker keeps its HOPR identity, safe and node
-database under the user's own home (`~/.local/share/gnosisvpn/networks/<network>/`). `/var/lib/gnosisvpn` only holds
-updater state and legacy backups. The systemd unit therefore allows writes under `/home` and `/var/home`
-(`ReadWritePaths`); a user whose home lives elsewhere needs that path added via a drop-in:
+`gnosis_vpn-worker` as whichever user asks for a connection, and that worker keeps its HOPR identity under the user's
+own home (`~/.local/share/gnosisvpn/networks/<network>/`) and its cached safe in
+`~/.cache/gnosisvpn/networks/<network>/`. `/var/lib/gnosisvpn` only holds updater state and legacy backups. The systemd
+unit therefore allows writes under `/home` and `/var/home` (`ReadWritePaths`); a user whose home lives elsewhere needs
+that path added via a drop-in:
 
 ```sh
 sudo systemctl edit gnosisvpn
@@ -201,6 +204,29 @@ When the failure is a conflict (the user already has an identity for that networ
 The migrate log is `/var/log/gnosisvpn/migrate.log`. `gnosis_vpn-migrate identity` is idempotent: a re-run after a
 successful migration reports `AlreadyMigrated`.
 
+### Moving off a replaced network (jura → piz-palu)
+
+piz-palu replaces jura: `jura-prod` → `piz-palu-prod`, `jura-staging` → `piz-palu-staging`, `jura-dev` → `piz-palu-dev`
+(`NETWORK_SUCCESSORS` in `config/channels.sh`). When a package that ships the piz-palu network is installed over one
+configured for its jura counterpart — a switch to the experimental channel today, every upgrade once the standard line
+moves to piz-palu — the postinstall runs these steps in order:
+
+1. Re-points `/etc/gnosisvpn/config.toml` at the piz-palu network and moves the Blokli endpoint with it. An explicit
+   `--network`/`GNOSISVPN_NETWORK` still wins; a jura name passed there is mapped the same way.
+2. Migrates a legacy identity as described above, but onto the **jura** network
+   (`gnosis_vpn-migrate identity --network jura-<env>`), next to the safe that belongs to it.
+3. Runs `gnosis_vpn-migrate switch-network --from jura-<env>` for every account whose home is under `/home` or
+   `/var/home`, also when nobody is at the desktop. `hopr.id` and `hopr.pass` are copied to `networks/piz-palu-<env>/`,
+   so the node address (EOA) stays the same. The safe is not: the client looks up or deploys one on piz-palu and writes
+   a fresh `hopr.safe`. The jura safe is backed up as `~/.local/share/gnosisvpn/networks/jura-<env>/hopr.safe.bak`,
+   since its address is what drains the jura funds, and the jura dirs stay in place, so a switch back to the standard
+   line keeps working. A user who already has a piz-palu identity keeps it.
+
+The jura conffiles (`/etc/gnosisvpn/config-jura-*.toml`) stay while the standard line still ships them, so a switch back
+finds them; packages built once no line ships jura remove them on upgrade. If step 2 or 3 fails, the service stays
+disabled like after any failed migration, and the output lists the remaining steps, ending with
+`sudo gnosis_vpn-migrate switch-network --from jura-<env>`.
+
 ### .deb Installation Environment Variables
 
 Direct `.deb` installs have no flags — these environment variables configure the package scripts instead (set them with
@@ -209,10 +235,11 @@ Direct `.deb` installs have no flags — these environment variables configure t
 - `GNOSISVPN_NETWORK=<name>` — network configuration to use; determines which configuration file is symlinked to
   `/etc/gnosisvpn/config.toml` during installation. Only the networks the package actually ships are accepted — they are
   listed in `/usr/share/gnosisvpn/networks` (first entry is the default): `jura-prod jura-staging jura-dev` on the
-  standard line, `piz-palu-dev piz-palu-staging piz-palu-prod` on the experimental line. Passing a network from the
-  other line fails the install with the supported list, and if `config.toml` points at a network this package does not
-  ship, the postinstall re-points it at the default and moves the Blokli endpoint with it (unless a custom
-  `GNOSISVPN_HOPR_BLOKLI_URL` is set).
+  standard line, `piz-palu-dev piz-palu-staging piz-palu-prod` on the experimental line. A jura network the package does
+  not ship is mapped to its piz-palu replacement; any other network from the other line fails the install with the
+  supported list. If `config.toml` points at a network this package does not ship, the postinstall re-points it at its
+  replacement or else the default, and moves the Blokli endpoint with it (unless a custom `GNOSISVPN_HOPR_BLOKLI_URL` is
+  set).
 
   ```bash
   sudo env GNOSISVPN_NETWORK=jura-dev apt install ./gnosisvpn_*.deb

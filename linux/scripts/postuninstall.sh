@@ -27,10 +27,11 @@ elif command -v pacman >/dev/null 2>&1; then
     PKG_MANAGER="arch"
 fi
 
-# TODO: remove by December 2027.
+# Same set as preinstall.sh, filled in by generate-package-linux.sh.
+RETIRED_CONFFILES="__RETIRED_CONFFILES__"
 # Completes the rm_conffile handshake started in preinstall.sh; DPKG_MAINTSCRIPT_NAME gates non-dpkg hosts.
 if [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] && command -v dpkg-maintscript-helper >/dev/null 2>&1; then
-    for conffile in config-jura.toml config-rotsee.toml; do
+    for conffile in $RETIRED_CONFFILES; do
         dpkg-maintscript-helper rm_conffile "/etc/gnosisvpn/$conffile" "" gnosisvpn -- "$@"
     done
 fi

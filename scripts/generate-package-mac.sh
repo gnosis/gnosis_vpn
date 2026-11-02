@@ -240,6 +240,9 @@ prepare_build_dir() {
     echo "${GNOSISVPN_NETWORKS}" >"${BUILD_DIR}/scripts/networks"
     chmod 0644 "${BUILD_DIR}/scripts/networks"
     log_success "Networks baked into installer scripts: ${GNOSISVPN_NETWORKS}"
+    echo "${NETWORK_SUCCESSORS}" >"${BUILD_DIR}/scripts/network-successors"
+    chmod 0644 "${BUILD_DIR}/scripts/network-successors"
+    log_success "Network successors baked into installer scripts: ${NETWORK_SUCCESSORS}"
 
     # The Installer never removes payload files, so the postinstall needs this to drop a database an earlier experimental pkg left.
     echo "${GNOSISVPN_SHIP_GEOIP}" >"${BUILD_DIR}/scripts/geoip"
