@@ -70,6 +70,20 @@ in_list() {
     return 1
 }
 
+# The channel's network an install on a renamed or replaced one moves to, across several replacements; empty when the chain ships none.
+shipped_successor() {
+    local network _
+    network="$(canonical_network "$1")"
+    for _ in 1 2 3 4; do
+        if in_list "$network" "${CHANNEL_NETWORKS[@]}"; then
+            echo "$network"
+            return 0
+        fi
+        network="$(network_successor "$network")"
+        [[ -n $network ]] || return 0
+    done
+}
+
 # Networks the selected channel ships; filled in by parse_args.
 CHANNEL_NETWORKS=()
 
@@ -192,8 +206,8 @@ parse_args() {
     read -r -a CHANNEL_NETWORKS <<<"$(channel_networks "$CHANNEL")"
     # A replaced network moves to its successor where the channel ships that instead.
     local successor
-    successor="$(network_successor "$NETWORK")"
-    if [[ -n $successor ]] && ! in_list "$NETWORK" "${CHANNEL_NETWORKS[@]}" && in_list "$successor" "${CHANNEL_NETWORKS[@]}"; then
+    successor="$(shipped_successor "$NETWORK")"
+    if [[ -n $successor && $successor != "$NETWORK" ]]; then
         log "Network '${NETWORK}' is replaced by '${successor}' on the '${CHANNEL}' channel — using '${successor}'"
         NETWORK="$successor"
     fi
@@ -378,12 +392,8 @@ apt_install() {
         current_network="${current_network#config-}"
         current_network="${current_network%.toml}"
         if ! in_list "$(canonical_network "$current_network")" "${CHANNEL_NETWORKS[@]}"; then
-            successor="$(network_successor "$(canonical_network "$current_network")")"
-            if [[ -n $successor ]] && in_list "$successor" "${CHANNEL_NETWORKS[@]}"; then
-                NETWORK="$successor"
-            else
-                NETWORK="${CHANNEL_NETWORKS[0]}"
-            fi
+            successor="$(shipped_successor "$current_network")"
+            NETWORK="${successor:-${CHANNEL_NETWORKS[0]}}"
             log "Current network '${current_network}' is not shipped on the '${CHANNEL}' channel; selecting ${NETWORK} (pass --network to choose another)."
         fi
     fi

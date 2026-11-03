@@ -82,14 +82,18 @@ network_successor() {
     done
 }
 
-# The shipped network an install on a renamed or replaced one moves to; empty when this package ships none.
+# The shipped network an install on a renamed or replaced one moves to, across several replacements; empty when the chain ships none.
 shipped_successor() {
-    local network
+    local network _
     network="$(renamed_network "$1")"
-    is_shipped_network "$network" || network="$(network_successor "$network")"
-    if [[ -n $network ]] && is_shipped_network "$network"; then
-        echo "$network"
-    fi
+    for _ in 1 2 3 4; do
+        if is_shipped_network "$network"; then
+            echo "$network"
+            return 0
+        fi
+        network="$(network_successor "$network")"
+        [[ -n $network ]] || return 0
+    done
 }
 
 # The network the config.toml symlink names; empty for a regular file or none.

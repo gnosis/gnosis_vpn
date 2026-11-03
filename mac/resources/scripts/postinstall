@@ -151,6 +151,20 @@ network_successor() {
     pair_target "$1" "${NETWORK_SUCCESSORS[@]}"
 }
 
+# The shipped network an install on a renamed or replaced one moves to, across several replacements; empty when the chain ships none.
+shipped_successor() {
+    local network _
+    network="$(renamed_network "$1")"
+    for _ in 1 2 3 4; do
+        if is_shipped_network "$network"; then
+            echo "$network"
+            return 0
+        fi
+        network="$(network_successor "$network")"
+        [[ -n "$network" ]] || return 0
+    done
+}
+
 # The network the config.toml symlink names (`<network>.toml`); empty for a regular file or none.
 linked_network() {
     [[ -L "$CONFIG_FILE" ]] || return 0
@@ -186,8 +200,9 @@ load_installer_choices() {
     # Leaving a replaced network overrides the choice once: an updater run applies the defaults, a GUI default looks like a pick.
     local previous successor
     previous="$(renamed_network "$(linked_network)")"
-    successor="$(network_successor "$previous")"
-    if [[ -n "$successor" ]] && ! is_shipped_network "$previous" && is_shipped_network "$successor"; then
+    successor=""
+    is_shipped_network "$previous" || successor="$(shipped_successor "$previous")"
+    if [[ -n "$successor" ]]; then
         if [[ "$successor" != "$INSTALLER_CHOICE_NETWORK" ]]; then
             log_info "Network '${previous}' is now '${successor}' — using it instead of the installer choice '${INSTALLER_CHOICE_NETWORK}'"
         fi

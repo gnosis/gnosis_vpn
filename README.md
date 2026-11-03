@@ -227,6 +227,12 @@ finds them; packages built once no line ships jura remove them on upgrade. If st
 disabled like after any failed migration, and the output lists the remaining steps, ending with
 `sudo gnosis_vpn-migrate switch-network --from jura-<env>`.
 
+A later replacement is one more `old:new` entry per environment in `NETWORK_SUCCESSORS`; keep the earlier ones. The
+postinstalls and `install.sh` follow the entries across several replacements, so an install that skipped one (still on
+jura when piz-palu is replaced) lands on the newest network with its identity carried straight over. A future move of
+funds between safes finds what it needs: the same EOA owns both safes, the old safe's address is in
+`networks/<old>/hopr.safe.bak`, and the new network dir's `migrated-from` names the old one.
+
 ### .deb Installation Environment Variables
 
 Direct `.deb` installs have no flags — these environment variables configure the package scripts instead (set them with

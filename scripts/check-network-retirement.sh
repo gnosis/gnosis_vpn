@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Renders the Linux maintainer scripts for today's lines and for the stable line on piz-palu, so the retired-conffile set is checked on the PR.
+# Renders the Linux maintainer scripts for today's lines, for the stable line on piz-palu and for a later replacement, so the retired-conffile set is checked on the PR.
 
 set -euo pipefail
 
@@ -32,15 +32,32 @@ NETWORKS_STANDARD="piz-palu-prod piz-palu-staging piz-palu-dev" \
     expect_retired "stable-on-piz-palu" \
     "config-jura.toml config-rotsee.toml config-jura-prod.toml config-jura-staging.toml config-jura-dev.toml"
 
-# Every replaced network must name a successor some line ships, or the move has nowhere to go.
+NETWORKS_STANDARD="next-prod next-staging next-dev" NETWORKS_EXPERIMENTAL="next-dev next-staging next-prod" \
+    NETWORK_SUCCESSORS="${NETWORK_SUCCESSORS} piz-palu-prod:next-prod piz-palu-staging:next-staging piz-palu-dev:next-dev" \
+    expect_retired "after-a-second-replacement" \
+    "config-jura.toml config-rotsee.toml config-jura-prod.toml config-jura-staging.toml config-jura-dev.toml config-piz-palu-prod.toml config-piz-palu-staging.toml config-piz-palu-dev.toml"
+
+# Every replaced network must lead, through later replacements, to one some line ships, or the move has nowhere to go.
+successor_of() {
+    local pair
+    for pair in ${NETWORK_SUCCESSORS}; do
+        if [[ ${pair%%:*} == "$1" ]]; then
+            echo "${pair#*:}"
+            return 0
+        fi
+    done
+}
+
 for pair in ${NETWORK_SUCCESSORS}; do
-    successor="${pair#*:}"
-    case " ${NETWORKS_STANDARD} ${NETWORKS_EXPERIMENTAL} " in
-    *" ${successor} "*) ;;
-    *)
-        log_error "NETWORK_SUCCESSORS maps ${pair%%:*} to ${successor}, which no installer line ships"
-        exit 1
-        ;;
-    esac
+    network="${pair%%:*}"
+    for _ in 1 2 3 4; do
+        network="$(successor_of "${network}")"
+        case " ${NETWORKS_STANDARD} ${NETWORKS_EXPERIMENTAL} " in
+        *" ${network} "*) continue 2 ;;
+        esac
+        [[ -n ${network} ]] || break
+    done
+    log_error "NETWORK_SUCCESSORS: ${pair%%:*} does not lead to a network any installer line ships within four replacements"
+    exit 1
 done
-log_success "Every network successor ships on some installer line"
+log_success "Every replaced network leads to one some installer line ships"
