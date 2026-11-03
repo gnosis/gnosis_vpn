@@ -61,3 +61,44 @@ for pair in ${NETWORK_SUCCESSORS}; do
     exit 1
 done
 log_success "Every replaced network leads to one some installer line ships"
+
+mirror_mismatch() {
+    log_error "$1 does not match config/channels.sh: $2"
+    exit 1
+}
+
+# install/linux.sh is published on its own, so it keeps copies of the channel lists and network maps; a drift misroutes --network.
+(
+    # shellcheck source=../install/linux.sh
+    source <(sed '$d' "${ROOT}/install/linux.sh")
+    [[ "$(channel_networks stable)" == "${NETWORKS_STANDARD}" ]] ||
+        mirror_mismatch install/linux.sh "channel_networks stable is '$(channel_networks stable)'"
+    [[ "$(channel_networks experimental)" == "${NETWORKS_EXPERIMENTAL}" ]] ||
+        mirror_mismatch install/linux.sh "channel_networks experimental is '$(channel_networks experimental)'"
+    for pair in ${NETWORK_SUCCESSORS}; do
+        [[ "$(network_successor "${pair%%:*}")" == "${pair#*:}" ]] ||
+            mirror_mismatch install/linux.sh "network_successor ${pair%%:*} is '$(network_successor "${pair%%:*}")'"
+    done
+    for pair in ${NETWORK_RENAMES}; do
+        [[ "$(canonical_network "${pair%%:*}")" == "${pair#*:}" ]] ||
+            mirror_mismatch install/linux.sh "canonical_network ${pair%%:*} is '$(canonical_network "${pair%%:*}")'"
+    done
+    arms="$(sed -n '/^network_successor() {/,/^}/p' "${ROOT}/install/linux.sh" | grep -cE '^ +[a-z0-9-]+\) echo ')"
+    [[ ${arms} -eq $(wc -w <<<"${NETWORK_SUCCESSORS}") ]] ||
+        mirror_mismatch install/linux.sh "network_successor has ${arms} entries"
+)
+log_success "install/linux.sh mirrors the channel lists and network maps"
+
+# The postinstalls keep the pre-rename map in code (it goes away with its TODO); the successors are baked.
+(
+    # shellcheck source=../linux/scripts/postinstall.sh
+    source <(sed '$d' "${ROOT}/linux/scripts/postinstall.sh")
+    for pair in ${NETWORK_RENAMES}; do
+        [[ "$(renamed_network "${pair%%:*}")" == "${pair#*:}" ]] ||
+            mirror_mismatch linux/scripts/postinstall.sh "renamed_network ${pair%%:*} is '$(renamed_network "${pair%%:*}")'"
+    done
+)
+mac_renames="$(sed -n 's/^NETWORK_RENAMES=(\(.*\))$/\1/p' "${ROOT}/mac/resources/scripts/postinstall")"
+[[ ${mac_renames} == "${NETWORK_RENAMES}" ]] ||
+    mirror_mismatch mac/resources/scripts/postinstall "NETWORK_RENAMES is '${mac_renames}'"
+log_success "The postinstalls mirror the rename map"

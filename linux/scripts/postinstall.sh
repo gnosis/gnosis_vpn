@@ -22,7 +22,6 @@ MIGRATE_LOG=/var/log/gnosisvpn/migrate.log
 # Set by configure_network_selection to the replaced networks being left, oldest first; per-user identities follow.
 SOURCE_NETWORKS=""
 SWITCH_FAILED=false
-TOOLKIT_TOO_OLD=false
 # The replaced networks moves are leaving, oldest first; appended before config.toml moves, removed once every identity followed.
 PENDING_SWITCH_FILE=/var/lib/gnosisvpn/network-switch-pending
 
@@ -75,7 +74,9 @@ load_network_successors() {
     fi
 }
 
+# Empty arrays are guarded: bash before 4.4 (RHEL 7) calls their expansion unbound under set -u.
 network_successor() {
+    [[ ${#NETWORK_SUCCESSORS[@]} -gt 0 ]] || return 0
     local pair
     for pair in "${NETWORK_SUCCESSORS[@]}"; do
         if [[ ${pair%%:*} == "$1" ]]; then
@@ -129,6 +130,7 @@ pending_switches() {
     local line="" network kept="" recorded=()
     IFS= read -r line <"$PENDING_SWITCH_FILE" || true
     read -r -a recorded <<<"$line"
+    [[ ${#recorded[@]} -gt 0 ]] || return 0
     for network in "${recorded[@]}"; do
         if [[ $network =~ ^[a-z0-9-]+$ ]] && ! is_shipped_network "$network" &&
             [[ -n "$(network_successor "$network")" ]]; then
@@ -246,6 +248,19 @@ configure_network_selection() {
         echo "$LOG_PREFIX ERROR: Network '${network_name}' is not shipped by this package" >&2
         echo "$LOG_PREFIX ERROR: Supported networks: ${SHIPPED_NETWORKS[*]}" >&2
         exit 1
+    fi
+
+    # Until a recorded move completes it picks the network, as on macOS: an EOA only moves to its own environment's successor.
+    local pending pending_target=""
+    pending="$(pending_switches)"
+    [[ -z $pending ]] || pending_target="$(shipped_successor "${pending%% *}")"
+    if [[ -n ${GNOSISVPN_NETWORK:-} && -n $pending_target && $network_name != "$pending_target" ]]; then
+        echo "$LOG_PREFIX WARNING: Using '${pending_target}' instead of GNOSISVPN_NETWORK '${network_name}' until the move off '${pending}' completes; set it again afterwards" >&2
+        # install.sh passes the endpoint it derived from that network; a custom one stays.
+        if [[ ${GNOSISVPN_HOPR_BLOKLI_URL:-} == "$(get_blokli_url "$network_name")" ]]; then
+            GNOSISVPN_HOPR_BLOKLI_URL=""
+        fi
+        network_name="$pending_target"
     fi
 
     # dpkg never restores conffiles deleted outside of it, so failing here would brick every later apt run.
@@ -564,33 +579,25 @@ migrate_legacy_identity() {
         systemctl stop gnosisvpn.service || true
     fi
 
-    # A toolkit from before the network switch knows neither step; starting would hand every user a new EOA, so the move waits for one.
-    if [[ -n $SOURCE_NETWORKS ]] && ! /usr/bin/gnosis_vpn-migrate switch-network --help >/dev/null 2>&1; then
-        TOOLKIT_TOO_OLD=true
-        MIGRATION_FAILED=true
-        lock_down_legacy_identity
-        echo "$LOG_PREFIX ERROR: This gnosis_vpn-migrate cannot move identities off '${SOURCE_NETWORKS}' — gnosisvpn.service will be installed but not started" >&2
-        return 0
-    fi
-
     MIGRATION_USER="$(resolve_installing_user)"
     if [[ -z $MIGRATION_USER ]]; then
         echo "$LOG_PREFIX WARNING: Nobody is logged in at the desktop (seat0): the legacy identity (if any) stays in /var/lib/gnosisvpn/.config" >&2
         # --replace: by then a connection may have created a per-user identity that must give way to the legacy one.
         echo "$LOG_PREFIX WARNING: Migrate it later with: sudo gnosis_vpn-migrate identity --user <name> --replace" >&2
         lock_down_legacy_identity
-        switch_network_if_left
         return 0
     fi
 
     # Moves the previous release's app settings and logs into their current dirs; a failure is logged, never blocking.
     /usr/bin/gnosis_vpn-migrate layout --user "$MIGRATION_USER" || echo "$LOG_PREFIX WARNING: layout relocation reported problems, see $MIGRATE_LOG" >&2
 
-    # Onto the oldest network being left, where the legacy identity was used, next to its safe; switch_network_if_left moves it on.
-    local network_args=()
-    [[ -z $SOURCE_NETWORKS ]] || network_args=(--network "${SOURCE_NETWORKS%% *}")
     echo "$LOG_PREFIX INFO: Migrating the legacy identity to user '${MIGRATION_USER}' (the desktop/console user)..."
-    /usr/bin/gnosis_vpn-migrate identity --user "$MIGRATION_USER" "${network_args[@]}" || MIGRATION_STATUS=$?
+    if [[ -n $SOURCE_NETWORKS ]]; then
+        # Onto the oldest network being left, where the legacy identity was used, next to its safe; switch_network_if_left moves it on.
+        /usr/bin/gnosis_vpn-migrate identity --user "$MIGRATION_USER" --network "${SOURCE_NETWORKS%% *}" || MIGRATION_STATUS=$?
+    else
+        /usr/bin/gnosis_vpn-migrate identity --user "$MIGRATION_USER" || MIGRATION_STATUS=$?
+    fi
     if [[ $MIGRATION_STATUS -ne 0 ]]; then
         MIGRATION_FAILED=true
         # The old postrm already freed the service uid; the key must not wait for a retry to leave it.
@@ -599,7 +606,6 @@ migrate_legacy_identity() {
         return 0
     fi
     MIGRATION_OK=true
-    switch_network_if_left
 }
 
 # Every user's identity on the replaced networks follows to the new one; the old safes stay behind, backed up.
@@ -623,16 +629,6 @@ print_migration_failure() {
     [[ $MIGRATION_FAILED == true ]] || return 0
     local switch_step
     switch_step="$(switch_steps)"
-    if [[ $TOOLKIT_TOO_OLD == true ]]; then
-        cat >&2 <<EOF
-
-Moving identities off '${SOURCE_NETWORKS}' needs a newer gnosis_vpn-migrate than this package ships.
-The service was installed but left disabled and NOT started; the next package upgrade resumes the move.
-Starting now gives users without a moved identity a new one (a new EOA).
-Then start the service:               sudo systemctl enable --now gnosisvpn
-EOF
-        return 0
-    fi
     if [[ $SWITCH_FAILED == true ]]; then
         cat >&2 <<EOF
 
@@ -857,6 +853,8 @@ main() {
     # --reset-identity moves the legacy dir aside first, so the migration then finds nothing to migrate.
     reset_identity_if_requested
     migrate_legacy_identity
+    # Once, after the legacy identity sits on its old network; a failed migration leaves the move pending for the next install.
+    [[ $MIGRATION_FAILED == true ]] || switch_network_if_left
     # TODO: remove the removal code by December 2027 (see reown_legacy_logrotate_rule, remove_legacy_account).
     reown_legacy_logrotate_rule
     remove_legacy_account

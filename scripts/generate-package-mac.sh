@@ -191,6 +191,9 @@ check_platform_prerequisites() {
     done
 
     check_geoip_staged || missing=$((missing + 1))
+    if [[ -f "${BUILD_DIR}/download/gnosis_vpn-migrate" ]]; then
+        toolkit_switches_networks "${BUILD_DIR}/download/gnosis_vpn-migrate" || missing=$((missing + 1))
+    fi
 
     # welcome.html prints them; under `set -u` an unset one would abort only after the component pkgs are built.
     local version_var

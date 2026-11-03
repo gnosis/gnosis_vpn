@@ -110,6 +110,13 @@ assert_geoip_shipped() {
     log_success "${package} ships geoip.mmdb: ${shipped}, as expected ($(geoip_decision_basis))"
 }
 
+# The postinstalls run `identity --network` and `switch-network`; a package without them would leave moved users without their identity.
+toolkit_switches_networks() {
+    grep -aq -- 'switch-network' "$1" && return 0
+    log_error "$1 has no switch-network subcommand; build against a gnosis_vpn-toolkit release that has it"
+    return 1
+}
+
 # Renamed or replaced networks that neither installer line ships any more, one per line. Needs config/channels.sh.
 retired_networks() {
     local pair network

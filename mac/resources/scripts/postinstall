@@ -81,7 +81,6 @@ MIGRATE_LOG="${INSTALLED_LOG_DIR_PATH}/installer/migrate.log"
 # Set by load_installer_choices to the replaced networks being left, oldest first; per-user identities follow.
 SOURCE_NETWORKS=""
 SWITCH_FAILED=false
-TOOLKIT_TOO_OLD=false
 # The replaced networks moves are leaving, oldest first; appended before config.toml moves, removed once every identity followed.
 PENDING_SWITCH_FILE="${INSTALLED_LIB_DIR_PATH}/network-switch-pending"
 # Console user, resolved once in main: group membership, the migration, the validation probes and the app launch share it.
@@ -91,6 +90,7 @@ CURRENT_USER=""
 ROLLBACK_STEPS=()
 ROLLBACK_ENABLED=true
 PREV_CONFIG_FILE=""
+PREV_CONFIG_LINK=""
 
 # Read installer version baked into the scripts dir at build time. It is
 # deliberately not part of the payload: $VERSION_FILE must keep the previous
@@ -286,7 +286,11 @@ load_installer_choices() {
 
 # Rollback functions
 rollback_restore_config() {
-    if [[ -n "$PREV_CONFIG_FILE" ]] && [[ -f "$PREV_CONFIG_FILE" ]]; then
+    # A link stays a link: a plain copy would read as an admin-placed file and stop every later network move.
+    if [[ -n "$PREV_CONFIG_LINK" ]]; then
+        log_info "Restoring previous configuration link: config.toml -> ${PREV_CONFIG_LINK}"
+        ln -sfn "$PREV_CONFIG_LINK" "$CONFIG_FILE" || true
+    elif [[ -n "$PREV_CONFIG_FILE" ]] && [[ -f "$PREV_CONFIG_FILE" ]]; then
         log_info "Restoring previous configuration"
         mv -f "$PREV_CONFIG_FILE" "$CONFIG_FILE" || true
     fi
@@ -516,21 +520,11 @@ migrate_legacy_identity() {
     # Moves the previous release's updater files into their current dirs; a failure is logged, never blocking.
     "$BIN_DIR/gnosis_vpn-migrate" layout || log_warn "layout relocation reported problems, see ${MIGRATE_LOG}"
 
-    # A toolkit from before the network switch knows neither step; starting would hand every user a new EOA, so the move waits for one.
-    if [[ -n "$SOURCE_NETWORKS" ]] && ! "$BIN_DIR/gnosis_vpn-migrate" switch-network --help >/dev/null 2>&1; then
-        TOOLKIT_TOO_OLD=true
-        MIGRATION_FAILED=true
-        lock_down_legacy_identity
-        log_error "This gnosis_vpn-migrate cannot move identities off '${SOURCE_NETWORKS}' — the service will be installed but not started"
-        return 0
-    fi
-
     if [[ -z "$CURRENT_USER" ]]; then
         log_warn "No console user known — the legacy identity (if any) stays in ${INSTALLED_LIB_DIR_PATH}/.config"
         # --replace: by then a connection may have created a per-user identity that must give way to the legacy one.
         log_warn "Migrate it later with: sudo gnosis_vpn-migrate identity --user <name> --replace"
         lock_down_legacy_identity
-        switch_network_if_left
         return 0
     fi
 
@@ -550,7 +544,6 @@ migrate_legacy_identity() {
     fi
     MIGRATION_OK=true
     log_success "Identity migration done"
-    switch_network_if_left
 }
 
 # Every user's identity on the replaced networks follows to the new one; the old safes stay behind, backed up.
@@ -577,16 +570,6 @@ print_migration_failure() {
     local start_step="sudo launchctl enable ${LAUNCHD_SERVICE} && sudo launchctl bootstrap system ${LAUNCHD_PLIST_PATH}"
     local switch_step
     switch_step="$(switch_steps)"
-    if [[ "$TOOLKIT_TOO_OLD" == true ]]; then
-        cat <<EOF
-
-Moving identities off '${SOURCE_NETWORKS}' needs a newer gnosis_vpn-migrate than this installer ships.
-The service was installed but left disabled and NOT loaded; the next update resumes the move.
-Starting now gives users without a moved identity a new one (a new EOA).
-Then start the service:               ${start_step}
-EOF
-        return 0
-    fi
     if [[ "$SWITCH_FAILED" == true ]]; then
         cat <<EOF
 
@@ -1136,7 +1119,10 @@ create_config_symlink() {
     fi
 
     # Save previous config file for rollback if it exists
-    if [[ -f "$CONFIG_FILE" ]] || [[ -L "$CONFIG_FILE" ]]; then
+    if [[ -L "$CONFIG_FILE" ]]; then
+        PREV_CONFIG_LINK="$(readlink "$CONFIG_FILE")"
+        add_rollback_step "rollback_restore_config"
+    elif [[ -f "$CONFIG_FILE" ]]; then
         PREV_CONFIG_FILE="${CONFIG_FILE}.pre-install"
         cp "$CONFIG_FILE" "$PREV_CONFIG_FILE" 2>/dev/null || true
         add_rollback_step "rollback_restore_config"
@@ -1692,7 +1678,6 @@ main() {
     # Setup configuration files and create symlink
     setup_configuration_files
     create_config_symlink "$installation_type"
-    remove_retired_configs
 
     # Set proper permissions
     set_permissions
@@ -1712,6 +1697,8 @@ main() {
     # preinstall stops it too; repeated so the migration never runs against a live worker
     uninstall_launchd_service
     migrate_legacy_identity
+    # Once, after the legacy identity sits on its old network; a failed migration leaves the move pending for the next install.
+    [[ "$MIGRATION_FAILED" == true ]] || switch_network_if_left
     # TODO: remove the removal code by December 2027 (see remove_legacy_account).
     remove_legacy_account
 
@@ -1738,6 +1725,9 @@ main() {
     launch_app
     # Installer.app still reports success; this block (postinstall.log) is the only place the user learns why the service is down.
     print_migration_failure
+
+    # Only once nothing can roll back: a rollback restores config.toml's link to a config that must still be there.
+    remove_retired_configs
 
     # Save version information. Must stay after every step that can fail:
     # a failed install would otherwise leave version.txt claiming the new

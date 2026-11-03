@@ -78,6 +78,9 @@ check_platform_prerequisites() {
             missing=$((missing + 1))
         fi
     done
+    if [[ -f "${BINARY_DIR}/gnosis_vpn-migrate" ]]; then
+        toolkit_switches_networks "${BINARY_DIR}/gnosis_vpn-migrate" || missing=$((missing + 1))
+    fi
     check_geoip_staged || missing=$((missing + 1))
     if [[ ! -f "${BUILD_DIR}/changelog/changelog.gz" ]]; then
         log_error "Changelog not found at ${BUILD_DIR}/changelog/changelog.gz"

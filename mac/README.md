@@ -111,10 +111,10 @@ cannot be told apart from a deliberate pick. The next install sees a piz-palu li
    `~/Library/Application Support/GnosisVPN/networks/jura-<env>/hopr.safe.jura-<env>.bak`, and the jura dirs stay in
    place.
 
-A failure in step 2 or 3, or a `gnosis_vpn-migrate` too old for step 3, leaves the service unloaded, like any failed
-migration, and `postinstall.log` lists the remaining steps, ending with
-`sudo gnosis_vpn-migrate switch-network --from jura-<env>`. The move is recorded before `config.toml` changes, so the
-next install resumes it.
+A failure in step 2 or 3 leaves the service unloaded, like any failed migration, and `postinstall.log` lists the
+remaining steps, ending with `sudo gnosis_vpn-migrate switch-network --from jura-<env>`. The move is recorded before
+`config.toml` changes, so the next install resumes it, and a rolled-back install restores the old `config.toml` link
+rather than a copy. The build refuses a `gnosis_vpn-migrate` without `switch-network`.
 
 ## Uninstallation
 
