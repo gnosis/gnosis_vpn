@@ -78,11 +78,11 @@ MIGRATION_OK=false
 MIGRATION_FAILED=false
 MIGRATION_STATUS=0
 MIGRATE_LOG="${INSTALLED_LOG_DIR_PATH}/installer/migrate.log"
-# Set by load_installer_choices when the install leaves a replaced network; its per-user identities follow.
-SOURCE_NETWORK=""
+# Set by load_installer_choices to the replaced networks being left, oldest first; per-user identities follow.
+SOURCE_NETWORKS=""
 SWITCH_FAILED=false
 TOOLKIT_TOO_OLD=false
-# The replaced network a move is leaving; written before config.toml moves and removed once every identity followed.
+# The replaced networks moves are leaving, oldest first; appended before config.toml moves, removed once every identity followed.
 PENDING_SWITCH_FILE="${INSTALLED_LIB_DIR_PATH}/network-switch-pending"
 # Console user, resolved once in main: group membership, the migration, the validation probes and the app launch share it.
 CURRENT_USER=""
@@ -176,25 +176,54 @@ linked_network() {
     echo "${network%.toml}"
 }
 
-# rm first and noclobber: a link the old service account planted at the path is replaced, never written through.
+# Appended, never overwritten: an unfinished older move still holds identities a newer one would skip.
+# rm first and noclobber, so a link the old service account planted at the path is replaced, never written through.
 record_pending_switch() {
+    local networks
+    networks="$(pending_switches)"
+    case " $networks " in
+    *" $1 "*) return 0 ;;
+    esac
     mkdir -p "$INSTALLED_LIB_DIR_PATH"
     rm -f "$PENDING_SWITCH_FILE"
     (
         set -C
-        echo "$1" >"$PENDING_SWITCH_FILE"
+        echo "${networks:+$networks }$1" >"$PENDING_SWITCH_FILE"
     )
 }
 
-# The network a recorded move leaves; never sourced, and only a replaced network this installer does not ship counts.
-pending_switch() {
+# The networks recorded moves leave, oldest first; never sourced, and only replaced networks this installer does not ship count.
+pending_switches() {
     [[ -f "$PENDING_SWITCH_FILE" && ! -L "$PENDING_SWITCH_FILE" ]] || return 0
-    local network=""
-    IFS= read -r network <"$PENDING_SWITCH_FILE" || true
-    [[ "$network" =~ ^[a-z0-9-]+$ ]] || return 0
-    if ! is_shipped_network "$network" && [[ -n "$(network_successor "$network")" ]]; then
-        echo "$network"
-    fi
+    local line="" network kept="" recorded=()
+    IFS= read -r line <"$PENDING_SWITCH_FILE" || true
+    read -r -a recorded <<<"$line"
+    [[ ${#recorded[@]} -gt 0 ]] || return 0
+    for network in "${recorded[@]}"; do
+        if [[ "$network" =~ ^[a-z0-9-]+$ ]] && ! is_shipped_network "$network" &&
+            [[ -n "$(network_successor "$network")" ]]; then
+            kept="${kept:+$kept }$network"
+        fi
+    done
+    echo "$kept"
+}
+
+# Newest first: a user's most recent identity wins, an older network only fills in users the newer one lacked.
+newest_first() {
+    local network reversed=""
+    for network in $SOURCE_NETWORKS; do
+        reversed="$network${reversed:+ $reversed}"
+    done
+    echo "$reversed"
+}
+
+# The retry for every recorded network, in the order switch_network_if_left runs them.
+switch_steps() {
+    local network steps=""
+    for network in $(newest_first); do
+        steps="${steps:+$steps && }sudo gnosis_vpn-migrate switch-network --from ${network}"
+    done
+    echo "$steps"
 }
 
 # Never sourced: the old service account owned this tree and could have planted code in it.
@@ -221,30 +250,28 @@ load_installer_choices() {
         INSTALLER_CHOICE_NETWORK="$DEFAULT_NETWORK"
     fi
 
-    # Leaving a replaced network overrides the choice once: an updater run applies the defaults, a GUI default looks like a pick.
-    local previous successor
+    # Leaving a replaced network: recorded before the link moves, so a failed or interrupted move resumes on a later install.
+    local previous successor=""
     previous="$(renamed_network "$(linked_network)")"
-    successor=""
-    is_shipped_network "$previous" || successor="$(shipped_successor "$previous")"
-    if [[ -n "$successor" ]]; then
-        if [[ "$successor" != "$INSTALLER_CHOICE_NETWORK" ]]; then
-            log_info "Network '${previous}' is now '${successor}' — using it instead of the installer choice '${INSTALLER_CHOICE_NETWORK}'"
-        fi
-        INSTALLER_CHOICE_NETWORK="$successor"
-        # Recorded before the link moves, so a failed or interrupted move resumes on a later install.
+    if [[ -n "$previous" ]] && ! is_shipped_network "$previous" && [[ -n "$(network_successor "$previous")" ]]; then
         record_pending_switch "$previous"
     fi
 
-    # A recorded move, this install's or an unfinished earlier one; create_config_symlink points the link at the choice.
-    SOURCE_NETWORK="$(pending_switch)"
-    if [[ -z "$SOURCE_NETWORK" || "$SOURCE_NETWORK" == "$INSTALLER_CHOICE_NETWORK" ]]; then
-        SOURCE_NETWORK=""
+    # Until a recorded move completes it picks the network over the choice: an updater run applies the defaults and a GUI
+    # default looks like a pick, so only the oldest recorded network's replacement keeps the environment.
+    SOURCE_NETWORKS="$(pending_switches)"
+    [[ -z "$SOURCE_NETWORKS" ]] || successor="$(shipped_successor "${SOURCE_NETWORKS%% *}")"
+    if [[ -z "$SOURCE_NETWORKS" ]]; then
         rm -f "$PENDING_SWITCH_FILE"
-    elif [[ -f "$CONFIG_FILE" && ! -L "$CONFIG_FILE" ]]; then
-        # An admin-placed config.toml is kept and names no network to move to; the move waits for a link.
-        SOURCE_NETWORK=""
+    elif [[ -z "$successor" || (-f "$CONFIG_FILE" && ! -L "$CONFIG_FILE") ]]; then
+        # Nothing shipped replaces it, or an admin-placed config.toml is kept: no network to move to, the move waits.
+        SOURCE_NETWORKS=""
     else
-        log_info "Leaving network '${SOURCE_NETWORK}' for '${INSTALLER_CHOICE_NETWORK}'; identities move along after the legacy migration"
+        if [[ "$successor" != "$INSTALLER_CHOICE_NETWORK" ]]; then
+            log_info "Network '${SOURCE_NETWORKS%% *}' is now '${successor}' — using it instead of the installer choice '${INSTALLER_CHOICE_NETWORK}'"
+        fi
+        INSTALLER_CHOICE_NETWORK="$successor"
+        log_info "Leaving '${SOURCE_NETWORKS}' for '${successor}'; identities move along after the legacy migration"
     fi
 
     loglevel="$(read_choice "${choice_dir}/loglevel_choice" INSTALLER_CHOICE_LOGLEVEL)"
@@ -490,11 +517,11 @@ migrate_legacy_identity() {
     "$BIN_DIR/gnosis_vpn-migrate" layout || log_warn "layout relocation reported problems, see ${MIGRATE_LOG}"
 
     # A toolkit from before the network switch knows neither step; starting would hand every user a new EOA, so the move waits for one.
-    if [[ -n "$SOURCE_NETWORK" ]] && ! "$BIN_DIR/gnosis_vpn-migrate" switch-network --help >/dev/null 2>&1; then
+    if [[ -n "$SOURCE_NETWORKS" ]] && ! "$BIN_DIR/gnosis_vpn-migrate" switch-network --help >/dev/null 2>&1; then
         TOOLKIT_TOO_OLD=true
         MIGRATION_FAILED=true
         lock_down_legacy_identity
-        log_error "This gnosis_vpn-migrate cannot move identities off '${SOURCE_NETWORK}' — the service will be installed but not started"
+        log_error "This gnosis_vpn-migrate cannot move identities off '${SOURCE_NETWORKS}' — the service will be installed but not started"
         return 0
     fi
 
@@ -509,9 +536,9 @@ migrate_legacy_identity() {
 
     log_info "Migrating the legacy identity to user '${CURRENT_USER}' (the console user)..."
     # The `||` list keeps the ERR trap (rollback) out of the toolkit's non-zero exit.
-    if [[ -n "$SOURCE_NETWORK" ]]; then
-        # Onto the network the legacy identity was used on, next to its safe; switch_network_if_left moves it on from there.
-        "$BIN_DIR/gnosis_vpn-migrate" identity --user "$CURRENT_USER" --network "$SOURCE_NETWORK" || MIGRATION_STATUS=$?
+    if [[ -n "$SOURCE_NETWORKS" ]]; then
+        # Onto the oldest network being left, where the legacy identity was used, next to its safe; switch_network_if_left moves it on.
+        "$BIN_DIR/gnosis_vpn-migrate" identity --user "$CURRENT_USER" --network "${SOURCE_NETWORKS%% *}" || MIGRATION_STATUS=$?
     else
         "$BIN_DIR/gnosis_vpn-migrate" identity --user "$CURRENT_USER" || MIGRATION_STATUS=$?
     fi
@@ -526,29 +553,34 @@ migrate_legacy_identity() {
     switch_network_if_left
 }
 
-# Every user's identity on the replaced network follows to the new one; the old safe stays behind, backed up.
+# Every user's identity on the replaced networks follows to the new one; the old safes stay behind, backed up.
 switch_network_if_left() {
-    [[ -n "$SOURCE_NETWORK" ]] || return 0
-    log_info "Moving every user's identity off network '${SOURCE_NETWORK}'..."
-    if "$BIN_DIR/gnosis_vpn-migrate" switch-network --from "$SOURCE_NETWORK"; then
-        rm -f "$PENDING_SWITCH_FILE"
-        log_success "Identities moved off network '${SOURCE_NETWORK}'"
-        return 0
-    fi
-    SWITCH_FAILED=true
-    MIGRATION_FAILED=true
-    log_error "Moving identities off '${SOURCE_NETWORK}' failed — the service will be installed but not started"
+    [[ -n "$SOURCE_NETWORKS" ]] || return 0
+    local network
+    for network in $(newest_first); do
+        log_info "Moving every user's identity off network '${network}'..."
+        # In an `if` so the ERR trap (rollback) stays out of the toolkit's non-zero exit.
+        if ! "$BIN_DIR/gnosis_vpn-migrate" switch-network --from "$network"; then
+            SWITCH_FAILED=true
+            MIGRATION_FAILED=true
+            log_error "Moving identities off '${network}' failed — the service will be installed but not started"
+            return 0
+        fi
+    done
+    rm -f "$PENDING_SWITCH_FILE"
+    log_success "Identities moved off '${SOURCE_NETWORKS}'"
 }
 
 # Shared wording with the Linux postinstall; the start command must stay the last user-facing line.
 print_migration_failure() {
     [[ "$MIGRATION_FAILED" == true ]] || return 0
     local start_step="sudo launchctl enable ${LAUNCHD_SERVICE} && sudo launchctl bootstrap system ${LAUNCHD_PLIST_PATH}"
-    local switch_step="sudo gnosis_vpn-migrate switch-network --from ${SOURCE_NETWORK}"
+    local switch_step
+    switch_step="$(switch_steps)"
     if [[ "$TOOLKIT_TOO_OLD" == true ]]; then
         cat <<EOF
 
-Moving identities off network '${SOURCE_NETWORK}' needs a newer gnosis_vpn-migrate than this installer ships.
+Moving identities off '${SOURCE_NETWORKS}' needs a newer gnosis_vpn-migrate than this installer ships.
 The service was installed but left disabled and NOT loaded; the next update resumes the move.
 Starting now gives users without a moved identity a new one (a new EOA).
 Then start the service:               ${start_step}
@@ -558,7 +590,7 @@ EOF
     if [[ "$SWITCH_FAILED" == true ]]; then
         cat <<EOF
 
-Moving identities off network '${SOURCE_NETWORK}' failed — see the toolkit output above.
+Moving identities off '${SOURCE_NETWORKS}' failed — see the toolkit output above.
 Log: ${MIGRATE_LOG}
 The service was installed but left disabled and NOT loaded; the next update retries. Choose one:
   1. Retry after fixing the cause:   ${switch_step}
@@ -569,8 +601,8 @@ EOF
     fi
     local network_arg="" then_switch=""
     local fresh_start="Start with a fresh identity:     sudo gnosis_vpn-migrate start-clean --user ${CURRENT_USER}"
-    if [[ -n "$SOURCE_NETWORK" ]]; then
-        network_arg=" --network ${SOURCE_NETWORK}"
+    if [[ -n "$SOURCE_NETWORKS" ]]; then
+        network_arg=" --network ${SOURCE_NETWORKS%% *}"
         then_switch=$'\n'"Then move the identities along:       ${switch_step}"
         # --user would reset the network config.toml now names, not the one the legacy identity belongs to.
         fresh_start="Start with a fresh identity:     sudo gnosis_vpn-migrate start-clean"
