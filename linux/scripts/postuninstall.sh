@@ -112,6 +112,8 @@ if [[ $IS_PURGE == "true" ]]; then
     echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=cubic"
     echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=fq_codel"
 
+    # A purge forgets an unfinished network move; the per-user identities it would have copied stay where they are.
+    rm -f /var/lib/gnosisvpn/network-switch-pending
     preserve_legacy_identity
     # Whatever is left is unknown to this script; it stays rather than risk a key (GNO-1005).
     if [[ -d /var/lib/gnosisvpn ]] && ! rmdir /var/lib/gnosisvpn 2>/dev/null; then

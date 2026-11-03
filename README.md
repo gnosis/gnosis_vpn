@@ -206,9 +206,10 @@ successful migration reports `AlreadyMigrated`.
 When `config.toml` points at a network this package replaced (`NETWORK_SUCCESSORS` in `config/channels.sh`, e.g.
 `jura-staging` → `piz-palu-staging`), the postinstall re-points it at the replacement instead of the channel default,
 migrates a legacy identity onto the old network, then runs `gnosis_vpn-migrate switch-network --from <old>` for every
-user: `hopr.id`/`hopr.pass` are copied (same EOA), the old safe is kept as `networks/<old>/hopr.safe.bak` and the client
-sets up a new one. Old network dirs stay; their conffiles go once no line ships them. A failed step leaves the service
-disabled and prints the retry. A later replacement is one more `old:new` entry; keep the earlier ones.
+user: `hopr.id`/`hopr.pass` are copied (same EOA), the old safe is kept as `networks/<old>/hopr.safe.<old>.bak` and the
+client sets up a new one. Old network dirs stay; their conffiles go once no line ships them. A failed step leaves the
+service disabled, prints the retry and is resumed by the next install. A later replacement is one more `old:new` entry;
+keep the earlier ones.
 
 ### .deb Installation Environment Variables
 

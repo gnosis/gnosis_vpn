@@ -108,10 +108,13 @@ cannot be told apart from a deliberate pick. The next install sees a piz-palu li
 3. `gnosis_vpn-migrate switch-network --from jura-<env>` copies every user's `hopr.id` and `hopr.pass` (homes under
    `/Users`) to `networks/piz-palu-<env>/`, so the node address (EOA) stays the same. The client finds or deploys a
    piz-palu safe; the jura safe is backed up as
-   `~/Library/Application Support/GnosisVPN/networks/jura-<env>/hopr.safe.bak`, and the jura dirs stay in place.
+   `~/Library/Application Support/GnosisVPN/networks/jura-<env>/hopr.safe.jura-<env>.bak`, and the jura dirs stay in
+   place.
 
-A failure in step 2 or 3 leaves the service unloaded, like any failed migration, and `postinstall.log` lists the
-remaining steps, ending with `sudo gnosis_vpn-migrate switch-network --from jura-<env>`.
+A failure in step 2 or 3, or a `gnosis_vpn-migrate` too old for step 3, leaves the service unloaded, like any failed
+migration, and `postinstall.log` lists the remaining steps, ending with
+`sudo gnosis_vpn-migrate switch-network --from jura-<env>`. The move is recorded before `config.toml` changes, so the
+next install resumes it.
 
 ## Uninstallation
 
