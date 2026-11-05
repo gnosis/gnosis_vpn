@@ -125,7 +125,7 @@ assert_geoip_shipped() {
     log_success "${package} ships geoip.mmdb: ${shipped}, as expected ($(geoip_decision_basis))"
 }
 
-# Same contract as assert_geoip_shipped, for the Curvy proving key.
+# Same contract as assert_geoip_shipped, for the Curvy proving files.
 assert_curvy_zk_shipped() {
     local package="$1"
     local listing has_graph=false has_key=false
