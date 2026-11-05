@@ -5,6 +5,7 @@
 
 export BUILD_DIR="${SCRIPT_DIR}/../build"
 export BINARY_DIR="${BUILD_DIR}/download"
+export CURVY_ZK_DIR="${BUILD_DIR}/curvy-zk"
 
 # GCP Artifact Registry coordinates for client/app/toolkit binaries.
 # gcloud reads these instead of per-call --project/--location/--repository
@@ -74,6 +75,15 @@ check_geoip_staged() {
     return 1
 }
 
+# PIX deposits exist only on the GeoIP line, so its proving files share that decision.
+check_curvy_zk_staged() {
+    [[ ${GNOSISVPN_SHIP_GEOIP} == true ]] || return 0
+    [[ -f "${CURVY_ZK_DIR}/verifyPixAggregationBound_2_9_30-final.zkey" ]] && return 0
+    log_error "Curvy proving files not found in ${CURVY_ZK_DIR}"
+    log_error "Run 'just curvy-zk' first"
+    return 1
+}
+
 # Replaces the one GEOIP_PLACEHOLDER line of FILE with FRAGMENT, or drops it when GeoIP stays out; a range delete could instead truncate silently.
 GEOIP_PLACEHOLDER="__GNOSIS_VPN_GEOIP__"
 render_geoip_placeholder() {
@@ -108,6 +118,18 @@ assert_geoip_shipped() {
         exit 1
     fi
     log_success "${package} ships geoip.mmdb: ${shipped}, as expected ($(geoip_decision_basis))"
+}
+
+# Same contract as assert_geoip_shipped, for the Curvy proving key.
+assert_curvy_zk_shipped() {
+    local package="$1"
+    local shipped=false
+    if grep '/gnosisvpn/curvy-zk/verifyPixAggregationBound_2_9_30-final\.zkey$' >/dev/null; then shipped=true; fi
+    if [[ ${shipped} != "${GNOSISVPN_SHIP_GEOIP}" ]]; then
+        log_error "${package} ships the Curvy proving key: ${shipped}; expected ${GNOSISVPN_SHIP_GEOIP} ($(geoip_decision_basis))"
+        exit 1
+    fi
+    log_success "${package} ships the Curvy proving key: ${shipped}, as expected ($(geoip_decision_basis))"
 }
 
 # Validate version syntax

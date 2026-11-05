@@ -79,6 +79,7 @@ check_platform_prerequisites() {
         fi
     done
     check_geoip_staged || missing=$((missing + 1))
+    check_curvy_zk_staged || missing=$((missing + 1))
     if [[ ! -f "${BUILD_DIR}/changelog/changelog.gz" ]]; then
         log_error "Changelog not found at ${BUILD_DIR}/changelog/changelog.gz"
         log_error "Run 'just changelog' first"
@@ -199,6 +200,7 @@ generate_package() {
         --packager "${GNOSISVPN_DISTRIBUTION}" \
         --target "${BUILD_DIR}/packages/${PKG_NAME}"
     dpkg-deb -c "${BUILD_DIR}/packages/${PKG_NAME}" | assert_geoip_shipped "${PKG_NAME}"
+    dpkg-deb -c "${BUILD_DIR}/packages/${PKG_NAME}" | assert_curvy_zk_shipped "${PKG_NAME}"
     log_success "Package created: ${BUILD_DIR}/packages/${PKG_NAME}"
 }
 
