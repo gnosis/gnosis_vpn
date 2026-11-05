@@ -78,8 +78,13 @@ check_geoip_staged() {
 # PIX deposits exist only on the GeoIP line, so its proving files share that decision.
 check_curvy_zk_staged() {
     [[ ${GNOSISVPN_SHIP_GEOIP} == true ]] || return 0
-    [[ -f "${CURVY_ZK_DIR}/verifyPixAggregationBound_2_9_30-final.zkey" ]] && return 0
-    log_error "Curvy proving files not found in ${CURVY_ZK_DIR}"
+    local file missing=0
+    for file in pix-aggregation-bound-2-9-30.signet.zst verifyPixAggregationBound_2_9_30-final.zkey LICENSE; do
+        [[ -f "${CURVY_ZK_DIR}/${file}" ]] && continue
+        log_error "Curvy proving file not found: ${CURVY_ZK_DIR}/${file}"
+        missing=$((missing + 1))
+    done
+    [[ ${missing} -eq 0 ]] && return 0
     log_error "Run 'just curvy-zk' first"
     return 1
 }
@@ -123,13 +128,16 @@ assert_geoip_shipped() {
 # Same contract as assert_geoip_shipped, for the Curvy proving key.
 assert_curvy_zk_shipped() {
     local package="$1"
-    local shipped=false
-    if grep '/gnosisvpn/curvy-zk/verifyPixAggregationBound_2_9_30-final\.zkey$' >/dev/null; then shipped=true; fi
-    if [[ ${shipped} != "${GNOSISVPN_SHIP_GEOIP}" ]]; then
-        log_error "${package} ships the Curvy proving key: ${shipped}; expected ${GNOSISVPN_SHIP_GEOIP} ($(geoip_decision_basis))"
+    local listing has_graph=false has_key=false
+    listing="$(cat)"
+    if grep '/gnosisvpn/curvy-zk/pix-aggregation-bound-2-9-30\.signet\.zst$' <<<"${listing}" >/dev/null; then has_graph=true; fi
+    if grep '/gnosisvpn/curvy-zk/verifyPixAggregationBound_2_9_30-final\.zkey$' <<<"${listing}" >/dev/null; then has_key=true; fi
+    # Each file on its own, so a lone stray file fails off the GeoIP line too.
+    if [[ ${has_graph} != "${GNOSISVPN_SHIP_GEOIP}" || ${has_key} != "${GNOSISVPN_SHIP_GEOIP}" ]]; then
+        log_error "${package} ships Curvy witness graph: ${has_graph}, proving key: ${has_key}; expected ${GNOSISVPN_SHIP_GEOIP} ($(geoip_decision_basis))"
         exit 1
     fi
-    log_success "${package} ships the Curvy proving key: ${shipped}, as expected ($(geoip_decision_basis))"
+    log_success "${package} ships the Curvy proving files: ${GNOSISVPN_SHIP_GEOIP}, as expected ($(geoip_decision_basis))"
 }
 
 # Validate version syntax
