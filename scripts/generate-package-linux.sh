@@ -78,6 +78,9 @@ check_platform_prerequisites() {
             missing=$((missing + 1))
         fi
     done
+    if [[ -f "${BINARY_DIR}/gnosis_vpn-migrate" ]]; then
+        toolkit_switches_networks "${BINARY_DIR}/gnosis_vpn-migrate" || missing=$((missing + 1))
+    fi
     check_geoip_staged || missing=$((missing + 1))
     if [[ ! -f "${BUILD_DIR}/changelog/changelog.gz" ]]; then
         log_error "Changelog not found at ${BUILD_DIR}/changelog/changelog.gz"
@@ -148,6 +151,9 @@ generate_nfpm_config() {
     # Bake the shipped network list so postinstall.sh needs no hardcoded names.
     echo "${GNOSISVPN_NETWORKS}" >"${BUILD_DIR}/resources/networks"
     log_success "Generated networks file: ${GNOSISVPN_NETWORKS}"
+    echo "${NETWORK_SUCCESSORS}" >"${BUILD_DIR}/resources/network-successors"
+    log_success "Generated network successors file: ${NETWORK_SUCCESSORS}"
+    render_maintainer_scripts "${SCRIPT_DIR}/../linux/scripts" "${BUILD_DIR}/linux-scripts"
     # Dearmor the public key so the postinstall can register the APT source
     # without needing gnupg as a package dependency on the target host.
     gpg --dearmor <"${SCRIPT_DIR}/../gnosisvpn-public-key.asc" \

@@ -115,6 +115,13 @@ __GNOSIS_VPN_GEOIP__
       mode: 0644
       owner: root
       group: root
+  # Replaced networks (`old:new`, space-separated) the postinstall moves an install off; NOT a conffile either.
+  - src: ./build/resources/network-successors
+    dst: /usr/share/gnosisvpn/network-successors
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
   - src: ./linux/resources/logrotate.conf
     dst: /etc/logrotate.d/gnosisvpn
     type: config
@@ -196,8 +203,9 @@ __GNOSIS_VPN_GEOIP__
       owner: root
       group: root
 __GNOSIS_VPN_APP_CONTENTS__
+# Rendered from linux/scripts/ by generate-package-linux.sh, with the retired conffiles filled in.
 scripts:
-  preinstall: ./linux/scripts/preinstall.sh
-  postinstall: ./linux/scripts/postinstall.sh
-  preremove: ./linux/scripts/preuninstall.sh
-  postremove: ./linux/scripts/postuninstall.sh
+  preinstall: ./build/linux-scripts/preinstall.sh
+  postinstall: ./build/linux-scripts/postinstall.sh
+  preremove: ./build/linux-scripts/preuninstall.sh
+  postremove: ./build/linux-scripts/postuninstall.sh
