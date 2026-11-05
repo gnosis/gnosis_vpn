@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Renders the GeoIP placeholders for both installer lines without a build, so drift fails `nix flake check` on the PR, not the nightly.
+# Renders the line-extras placeholders for both installer lines without a build, so drift fails `nix flake check` on the PR, not the nightly.
 
 set -euo pipefail
 
@@ -18,8 +18,8 @@ for GNOSISVPN_SHIP_GEOIP in true false; do
     cp "${ROOT}/linux/nfpm-template.yaml" "${line_dir}/nfpm.yaml"
     cp "${ROOT}/linux/resources/copyright" "${line_dir}/copyright"
     cp "${ROOT}/mac/resources/distribution/readme.html" "${line_dir}/readme.html"
-    render_geoip_placeholder "${line_dir}/nfpm.yaml" "${ROOT}/linux/resources/nfpm-geoip.yaml"
-    render_geoip_placeholder "${line_dir}/copyright" "${ROOT}/linux/resources/copyright-geoip"
-    render_geoip_placeholder "${line_dir}/readme.html" "${ROOT}/mac/resources/readme-geoip.html"
-    log_success "GeoIP placeholders render with GNOSISVPN_SHIP_GEOIP=${GNOSISVPN_SHIP_GEOIP}"
+    render_line_extras "${line_dir}/nfpm.yaml" "${ROOT}/linux/resources/nfpm-line-extras.yaml"
+    render_line_extras "${line_dir}/copyright" "${ROOT}/linux/resources/copyright-line-extras"
+    render_line_extras "${line_dir}/readme.html" "${ROOT}/mac/resources/readme-line-extras.html"
+    log_success "Line-extras placeholders render with GNOSISVPN_SHIP_GEOIP=${GNOSISVPN_SHIP_GEOIP}"
 done

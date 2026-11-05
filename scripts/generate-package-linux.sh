@@ -183,8 +183,8 @@ generate_nfpm_config() {
     fi
     rm -f "$nfpm_app_contents" "$nfpm_network_configs"
     cp "${SCRIPT_DIR}/../linux/resources/copyright" "${BUILD_DIR}/resources/copyright"
-    render_geoip_placeholder "${SCRIPT_DIR}/../linux/nfpm.yaml" "${SCRIPT_DIR}/../linux/resources/nfpm-geoip.yaml"
-    render_geoip_placeholder "${BUILD_DIR}/resources/copyright" "${SCRIPT_DIR}/../linux/resources/copyright-geoip"
+    render_line_extras "${SCRIPT_DIR}/../linux/nfpm.yaml" "${SCRIPT_DIR}/../linux/resources/nfpm-line-extras.yaml"
+    render_line_extras "${BUILD_DIR}/resources/copyright" "${SCRIPT_DIR}/../linux/resources/copyright-line-extras"
     if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
         log_success "GeoIP database left out ($(geoip_decision_basis))"
     fi

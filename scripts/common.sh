@@ -89,28 +89,32 @@ check_curvy_zk_staged() {
     return 1
 }
 
-# Replaces the one GEOIP_PLACEHOLDER line of FILE with FRAGMENT, or drops it when GeoIP stays out; a range delete could instead truncate silently.
-GEOIP_PLACEHOLDER="__GNOSIS_VPN_GEOIP__"
-render_geoip_placeholder() {
+# Replaces the one LINE_EXTRAS_PLACEHOLDER line of FILE with FRAGMENT, or drops it off the GeoIP line; a range delete could instead truncate silently.
+LINE_EXTRAS_PLACEHOLDER="__GNOSIS_VPN_LINE_EXTRAS__"
+render_line_extras() {
     local file="$1" fragment="$2"
-    if [[ "$(grep -c -- "${GEOIP_PLACEHOLDER}" "${file}")" != "1" ]]; then
-        log_error "${file} must contain exactly one ${GEOIP_PLACEHOLDER} line"
+    if [[ "$(grep -c -- "${LINE_EXTRAS_PLACEHOLDER}" "${file}")" != "1" ]]; then
+        log_error "${file} must contain exactly one ${LINE_EXTRAS_PLACEHOLDER} line"
         exit 1
     fi
     if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
         fragment=/dev/null
     fi
-    sed -i.backup "/${GEOIP_PLACEHOLDER}/{
+    sed -i.backup "/${LINE_EXTRAS_PLACEHOLDER}/{
     r ${fragment}
     d
     }" "${file}"
     rm -f "${file}.backup"
-    if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
-        assert_not_mentioned 'geoip\.' "${file}"
-    elif ! grep -qi 'geoip\.' "${file}"; then
-        log_error "GeoIP fragment ${fragment} left no trace in ${file}"
-        exit 1
-    fi
+    # Every fragment covers both GeoIP and Curvy, so each must leave a trace exactly on the GeoIP line.
+    local marker
+    for marker in 'geoip\.' 'curvy-zk'; do
+        if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
+            assert_not_mentioned "${marker}" "${file}"
+        elif ! grep -qi -- "${marker}" "${file}"; then
+            log_error "Line-extras fragment ${fragment} left no '${marker}' trace in ${file}"
+            exit 1
+        fi
+    done
 }
 
 # Checks the published artifact, not the nfpm/pkgbuild inputs; file list on stdin, no `grep -q` since it would SIGPIPE the lister under pipefail.
