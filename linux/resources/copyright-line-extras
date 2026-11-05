@@ -6,3 +6,10 @@ License: CC-BY-SA-4.0
  Creative Commons Attribution-ShareAlike 4.0 International. The full licence
  text is at https://creativecommons.org/licenses/by-sa/4.0/legalcode
 
+Files: usr/share/gnosisvpn/curvy-zk/*
+Copyright: 2026 Curvy Protocol d.o.o.
+Comment: Pix-aggregation witness graph and proving key from
+ https://github.com/0xCurvy/rs-sdk, unmodified.
+License: Expat
+ The full licence text is in /usr/share/gnosisvpn/curvy-zk/LICENSE.
+

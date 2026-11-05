@@ -5,6 +5,7 @@
 
 export BUILD_DIR="${SCRIPT_DIR}/../build"
 export BINARY_DIR="${BUILD_DIR}/download"
+export CURVY_ZK_DIR="${BUILD_DIR}/curvy-zk"
 
 # GCP Artifact Registry coordinates for client/app/toolkit binaries.
 # gcloud reads these instead of per-call --project/--location/--repository
@@ -74,28 +75,46 @@ check_geoip_staged() {
     return 1
 }
 
-# Replaces the one GEOIP_PLACEHOLDER line of FILE with FRAGMENT, or drops it when GeoIP stays out; a range delete could instead truncate silently.
-GEOIP_PLACEHOLDER="__GNOSIS_VPN_GEOIP__"
-render_geoip_placeholder() {
+# PIX deposits exist only on the GeoIP line, so its proving files share that decision.
+check_curvy_zk_staged() {
+    [[ ${GNOSISVPN_SHIP_GEOIP} == true ]] || return 0
+    local file missing=0
+    for file in pix-aggregation-bound-2-9-30.signet.zst verifyPixAggregationBound_2_9_30-final.zkey LICENSE; do
+        [[ -f "${CURVY_ZK_DIR}/${file}" ]] && continue
+        log_error "Curvy proving file not found: ${CURVY_ZK_DIR}/${file}"
+        missing=$((missing + 1))
+    done
+    [[ ${missing} -eq 0 ]] && return 0
+    log_error "Run 'just curvy-zk' first"
+    return 1
+}
+
+# Replaces the one LINE_EXTRAS_PLACEHOLDER line of FILE with FRAGMENT, or drops it off the GeoIP line; a range delete could instead truncate silently.
+LINE_EXTRAS_PLACEHOLDER="__GNOSIS_VPN_LINE_EXTRAS__"
+render_line_extras() {
     local file="$1" fragment="$2"
-    if [[ "$(grep -c -- "${GEOIP_PLACEHOLDER}" "${file}")" != "1" ]]; then
-        log_error "${file} must contain exactly one ${GEOIP_PLACEHOLDER} line"
+    if [[ "$(grep -c -- "${LINE_EXTRAS_PLACEHOLDER}" "${file}")" != "1" ]]; then
+        log_error "${file} must contain exactly one ${LINE_EXTRAS_PLACEHOLDER} line"
         exit 1
     fi
     if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
         fragment=/dev/null
     fi
-    sed -i.backup "/${GEOIP_PLACEHOLDER}/{
+    sed -i.backup "/${LINE_EXTRAS_PLACEHOLDER}/{
     r ${fragment}
     d
     }" "${file}"
     rm -f "${file}.backup"
-    if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
-        assert_not_mentioned 'geoip\.' "${file}"
-    elif ! grep -qi 'geoip\.' "${file}"; then
-        log_error "GeoIP fragment ${fragment} left no trace in ${file}"
-        exit 1
-    fi
+    # Every fragment covers both GeoIP and Curvy, so each must leave a trace exactly on the GeoIP line.
+    local marker
+    for marker in 'geoip\.' 'curvy-zk'; do
+        if [[ ${GNOSISVPN_SHIP_GEOIP} != true ]]; then
+            assert_not_mentioned "${marker}" "${file}"
+        elif ! grep -qi -- "${marker}" "${file}"; then
+            log_error "Line-extras fragment ${fragment} left no '${marker}' trace in ${file}"
+            exit 1
+        fi
+    done
 }
 
 # Checks the published artifact, not the nfpm/pkgbuild inputs; file list on stdin, no `grep -q` since it would SIGPIPE the lister under pipefail.
@@ -108,6 +127,21 @@ assert_geoip_shipped() {
         exit 1
     fi
     log_success "${package} ships geoip.mmdb: ${shipped}, as expected ($(geoip_decision_basis))"
+}
+
+# Same contract as assert_geoip_shipped, for the Curvy proving files.
+assert_curvy_zk_shipped() {
+    local package="$1"
+    local listing has_graph=false has_key=false
+    listing="$(cat)"
+    if grep '/gnosisvpn/curvy-zk/pix-aggregation-bound-2-9-30\.signet\.zst$' <<<"${listing}" >/dev/null; then has_graph=true; fi
+    if grep '/gnosisvpn/curvy-zk/verifyPixAggregationBound_2_9_30-final\.zkey$' <<<"${listing}" >/dev/null; then has_key=true; fi
+    # Each file on its own, so a lone stray file fails off the GeoIP line too.
+    if [[ ${has_graph} != "${GNOSISVPN_SHIP_GEOIP}" || ${has_key} != "${GNOSISVPN_SHIP_GEOIP}" ]]; then
+        log_error "${package} ships Curvy witness graph: ${has_graph}, proving key: ${has_key}; expected ${GNOSISVPN_SHIP_GEOIP} ($(geoip_decision_basis))"
+        exit 1
+    fi
+    log_success "${package} ships the Curvy proving files: ${GNOSISVPN_SHIP_GEOIP}, as expected ($(geoip_decision_basis))"
 }
 
 # Validate version syntax

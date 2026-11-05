@@ -191,6 +191,7 @@ check_platform_prerequisites() {
     done
 
     check_geoip_staged || missing=$((missing + 1))
+    check_curvy_zk_staged || missing=$((missing + 1))
 
     # welcome.html prints them; under `set -u` an unset one would abort only after the component pkgs are built.
     local version_var
@@ -276,12 +277,17 @@ prepare_build_dir() {
     # Country database at the client's default geoip_db path; cleared first so a standard-line build drops what an earlier experimental build staged.
     local share_dir="${BUILD_DIR}/app-contents/rootfs/usr/local/share/gnosisvpn"
     rm -f "${share_dir}/geoip.mmdb" "${share_dir}/geoip.NOTICE"
+    rm -rf "${share_dir}/curvy-zk"
     if [[ ${GNOSISVPN_SHIP_GEOIP} == true ]]; then
         mkdir -p "${share_dir}"
         cp "${BUILD_DIR}/geoip/geoip.mmdb" "${share_dir}/geoip.mmdb"
         cp "${SCRIPT_DIR}/geoip/NOTICE" "${share_dir}/geoip.NOTICE"
         chmod 0644 "${share_dir}/geoip.mmdb" "${share_dir}/geoip.NOTICE"
         log_success "GeoIP database staged"
+        cp -R "${CURVY_ZK_DIR}" "${share_dir}/curvy-zk"
+        chmod 0755 "${share_dir}/curvy-zk"
+        chmod 0644 "${share_dir}/curvy-zk"/*
+        log_success "Curvy proving files staged"
     else
         log_success "GeoIP database left out ($(geoip_decision_basis))"
     fi
@@ -401,6 +407,7 @@ build_component_package() {
         size=$(du -h "${BUILD_DIR}/packages/$COMPONENT_PKG" | cut -f1)
         log_success "Component package created: $COMPONENT_PKG ($size)"
         pkgutil --payload-files "${BUILD_DIR}/packages/$COMPONENT_PKG" | assert_geoip_shipped "$COMPONENT_PKG"
+        pkgutil --payload-files "${BUILD_DIR}/packages/$COMPONENT_PKG" | assert_curvy_zk_shipped "$COMPONENT_PKG"
     else
         log_error "Failed to create component package"
         exit 1
@@ -619,7 +626,7 @@ build_distribution_package() {
         log_warn "welcome.html not found, using default if available"
     fi
     sed -i "s/__MIN_OS_MACOS__/${MIN_OS_MACOS}/g" "$distribution_dir/readme.html"
-    render_geoip_placeholder "$distribution_dir/readme.html" "${RESOURCES_DIR}/readme-geoip.html"
+    render_line_extras "$distribution_dir/readme.html" "${RESOURCES_DIR}/readme-line-extras.html"
 
     local dist_xml_resolved="${BUILD_DIR}/Distribution.xml"
     render_distribution_xml "$DISTRIBUTION_XML" "$dist_xml_resolved"

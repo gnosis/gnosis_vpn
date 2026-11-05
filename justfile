@@ -9,6 +9,10 @@ download distribution arch:
 geoip:
     ./scripts/fetch-geoip.sh
 
+# Stage the Curvy pix-aggregation proving files the packages ship, checked against the client's pinned digests
+curvy-zk:
+    ./scripts/fetch-curvy-zk.sh
+
 # Generate changelog
 changelog:
     ./scripts/generate-changelog.ts
@@ -38,6 +42,7 @@ all distribution arch sign="false":
     source ./config/channels.sh
     if ships_geoip; then
         just geoip
+        just curvy-zk
     fi
     if [[ "{{ arch }}" =~ ^(x86_64-linux|aarch64-linux)$ ]]; then
         just changelog
