@@ -1,8 +1,8 @@
 version = 7
 
 [pix_strategy]
-price_per_byte = "0.000000000000000001 wxHOPR"
-max_ssa_allocation = "0.000000001 wxHOPR"
+price_per_byte = "1 000 000 000 wei wxHOPR"
+max_ssa_allocation = "1 wxHOPR"
 deposit_buffer_period = "500ms"
 max_deposit_tracking_time = "60s"
 max_deposit_retries = 3
@@ -11,3 +11,9 @@ relayer_url = "https://api.curvy.dev"
 [connection.path_planner]
 # Prune to the 3 fastest candidate paths; the client preset keeps every relayer (0).
 min_paths_anonymity_floor = 3
+
+[connection.pix.dimensions]
+# Pinned to the exits' geometry so a hoprnet default change cannot desync client and exit.
+num_ssa_parts = 4096
+ssa_part_size = 32
+additional_shares = 79
