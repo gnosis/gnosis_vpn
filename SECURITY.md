@@ -4,7 +4,8 @@
 
 All GnosisVPN packages include SHA256 checksums for integrity verification. Additionally:
 
-- **Linux packages** (`.deb`) are signed with GPG
+- **Linux packages** (`.deb` and `.rpm`) are signed with GPG; the `.rpm` also carries an embedded package signature, and
+  the dnf repository metadata is signed (`repodata/repomd.xml.asc`)
 - **macOS packages** (`.pkg`) use Apple's code signing mechanism and are signed with an Apple Developer certificate
 
 We strongly recommend verifying packages before installation.
@@ -111,6 +112,28 @@ gpg: Good signature from "GnosisVPN (Gnosis VPN) <tech@hoprnet.org>" [ultimate]
 ```bash
 dpkg-sig --verify gnosisvpn_<version>_<arch>.deb
 ```
+
+**Fedora / EL10 packages:**
+
+The `.rpm` files and their `.asc` / `.sha256` sidecars live in the dnf repository of their channel:
+`https://download.gnosisvpn.io/linux/rpm/<stable|snapshot|experimental>/packages/gnosisvpn-<version>-1.<arch>.rpm`, with
+`<arch>` being `x86_64` or `aarch64`. The checksum and detached signature checks above work the same way with these file
+names. To check the signature embedded in the package, import the key into rpm (after confirming its fingerprint as
+shown above) and verify:
+
+```bash
+sudo rpmkeys --import gnosisvpn-public-key.asc
+rpmkeys --checksig gnosisvpn-<version>-1.<arch>.rpm
+```
+
+Expected output:
+
+```
+gnosisvpn-<version>-1.<arch>.rpm: digests signatures OK
+```
+
+The repository file written by the installer and by the package sets `gpgcheck=1` and `repo_gpgcheck=1`, so dnf checks
+both the package signatures and the signed repository metadata against `/etc/pki/rpm-gpg/RPM-GPG-KEY-gnosisvpn`.
 
 ## macOS Package Verification
 

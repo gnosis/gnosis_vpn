@@ -7,33 +7,9 @@
 # Compatible with: deb (apt/dpkg), rpm (yum/dnf), archlinux (pacman)
 #
 
-set -euo pipefail
-
 LOG_PREFIX="[GnosisVPN postuninstall]"
 
-# Check if running as root
-if [[ $EUID -ne 0 ]]; then
-    echo "$LOG_PREFIX ERROR: This script must be run as root" >&2
-    exit 1
-fi
-
-# Detect package manager
-PKG_MANAGER="unknown"
-if command -v dpkg >/dev/null 2>&1; then
-    PKG_MANAGER="deb"
-elif command -v rpm >/dev/null 2>&1; then
-    PKG_MANAGER="rpm"
-elif command -v pacman >/dev/null 2>&1; then
-    PKG_MANAGER="arch"
-fi
-
-# TODO: remove by December 2027.
-# Completes the rm_conffile handshake started in preinstall.sh; DPKG_MAINTSCRIPT_NAME gates non-dpkg hosts.
-if [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] && command -v dpkg-maintscript-helper >/dev/null 2>&1; then
-    for conffile in config-jura.toml config-rotsee.toml; do
-        dpkg-maintscript-helper rm_conffile "/etc/gnosisvpn/$conffile" "" gnosisvpn -- "$@"
-    done
-fi
+# __GNOSIS_VPN_SCRIPTLET_LIB__
 
 # The legacy identity is the Safe's only key (GNO-1005): purge parks .config and every .bak/.migrated copy root-only instead of deleting.
 preserve_legacy_identity() {
@@ -53,94 +29,134 @@ preserve_legacy_identity() {
     echo "$LOG_PREFIX WARNING: It was moved to $backup_dir (root only); delete it by hand once the Safe is drained" >&2
 }
 
-# Reload systemd after service file removal
-echo "$LOG_PREFIX INFO: Reloading systemd daemon..."
-deb-systemd-helper daemon-reload || true
-# The unit files are gone; drop what systemd still remembers about them.
-systemctl reset-failed gnosisvpn-logrotate.timer gnosisvpn-logrotate.service 2>/dev/null || true
+main() {
+    local mode
+    mode="$(scriptlet_mode remove "${1:-}")"
 
-# Check if this is a complete purge
-IS_PURGE=false
-case "$PKG_MANAGER" in
-deb)
-    # Debian/Ubuntu: Check DPKG variables or explicit "purge" argument
-    if [[ ${1:-} == "purge" ]] || [[ ${DPKG_MAINTSCRIPT_PACKAGE_REFCOUNT:-1} == "0" ]]; then
-        IS_PURGE=true
-    fi
-    ;;
-rpm)
-    # RPM (RHEL/Fedora): $1 is 0 on full removal, 1+ on upgrade
-    if [[ ${1:-1} == "0" ]]; then
-        IS_PURGE=true
-    fi
-    ;;
-arch)
-    # Arch Linux: Always purge on removal
-    IS_PURGE=true
-    ;;
-esac
-
-# Remove documentation directory
-if [[ -d /usr/share/doc/gnosisvpn ]]; then
-    echo "$LOG_PREFIX INFO: Removing documentation directory: /usr/share/doc/gnosisvpn"
-    rm -rf /usr/share/doc/gnosisvpn
-fi
-
-# Per-user identities (~/.local/share/gnosisvpn) are the user's data: never touched, not even on purge.
-if [[ $IS_PURGE == "true" ]]; then
-    echo "$LOG_PREFIX INFO: Performing complete removal (purge)..."
-
-    # Purge only: logs survive a plain remove (promised below) and the old postrm that dpkg runs during an upgrade.
-    if [[ -d /var/log/gnosisvpn ]]; then
-        echo "$LOG_PREFIX INFO: Removing log directory: /var/log/gnosisvpn"
-        rm -rf /var/log/gnosisvpn
+    # rpm runs the old package's %postun AFTER the new package's %post: removing the user, logs or docs here would
+    # break the freshly upgraded installation.
+    if [[ $mode == "rpm-upgrade" ]]; then
+        echo "$LOG_PREFIX INFO: Upgrade in progress, reloading systemd only"
+        systemd_daemon_reload || true
+        exit 0
     fi
 
-    # logrotate.d is a dpkg conffile — only delete on purge to avoid dpkg treating the removal as intentional.
-    if [[ -f /etc/logrotate.d/gnosisvpn ]]; then
-        echo "$LOG_PREFIX INFO: Removing logrotate configuration"
-        rm -f /etc/logrotate.d/gnosisvpn
-    fi
-    rm -rf /var/lib/gnosisvpn-logrotate
-    deb-systemd-helper purge gnosisvpn-logrotate.timer 2>/dev/null || true
-
-    # rm -f unconditionally: dpkg or the admin may have removed it already.
-    rm -f /etc/sysctl.d/99-gnosisvpn-bbr.conf
-    echo "$LOG_PREFIX INFO: Removed TCP BBR configuration: /etc/sysctl.d/99-gnosisvpn-bbr.conf"
-    echo "$LOG_PREFIX INFO: Running values persist until reset or reboot:"
-    echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=cubic"
-    echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=fq_codel"
-
-    preserve_legacy_identity
-    # Whatever is left is unknown to this script; it stays rather than risk a key (GNO-1005).
-    if [[ -d /var/lib/gnosisvpn ]] && ! rmdir /var/lib/gnosisvpn 2>/dev/null; then
-        echo "$LOG_PREFIX INFO: /var/lib/gnosisvpn is not empty and was kept; inspect and remove it by hand"
+    # A failing rpm %postun leaves the package half-removed, so rpm mode tolerates errors instead of aborting.
+    if is_rpm_mode "$mode"; then
+        set -uo pipefail
+    else
+        set -euo pipefail
     fi
 
-    # Remove configuration directory (including backups)
-    if [[ -d /etc/gnosisvpn ]]; then
-        echo "$LOG_PREFIX INFO: Removing configuration directory: /etc/gnosisvpn"
-        rm -rf /etc/gnosisvpn
+    # Check if running as root
+    if [[ $EUID -ne 0 ]]; then
+        echo "$LOG_PREFIX ERROR: This script must be run as root" >&2
+        exit 1
     fi
 
-    # TODO: remove by December 2027. Shortcuts written by releases before the per-user layout; rm -f never follows symlinks.
-    echo "$LOG_PREFIX INFO: Removing desktop shortcuts for all users..."
-    for user_home in /home/*; do
-        if [[ -d "$user_home/Desktop" ]]; then
-            desktop_file="$user_home/Desktop/GnosisVPN.desktop"
-            if [[ -f $desktop_file ]]; then
-                echo "$LOG_PREFIX INFO: Removing desktop shortcut for user $(basename "$user_home")"
-                rm -f "$desktop_file"
-            fi
+    # TODO: remove by December 2027.
+    # Completes the rm_conffile handshake started in preinstall.sh; DPKG_MAINTSCRIPT_NAME gates non-dpkg hosts.
+    if [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] && command -v dpkg-maintscript-helper >/dev/null 2>&1; then
+        for conffile in config-jura.toml config-rotsee.toml; do
+            dpkg-maintscript-helper rm_conffile "/etc/gnosisvpn/$conffile" "" gnosisvpn -- "$@"
+        done
+    fi
+
+    # Reload systemd after service file removal
+    echo "$LOG_PREFIX INFO: Reloading systemd daemon..."
+    systemd_daemon_reload || true
+    # The unit files are gone; drop what systemd still remembers about them.
+    systemctl reset-failed gnosisvpn-logrotate.timer gnosisvpn-logrotate.service 2>/dev/null || true
+
+    # Check if this is a complete purge
+    IS_PURGE=false
+    if [[ $mode == "dpkg" ]]; then
+        # Debian/Ubuntu: Check DPKG variables or explicit "purge" argument
+        if [[ ${1:-} == "purge" ]] || [[ ${DPKG_MAINTSCRIPT_PACKAGE_REFCOUNT:-1} == "0" ]]; then
+            IS_PURGE=true
         fi
-    done
-else
-    echo "$LOG_PREFIX INFO: Package removed, user data preserved"
-    echo "$LOG_PREFIX INFO: Configuration: /etc/gnosisvpn"
-    echo "$LOG_PREFIX INFO: State data: /var/lib/gnosisvpn"
-    echo "$LOG_PREFIX INFO: Logs: /var/log/gnosisvpn"
+    fi
+    # rpm has no remove/purge split; an erase keeps configuration and identity like `apt remove`.
+
+    if [[ $mode == "rpm-erase" ]]; then
+        # Its gpgkey= file was just removed with the package; a repo that fails its key check breaks every later dnf run.
+        if [[ -f /etc/yum.repos.d/gnosisvpn.repo ]]; then
+            echo "$LOG_PREFIX INFO: Removing dnf repository: /etc/yum.repos.d/gnosisvpn.repo"
+            rm -f /etc/yum.repos.d/gnosisvpn.repo
+        fi
+    fi
+
+    # Remove documentation directory
+    if [[ -d /usr/share/doc/gnosisvpn ]]; then
+        echo "$LOG_PREFIX INFO: Removing documentation directory: /usr/share/doc/gnosisvpn"
+        rm -rf /usr/share/doc/gnosisvpn
+    fi
+
+    # Per-user identities (~/.local/share/gnosisvpn) are the user's data: never touched, not even on purge.
+    if [[ $IS_PURGE == "true" ]]; then
+        echo "$LOG_PREFIX INFO: Performing complete removal (purge)..."
+
+        # Purge only: logs survive a plain remove (promised below) and the old postrm that dpkg runs during an upgrade.
+        if [[ -d /var/log/gnosisvpn ]]; then
+            echo "$LOG_PREFIX INFO: Removing log directory: /var/log/gnosisvpn"
+            rm -rf /var/log/gnosisvpn
+        fi
+
+        # logrotate.d is a dpkg conffile — only delete on purge to avoid dpkg treating the removal as intentional.
+        if [[ -f /etc/logrotate.d/gnosisvpn ]]; then
+            echo "$LOG_PREFIX INFO: Removing logrotate configuration"
+            rm -f /etc/logrotate.d/gnosisvpn
+        fi
+        rm -rf /var/lib/gnosisvpn-logrotate
+        deb-systemd-helper purge gnosisvpn-logrotate.timer 2>/dev/null || true
+
+        # rm -f unconditionally: dpkg or the admin may have removed it already.
+        rm -f /etc/sysctl.d/99-gnosisvpn-bbr.conf
+        echo "$LOG_PREFIX INFO: Removed TCP BBR configuration: /etc/sysctl.d/99-gnosisvpn-bbr.conf"
+        echo "$LOG_PREFIX INFO: Running values persist until reset or reboot:"
+        echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=cubic"
+        echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=fq_codel"
+
+        preserve_legacy_identity
+        # Whatever is left is unknown to this script; it stays rather than risk a key (GNO-1005).
+        if [[ -d /var/lib/gnosisvpn ]] && ! rmdir /var/lib/gnosisvpn 2>/dev/null; then
+            echo "$LOG_PREFIX INFO: /var/lib/gnosisvpn is not empty and was kept; inspect and remove it by hand"
+        fi
+
+        # Remove configuration directory (including backups)
+        if [[ -d /etc/gnosisvpn ]]; then
+            echo "$LOG_PREFIX INFO: Removing configuration directory: /etc/gnosisvpn"
+            rm -rf /etc/gnosisvpn
+        fi
+
+        # TODO: remove by December 2027. Shortcuts written by releases before the per-user layout; rm -f never follows symlinks.
+        echo "$LOG_PREFIX INFO: Removing desktop shortcuts for all users..."
+        for user_home in /home/*; do
+            if [[ -d "$user_home/Desktop" ]]; then
+                desktop_file="$user_home/Desktop/GnosisVPN.desktop"
+                if [[ -f $desktop_file ]]; then
+                    echo "$LOG_PREFIX INFO: Removing desktop shortcut for user $(basename "$user_home")"
+                    rm -f "$desktop_file"
+                fi
+            fi
+        done
+    else
+        echo "$LOG_PREFIX INFO: Package removed, user data preserved"
+        echo "$LOG_PREFIX INFO: Configuration: /etc/gnosisvpn"
+        echo "$LOG_PREFIX INFO: State data: /var/lib/gnosisvpn"
+        echo "$LOG_PREFIX INFO: Logs: /var/log/gnosisvpn"
+        if [[ $mode == "rpm-erase" ]]; then
+            echo "$LOG_PREFIX INFO: To delete them as well (this destroys the node identity):"
+            echo "$LOG_PREFIX INFO:   sudo rm -rf /etc/gnosisvpn /var/lib/gnosisvpn"
+        fi
+    fi
+    echo "$LOG_PREFIX INFO: Per-user identities under ~/.local/share/gnosisvpn are never removed by the package"
+    echo "$LOG_PREFIX SUCCESS: Complete removal finished"
+    echo "$LOG_PREFIX SUCCESS: Post-uninstall completed successfully"
+    exit 0
+}
+
+# Sourced by the unit tests; executed by dpkg directly and by rpm as `/bin/sh <file> <arg>`.
+if [[ -z ${BASH_SOURCE[0]:-} || ${BASH_SOURCE[0]} == "$0" ]]; then
+    main "$@"
 fi
-echo "$LOG_PREFIX INFO: Per-user identities under ~/.local/share/gnosisvpn are never removed by the package"
-echo "$LOG_PREFIX SUCCESS: Complete removal finished"
-echo "$LOG_PREFIX SUCCESS: Post-uninstall completed successfully"
-exit 0

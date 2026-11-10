@@ -3,6 +3,8 @@
 # Safe default values
 : "${GNOSISVPN_GPG_PRIVATE_KEY_PATH:=./gnosisvpn-private-key.asc}"
 : "${GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD:=}"
+# Public key shipped in the package for repository verification; overridable so tests can use a throwaway key.
+: "${GNOSISVPN_PUBLIC_KEY_PATH:=${SCRIPT_DIR}/../gnosisvpn-public-key.asc}"
 
 usage_platform() {
     echo "  --gpg-private-key-path <path>  Path to GPG private key for signing"
@@ -62,6 +64,10 @@ check_platform_prerequisites() {
     local missing=0
     if ! command -v gpg >/dev/null 2>&1; then
         log_error "gpg not found — required to dearmor the bundled APT keyring"
+        missing=$((missing + 1))
+    fi
+    if [[ ! -f ${GNOSISVPN_PUBLIC_KEY_PATH} ]]; then
+        log_error "Public key not found: ${GNOSISVPN_PUBLIC_KEY_PATH}"
         missing=$((missing + 1))
     fi
     if [[ ! -d ${BINARY_DIR} ]] || [[ ! -f "${BINARY_DIR}/gnosis_vpn-root" ]]; then
@@ -126,7 +132,8 @@ prepare_app_contents() {
     rm -rf "${app_contents_dir}"
     mkdir -p "${rootfs_dir}"
     cd "${app_contents_dir}"
-    ar -x "${BINARY_DIR}/gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}"
+    # Always the app .deb: its payload is distro-neutral and it is the only format the app publishes.
+    ar -x "${BINARY_DIR}/gnosis_vpn-app.deb"
     tar -xf "${app_contents_dir}/data.tar.gz" -C "${rootfs_dir}"
 
     mkdir -p "${BINARY_DIR}"
@@ -151,9 +158,14 @@ generate_nfpm_config() {
     log_success "Generated networks file: ${GNOSISVPN_NETWORKS}"
     # Dearmor the public key so the postinstall can register the APT source
     # without needing gnupg as a package dependency on the target host.
-    gpg --dearmor <"${SCRIPT_DIR}/../gnosisvpn-public-key.asc" \
+    gpg --dearmor <"${GNOSISVPN_PUBLIC_KEY_PATH}" \
         >"${BUILD_DIR}/resources/gnosisvpn-archive-keyring.gpg"
     log_success "Dearmored keyring: ${BUILD_DIR}/resources/gnosisvpn-archive-keyring.gpg"
+    # dnf reads the armored form from the repo's gpgkey= file.
+    cp "${GNOSISVPN_PUBLIC_KEY_PATH}" "${BUILD_DIR}/resources/RPM-GPG-KEY-gnosisvpn"
+    log_success "Armored rpm key: ${BUILD_DIR}/resources/RPM-GPG-KEY-gnosisvpn"
+    render_maintainer_scripts "${SCRIPT_DIR}/../linux/scripts" "${BUILD_DIR}/scripts"
+    log_success "Rendered maintainer scripts: ${BUILD_DIR}/scripts"
     # Always use absolute path for rootfs
     local rootfs
     rootfs="$(cd "${BUILD_DIR}/app-contents/rootfs" && pwd)"
@@ -167,7 +179,7 @@ generate_nfpm_config() {
     local nfpm_network_configs network
     nfpm_network_configs=$(mktemp)
     for network in ${GNOSISVPN_NETWORKS}; do
-        printf '  - src: ./linux/resources/config-%s.toml\n    dst: /etc/gnosisvpn/config-%s.toml\n    type: config\n    file_info:\n      mode: 0644\n' \
+        printf '  - src: ./linux/resources/config-%s.toml\n    dst: /etc/gnosisvpn/config-%s.toml\n    type: config|noreplace\n    file_info:\n      mode: 0644\n' \
             "$network" "$network"
     done >"$nfpm_network_configs"
     sed -e "/__GNOSIS_VPN_NETWORK_CONFIGS__/{
@@ -180,6 +192,10 @@ generate_nfpm_config() {
     if [[ ${GNOSISVPN_DISTRIBUTION} == "deb" ]]; then
         sed -i.backup '/^license:.*/d' "${SCRIPT_DIR}/../linux/nfpm.yaml"
         rm -f "${SCRIPT_DIR}/../linux/nfpm.yaml.backup"
+    fi
+    # nfpm reads the key as soon as the block exists, so unsigned rpm builds must not carry it.
+    if [[ ${GNOSISVPN_DISTRIBUTION} == "rpm" && ${GNOSISVPN_ENABLE_SIGNATURE} == true ]]; then
+        printf 'rpm:\n  signature:\n    key_file: ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}\n' >>"${SCRIPT_DIR}/../linux/nfpm.yaml"
     fi
     rm -f "$nfpm_app_contents" "$nfpm_network_configs"
     cp "${SCRIPT_DIR}/../linux/resources/copyright" "${BUILD_DIR}/resources/copyright"
@@ -199,8 +215,13 @@ generate_package() {
         --config "${SCRIPT_DIR}/../linux/nfpm.yaml" \
         --packager "${GNOSISVPN_DISTRIBUTION}" \
         --target "${BUILD_DIR}/packages/${PKG_NAME}"
-    dpkg-deb -c "${BUILD_DIR}/packages/${PKG_NAME}" | assert_geoip_shipped "${PKG_NAME}"
-    dpkg-deb -c "${BUILD_DIR}/packages/${PKG_NAME}" | assert_curvy_zk_shipped "${PKG_NAME}"
+    # The assertions read the published artifact, so each packager needs its own lister.
+    local lister=(dpkg-deb -c)
+    if [[ ${GNOSISVPN_DISTRIBUTION} == "rpm" ]]; then
+        lister=(rpm -qlp)
+    fi
+    "${lister[@]}" "${BUILD_DIR}/packages/${PKG_NAME}" | assert_geoip_shipped "${PKG_NAME}"
+    "${lister[@]}" "${BUILD_DIR}/packages/${PKG_NAME}" | assert_curvy_zk_shipped "${PKG_NAME}"
     log_success "Package created: ${BUILD_DIR}/packages/${PKG_NAME}"
 }
 

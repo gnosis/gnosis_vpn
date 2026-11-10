@@ -6,63 +6,81 @@
 # Compatible with: deb (apt/dpkg), rpm (yum/dnf), archlinux (pacman)
 #
 
-set -euo pipefail
-
 LOG_PREFIX="[GnosisVPN preuninstall]"
 
-# Check if running as root
-if [[ $EUID -ne 0 ]]; then
-    echo "$LOG_PREFIX ERROR: This script must be run as root" >&2
-    exit 1
-fi
+# __GNOSIS_VPN_SCRIPTLET_LIB__
 
-# rpm runs the old %preun after the new %post on upgrade ($1 >= 1); stopping here would kill the new service.
-if [[ ${1:-} =~ ^[0-9]+$ && $1 -ge 1 ]]; then
-    exit 0
-fi
+main() {
+    local mode
+    mode="$(scriptlet_mode remove "${1:-}")"
 
-# Stop service
-if systemctl is-active --quiet gnosisvpn.service 2>/dev/null; then
-    echo "$LOG_PREFIX INFO: Stopping gnosisvpn.service service..."
-    if deb-systemd-invoke stop gnosisvpn.service; then
-        echo "$LOG_PREFIX SUCCESS: Service stopped successfully"
+    # rpm runs the old package's %preun AFTER the new package's %post; stopping here would take down the upgraded service.
+    if [[ $mode == "rpm-upgrade" ]]; then
+        echo "$LOG_PREFIX INFO: Upgrade in progress, leaving the service to the new package"
+        exit 0
+    fi
+
+    # A failing rpm %preun blocks the erase, so rpm mode tolerates errors instead of aborting.
+    if is_rpm_mode "$mode"; then
+        set -uo pipefail
     else
-        echo "$LOG_PREFIX WARNING: Failed to stop service gracefully, forcing stop..."
-        deb-systemd-invoke kill gnosisvpn.service || true
+        set -euo pipefail
     fi
-fi
 
-# Disable service
-if systemctl is-enabled --quiet gnosisvpn.service 2>/dev/null; then
-    echo "$LOG_PREFIX INFO: Disabling gnosisvpn.service service..."
-    deb-systemd-helper disable gnosisvpn.service || true
-    echo "$LOG_PREFIX SUCCESS: Service disabled successfully"
-fi
-
-# Stop log rotation timer and any logrotate run it has in flight
-for unit in gnosisvpn-logrotate.timer gnosisvpn-logrotate.service; do
-    if systemctl is-active --quiet "$unit" 2>/dev/null; then
-        echo "$LOG_PREFIX INFO: Stopping $unit..."
-        deb-systemd-invoke stop "$unit" || true
+    # Check if running as root
+    if [[ $EUID -ne 0 ]]; then
+        echo "$LOG_PREFIX ERROR: This script must be run as root" >&2
+        exit 1
     fi
-done
-if systemctl is-enabled --quiet gnosisvpn-logrotate.timer 2>/dev/null; then
-    echo "$LOG_PREFIX INFO: Disabling gnosisvpn-logrotate.timer..."
-    deb-systemd-helper disable gnosisvpn-logrotate.timer || true
-fi
 
-# Kill any remaining gnosisvpn processes
-if pgrep -x gnosis_vpn-root >/dev/null 2>&1; then
-    echo "$LOG_PREFIX INFO: Terminating remaining gnosis_vpn-root processes..."
-    pkill -TERM -x gnosis_vpn-root || true
-    sleep 5
+    # Stop service
+    if systemctl is-active --quiet gnosisvpn.service 2>/dev/null; then
+        echo "$LOG_PREFIX INFO: Stopping gnosisvpn.service service..."
+        if service_stop gnosisvpn.service; then
+            echo "$LOG_PREFIX SUCCESS: Service stopped successfully"
+        else
+            echo "$LOG_PREFIX WARNING: Failed to stop service gracefully, forcing stop..."
+            service_kill gnosisvpn.service || true
+        fi
+    fi
 
-    # Force kill if still running
+    # Disable service
+    if systemctl is-enabled --quiet gnosisvpn.service 2>/dev/null; then
+        echo "$LOG_PREFIX INFO: Disabling gnosisvpn.service service..."
+        service_disable gnosisvpn.service || true
+        echo "$LOG_PREFIX SUCCESS: Service disabled successfully"
+    fi
+
+    # Stop log rotation timer and any logrotate run it has in flight
+    for unit in gnosisvpn-logrotate.timer gnosisvpn-logrotate.service; do
+        if systemctl is-active --quiet "$unit" 2>/dev/null; then
+            echo "$LOG_PREFIX INFO: Stopping $unit..."
+            service_stop "$unit" || true
+        fi
+    done
+    if systemctl is-enabled --quiet gnosisvpn-logrotate.timer 2>/dev/null; then
+        echo "$LOG_PREFIX INFO: Disabling gnosisvpn-logrotate.timer..."
+        service_disable gnosisvpn-logrotate.timer || true
+    fi
+
+    # Kill any remaining gnosisvpn processes
     if pgrep -x gnosis_vpn-root >/dev/null 2>&1; then
-        echo "$LOG_PREFIX WARNING: Force killing remaining processes..."
-        pkill -KILL -x gnosis_vpn-root || true
-    fi
-fi
+        echo "$LOG_PREFIX INFO: Terminating remaining gnosis_vpn-root processes..."
+        pkill -TERM -x gnosis_vpn-root || true
+        sleep 5
 
-echo "$LOG_PREFIX SUCCESS: Pre-uninstall completed successfully"
-exit 0
+        # Force kill if still running
+        if pgrep -x gnosis_vpn-root >/dev/null 2>&1; then
+            echo "$LOG_PREFIX WARNING: Force killing remaining processes..."
+            pkill -KILL -x gnosis_vpn-root || true
+        fi
+    fi
+
+    echo "$LOG_PREFIX SUCCESS: Pre-uninstall completed successfully"
+    exit 0
+}
+
+# Sourced by the unit tests; executed by dpkg directly and by rpm as `/bin/sh <file> <arg>`.
+if [[ -z ${BASH_SOURCE[0]:-} || ${BASH_SOURCE[0]} == "$0" ]]; then
+    main "$@"
+fi

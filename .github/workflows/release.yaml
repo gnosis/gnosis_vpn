@@ -114,12 +114,25 @@ jobs:
           release_notes_file: ./build/changelog/changelog
           github_app_private_key: ${{ secrets.GH_APP_GNOSISVPN_BOT_PRIVATE_KEY }}
           github_app_client_id: ${{ secrets.GH_APP_GNOSISVPN_CLIENT_ID }}
+  publish_rpm:
+    # Runs after `release` so dnf never advertises a version without a matching GitHub release, and before
+    # publish_apt because an RPM publish rolls back cheaply (restore two metadata objects) while APT does not.
+    name: Publish RPM (stable)
+    needs:
+      - build_binary
+      - release
+    uses: ./.github/workflows/publish-rpm.yaml
+    with:
+      channel: stable
+      package_version: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+    secrets: inherit
   publish_apt:
     # Runs after `release` so apt never advertises a version without a matching GitHub release.
     name: Publish APT (stable)
     needs:
       - build_binary
       - release
+      - publish_rpm
     uses: ./.github/workflows/publish-apt.yaml
     with:
       channel: stable
@@ -129,19 +142,21 @@ jobs:
     name: Prune bucket (stable)
     needs:
       - build_binary
+      - publish_rpm
       - publish_apt
     uses: ./.github/workflows/prune-bucket.yaml
     with:
       channel: stable
     secrets: inherit
   bump_version:
-    # Runs only after publish_apt succeeded: until then nothing permanent touches
-    # the branch, so rollback only needs to delete the release and tag.
+    # Runs only after publish_rpm and publish_apt succeeded: until then nothing permanent touches
+    # the branch, so rollback only needs to undo the RPM publish and delete the release and tag.
     name: Bump version after successful release
     runs-on: depot-ubuntu-22.04-4
     needs:
       - build_binary
       - release
+      - publish_rpm
       - publish_apt
     steps:
       - name: Generate GitHub App token
@@ -177,15 +192,46 @@ jobs:
     needs:
       - build_binary
       - release # the release does the tag and the gh release
+      - publish_rpm
       - publish_apt
     # No matter what, always run, only not if the release was skipped, or the publish_apt succeeded (in which case the release was successful)
+    # publish_apt needs publish_rpm, so a failed RPM publish also lands here (publish_apt is then skipped).
     if: ${{ always() && needs.release.result != 'skipped' && needs.publish_apt.result != 'success' }}
     permissions:
       contents: write
+      id-token: write
     env:
       GH_REPO: ${{ github.repository }}
       VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
     steps:
+      # Undo the stable RPM publish whenever it ran: it may have uploaded packages or swapped the metadata.
+      - name: Checkout repository
+        if: ${{ needs.publish_rpm.result == 'success' || needs.publish_rpm.result == 'failure' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download the replaced RPM metadata
+        id: rpm_previous
+        if: ${{ needs.publish_rpm.result == 'success' || needs.publish_rpm.result == 'failure' }}
+        # Missing when publish_rpm failed before saving it, in which case nothing was uploaded.
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          # Named by publish-rpm.yaml; stable versions contain no '+', so the slug is the version itself.
+          name: rpm-previous-stable-${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+          path: ./build/rpm-previous
+      - name: Setup GCP
+        if: ${{ steps.rpm_previous.outcome == 'success' }}
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@837b94246698537325ecc664dfb22c72c0d6b8ed # setup-gcp-v4
+        with:
+          workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
+          service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
+          install_sdk: true
+      - name: Roll back the stable RPM publish
+        if: ${{ steps.rpm_previous.outcome == 'success' }}
+        shell: bash
+        run: |
+          bash scripts/publish-rpm.sh --channel stable --rollback \
+            --previous-dir ./build/rpm-previous --version "${VERSION}"
+          echo "- Rolled back the stable RPM repository to its previous metadata" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Generate GitHub App token
         id: bot-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0

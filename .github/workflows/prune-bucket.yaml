@@ -1,12 +1,12 @@
 # Reusable: prunes old artifacts from gs://download.gnosisvpn.io, keeping only
 # the newest N versions per channel (N from config/channels.sh). Deletes the
 # primary artifact plus its .asc / .sha256 sidecars for every pruned version,
-# across both the APT pool and the macOS directory of the channel.
+# across the APT pool, the dnf repository packages and the macOS directory of the channel.
 #
 # Callers run this ONLY after a successful publish:
-#   - build-binary.yaml: snapshot and experimental, after that line's builds and APT publish.
+#   - build-binary.yaml: snapshot and experimental, after that line's builds and APT + RPM publish.
 #   - release.yaml:      stable channel, needs the build and the stable APT
-#                        publish to have succeeded.
+#                        and RPM publishes to have succeeded.
 name: Prune Bucket
 on:
   workflow_call:
@@ -74,4 +74,8 @@ jobs:
             --keep "$keep"
           bash scripts/prune-bucket-versions.sh \
             --prefix "gs://download.gnosisvpn.io/macos/${macos_dir}/" \
+            --keep "$keep"
+          # The dnf repository's metadata keeps listing pruned packages until the next publish, as with APT.
+          bash scripts/prune-bucket-versions.sh \
+            --prefix "gs://download.gnosisvpn.io/linux/rpm/${channel}/packages/" \
             --keep "$keep"

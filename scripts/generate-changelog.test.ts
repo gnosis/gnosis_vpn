@@ -242,6 +242,35 @@ Deno.test("zulipFormat formats experimental builds with experimental paths", () 
   }
 });
 
+Deno.test("zulipFormat links the RPM packages of the channel's dnf repository", () => {
+  const snapshot = zulipFormat([], "2026.05.14+build.143052", "0.56.1", "0.6.1", "1.2.3");
+  const expectedSnapshot =
+    " [Fedora/EL x86_64](https://download.gnosisvpn.io/linux/rpm/snapshot/packages/gnosisvpn-2026.05.14+build.143052-1.x86_64.rpm) |" +
+    " [Fedora/EL aarch64](https://download.gnosisvpn.io/linux/rpm/snapshot/packages/gnosisvpn-2026.05.14+build.143052-1.aarch64.rpm)\n";
+  if (!snapshot.endsWith(expectedSnapshot)) {
+    throw new Error(`zulipFormat snapshot output is missing the trailing RPM links:\n${snapshot}`);
+  }
+
+  const experimental = zulipFormat(
+    [],
+    "2026.09.09+build.020000.experimental",
+    "0.100.1",
+    "0.100.0",
+    "1.2.3",
+    "experimental",
+  );
+  if (
+    !experimental.includes(
+      "[Fedora/EL x86_64](https://download.gnosisvpn.io/linux/rpm/experimental/packages/gnosisvpn-2026.09.09+build.020000.experimental-1.x86_64.rpm)",
+    )
+  ) {
+    throw new Error("zulipFormat experimental output is missing the experimental RPM link");
+  }
+  if (experimental.includes("linux/rpm/snapshot")) {
+    throw new Error("zulipFormat leaked the snapshot dnf repository into an experimental build");
+  }
+});
+
 Deno.test("zulipFormat defaults to the snapshot channel", () => {
   const withDefault = zulipFormat([], "2026.05.14+build.143052", "0.56.1", "0.6.1", "1.2.3");
   const withExplicit = zulipFormat(

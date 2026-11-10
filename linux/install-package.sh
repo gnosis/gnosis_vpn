@@ -14,6 +14,8 @@ deb)
     sudo -E apt install -y "/tmp/gnosisvpn.${GNOSISVPN_DISTRIBUTION}"
     ;;
 rpm)
+    # EL10 needs EPEL + CRB for webkit2gtk4.1; reuse the installer's setup (a no-op on Fedora).
+    sudo bash -c 'source /tmp/install-linux.sh; set -Eeuo pipefail; SUDO=""; ENABLE_EPEL=y; ensure_epel'
     sudo -E dnf install -y "/tmp/gnosisvpn.${GNOSISVPN_DISTRIBUTION}"
     ;;
 archlinux)

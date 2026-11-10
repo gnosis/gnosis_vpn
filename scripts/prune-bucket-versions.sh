@@ -2,9 +2,9 @@
 #
 # Prune old gnosisvpn artifacts under a GCS prefix, keeping only the newest
 # --keep versions (by `sort -V`). Each pruned version loses all its objects:
-# the .deb / .pkg plus its .asc / .sha256 sidecars.
+# the .deb / .pkg / .rpm plus its .asc / .sha256 sidecars.
 #
-# Caller: prune-bucket.yaml, twice per channel (APT pool + macOS dir) after a successful publish; each channel has its own prefix.
+# Caller: prune-bucket.yaml, three times per channel (APT pool + dnf packages + macOS dir) after a successful publish; each channel has its own prefix.
 #
 # Best-effort: a failed deletion warns but exits 0, so cleanup never turns a
 # successful publish red. Only call AFTER publishing — versions sort ascending
@@ -101,6 +101,34 @@ parse_args() {
     fi
 }
 
+# Reads a gsutil listing on stdin and prints the unique versions of its primary artifacts, oldest first.
+extract_versions() {
+    # Collect unique versions from primary artifacts only. Sidecars end in
+    # .deb.asc / .pkg.sha256 / .rpm.asc etc. and do not match the `\.(deb|pkg|rpm)$` anchors, so
+    # they are not counted as versions (but are still removed via the wildcard
+    # below). Version slugs never contain '_' or '-1.', so the greedy `.*` stops at the
+    # final `_<arch>` (deb, pkg) or `-1.<arch>` (rpm).
+    sed -n \
+        -e 's#.*/gnosisvpn_\(.*\)_\(amd64\|arm64\)\.\(deb\|pkg\)$#\1#p' \
+        -e 's#.*/gnosisvpn-\(.*\)-1\.\(x86_64\|aarch64\)\.rpm$#\1#p' |
+        sort -Vu
+}
+
+# Wildcard matching every object of one version under <prefix>; the listing tells rpm prefixes from deb/pkg ones.
+version_glob() {
+    local prefix="$1" version="$2" listing="$3"
+    if grep -q '/gnosisvpn-.*\.rpm$' <<<"$listing"; then
+        # The `-1.` release after the version anchors the match so e.g. pruning
+        # 0.9.1 never touches 0.9.10. The wildcard sweeps the package and its sidecars.
+        echo "${prefix}gnosisvpn-${version}-1.*"
+    else
+        # The trailing `_` after the version anchors the match so e.g. pruning
+        # 0.9.1 never touches 0.9.10. The wildcard sweeps the artifact and all
+        # sidecars for this version.
+        echo "${prefix}gnosisvpn_${version}_*"
+    fi
+}
+
 main() {
     parse_args "$@"
 
@@ -120,15 +148,8 @@ main() {
         exit 1
     fi
 
-    # Collect unique versions from primary artifacts only. Sidecars end in
-    # .deb.asc / .pkg.sha256 etc. and do not match the `\.(deb|pkg)$` anchor, so
-    # they are not counted as versions (but are still removed via the wildcard
-    # below). Version slugs never contain '_', so the greedy `.*` stops at the
-    # final `_<arch>`.
     local versions
-    versions=$(printf '%s\n' "$ls_output" |
-        sed -n 's#.*/gnosisvpn_\(.*\)_\(amd64\|arm64\)\.\(deb\|pkg\)$#\1#p' |
-        sort -Vu)
+    versions=$(printf '%s\n' "$ls_output" | extract_versions)
 
     local total=0
     [[ -n $versions ]] && total=$(printf '%s\n' "$versions" | wc -l)
@@ -147,10 +168,8 @@ main() {
     local failures=0 v
     while read -r v; do
         [[ -n $v ]] || continue
-        # The trailing `_` after the version anchors the match so e.g. pruning
-        # 0.9.1 never touches 0.9.10. The wildcard sweeps the artifact and all
-        # sidecars for this version.
-        local glob="${PREFIX}gnosisvpn_${v}_*"
+        local glob
+        glob="$(version_glob "$PREFIX" "$v" "$ls_output")"
         if [[ $DRY_RUN -eq 1 ]]; then
             log_info "[dry-run] would delete: ${glob}"
             gsutil ls "${glob}" 2>/dev/null | sed 's/^/    /' || true
@@ -172,4 +191,7 @@ main() {
     exit 0
 }
 
-main "$@"
+# Sourced by the unit tests.
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+    main "$@"
+fi

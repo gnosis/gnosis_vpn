@@ -13,9 +13,7 @@ description: |
   Fully anonymous browsing over a decentralized mixnet.
 license: GNU General Public License v3.0
 homepage: https://vpn.gnosis.eth.limo/
-rpm:
-  signature:
-    key_file: ${GNOSISVPN_GPG_PRIVATE_KEY_PATH}
+# The rpm signature block is appended by generate-package-linux.sh, only for signed rpm builds.
 overrides:
   deb:
     depends:
@@ -31,15 +29,16 @@ overrides:
       - libayatana-appindicator3-1
       - libglib2.0-bin
   rpm:
+    # Library provides for webkit and the tray library: Fedora and EPEL 10 name these packages differently.
     depends:
       - systemd
-      - iptables
       - logrotate
       - ca-certificates
-      - webkit2gtk4.1
-      - gtk3
-      - libayatana-appindicator-gtk3
       - glib2
+      - gtk3
+      - libwebkit2gtk-4.1.so.0()(64bit)
+      # The app loads either tray library at runtime.
+      - (libayatana-appindicator3.so.1()(64bit) or libappindicator3.so.1()(64bit))
   archlinux:
     depends:
       - logrotate
@@ -95,13 +94,23 @@ contents:
   # source so `apt-get update` sees future versions after a manual `dpkg -i`.
   - src: ./build/resources/gnosisvpn-archive-keyring.gpg
     dst: /usr/share/gnosisvpn/gnosisvpn-archive-keyring.gpg
+    packager: deb
     file_info:
       mode: 0644
       owner: root
       group: root
+  # Armored signing public key, referenced by the gpgkey= line of the dnf repo that postinstall.sh registers.
+  - src: ./build/resources/RPM-GPG-KEY-gnosisvpn
+    dst: /etc/pki/rpm-gpg/RPM-GPG-KEY-gnosisvpn
+    packager: rpm
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  # config|noreplace: a dpkg conffile, and %config(noreplace) on rpm so local edits survive upgrades.
   - src: ./linux/resources/gnosisvpn.env
     dst: /etc/gnosisvpn/gnosisvpn.env
-    type: config
+    type: config|noreplace
     file_info:
       mode: 0644
   # One `type: config` entry per network in GNOSISVPN_NETWORKS, rendered by generate-package-linux.sh.
@@ -117,7 +126,7 @@ __GNOSIS_VPN_LINE_EXTRAS__
       group: root
   - src: ./linux/resources/logrotate.conf
     dst: /etc/logrotate.d/gnosisvpn
-    type: config
+    type: config|noreplace
     file_info:
       mode: 0644
       owner: root
@@ -125,7 +134,7 @@ __GNOSIS_VPN_LINE_EXTRAS__
   # TCP BBR + fq; postinstall.sh applies it without a reboot.
   - src: ./linux/resources/sysctl-bbr.conf
     dst: /etc/sysctl.d/99-gnosisvpn-bbr.conf
-    type: config
+    type: config|noreplace
     file_info:
       mode: 0644
       owner: root
@@ -153,6 +162,7 @@ __GNOSIS_VPN_LINE_EXTRAS__
       group: root
   - src: ./linux/resources/lintian-overrides
     dst: /usr/share/lintian/overrides/gnosisvpn
+    packager: deb
     file_info:
       mode: 0644
       owner: root
@@ -168,6 +178,12 @@ __GNOSIS_VPN_LINE_EXTRAS__
       mode: 0644
   - src: ./build/completions/_gnosis_vpn-ctl
     dst: /usr/share/zsh/vendor-completions/_gnosis_vpn-ctl
+    packager: deb
+    file_info:
+      mode: 0644
+  - src: ./build/completions/_gnosis_vpn-ctl
+    dst: /usr/share/zsh/site-functions/_gnosis_vpn-ctl
+    packager: rpm
     file_info:
       mode: 0644
   # Manual pages
@@ -196,8 +212,9 @@ __GNOSIS_VPN_LINE_EXTRAS__
       owner: root
       group: root
 __GNOSIS_VPN_APP_CONTENTS__
+# Rendered from linux/scripts/ by generate-package-linux.sh, with scriptlet-lib.sh inlined.
 scripts:
-  preinstall: ./linux/scripts/preinstall.sh
-  postinstall: ./linux/scripts/postinstall.sh
-  preremove: ./linux/scripts/preuninstall.sh
-  postremove: ./linux/scripts/postuninstall.sh
+  preinstall: ./build/scripts/preinstall.sh
+  postinstall: ./build/scripts/postinstall.sh
+  preremove: ./build/scripts/preuninstall.sh
+  postremove: ./build/scripts/postuninstall.sh

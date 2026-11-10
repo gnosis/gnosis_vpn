@@ -50,6 +50,22 @@ all distribution arch sign="false":
     fi
     just package {{ distribution }} {{ arch }} {{ sign }}
 
+# Run the unit tests (changelog generator and shell scripts)
+test:
+    deno test --allow-env --allow-read scripts/
+    bats scripts/tests/
+
+# Integration-test the rpm package and the installer's dnf path in a container of the given image.
+# `packages_dir` holds two signed builds of the container's architecture; requires GNOSISVPN_TEST_KEY_PASSWORD.
+test-rpm-container image packages_dir public_key private_key:
+    ./linux/test-rpm-container.sh {{ image }} {{ packages_dir }} {{ public_key }} {{ private_key }}
+
+# Publish a signed dnf repository to gs://download.gnosisvpn.io/linux/rpm for the given channel.
+# Requires GNOSISVPN_GPG_PRIVATE_KEY_PATH and GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD env vars.
+# The replaced repomd.xml pair is saved to `previous_dir` for a rollback.
+publish-rpm channel rpms_dir="./build/packages" previous_dir="./build/rpm-previous":
+    ./scripts/publish-rpm.sh --channel {{ channel }} --rpms {{ rpms_dir }} --previous-dir {{ previous_dir }}
+
 # Publish a signed APT repository to gs://download.gnosisvpn.io/linux/apt for the given channel.
 # Requires GNOSISVPN_GPG_PRIVATE_KEY_PATH and GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD env vars.
 # `debs_dir` defaults to ./build/packages.

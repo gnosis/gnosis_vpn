@@ -236,6 +236,98 @@ Direct `.deb` installs have no flags — these environment variables configure t
   sudo env GNOSISVPN_RESET_IDENTITY=true apt install ./gnosisvpn_*.deb
   ```
 
+### Fedora / RHEL 10-compatible
+
+Supported: Fedora 43 and 44, and the EL10 line (Red Hat Enterprise Linux 10, AlmaLinux 10, Rocky Linux 10, CentOS Stream
+10, Oracle Linux 10), on x86_64 and aarch64. The EL9 line is not supported: neither EL9 nor EPEL 9 ships
+`webkit2gtk4.1`, which the app needs.
+
+The same installer sets up the dnf repository and installs the package:
+
+```bash
+curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash
+```
+
+`--channel`, `--network` and `--reset-identity` work as on Debian / Ubuntu (see above; `sudo bash` for headless use). On
+EL10 the installer asks two more questions on the terminal. Answer them up front with flags when no terminal is
+available (`curl | sudo bash` in CI or provisioning):
+
+- `--enable-epel=<y|n>` — enable the EPEL and CRB repositories, which provide `webkit2gtk4.1` and the tray library.
+  Required on EL10: without a terminal and without this flag the installer stops. Env var: `GNOSISVPN_ENABLE_EPEL`.
+- `--enable-resolved=<y|n>` — install and enable systemd-resolved and switch NetworkManager to it. The service sends DNS
+  through the tunnel with `resolvectl`; EL10 runs NetworkManager alone by default, so without it DNS queries bypass the
+  VPN. The installer backs up a regular `/etc/resolv.conf` to `/etc/resolv.conf.gnosisvpn-backup` before linking the
+  systemd-resolved stub. Without a terminal and without this flag the step is skipped with a warning. Env var:
+  `GNOSISVPN_ENABLE_RESOLVED`.
+
+```bash
+curl -fsSL https://download.gnosisvpn.io/linux/install.sh | sudo bash -s -- --enable-epel=y --enable-resolved=y
+```
+
+Fedora needs neither: its default repositories carry every dependency and systemd-resolved is active.
+
+Switching channels re-runs the installer with `--channel`; it uses `dnf distro-sync`, which also moves to an older
+package when the target channel's newest version is older than the installed one.
+
+Manual repo setup (equivalent to what the installer does for the stable channel; for the other channels use only the
+`download.gnosisvpn.io` URL with `snapshot` or `experimental` in place of `stable`). On EL10, enable EPEL and CRB first:
+
+```bash
+# 1. Add the signing key
+sudo curl -fsSL -o /etc/pki/rpm-gpg/RPM-GPG-KEY-gnosisvpn https://download.gnosisvpn.io/linux/rpm/RPM-GPG-KEY-gnosisvpn
+sudo rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-gnosisvpn
+
+# 2. Add the repository
+sudo tee /etc/yum.repos.d/gnosisvpn.repo >/dev/null <<EOF
+[gnosisvpn]
+name=GnosisVPN (stable)
+baseurl=https://download.gnosisvpn.io/linux/rpm/stable https://download.vpn.gnosis.eth.limo/linux/rpm/stable
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-gnosisvpn
+metadata_expire=6h
+EOF
+
+# 3. Install (-y also accepts the one-time repository key import)
+sudo dnf -y makecache --repo gnosisvpn && sudo dnf -y install gnosisvpn
+```
+
+dnf tries the `baseurl` entries in order instead of merging them, so `download.gnosisvpn.io` comes first: the IPFS
+mirror only follows a release once its ENS record is updated.
+
+Manual `.rpm` download is available from the repository at
+`https://download.gnosisvpn.io/linux/rpm/<channel>/packages/gnosisvpn-<version>-1.<arch>.rpm` (with matching `.asc` and
+`.sha256` sidecars at the same prefix). See [SECURITY.md](./SECURITY.md) for verification. Install it with:
+
+```bash
+sudo dnf install ./gnosisvpn-*.rpm
+sudo env GNOSISVPN_NETWORK=jura-dev dnf install ./gnosisvpn-*.rpm
+```
+
+The environment variables of [.deb Installation Environment Variables](#deb-installation-environment-variables) apply to
+the `.rpm` too; to apply them to an installed package of the same version, use `dnf reinstall`. Installing the `.rpm`
+directly also registers `/etc/yum.repos.d/gnosisvpn.repo` for the package's channel. The rpm database is locked while
+the package scripts run, so they cannot import the key: trust the repository once before relying on automatic updates
+(dnf-automatic, GNOME Software):
+
+```bash
+sudo rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-gnosisvpn && sudo dnf -y makecache --repo gnosisvpn
+```
+
+Uninstall:
+
+```bash
+sudo dnf remove gnosisvpn
+```
+
+Removing the package removes the repository file, but keeps the configuration, the node identity and the logs in
+`/etc/gnosisvpn`, `/var/lib/gnosisvpn` and `/var/log/gnosisvpn`. To delete them too (this destroys the node identity):
+
+```bash
+sudo rm -rf /etc/gnosisvpn /var/lib/gnosisvpn
+```
+
 ### Network Tuning: TCP BBR
 
 The package installs `/etc/sysctl.d/99-gnosisvpn-bbr.conf`, which selects the BBR congestion control algorithm and the
@@ -260,7 +352,8 @@ sudo sysctl -w net.core.default_qdisc=fq_codel
 ```
 
 `cubic` and `fq_codel` are the kernel defaults. The file is a dpkg conffile: once removed, upgrades do not bring it
-back, and `sudo apt purge gnosisvpn` removes it too.
+back, and `sudo apt purge gnosisvpn` removes it too. In the `.rpm` it is a `%config(noreplace)` file, which rpm restores
+on the next upgrade after it was deleted; to opt out permanently there, empty the file instead of removing it.
 
 ## Reporting Issues
 
@@ -311,6 +404,20 @@ just manual
 just package deb aarch64-linux true
 # Or execute all commands together with
 just all deb aarch64-linux true
+```
+
+**Fedora / EL10 (x86_64 or ARM64)**
+
+The `.rpm` repackages the same binaries and the app payload of the app's `.deb` (Linux only; the build needs `ar` and
+`strip` for the target architecture):
+
+```bash
+just download rpm x86_64-linux
+just changelog
+just manual
+just package rpm x86_64-linux true
+# Or execute all commands together with
+just all rpm x86_64-linux true
 ```
 
 **Mac**
@@ -377,6 +484,21 @@ and `experimental` suites from `build-binary.yaml` right after the Linux build c
 component and pool (`main`/`pool/main`, `snapshot`/`pool/snapshot`, `experimental`/`pool/experimental`), declared in
 `linux/apt/conf/distributions`.
 
+### dnf repository
+
+The **stable** dnf repository is served from `https://download.gnosisvpn.io/linux/rpm/stable` and mirrored over IPFS at
+`https://download.vpn.gnosis.eth.limo/linux/rpm/stable`; `snapshot` and `experimental` are served from
+`download.gnosisvpn.io` only. [`scripts/publish-rpm.sh`](scripts/publish-rpm.sh) verifies the embedded package
+signatures, indexes each channel with `createrepo_c` (one repository for both architectures) and signs
+`repodata/repomd.xml` with the primary GnosisVPN key (dnf5 rejects a repository signature made by a subkey). The
+`repomd.xml` pair is uploaded last; metadata files referenced by neither the new nor the previous `repomd.xml` are
+removed afterwards.
+
+Stable publishing runs in `release.yaml` after the GitHub release and before the APT publish. The publish saves the
+`repomd.xml` pair it replaces as a run artifact, so when the APT publish fails the rollback job restores it and deletes
+the version's packages before deleting the GitHub release. Nightly builds publish the `snapshot` and `experimental`
+repositories from `build-binary.yaml` right after the Linux build.
+
 ### IPFS deployment layout
 
 ```
@@ -385,14 +507,19 @@ component and pool (`main`/`pool/main`, `snapshot`/`pool/snapshot`, `experimenta
 ├── keys/
 │   └── gnosisvpn-public-key.asc                        # GnosisVPN GPG public key
 ├── linux/
-│   └── apt/
-│       ├── gnosisvpn-archive-keyring.gpg               # binary keyring (Signed-By:)
-│       ├── dists/stable/                               # stable suite only (no snapshot on IPFS)
-│       │   ├── InRelease
-│       │   ├── Release
-│       │   ├── Release.gpg
-│       │   └── main/binary-{amd64,arm64}/Packages(+.gz)
-│       └── pool/main/g/gnosisvpn/  gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)
+│   ├── apt/
+│   │   ├── gnosisvpn-archive-keyring.gpg               # binary keyring (Signed-By:)
+│   │   ├── dists/stable/                               # stable suite only (no snapshot on IPFS)
+│   │   │   ├── InRelease
+│   │   │   ├── Release
+│   │   │   ├── Release.gpg
+│   │   │   └── main/binary-{amd64,arm64}/Packages(+.gz)
+│   │   └── pool/main/g/gnosisvpn/  gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)
+│   └── rpm/                                            # present once a stable release published it
+│       ├── RPM-GPG-KEY-gnosisvpn                       # armored key (gpgkey=)
+│       └── stable/                                     # stable repository only
+│           ├── repodata/  repomd.xml(+.asc), <checksum>-*.xml.*
+│           └── packages/  gnosisvpn-<version>-1.{x86_64,aarch64}.rpm(+.asc, +.sha256)
 ├── macos/
 │   └── stable/   gnosisvpn_<version>_arm64.pkg(+.sha256)
 └── manifests/                                              # consumed by the client app for auto-update
@@ -407,21 +534,29 @@ Everything end users see is served from `gs://download.gnosisvpn.io` (CDN: `http
 ```
 download.gnosisvpn.io/
 ├── linux/
-│   ├── install.sh                                      # end-user APT installer
-│   └── apt/
-│       ├── gnosisvpn-archive-keyring.gpg               # binary keyring (Signed-By:)
-│       ├── dists/
-│       │   ├── stable/
-│       │   │   ├── InRelease                           # clearsigned, atomic pointer
-│       │   │   ├── Release
-│       │   │   ├── Release.gpg
-│       │   │   └── main/binary-{amd64,arm64}/Packages(+.gz)
-│       │   ├── snapshot/                               # same shape, component is `snapshot/` (not `main/`)
-│       │   └── experimental/                           # same shape, component is `experimental/`
-│       └── pool/
-│           ├── main/g/gnosisvpn/          gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # stable, every release
-│           ├── snapshot/g/gnosisvpn/      gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # nightly, append-only
-│           └── experimental/g/gnosisvpn/  gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # nightly, append-only
+│   ├── install.sh                                      # end-user APT / dnf installer
+│   ├── apt/
+│   │   ├── gnosisvpn-archive-keyring.gpg               # binary keyring (Signed-By:)
+│   │   ├── dists/
+│   │   │   ├── stable/
+│   │   │   │   ├── InRelease                           # clearsigned, atomic pointer
+│   │   │   │   ├── Release
+│   │   │   │   ├── Release.gpg
+│   │   │   │   └── main/binary-{amd64,arm64}/Packages(+.gz)
+│   │   │   ├── snapshot/                               # same shape, component is `snapshot/` (not `main/`)
+│   │   │   └── experimental/                           # same shape, component is `experimental/`
+│   │   └── pool/
+│   │       ├── main/g/gnosisvpn/          gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # stable, every release
+│   │       ├── snapshot/g/gnosisvpn/      gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # nightly, append-only
+│   │       └── experimental/g/gnosisvpn/  gnosisvpn_<version>_{amd64,arm64}.deb(+.asc, +.sha256)   # nightly, append-only
+│   └── rpm/
+│       ├── RPM-GPG-KEY-gnosisvpn                       # armored key (gpgkey=)
+│       ├── stable/                                     # every release
+│       │   ├── repodata/  repomd.xml(+.asc)            # signed, uploaded last
+│       │   │              <checksum>-*.xml.*            # content-addressed, immutable
+│       │   └── packages/  gnosisvpn-<version>-1.{x86_64,aarch64}.rpm(+.asc, +.sha256)
+│       ├── snapshot/                                   # same shape, nightly, append-only
+│       └── experimental/                               # same shape, nightly, append-only
 ├── macos/                                                  # <version> uses '-' in place of '+' (Artifact Registry compat)
 │   ├── stable/         gnosisvpn_<version>_arm64.pkg(+.sha256)
 │   ├── latest/         gnosisvpn_<version>_arm64.pkg(+.sha256)   # snapshot
@@ -473,11 +608,15 @@ Pinned inputs in `config/`. The JSON files are read with `jq`; `channels.sh` is 
   type and author
 - `generate-manual.sh` — creates man pages (Linux only)
 - `generate-package.sh` — dispatcher that invokes the Linux or macOS packaging script
-- `generate-package-linux.sh` — builds the `.deb` via nfpm, GPG-signs it, writes `.asc` and `.sha256` sidecars
+- `generate-package-linux.sh` — builds the `.deb` or `.rpm` via nfpm (maintainer scripts rendered with
+  `linux/scripts/scriptlet-lib.sh` inlined), GPG-signs it, writes `.asc` and `.sha256` sidecars
 - `generate-package-mac.sh` — builds the macOS `.pkg` via `productbuild` and notarizes with Apple
 - `generate-update-manifest.sh` — builds per-platform JSON manifests (`linux-amd64.json`, etc.) consumed by the client
   app for auto-update, taking `min_app_version`, `end_of_life` and the OS floors from `config/`
 - `publish-apt.sh` — builds and signs the APT repo (`Packages`, `InRelease`, `Release.gpg`) and publishes it to GCS
+- `publish-rpm.sh` — builds and signs the dnf repo (`repodata/`, `repomd.xml.asc`), publishes it to GCS, and rolls a
+  failed stable release back (`--rollback`)
+- `tests/` — bats unit tests for the shell scripts; run them with the changelog tests via `just test`
 
 ## Dependency Updates
 

@@ -24,7 +24,27 @@ Test in headless VMs (CI/CD recommended):
 
 ```bash
 just test-package deb x86_64-linux
+just test-package rpm x86_64-linux   # CentOS Stream 10; EPEL is enabled through install/linux.sh
 ```
+
+Other RPM distributions: pick the GCP image with `GNOSISVPN_VM_IMAGE=<project>/<family>`, e.g.
+`GNOSISVPN_VM_IMAGE=rocky-linux-cloud/rocky-linux-10 just test-package rpm x86_64-linux` (also `rhel-cloud/rhel-10`,
+`almalinux-cloud/almalinux-10`, `oracle-linux-cloud/oracle-linux-10`; add `-arm64` to the family for `aarch64-linux`).
+
+### Container Testing (RPM)
+
+`test-rpm-container.sh` installs, upgrades, reinstalls with a network override and removes the `.rpm` through the
+installer's dnf path, inside a container of the target distribution, against a signed local repository. It needs two
+builds of the container's architecture signed with a throwaway key:
+
+```bash
+# from the repository root
+GNOSISVPN_TEST_KEY_PASSWORD=<pass> just test-rpm-container fedora:44 <packages-dir> <public.asc> <private.asc>
+```
+
+Build the packages with `GNOSISVPN_PUBLIC_KEY_PATH=<public.asc>`, `GNOSISVPN_GPG_PRIVATE_KEY_PATH=<private.asc>` and two
+snapshot versions (`YYYY.MM.DD+build.HHMMSS`). Images of the supported distributions: `fedora:43`, `fedora:44`,
+`quay.io/centos/centos:stream10`, `almalinux:10`, `rockylinux/rockylinux:10`, `oraclelinux:10`.
 
 ### Desktop Testing
 

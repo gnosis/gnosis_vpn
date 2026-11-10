@@ -99,7 +99,7 @@ jobs:
         run: ./scripts/resolve-build-versions.sh
   linux:
     runs-on: ${{ matrix.runner }}
-    name: Build Linux ${{ matrix.nix }}
+    name: Build Linux ${{ matrix.distribution }} ${{ matrix.nix }}
     if: needs.setup.outputs.SKIP_BUILDING != 'true'
     needs:
       - setup
@@ -118,6 +118,14 @@ jobs:
             nfpm: arm64
             runner: depot-ubuntu-22.04-arm-4
             distribution: deb
+          - nix: x86_64-linux
+            nfpm: amd64
+            runner: depot-ubuntu-22.04-4
+            distribution: rpm
+          - nix: aarch64-linux
+            nfpm: arm64
+            runner: depot-ubuntu-22.04-arm-4
+            distribution: rpm
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -157,27 +165,41 @@ jobs:
           GNOSISVPN_GPG_PRIVATE_KEY_PATH: /tmp/gnosis_vpn_gpg_key.asc
           GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD: ${{ secrets.GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD }}
           GNOSISVPN_CHANGELOG_FORMAT: debian
+      - name: Resolve package name
+        id: pkg
+        shell: bash
+        env:
+          GNOSISVPN_DISTRIBUTION: ${{ matrix.distribution }}
+          GNOSISVPN_ARCHITECTURE: ${{ matrix.nix }}
+          GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+        # Same naming function the packaging script used: gnosisvpn_<v>_<arch>.deb or gnosisvpn-<v>-1.<arch>.rpm.
+        run: |
+          SCRIPT_DIR="${PWD}/scripts"
+          source scripts/common.sh
+          echo "name=$(generate_package_name)" | tee -a "$GITHUB_OUTPUT"
       - name: Upload Package
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}
-          path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}
+          name: ${{ steps.pkg.outputs.name }}
+          path: ./build/packages/${{ steps.pkg.outputs.name }}
       - name: Upload Signature
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc
-          path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.asc
+          name: ${{ steps.pkg.outputs.name }}.asc
+          path: ./build/packages/${{ steps.pkg.outputs.name }}.asc
       - name: Upload Hash
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
-          path: ./build/packages/gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}.sha256
+          name: ${{ steps.pkg.outputs.name }}.sha256
+          path: ./build/packages/${{ steps.pkg.outputs.name }}.sha256
       - name: Stage package for Artifact Registry
         if: inputs.version_type == 'release'
+        env:
+          PKG_NAME: ${{ steps.pkg.outputs.name }}
         run: |
-          # Stage into a clean dir so only the .deb + sidecars are uploaded,
-          # under the same versioned filenames as the APT repo
-          base="gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_${{ matrix.nfpm }}.${{ matrix.distribution }}"
+          # Stage into a clean dir so only the package + sidecars are uploaded,
+          # under the same versioned filenames as the APT / dnf repo
+          base="${PKG_NAME}"
           mkdir -p ./build/registry
           cp "./build/packages/${base}" "./build/registry/${base}"
           cp "./build/packages/${base}.asc" "./build/registry/${base}.asc"
@@ -320,6 +342,20 @@ jobs:
       channel: ${{ inputs.version_type }}
       package_version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
     secrets: inherit
+  publish_rpm:
+    # Nightly lines publish from the build (version_type == dnf repository name); stable goes via release.yaml.
+    name: Publish RPM (${{ inputs.version_type }})
+    needs:
+      - setup
+      - linux
+    if: |
+      needs.setup.outputs.SKIP_BUILDING != 'true' &&
+      (inputs.version_type == 'snapshot' || inputs.version_type == 'experimental')
+    uses: ./.github/workflows/publish-rpm.yaml
+    with:
+      channel: ${{ inputs.version_type }}
+      package_version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+    secrets: inherit
   prune_bucket:
     name: Prune bucket (${{ inputs.version_type }})
     needs:
@@ -327,6 +363,7 @@ jobs:
       - linux
       - mac
       - publish_apt
+      - publish_rpm
     if: |
       needs.setup.outputs.SKIP_BUILDING != 'true' &&
       (inputs.version_type == 'snapshot' || inputs.version_type == 'experimental')

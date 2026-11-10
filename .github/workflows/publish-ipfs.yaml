@@ -156,6 +156,17 @@ jobs:
           done
           # Apt clients need this keyring to verify repository signatures.
           gsutil cp "gs://download.gnosisvpn.io/linux/apt/gnosisvpn-archive-keyring.gpg" "./merged-build/apt/linux/apt/gnosisvpn-archive-keyring.gpg"
+      - name: Download stable dnf metadata
+        run: |
+          # Absent until the first stable release publishes the dnf repository; skip instead of failing the upload.
+          if gsutil -q stat "gs://download.gnosisvpn.io/linux/rpm/stable/repodata/repomd.xml"; then
+            mkdir -p ./merged-build/rpm/linux/rpm/stable/repodata
+            gsutil -m rsync -r "gs://download.gnosisvpn.io/linux/rpm/stable/repodata" "./merged-build/rpm/linux/rpm/stable/repodata"
+            # Key dnf clients use for the gpgkey= check.
+            gsutil cp "gs://download.gnosisvpn.io/linux/rpm/RPM-GPG-KEY-gnosisvpn" "./merged-build/rpm/linux/rpm/RPM-GPG-KEY-gnosisvpn"
+          else
+            echo "No stable dnf repository published yet; the IPFS build carries no linux/rpm tree."
+          fi
       - name: Merge Folders
         run: |
           mkdir -p ./ipfs
@@ -167,6 +178,17 @@ jobs:
           cp -r ./merged-build/website/* ./ipfs/
           cp -r ./merged-build/apt/* ./ipfs/
           cp ./merged-build/binary/*.deb* ./ipfs/linux/apt/pool/main/g/gnosisvpn/
+          # The dnf tree only exists once a stable release has published it.
+          if [ -d ./merged-build/rpm/linux/rpm ]; then
+            mkdir -p ./ipfs/linux/rpm/stable/packages
+            cp -r ./merged-build/rpm/linux ./ipfs/
+            shopt -s nullglob
+            rpms=(./merged-build/binary/*.rpm*)
+            shopt -u nullglob
+            if [ ${#rpms[@]} -gt 0 ]; then
+              cp "${rpms[@]}" ./ipfs/linux/rpm/stable/packages/
+            fi
+          fi
           cp ./merged-build/binary/*.pkg* ./ipfs/macos/stable/
           cp -r ./merged-build/manifests/* ./ipfs/manifests/
           cp ./gnosisvpn-public-key.asc ./ipfs/keys/

@@ -2,7 +2,7 @@
 #
 # Build script for Gnosis VPN package
 #
-# This script creates a linux distributable package (deb, dmg) using nfpm for GitHub releases.
+# This script creates a distributable package (deb, rpm via nfpm; dmg on macOS) for GitHub releases.
 #
 
 set -euo pipefail
@@ -45,7 +45,7 @@ usage() {
     echo "Options:"
     echo "  -h, --help                     Show this help message"
     echo "  --package-version <version>    Set the package version (e.g., 1.0.0)"
-    echo "  --distribution <type>          Set the distribution type (deb, dmg), default: deb"
+    echo "  --distribution <type>          Set the distribution type (deb, rpm, dmg), default: deb"
     echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux, aarch64-darwin), default: x86_64-linux"
     echo "  --sign                         Enable code signing"
     usage_platform
@@ -118,11 +118,14 @@ parse_args() {
     fi
 
     validate_channel_version
+    if [[ ${GNOSISVPN_DISTRIBUTION} == "rpm" ]] && ! check_rpm_version_syntax "${GNOSISVPN_PACKAGE_VERSION}"; then
+        exit 1
+    fi
 
     log_success "Command-line arguments parsed successfully"
 }
 
-# Channel implied by a version string; MUST match register_apt_repo in linux/scripts/postinstall.sh (".experimental" first).
+# Channel implied by a version string; MUST match channel_for_version in linux/scripts/postinstall.sh (".experimental" first).
 channel_from_version() {
     case "$1" in
     *.experimental | *.experimental.*) echo "experimental" ;;
