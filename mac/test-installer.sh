@@ -137,8 +137,10 @@ test_build_structure() {
     run_test "Baked geoip file says true or false" "[[ '${SHIPS_GEOIP}' =~ ^(true|false)$ ]]"
     if [[ ${SHIPS_GEOIP} == true ]]; then
         run_test "GeoIP database and notice in payload" "[[ -f '${share_dir}/geoip.mmdb' && -f '${share_dir}/geoip.NOTICE' ]]"
+        run_test "Curvy proving files and licence in payload" "[[ -f '${share_dir}/curvy-zk/pix-aggregation-bound-2-9-30.signet.zst' && -f '${share_dir}/curvy-zk/verifyPixAggregationBound_2_9_30-final.zkey' && -f '${share_dir}/curvy-zk/LICENSE' ]]"
     else
         run_test "No GeoIP files in payload" "[[ ! -e '${share_dir}/geoip.mmdb' && ! -e '${share_dir}/geoip.NOTICE' ]]"
+        run_test "No Curvy proving files in payload" "[[ ! -e '${share_dir}/curvy-zk' ]]"
     fi
 
     # Scripts

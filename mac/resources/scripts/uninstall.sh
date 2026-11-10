@@ -277,6 +277,7 @@ remove_geoip_data() {
         return
     fi
     rm -f "$SHARE_DIR/geoip.mmdb" "$SHARE_DIR/geoip.NOTICE"
+    rm -rf "$SHARE_DIR/curvy-zk"
     # Anything else in there is not ours to delete.
     rmdir "$SHARE_DIR" 2>/dev/null || log_warn "Kept non-empty $SHARE_DIR"
     log_success "Removed GeoIP database"
@@ -360,6 +361,11 @@ verify_uninstall() {
         fi
     done
 
+    if [[ -d "$SHARE_DIR/curvy-zk" ]]; then
+        log_error "Curvy proving files still exist: $SHARE_DIR/curvy-zk"
+        errors=$((errors + 1))
+    fi
+
     if pkgutil --pkgs | grep -q "^${PKG_ID}$"; then
         log_error "Package receipt still exists: $PKG_ID"
         errors=$((errors + 1))
@@ -412,6 +418,7 @@ print_summary() {
     echo "  ✓ Configuration (backed up to ~/gnosis-vpn-config-backup-*)"
     echo "  ✓ Service logs"
     echo "  ✓ GeoIP database"
+    echo "  ✓ Curvy proving files"
     echo "  ✓ Installation logs"
     echo "  ✓ Package receipt"
     echo "  ✓ LaunchServices registrations"

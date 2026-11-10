@@ -1250,6 +1250,10 @@ remove_unshipped_geoip() {
         log_info "Removing GeoIP file this installer does not ship: $file"
         rm -f "$file"
     done
+    if [[ -d "${UI_STAGING_DIR}/curvy-zk" ]]; then
+        log_info "Removing Curvy proving files this installer does not ship"
+        rm -rf "${UI_STAGING_DIR}/curvy-zk"
+    fi
 }
 
 # TODO: remove by June 2027.

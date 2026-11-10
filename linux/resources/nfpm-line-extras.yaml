@@ -1,0 +1,32 @@
+  # Country-only IPv4 extract of IPinfo Lite (CC BY-SA 4.0), staged by scripts/fetch-geoip.sh, at the client's default geoip_db path.
+  - src: ./build/geoip/geoip.mmdb
+    dst: /usr/share/gnosisvpn/geoip.mmdb
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  - src: ./scripts/geoip/NOTICE
+    dst: /usr/share/gnosisvpn/geoip.NOTICE
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  # Curvy pix-aggregation proving files (MIT), staged by scripts/fetch-curvy-zk.sh, at the client's default curvy-zk directory.
+  - src: ./build/curvy-zk/pix-aggregation-bound-2-9-30.signet.zst
+    dst: /usr/share/gnosisvpn/curvy-zk/pix-aggregation-bound-2-9-30.signet.zst
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  - src: ./build/curvy-zk/verifyPixAggregationBound_2_9_30-final.zkey
+    dst: /usr/share/gnosisvpn/curvy-zk/verifyPixAggregationBound_2_9_30-final.zkey
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+  - src: ./build/curvy-zk/LICENSE
+    dst: /usr/share/gnosisvpn/curvy-zk/LICENSE
+    file_info:
+      mode: 0644
+      owner: root
+      group: root

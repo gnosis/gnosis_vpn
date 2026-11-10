@@ -302,6 +302,7 @@ The team will review all discussions and promote confirmed bugs or planned featu
 ```bash
 just download deb x86_64-linux
 just geoip # only for an experimental-line client, see GeoIP database below
+just curvy-zk # same condition as just geoip
 just changelog
 just manual
 just package deb x86_64-linux true
@@ -314,6 +315,7 @@ just all deb x86_64-linux true
 ```bash
 just download deb aarch64-linux
 just geoip # only for an experimental-line client, see GeoIP database below
+just curvy-zk # same condition as just geoip
 just changelog
 just manual
 just package deb aarch64-linux true
@@ -326,6 +328,7 @@ just all deb aarch64-linux true
 ```bash
 just download dmg aarch64-darwin
 just geoip # only for an experimental-line client, see GeoIP database below
+just curvy-zk # same condition as just geoip
 just package dmg aarch64-darwin true
 # Or execute all commands together with
 just all dmg aarch64-darwin true
@@ -359,6 +362,14 @@ manual dispatch, with the `IPINFO_TOKEN` repository secret. It publishes the fre
 `gs://download.gnosisvpn.io/geoip/geoip-country-<YYYYMMDD>.mmdb`, overwrites `latest.mmdb` and keeps the newest 30 dated
 copies. The run fails rather than republishing the bucket's own copy. The attribution notice ships beside the file as
 `geoip.NOTICE` and in the Debian copyright file.
+
+### Curvy proving files
+
+Packages that ship the GeoIP database also ship the Curvy pix-aggregation witness graph and proving key (MIT, about 40
+MB) in `/usr/share/gnosisvpn/curvy-zk/` (Linux) or `/usr/local/share/gnosisvpn/curvy-zk/` (macOS), the client's default
+directory for PIX deposit proofs. `just curvy-zk` downloads them from the [rs-sdk](https://github.com/0xCurvy/rs-sdk)
+release pinned in `scripts/fetch-curvy-zk.sh` into `build/curvy-zk/` and checks each SHA-256. The pin must match the
+curvy-witnesscalc version the packaged client builds against, which rejects files with other digests.
 
 ### APT repository
 
