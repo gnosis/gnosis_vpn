@@ -158,6 +158,11 @@ network_successor() {
     pair_target "$1" "${NETWORK_SUCCESSORS[@]}"
 }
 
+# Not shipped here, but something replaces it.
+is_replaced_network() {
+    ! is_shipped_network "$1" && [[ -n "$(network_successor "$1")" ]]
+}
+
 # The shipped network an install on a renamed or replaced one moves to, across several replacements; empty when the chain ships none.
 shipped_successor() {
     local network _
@@ -180,8 +185,7 @@ linked_network() {
     echo "${network%.toml}"
 }
 
-# Appended, never overwritten: an unfinished older move still holds identities a newer one would skip.
-# rm first and noclobber, so a link the old service account planted at the path is replaced, never written through.
+# Appended: an unfinished older move still holds identities. rm + noclobber so a planted link is replaced, never written through.
 record_pending_switch() {
     local networks
     networks="$(pending_switches)"
@@ -204,8 +208,7 @@ pending_switches() {
     read -r -a recorded <<<"$line"
     [[ ${#recorded[@]} -gt 0 ]] || return 0
     for network in "${recorded[@]}"; do
-        if [[ "$network" =~ ^[a-z0-9-]+$ ]] && ! is_shipped_network "$network" &&
-            [[ -n "$(network_successor "$network")" ]]; then
+        if [[ "$network" =~ ^[a-z0-9-]+$ ]] && is_replaced_network "$network"; then
             kept="${kept:+$kept }$network"
         fi
     done
@@ -257,17 +260,18 @@ load_installer_choices() {
     # Leaving a replaced network: recorded before the link moves, so a failed or interrupted move resumes on a later install.
     local previous successor=""
     previous="$(renamed_network "$(linked_network)")"
-    if [[ -n "$previous" ]] && ! is_shipped_network "$previous" && [[ -n "$(network_successor "$previous")" ]]; then
+    if [[ -n "$previous" ]] && is_replaced_network "$previous"; then
         record_pending_switch "$previous"
     fi
 
-    # Until a recorded move completes it picks the network over the choice: an updater run applies the defaults and a GUI
-    # default looks like a pick, so only the oldest recorded network's replacement keeps the environment.
+    # A recorded move overrides the choice: updater runs and GUI defaults look like picks, so only the replacement keeps the environment.
     SOURCE_NETWORKS="$(pending_switches)"
     [[ -z "$SOURCE_NETWORKS" ]] || successor="$(shipped_successor "${SOURCE_NETWORKS%% *}")"
+    local admin_placed_config=false
+    [[ -f "$CONFIG_FILE" && ! -L "$CONFIG_FILE" ]] && admin_placed_config=true
     if [[ -z "$SOURCE_NETWORKS" ]]; then
         rm -f "$PENDING_SWITCH_FILE"
-    elif [[ -z "$successor" || (-f "$CONFIG_FILE" && ! -L "$CONFIG_FILE") ]]; then
+    elif [[ -z "$successor" || "$admin_placed_config" == true ]]; then
         # Nothing shipped replaces it, or an admin-placed config.toml is kept: no network to move to, the move waits.
         SOURCE_NETWORKS=""
     else

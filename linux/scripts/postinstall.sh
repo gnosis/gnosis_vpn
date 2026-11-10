@@ -90,6 +90,11 @@ network_successor() {
     done
 }
 
+# Not shipped here, but something replaces it.
+is_replaced_network() {
+    ! is_shipped_network "$1" && [[ -n "$(network_successor "$1")" ]]
+}
+
 # The shipped network an install on a renamed or replaced one moves to, across several replacements; empty when the chain ships none.
 shipped_successor() {
     local network _
@@ -113,8 +118,7 @@ linked_network() {
     echo "${network%.toml}"
 }
 
-# Appended, never overwritten: an unfinished older move still holds identities a newer one would skip.
-# rm first and noclobber, so a link planted at the path is replaced, never written through.
+# Appended: an unfinished older move still holds identities. rm + noclobber so a planted link is replaced, never written through.
 record_pending_switch() {
     local networks
     networks="$(pending_switches)"
@@ -136,8 +140,7 @@ pending_switches() {
     read -r -a recorded <<<"$line"
     [[ ${#recorded[@]} -gt 0 ]] || return 0
     for network in "${recorded[@]}"; do
-        if [[ $network =~ ^[a-z0-9-]+$ ]] && ! is_shipped_network "$network" &&
-            [[ -n "$(network_successor "$network")" ]]; then
+        if [[ $network =~ ^[a-z0-9-]+$ ]] && is_replaced_network "$network"; then
             kept="${kept:+$kept }$network"
         fi
     done
@@ -232,8 +235,7 @@ configure_network_selection() {
     # Recorded before the link moves off a replaced network (not a rename), so a failed or interrupted move resumes later.
     local previous_canonical
     previous_canonical="$(renamed_network "$previous_network")"
-    if [[ -n $previous_canonical ]] && ! is_shipped_network "$previous_canonical" &&
-        [[ -n "$(network_successor "$previous_canonical")" ]]; then
+    if [[ -n $previous_canonical ]] && is_replaced_network "$previous_canonical"; then
         record_pending_switch "$previous_canonical"
     fi
 
@@ -576,7 +578,6 @@ lock_down_legacy_identity() {
     chmod 700 "$legacy_config"
 }
 
-# Moves the legacy /var/lib/gnosisvpn/.config identity into the installing user's home, then off a replaced network; a failure keeps the service stopped.
 # Replays the toolkit's stderr and keeps its ways forward for print_migration_failure.
 run_identity_migration() {
     local stderr_file
@@ -597,6 +598,7 @@ toolkit_options() {
     echo "$TOOLKIT_NEXT" | awk -F' [|] ' '{ for (i = 1; i <= NF; i++) printf "  %d. %s\n", i, $i }'
 }
 
+# Moves the legacy /var/lib/gnosisvpn/.config identity into the installing user's home, then off a replaced network; a failure keeps the service stopped.
 migrate_legacy_identity() {
     # preinstall stops it too; repeated so the migration never runs against a live service.
     if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet gnosisvpn.service 2>/dev/null; then

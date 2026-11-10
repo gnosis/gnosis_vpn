@@ -13,9 +13,7 @@ COMPONENT_VERSION_BOUNDARY="0.100.0"
 NETWORKS_STANDARD="${NETWORKS_STANDARD:-jura-prod jura-staging jura-dev}"
 NETWORKS_EXPERIMENTAL="${NETWORKS_EXPERIMENTAL:-piz-palu-dev piz-palu-staging piz-palu-prod}"
 
-# Networks replaced by a new one (`old:new`): an install on `old` moves to `new` once its package stops shipping `old`.
-# Entries chain, so a later replacement adds `new:newer` and keeps the old entries for installs that skipped a step.
-# Packages bake it for their postinstall; install/linux.sh keeps a copy. Its keys' conffiles go once no line ships them.
+# Replaced networks (`old:new`), baked into packages and mirrored in install/linux.sh; entries chain and stay for installs that skipped a step.
 NETWORK_SUCCESSORS="jura-prod:piz-palu-prod jura-staging:piz-palu-staging jura-dev:piz-palu-dev"
 # TODO: remove by December 2027. Pre-rename names of the same networks; mirrors the rename maps in the postinstalls and install/linux.sh.
 NETWORK_RENAMES="jura:jura-prod rotsee:jura-dev"
