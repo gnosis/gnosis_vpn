@@ -21,7 +21,11 @@ MIGRATION_USER=""
 MIGRATE_LOG=/var/log/gnosisvpn/migrate.log
 # Set by configure_network_selection to the replaced networks being left, oldest first; per-user identities follow.
 SOURCE_NETWORKS=""
+# The network those identities move to, passed as `switch-network --to`.
+SWITCH_TARGET=""
 SWITCH_FAILED=false
+# The toolkit's ways forward from its `next:` line, ` | `-separated; the failure summary lists them instead of rebuilding them.
+TOOLKIT_NEXT=""
 # The replaced networks moves are leaving, oldest first; appended before config.toml moves, removed once every identity followed.
 PENDING_SWITCH_FILE=/var/lib/gnosisvpn/network-switch-pending
 
@@ -153,7 +157,7 @@ newest_first() {
 switch_steps() {
     local network steps=""
     for network in $(newest_first); do
-        steps="${steps:+$steps && }sudo gnosis_vpn-migrate switch-network --from ${network}"
+        steps="${steps:+$steps && }sudo gnosis_vpn-migrate switch-network --from ${network} --to ${SWITCH_TARGET}"
     done
     echo "$steps"
 }
@@ -328,6 +332,7 @@ configure_network_selection() {
         # config.toml names no shipped network to move to (an admin file, a missing replacement config); the move waits.
         SOURCE_NETWORKS=""
     else
+        SWITCH_TARGET="$linked"
         echo "$LOG_PREFIX INFO: Leaving '${SOURCE_NETWORKS}' for '${linked}'; identities move along after the legacy migration"
     fi
 
@@ -572,6 +577,26 @@ lock_down_legacy_identity() {
 }
 
 # Moves the legacy /var/lib/gnosisvpn/.config identity into the installing user's home, then off a replaced network; a failure keeps the service stopped.
+# Replays the toolkit's stderr and keeps its ways forward for print_migration_failure.
+run_identity_migration() {
+    local stderr_file
+    stderr_file="$(mktemp)"
+    # The `||` list keeps a failing toolkit from aborting (or rolling back) the postinstall.
+    /usr/bin/gnosis_vpn-migrate identity "$@" 2>"$stderr_file" || MIGRATION_STATUS=$?
+    cat "$stderr_file" >&2
+    TOOLKIT_NEXT="$(sed -n 's/^log: .* | next: //p' "$stderr_file")"
+    rm -f "$stderr_file"
+}
+
+# One numbered line per toolkit option; upload-log alone when the toolkit died before naming any.
+toolkit_options() {
+    if [[ -z $TOOLKIT_NEXT ]]; then
+        echo "  1. sudo gnosis_vpn-migrate upload-log"
+        return 0
+    fi
+    echo "$TOOLKIT_NEXT" | awk -F' [|] ' '{ for (i = 1; i <= NF; i++) printf "  %d. %s\n", i, $i }'
+}
+
 migrate_legacy_identity() {
     # preinstall stops it too; repeated so the migration never runs against a live service.
     if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet gnosisvpn.service 2>/dev/null; then
@@ -594,9 +619,9 @@ migrate_legacy_identity() {
     echo "$LOG_PREFIX INFO: Migrating the legacy identity to user '${MIGRATION_USER}' (the desktop/console user)..."
     if [[ -n $SOURCE_NETWORKS ]]; then
         # Onto the oldest network being left, where the legacy identity was used, next to its safe; switch_network_if_left moves it on.
-        /usr/bin/gnosis_vpn-migrate identity --user "$MIGRATION_USER" --network "${SOURCE_NETWORKS%% *}" || MIGRATION_STATUS=$?
+        run_identity_migration --user "$MIGRATION_USER" --network "${SOURCE_NETWORKS%% *}"
     else
-        /usr/bin/gnosis_vpn-migrate identity --user "$MIGRATION_USER" || MIGRATION_STATUS=$?
+        run_identity_migration --user "$MIGRATION_USER"
     fi
     if [[ $MIGRATION_STATUS -ne 0 ]]; then
         MIGRATION_FAILED=true
@@ -614,7 +639,7 @@ switch_network_if_left() {
     local network
     for network in $(newest_first); do
         echo "$LOG_PREFIX INFO: Moving every user's identity off network '${network}'..."
-        if ! /usr/bin/gnosis_vpn-migrate switch-network --from "$network"; then
+        if ! /usr/bin/gnosis_vpn-migrate switch-network --from "$network" --to "$SWITCH_TARGET"; then
             SWITCH_FAILED=true
             MIGRATION_FAILED=true
             echo "$LOG_PREFIX ERROR: Moving identities off '${network}' failed — gnosisvpn.service will be installed but not started" >&2
@@ -641,28 +666,14 @@ Then start the service:               sudo systemctl enable --now gnosisvpn
 EOF
         return 0
     fi
-    local network_arg="" then_switch=""
-    local fresh_start="Start with a fresh identity:     sudo gnosis_vpn-migrate start-clean --user ${MIGRATION_USER}"
-    if [[ -n $SOURCE_NETWORKS ]]; then
-        network_arg=" --network ${SOURCE_NETWORKS%% *}"
-        then_switch=$'\n'"Then move the identities along:       ${switch_step}"
-        # --user would reset the network config.toml now names, not the one the legacy identity belongs to.
-        fresh_start="Start with a fresh identity:     sudo gnosis_vpn-migrate start-clean"
-    fi
-    local keep_legacy="Retry after fixing the cause:   sudo gnosis_vpn-migrate identity --user ${MIGRATION_USER}${network_arg}"
-    # Exit 75: the user already has an identity; start-clean --user would move it aside and the next start would create a third.
-    if [[ $MIGRATION_STATUS -eq 75 ]]; then
-        keep_legacy="Keep the legacy identity:        sudo gnosis_vpn-migrate identity --user ${MIGRATION_USER}${network_arg} --replace"
-        fresh_start="Keep the current identity:       sudo gnosis_vpn-migrate start-clean"
-    fi
+    local then_switch=""
+    [[ -z $SOURCE_NETWORKS ]] || then_switch=$'\n'"Then move the identities along:       ${switch_step}"
     cat >&2 <<EOF
 
 Identity migration failed — see the toolkit output above.
 Log: ${MIGRATE_LOG}
 The service was installed but left disabled and NOT started. Choose one:
-  1. ${keep_legacy}
-  2. Send the logs to support:        sudo gnosis_vpn-migrate upload-log
-  3. ${fresh_start}${then_switch}
+$(toolkit_options)${then_switch}
 Then start the service:               sudo systemctl enable --now gnosisvpn
 EOF
 }

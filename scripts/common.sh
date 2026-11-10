@@ -129,11 +129,22 @@ assert_geoip_shipped() {
     log_success "${package} ships geoip.mmdb: ${shipped}, as expected ($(geoip_decision_basis))"
 }
 
-# The postinstalls run `identity --network` and `switch-network`; a package without them would leave moved users without their identity.
+# The postinstalls run `identity --network` and `switch-network --to`; a package without them would leave moved users without their identity.
 toolkit_switches_networks() {
-    grep -aq -- 'switch-network' "$1" && return 0
-    log_error "$1 has no switch-network subcommand; build against a gnosis_vpn-toolkit release that has it"
-    return 1
+    local status=0
+    "$1" switch-network --help >/dev/null 2>&1 || status=$?
+    case ${status} in
+    0) return 0 ;;
+    # Exit 126: a cross build cannot run the target's binary; CI builds natively, so there it is always checked.
+    126)
+        log_warn "Cannot run $1 on this host; switch-network support not checked"
+        return 0
+        ;;
+    *)
+        log_error "$1 has no switch-network subcommand (exit ${status}); build against a gnosis_vpn-toolkit release that has it"
+        return 1
+        ;;
+    esac
 }
 
 # Renamed or replaced networks that neither installer line ships any more, one per line. Needs config/channels.sh.
