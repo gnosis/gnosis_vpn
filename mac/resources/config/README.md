@@ -81,6 +81,8 @@ The networks a build ships are baked next to the installer's `version.txt` (read
 `${SCRIPT_DIR}/networks`, first entry = default). The postinstall validates `INSTALLER_CHOICE_NETWORK` against that list
 — a choice left over from an install of the other line falls back to the default — and deletes templates from
 `/etc/gnosisvpn/templates/` that this build does not ship, since the package payload only ever adds files.
+`network-successors`, baked next to it, lists replaced networks (`old:new`): an install whose `config.toml` points at a
+replaced network this build does not ship moves to the replacement, and the replaced `<network>.toml` files are deleted.
 
 ## Customization
 

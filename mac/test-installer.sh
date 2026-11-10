@@ -128,6 +128,8 @@ test_build_structure() {
     run_test "Baked networks file exists" "[[ -f '${BUILD_DIR}/scripts/networks' ]]"
     run_test "Baked networks file says '${GNOSISVPN_NETWORKS}'" \
         "[[ \"\$(cat '${BUILD_DIR}/scripts/networks' 2>/dev/null)\" == '${GNOSISVPN_NETWORKS}' ]]"
+    run_test "Baked network successors file says '${NETWORK_SUCCESSORS}'" \
+        "[[ \"\$(cat '${BUILD_DIR}/scripts/network-successors' 2>/dev/null)\" == '${NETWORK_SUCCESSORS}' ]]"
 
     # The payload must match the baked decision; a stale experimental stage would otherwise ship in a standard pkg.
     local share_dir="$rootfs/usr/local/share/gnosisvpn"

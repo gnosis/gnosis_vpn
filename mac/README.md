@@ -44,7 +44,9 @@ The installer scripts support these environment variables:
 
 - `INSTALLER_CHOICE_NETWORK`: Network selection; one of the networks the installer ships (listed in the pkg's baked
   `networks` file), defaulting to the first of them — "jura-prod" on stable/snapshot builds, "piz-palu-dev" on
-  experimental builds. A value the installer does not ship falls back to that default.
+  experimental builds. A value the installer does not ship falls back to that default. An install configured for a jura
+  network this installer does not ship moves to its piz-palu replacement instead, whatever was chosen (see
+  [Moving off a replaced network](#moving-off-a-replaced-network-jura--piz-palu)).
 - `INSTALLER_CHOICE_LOGLEVEL`: Log level service mode ( "debug" or "info", default: "info")
 
 ### Installation Locations
@@ -91,6 +93,28 @@ When the failure is a conflict (the user already has an identity for that networ
 `identity --user <name> --replace` (keep the legacy identity) and a bare `start-clean` (keep the current one) instead.
 
 `gnosis_vpn-migrate identity` is idempotent, so re-running the pkg after a failure is safe.
+
+### Moving off a replaced network (jura → piz-palu)
+
+piz-palu replaces jura (`jura-<env>` → `piz-palu-<env>`). When the pkg ships the piz-palu network and
+`/etc/gnosisvpn/config.toml` points at its jura counterpart, `postinstall` selects the piz-palu network over the
+installer choice. This happens once: an updater-driven install applies the Distribution defaults, and a GUI default
+cannot be told apart from a deliberate pick. The next install sees a piz-palu link and follows the choice again. Then:
+
+1. The jura `<network>.toml` files are removed from `/etc/gnosisvpn/`; a later install that ships jura again re-creates
+   them from its templates.
+2. The legacy identity is migrated onto the **jura** network (`gnosis_vpn-migrate identity --network jura-<env>`), next
+   to the safe that belongs to it.
+3. `gnosis_vpn-migrate switch-network --from jura-<env> --to piz-palu-<env>` copies every user's `hopr.id` and
+   `hopr.pass` (homes under `/Users`) to `networks/piz-palu-<env>/`, so the node address (EOA) stays the same. The
+   client finds or deploys a piz-palu safe; the jura safe is backed up as
+   `~/Library/Application Support/GnosisVPN/networks/jura-<env>/hopr.safe.jura-<env>.bak`, and the jura dirs stay in
+   place.
+
+A failure in step 2 or 3 leaves the service unloaded, like any failed migration, and `postinstall.log` lists the
+remaining steps, ending with `sudo gnosis_vpn-migrate switch-network --from jura-<env> --to piz-palu-<env>`. The move is
+recorded before `config.toml` changes, so the next install resumes it, and a rolled-back install restores the old
+`config.toml` link rather than a copy. The build refuses a `gnosis_vpn-migrate` without `switch-network`.
 
 ## Uninstallation
 

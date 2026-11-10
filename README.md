@@ -201,6 +201,16 @@ When the failure is a conflict (the user already has an identity for that networ
 The migrate log is `/var/log/gnosisvpn/migrate.log`. `gnosis_vpn-migrate identity` is idempotent: a re-run after a
 successful migration reports `AlreadyMigrated`.
 
+### Moving off a replaced network
+
+When `config.toml` points at a network this package replaced (`NETWORK_SUCCESSORS` in `config/channels.sh`, e.g.
+`jura-staging` → `piz-palu-staging`), the postinstall re-points it at the replacement instead of the channel default,
+migrates a legacy identity onto the old network, then runs `gnosis_vpn-migrate switch-network --from <old> --to <new>`
+for every user: `hopr.id`/`hopr.pass` are copied (same EOA), the old safe is kept as
+`networks/<old>/hopr.safe.<old>.bak` and the client sets up a new one. Old network dirs stay; their conffiles go once no
+line ships them. A failed step leaves the service disabled, prints the retry and is resumed by the next install. A later
+replacement is one more `old:new` entry; keep the earlier ones.
+
 ### .deb Installation Environment Variables
 
 Direct `.deb` installs have no flags — these environment variables configure the package scripts instead (set them with

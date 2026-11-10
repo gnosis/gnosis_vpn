@@ -18,10 +18,11 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-# TODO: remove by December 2027.
+# Networks no installer line ships any more, filled in by generate-package-linux.sh.
+RETIRED_CONFFILES="__RETIRED_CONFFILES__"
 # rm_conffile must appear in pre/post/postun to coordinate the dpkg helper; DPKG_MAINTSCRIPT_NAME gates non-dpkg hosts.
 if [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] && command -v dpkg-maintscript-helper >/dev/null 2>&1; then
-    for conffile in config-jura.toml config-rotsee.toml; do
+    for conffile in $RETIRED_CONFFILES; do
         dpkg-maintscript-helper rm_conffile "/etc/gnosisvpn/$conffile" "" gnosisvpn -- "$@"
     done
 fi

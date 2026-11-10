@@ -73,7 +73,13 @@ both (see `build-binary.yaml`); a local build without them gets the standard lin
 
 `GNOSISVPN_NETWORKS` defaults to `NETWORKS_STANDARD` (or `NETWORKS_EXPERIMENTAL` when the channel is `experimental`)
 from `config/channels.sh`, and is baked into the package as `/usr/share/gnosisvpn/networks` so the postinstall can pick
-a default and re-point `/etc/gnosisvpn/config.toml` after a channel switch.
+a default and re-point `/etc/gnosisvpn/config.toml` after a channel switch. `NETWORK_SUCCESSORS` from the same file is
+baked as `/usr/share/gnosisvpn/network-successors`, the replaced networks the postinstall moves an install off. The
+maintainer scripts are rendered into `build/linux-scripts/` with `RETIRED_CONFFILES` filled in: the conffiles of renamed
+or replaced networks that neither line ships any more, which upgrades remove. `scripts/check-network-retirement.sh` (a
+`nix flake check`) renders them without a build and checks that `install/linux.sh` mirrors the channel lists and network
+maps. The build refuses a toolkit whose `gnosis_vpn-migrate` has no `switch-network`, since the postinstall needs it to
+carry identities off a replaced network.
 
 Whether the package ships the GeoIP database (`/usr/share/gnosisvpn/geoip.mmdb`) follows the packaged client:
 `GNOSISVPN_CLIENT_VERSION` at or above `COMPONENT_VERSION_BOUNDARY` ships it, and `GNOSISVPN_CHANNEL=experimental` only

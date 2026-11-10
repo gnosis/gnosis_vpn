@@ -12,3 +12,8 @@ COMPONENT_VERSION_BOUNDARY="0.100.0"
 # Networks per installer line (space-separated, first = default); packages bake the list for their postinstall.
 NETWORKS_STANDARD="${NETWORKS_STANDARD:-jura-prod jura-staging jura-dev}"
 NETWORKS_EXPERIMENTAL="${NETWORKS_EXPERIMENTAL:-piz-palu-dev piz-palu-staging piz-palu-prod}"
+
+# Replaced networks (`old:new`), baked into packages and mirrored in install/linux.sh; entries chain and stay for installs that skipped a step.
+NETWORK_SUCCESSORS="jura-prod:piz-palu-prod jura-staging:piz-palu-staging jura-dev:piz-palu-dev"
+# TODO: remove by December 2027. Pre-rename names of the same networks; mirrors the rename maps in the postinstalls and install/linux.sh.
+NETWORK_RENAMES="jura:jura-prod rotsee:jura-dev"

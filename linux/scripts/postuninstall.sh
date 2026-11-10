@@ -27,10 +27,11 @@ elif command -v pacman >/dev/null 2>&1; then
     PKG_MANAGER="arch"
 fi
 
-# TODO: remove by December 2027.
+# Same set as preinstall.sh, filled in by generate-package-linux.sh.
+RETIRED_CONFFILES="__RETIRED_CONFFILES__"
 # Completes the rm_conffile handshake started in preinstall.sh; DPKG_MAINTSCRIPT_NAME gates non-dpkg hosts.
 if [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] && command -v dpkg-maintscript-helper >/dev/null 2>&1; then
-    for conffile in config-jura.toml config-rotsee.toml; do
+    for conffile in $RETIRED_CONFFILES; do
         dpkg-maintscript-helper rm_conffile "/etc/gnosisvpn/$conffile" "" gnosisvpn -- "$@"
     done
 fi
@@ -111,6 +112,8 @@ if [[ $IS_PURGE == "true" ]]; then
     echo "$LOG_PREFIX INFO:   sudo sysctl -w net.ipv4.tcp_congestion_control=cubic"
     echo "$LOG_PREFIX INFO:   sudo sysctl -w net.core.default_qdisc=fq_codel"
 
+    # A purge forgets an unfinished network move; the per-user identities it would have copied stay where they are.
+    rm -f /var/lib/gnosisvpn/network-switch-pending
     preserve_legacy_identity
     # Whatever is left is unknown to this script; it stays rather than risk a key (GNO-1005).
     if [[ -d /var/lib/gnosisvpn ]] && ! rmdir /var/lib/gnosisvpn 2>/dev/null; then

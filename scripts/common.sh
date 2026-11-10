@@ -129,6 +129,58 @@ assert_geoip_shipped() {
     log_success "${package} ships geoip.mmdb: ${shipped}, as expected ($(geoip_decision_basis))"
 }
 
+# The postinstalls run `identity --network` and `switch-network --to`; a package without them would leave moved users without their identity.
+toolkit_switches_networks() {
+    local status=0
+    "$1" switch-network --help >/dev/null 2>&1 || status=$?
+    case ${status} in
+    0) return 0 ;;
+    # Exit 126: a cross build cannot run the target's binary; CI builds natively, so there it is always checked.
+    126)
+        log_warn "Cannot run $1 on this host; switch-network support not checked"
+        return 0
+        ;;
+    *)
+        log_error "$1 has no switch-network subcommand (exit ${status}); build against a gnosis_vpn-toolkit release that has it"
+        return 1
+        ;;
+    esac
+}
+
+# Renamed or replaced networks that neither installer line ships any more, one per line. Needs config/channels.sh.
+retired_networks() {
+    local pair network
+    for pair in ${NETWORK_RENAMES} ${NETWORK_SUCCESSORS}; do
+        network="${pair%%:*}"
+        case " ${NETWORKS_STANDARD} ${NETWORKS_EXPERIMENTAL} " in
+        *" ${network} "*) ;;
+        *) echo "${network}" ;;
+        esac
+    done
+}
+
+# Copies the Linux maintainer scripts with the retired conffiles filled in; preinst, postinst and postrm must name the same set.
+RETIRED_CONFFILES_PLACEHOLDER="__RETIRED_CONFFILES__"
+render_maintainer_scripts() {
+    local src_dir="$1" dst_dir="$2" conffiles="" network script
+    for network in $(retired_networks); do
+        conffiles="${conffiles:+${conffiles} }config-${network}.toml"
+    done
+    mkdir -p "${dst_dir}"
+    for script in preinstall.sh postinstall.sh postuninstall.sh; do
+        if [[ "$(grep -c -- "${RETIRED_CONFFILES_PLACEHOLDER}" "${src_dir}/${script}")" != "1" ]]; then
+            log_error "${src_dir}/${script} must contain exactly one ${RETIRED_CONFFILES_PLACEHOLDER} line"
+            exit 1
+        fi
+    done
+    for script in "${src_dir}"/*.sh; do
+        sed "s|${RETIRED_CONFFILES_PLACEHOLDER}|${conffiles}|" "${script}" >"${dst_dir}/$(basename "${script}")"
+        chmod 0755 "${dst_dir}/$(basename "${script}")"
+    done
+    assert_not_mentioned "${RETIRED_CONFFILES_PLACEHOLDER}" "${dst_dir}"/*.sh
+    log_success "Maintainer scripts rendered; conffiles removed on upgrade: ${conffiles:-none}"
+}
+
 # Same contract as assert_geoip_shipped, for the Curvy proving files.
 assert_curvy_zk_shipped() {
     local package="$1"
