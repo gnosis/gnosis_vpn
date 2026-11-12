@@ -18,12 +18,10 @@
 # Channel → GCS path mapping:
 #   Linux  stable        → download.gnosisvpn.io/linux/apt/pool/main/g/gnosisvpn/
 #   Linux  snapshot      → download.gnosisvpn.io/linux/apt/pool/snapshot/g/gnosisvpn/
-#   Linux  experimental  → download.gnosisvpn.io/linux/apt/pool/experimental/g/gnosisvpn/
 #   macOS  stable        → download.gnosisvpn.io/macos/stable/
 #   macOS  snapshot      → download.gnosisvpn.io/macos/latest/
-#   macOS  experimental  → download.gnosisvpn.io/macos/experimental/
 #
-# stable and snapshot are mandatory; experimental is omitted with a warning until it has published once, and never reaches IPFS.
+# The retired experimental channel is an alias of snapshot, so hosts that still infer it from their version move onto snapshot; it never reaches IPFS.
 #
 # Required environment variables:
 #   GH_TOKEN  GitHub token with read access to releases
@@ -175,32 +173,6 @@ get_snapshot_run_info() {
     echo "$version $published_at"
 }
 
-# Returns "version published_at" for the latest experimental build, or nothing while unset; returns rather than die()s, which a command substitution would swallow.
-get_experimental_run_info() {
-    local name out rc
-    local values=()
-    for name in GNOSISVPN_EXPERIMENTAL_VERSION GNOSISVPN_EXPERIMENTAL_DATE; do
-        rc=0
-        out=$(gh variable get "$name" --repo "$REPO" 2>&1) || rc=$?
-        if [[ $rc -ne 0 ]]; then
-            if grep -qi 'not found' <<<"$out"; then
-                echo "WARN: repository variable ${name} is not set — skipping the experimental channel." >&2
-                return 0
-            fi
-            echo "ERROR: gh variable get ${name} failed (exit ${rc}): ${out}" >&2
-            return 1
-        fi
-        if [[ -z $out ]]; then
-            echo "WARN: repository variable ${name} is empty — skipping the experimental channel." >&2
-            return 0
-        fi
-        values+=("$out")
-    done
-    validate_version "${values[0]}"
-
-    echo "${values[0]} ${values[1]}"
-}
-
 # ---------------------------------------------------------------------------
 # Platform table: "manifest_name|os_family|default_min_os"
 # Per-platform GCS URLs are built by build_gcs_url() below from manifest_name,
@@ -228,7 +200,6 @@ build_gcs_url() {
         case "$channel" in
         stable) pool_dir="pool/main" ;;
         snapshot) pool_dir="pool/snapshot" ;;
-        experimental) pool_dir="pool/experimental" ;;
         *) die "Unknown channel: ${channel}" ;;
         esac
         echo "${GCS_BASE_URL}/linux/apt/${pool_dir}/g/gnosisvpn/gnosisvpn_${version}_${arch}.deb"
@@ -238,7 +209,6 @@ build_gcs_url() {
         case "$channel" in
         stable) chan_dir="stable" ;;
         snapshot) chan_dir="latest" ;;
-        experimental) chan_dir="experimental" ;;
         *) die "Unknown channel: ${channel}" ;;
         esac
         fs_version="${version//+/-}"
@@ -257,8 +227,7 @@ build_gcs_url() {
 REPO="gnosis/gnosis_vpn"
 require_env GH_TOKEN >/dev/null
 
-# Mandatory channels; "experimental" is appended below when it resolves.
-CHANNELS="stable snapshot"
+CHANNELS="stable snapshot experimental"
 OUTPUT_DIR="${OUTPUT_DIR:-./build/manifests}"
 
 GENERATED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -272,7 +241,7 @@ load_end_of_life "${CONFIG_DIR}/end-of-life.json"
 
 # ---------------------------------------------------------------------------
 # Step 1: resolve each channel.
-#   CHANNEL_DATA stores "ref version published_at"; ref is a git tag (stable) or "-" (snapshot, experimental).
+#   CHANNEL_DATA stores "ref version published_at"; ref is a git tag (stable) or "-" (snapshot and its experimental alias).
 # ---------------------------------------------------------------------------
 declare -A CHANNEL_DATA
 
@@ -286,18 +255,8 @@ read -r version published_at <<<"$(get_snapshot_run_info)"
 CHANNEL_DATA["snapshot"]="- $version $published_at"
 echo "  -> ($version) published $published_at"
 
-echo "Resolving experimental channel ..."
-if ! experimental_info="$(get_experimental_run_info)"; then
-    die "Failed to resolve the experimental channel."
-fi
-if [[ -n $experimental_info ]]; then
-    read -r version published_at <<<"$experimental_info"
-    CHANNEL_DATA["experimental"]="- $version $published_at"
-    CHANNELS="$CHANNELS experimental"
-    echo "  -> ($version) published $published_at"
-else
-    echo "  -> not published yet; manifests will carry stable + snapshot only"
-fi
+CHANNEL_DATA["experimental"]="${CHANNEL_DATA["snapshot"]}"
+echo "  -> experimental mirrors snapshot"
 
 # ---------------------------------------------------------------------------
 # Step 2: for each platform, build a manifest with all channels.
@@ -320,7 +279,11 @@ for entry in "${PLATFORMS[@]}"; do
         [[ -n $published_at ]] ||
             die "[$channel] published_at is empty — cannot build manifest."
 
-        GCS_URL=$(build_gcs_url "$MANIFEST_NAME" "$channel" "$version")
+        artifact_channel="$channel"
+        if [[ $channel == "experimental" ]]; then
+            artifact_channel="snapshot"
+        fi
+        GCS_URL=$(build_gcs_url "$MANIFEST_NAME" "$artifact_channel" "$version")
         # The IPFS manifest mirrors the same path layout for the stable channel.
         # File metadata below is still fetched from GCS (same binary, authoritative source).
         IPFS_URL="${GCS_URL/#$GCS_BASE_URL/$IPFS_BASE_URL}"

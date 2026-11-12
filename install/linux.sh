@@ -5,10 +5,9 @@
 # Usage:
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=snapshot
-#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=experimental
-#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --network=jura-dev
+#   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=snapshot --network=piz-palu-dev
 #
-# Stable and snapshot ship the jura networks, experimental ships the piz-palu networks; a network is only selectable on the channel that ships it.
+# Stable ships the jura networks until v1.0.0, snapshot the piz-palu networks; a network is only selectable on the channel that ships it.
 #
 # Prompts for sudo when not already root; use `sudo bash` instead for headless/non-interactive installs (no TTY for the password prompt).
 #
@@ -19,14 +18,14 @@
 set -Eeuo pipefail
 
 # APT repository mirrors. Both serve identical key-signed stable content;
-# only gnosisvpn.io also serves the snapshot and experimental suites.
+# only gnosisvpn.io also serves the snapshot suite.
 REPO_URL_PRIMARY="https://download.vpn.gnosis.eth.limo/linux/apt"
 REPO_URL_BACKUP="https://download.gnosisvpn.io/linux/apt"
 KEYRING_PATH="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 SOURCES_PATH="/etc/apt/sources.list.d/gnosisvpn.sources"
 
 CHANNEL="${GNOSISVPN_CHANNEL:-stable}"
-# Empty = leave the network alone (postinstall defaults to jura-prod on fresh install, keeps existing choice on re-runs).
+# Empty = leave the network alone (postinstall defaults to the channel's first network on fresh install, keeps existing choice on re-runs).
 NETWORK="${GNOSISVPN_NETWORK:-}"
 RESET_IDENTITY="${GNOSISVPN_RESET_IDENTITY:-false}"
 ARCH=""
@@ -35,11 +34,11 @@ log() { printf '\033[0;34m[gnosisvpn]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 err() { printf '\033[0;31m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 
-# Networks per channel (first = default); mirrors NETWORKS_* in config/channels.sh, keep in sync.
+# Networks per channel (first = default); snapshot mirrors NETWORKS in config/channels.sh, stable the published 0.97.x package until v1.0.0.
 channel_networks() {
     case "$1" in
-    experimental) echo "piz-palu-dev piz-palu-staging piz-palu-prod" ;;
-    *) echo "jura-prod jura-staging jura-dev" ;;
+    stable) echo "jura-prod jura-staging jura-dev" ;;
+    *) echo "piz-palu-prod piz-palu-staging piz-palu-dev" ;;
     esac
 }
 
@@ -91,18 +90,18 @@ usage() {
     cat <<EOF
 Install the Gnosis VPN APT repository and the gnosisvpn package.
 
-Usage: linux.sh [--channel=stable|snapshot|experimental] [--network=<name>] [--reset-identity] [--help]
+Usage: linux.sh [--channel=stable|snapshot] [--network=<name>] [--reset-identity] [--help]
 
 Options:
-  --channel=<stable|snapshot|experimental>
-                                APT channel to subscribe to (default: stable).
+  --channel=<stable|snapshot>   APT channel to subscribe to (default: stable).
+                                The retired experimental channel selects snapshot.
                                 Also configurable via GNOSISVPN_CHANNEL env var.
   --network=<name>              Network to configure. Which networks are
                                 available depends on the channel:
-                                  stable, snapshot  jura-prod (default), jura-staging,
-                                                    jura-dev
-                                  experimental      piz-palu-dev (default),
-                                                    piz-palu-staging, piz-palu-prod
+                                  stable    jura-prod (default), jura-staging,
+                                            jura-dev
+                                  snapshot  piz-palu-prod (default),
+                                            piz-palu-staging, piz-palu-dev
                                 Omitting this keeps an existing choice that the
                                 channel ships, otherwise the channel default is
                                 used. Also configurable via GNOSISVPN_NETWORK
@@ -125,7 +124,7 @@ Supported distributions:
 
 After install, the gnosisvpn service should be running. To switch networks
 later, re-run this installer with --network=<name>; to switch channels, re-run
-with --channel=<stable|snapshot|experimental> (switching to a channel whose
+with --channel=<stable|snapshot> (switching to a channel whose
 newest package is older than the installed one performs a pinned downgrade).
 
 Switching channels also switches installer lines, so the configured network may
@@ -133,11 +132,11 @@ change: when the current network is not shipped by the target channel, the
 channel default is selected instead.
 
 Caution: a re-run without --channel selects the default (stable). On a snapshot
-or experimental installation, pass that channel again when re-running (e.g. to
-switch networks), or the installer will move the package to stable.
+installation, pass that channel again when re-running (e.g. to switch networks),
+or the installer will move the package to stable.
 
 Environment variables:
-  GNOSISVPN_CHANNEL            stable | snapshot | experimental (default: stable)
+  GNOSISVPN_CHANNEL            stable | snapshot (default: stable)
   GNOSISVPN_NETWORK            a network shipped by the selected channel
                                (default: that channel's first network)
   GNOSISVPN_RESET_IDENTITY     true | false (default: false); same as
@@ -156,7 +155,7 @@ parse_args() {
             ;;
         --channel)
             if [[ -z ${2:-} ]]; then
-                err "--channel requires a value (stable | snapshot | experimental)"
+                err "--channel requires a value (stable | snapshot)"
                 exit 1
             fi
             CHANNEL="$2"
@@ -191,9 +190,13 @@ parse_args() {
     done
 
     case "$CHANNEL" in
-    stable | snapshot | experimental) ;;
+    stable | snapshot) ;;
+    experimental)
+        log "The experimental channel is retired; using snapshot, which carries the same line."
+        CHANNEL="snapshot"
+        ;;
     *)
-        err "--channel must be 'stable', 'snapshot' or 'experimental' (got: '${CHANNEL}')"
+        err "--channel must be 'stable' or 'snapshot' (got: '${CHANNEL}')"
         exit 1
         ;;
     esac
@@ -214,13 +217,13 @@ parse_args() {
     if [[ -n $NETWORK ]] && ! in_list "$NETWORK" "${CHANNEL_NETWORKS[@]}"; then
         err "--network must be one of '${CHANNEL_NETWORKS[*]}' on the '${CHANNEL}' channel (got: '${NETWORK}')"
         # Point at the channel that does ship it, when there is one.
-        local standard_networks=() experimental_networks=()
-        read -r -a standard_networks <<<"$(channel_networks stable)"
-        read -r -a experimental_networks <<<"$(channel_networks experimental)"
-        if in_list "$NETWORK" "${standard_networks[@]}"; then
-            err "'${NETWORK}' ships on the stable and snapshot channels"
-        elif in_list "$NETWORK" "${experimental_networks[@]}"; then
-            err "'${NETWORK}' ships on the experimental channel only: add --channel=experimental"
+        local stable_networks=() snapshot_networks=()
+        read -r -a stable_networks <<<"$(channel_networks stable)"
+        read -r -a snapshot_networks <<<"$(channel_networks snapshot)"
+        if in_list "$NETWORK" "${stable_networks[@]}"; then
+            err "'${NETWORK}' ships on the stable channel only: add --channel=stable"
+        elif in_list "$NETWORK" "${snapshot_networks[@]}"; then
+            err "'${NETWORK}' ships on the snapshot channel only: add --channel=snapshot"
         fi
         exit 1
     fi
@@ -346,11 +349,6 @@ write_sources() {
         # Only gnosisvpn.io publishes the snapshot suite.
         uris="${REPO_URL_BACKUP}"
         ;;
-    experimental)
-        component="experimental"
-        # Only gnosisvpn.io publishes the experimental suite.
-        uris="${REPO_URL_BACKUP}"
-        ;;
     esac
     log "Writing APT source to ${SOURCES_PATH} (channel: ${CHANNEL}, component: ${component}, arch: ${ARCH})"
     cat <<EOF | ${SUDO} tee "$SOURCES_PATH" >/dev/null
@@ -412,7 +410,7 @@ apt_install() {
     fi
 
     log "Installing ${package} ..."
-    # Forward env vars to postinstall; without them it keeps the existing network/URL (defaulting to jura-prod on fresh install).
+    # Forward env vars to postinstall; without them it keeps the existing network/URL (defaulting to the channel's first network on fresh install).
     local install_env=(DEBIAN_FRONTEND=noninteractive)
     if [[ -n $NETWORK ]]; then
         # Derive the endpoint for older postinstalls that don't compute it themselves.
@@ -453,7 +451,7 @@ print_postinstall() {
 To upgrade later:    sudo apt-get update && sudo apt-get install --only-upgrade gnosisvpn
 To switch networks:  re-run this installer with --network=<name> (see --help for
                      the networks each channel ships)
-To switch channels:  re-run this installer with --channel=<stable|snapshot|experimental>
+To switch channels:  re-run this installer with --channel=<stable|snapshot>
 To uninstall:        sudo apt-get remove gnosisvpn
 EOF
 }

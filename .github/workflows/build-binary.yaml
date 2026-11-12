@@ -3,16 +3,16 @@ on:
   workflow_call:
     inputs:
       version_type:
-        description: 'Possible values are snapshot, experimental, commit, pr, release'
+        description: 'Possible values are snapshot, commit, pr, release'
         required: true
         type: string
       client_version:
-        description: 'Client version to build against; defaults to the newest registry version with binaries for all architectures on this line''s side of COMPONENT_VERSION_BOUNDARY (or the newest client release below it when version_type=release)'
+        description: 'Client version to build against; defaults to the newest registry version at or above COMPONENT_VERSION_BOUNDARY with binaries for all architectures (or the newest such client release when version_type=release)'
         required: false
         type: string
         default: ''
       app_version:
-        description: 'App version to build against; defaults to the newest registry version with binaries for all architectures on this line''s side of COMPONENT_VERSION_BOUNDARY (or the newest app release below it when version_type=release)'
+        description: 'App version to build against; defaults to the newest registry version at or above COMPONENT_VERSION_BOUNDARY with binaries for all architectures (or the newest such app release when version_type=release)'
         required: false
         type: string
         default: ''
@@ -36,7 +36,7 @@ on:
         value: ${{ jobs.setup.outputs.GNOSISVPN_NETWORKS }}
       GNOSISVPN_CHANNEL:
         value: ${{ jobs.setup.outputs.GNOSISVPN_CHANNEL }}
-      # "Did this build actually run?" — also consumed by experimental-build.yaml.
+      # "Did this build actually run?"
       SNAPSHOT_TRIGGERED:
         value: ${{ jobs.setup.outputs.SKIP_BUILDING == 'false' }}
 concurrency:
@@ -57,7 +57,7 @@ jobs:
       GNOSISVPN_TOOLKIT_VERSION: ${{ steps.setup.outputs.GNOSISVPN_TOOLKIT_VERSION }}
       GNOSISVPN_NETWORKS: ${{ steps.setup.outputs.GNOSISVPN_NETWORKS }}
       GNOSISVPN_CHANNEL: ${{ steps.setup.outputs.GNOSISVPN_CHANNEL }}
-      # Resolved per line so the build jobs and the skip check share one changelog range.
+      # Resolved once so the build jobs and the skip check share one changelog range.
       GNOSISVPN_PACKAGE_PREVIOUS_VERSION: ${{ steps.setup.outputs.GNOSISVPN_PACKAGE_PREVIOUS_VERSION }}
       GNOSISVPN_CLIENT_PREVIOUS_VERSION: ${{ steps.setup.outputs.GNOSISVPN_CLIENT_PREVIOUS_VERSION }}
       GNOSISVPN_APP_PREVIOUS_VERSION: ${{ steps.setup.outputs.GNOSISVPN_APP_PREVIOUS_VERSION }}
@@ -89,10 +89,6 @@ jobs:
           GNOSISVPN_CLIENT_PREVIOUS_VERSION_RELEASE: ${{ vars.GNOSISVPN_CLIENT_RELEASE_VERSION }}
           GNOSISVPN_APP_PREVIOUS_VERSION_RELEASE: ${{ vars.GNOSISVPN_APP_RELEASE_VERSION }}
           GNOSISVPN_TOOLKIT_PREVIOUS_VERSION_RELEASE: ${{ vars.GNOSISVPN_TOOLKIT_RELEASE_VERSION }}
-          GNOSISVPN_PACKAGE_PREVIOUS_VERSION_EXPERIMENTAL: ${{ vars.GNOSISVPN_PACKAGE_EXPERIMENTAL_PR_VERSION }}
-          GNOSISVPN_CLIENT_PREVIOUS_VERSION_EXPERIMENTAL: ${{ vars.GNOSISVPN_CLIENT_EXPERIMENTAL_PR_VERSION }}
-          GNOSISVPN_APP_PREVIOUS_VERSION_EXPERIMENTAL: ${{ vars.GNOSISVPN_APP_EXPERIMENTAL_PR_VERSION }}
-          GNOSISVPN_TOOLKIT_PREVIOUS_VERSION_EXPERIMENTAL: ${{ vars.GNOSISVPN_TOOLKIT_EXPERIMENTAL_PR_VERSION }}
           INPUT_CLIENT_VERSION: ${{ inputs.client_version }}
           INPUT_APP_VERSION: ${{ inputs.app_version }}
           INPUT_TOOLKIT_VERSION: ${{ inputs.toolkit_version }}
@@ -239,9 +235,8 @@ jobs:
         run: |
           # Bucket dir per channel ("latest" is snapshot); mirrors build_gcs_url() in generate-update-manifest.sh.
           case "${{ inputs.version_type }}" in
-            release)      channel="stable" ;;
-            experimental) channel="experimental" ;;
-            *)            channel="latest" ;;
+            release) channel="stable" ;;
+            *)       channel="latest" ;;
           esac
           echo "channel=${channel}" | tee -a "$GITHUB_OUTPUT"
           version="${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}"
@@ -272,7 +267,7 @@ jobs:
           version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
       - name: Setup GCP
         uses: hoprnet/hopr-workflows/actions/setup-gcp@837b94246698537325ecc664dfb22c72c0d6b8ed # setup-gcp-v4
-        if: contains(fromJSON('["snapshot","release","experimental"]'), inputs.version_type)
+        if: contains(fromJSON('["snapshot","release"]'), inputs.version_type)
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
@@ -300,37 +295,41 @@ jobs:
       - name: Publish into bucket
         # Cache headers are set at upload time (gsutil -h) rather than via a
         # post-upload `setmeta` wildcard to only touch the newly uploaded objects.
-        if: contains(fromJSON('["snapshot","release","experimental"]'), inputs.version_type)
+        if: contains(fromJSON('["snapshot","release"]'), inputs.version_type)
         run: |
           gsutil -m -h "Cache-Control:public, max-age=31536000, immutable" \
             cp -r "./build/macos/${{ steps.prepare_files.outputs.channel }}/." \
             "gs://download.gnosisvpn.io/macos/${{ steps.prepare_files.outputs.channel }}/"
   ## TODO Publish into IPFS as well
   publish_apt:
-    # Nightly lines publish from the build (version_type == APT suite name); stable goes via release.yaml.
-    name: Publish APT (${{ inputs.version_type }})
+    # The nightly publishes from the build; stable goes via release.yaml. The retired experimental suite gets the same .debs so its hosts upgrade onto snapshot.
+    name: Publish APT (${{ matrix.channel }})
     needs:
       - setup
       - linux
-    if: |
-      needs.setup.outputs.SKIP_BUILDING != 'true' &&
-      (inputs.version_type == 'snapshot' || inputs.version_type == 'experimental')
+    if: needs.setup.outputs.SKIP_BUILDING != 'true' && inputs.version_type == 'snapshot'
+    strategy:
+      max-parallel: 1
+      matrix:
+        channel: [snapshot, experimental]
     uses: ./.github/workflows/publish-apt.yaml
     with:
-      channel: ${{ inputs.version_type }}
+      channel: ${{ matrix.channel }}
       package_version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
     secrets: inherit
   prune_bucket:
-    name: Prune bucket (${{ inputs.version_type }})
+    name: Prune bucket (${{ matrix.channel }})
     needs:
       - setup
       - linux
       - mac
       - publish_apt
-    if: |
-      needs.setup.outputs.SKIP_BUILDING != 'true' &&
-      (inputs.version_type == 'snapshot' || inputs.version_type == 'experimental')
+    if: needs.setup.outputs.SKIP_BUILDING != 'true' && inputs.version_type == 'snapshot'
+    strategy:
+      max-parallel: 1
+      matrix:
+        channel: [snapshot, experimental]
     uses: ./.github/workflows/prune-bucket.yaml
     with:
-      channel: ${{ inputs.version_type }}
+      channel: ${{ matrix.channel }}
     secrets: inherit

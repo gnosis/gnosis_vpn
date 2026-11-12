@@ -25,7 +25,7 @@ BUILD_DIR="${PROJECT_ROOT}/build"
 # Networks the build under test is expected to ship (first = default).
 # shellcheck source=../config/channels.sh
 source "${PROJECT_ROOT}/config/channels.sh"
-: "${GNOSISVPN_NETWORKS:=${NETWORKS_STANDARD}}"
+: "${GNOSISVPN_NETWORKS:=${NETWORKS}}"
 NETWORKS=()
 read -r -a NETWORKS <<<"${GNOSISVPN_NETWORKS}"
 
