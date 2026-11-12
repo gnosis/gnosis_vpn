@@ -510,9 +510,13 @@ Deno.test("versionCore - strips a leading v and build metadata", () => {
   assertEquals(versionCore("0.101.0+commit.abc1234"), [0, 101, 0]);
 });
 
+Deno.test("versionCore - strips an rc prerelease", () => {
+  assertEquals(versionCore("1.0.0-rc.1"), [1, 0, 0]);
+  assertEquals(versionCore("v1.0.0-rc.1+pr.1030"), [1, 0, 0]);
+});
+
 Deno.test("versionCore - rejects versions with no numeric core", () => {
   assertEquals(versionCore("0.96"), null);
-  assertEquals(versionCore("0.96.2-rc.1"), null);
   assertEquals(versionCore(""), null);
 });
 
