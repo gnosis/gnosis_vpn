@@ -19,6 +19,8 @@ ssa_part_size = 32
 additional_shares = 79
 
 [strategy]
+# 5 channels still cover min_paths_anonymity_floor = 3 at a lower onboarding cost.
+target_open_channels = 5
 # Stakes are priced for 3 hops but GnosisVPN routes 1, so a third of 1 GiB funds ~1 GiB of traffic.
 channel_capacity = "350 MiB"
 topup_capacity = "350 MiB"
