@@ -23,8 +23,6 @@
 //
 // The four GNOSISVPN_PREVIOUS_* variables are optional off the stable channel: unset or empty means
 // "this line has never built before", and that component contributes no entries. See readPreviousVersion().
-//
-// Client and app PRs are aggregated from the branch carrying the line their version sits on (see componentBranch).
 
 // --- Types ---
 
@@ -49,13 +47,12 @@ export interface Config {
 }
 
 /** Release channel a build is published to. */
-export type Channel = "stable" | "snapshot" | "experimental";
+export type Channel = "stable" | "snapshot";
 
 /** Artifact paths per channel; keep in sync with build_gcs_url() and pool_subpath_for_channel(). */
 export const CHANNEL_PATHS: Record<Channel, { debPool: string; macDir: string }> = {
   stable: { debPool: "pool/main", macDir: "stable" },
   snapshot: { debPool: "pool/snapshot", macDir: "latest" },
-  experimental: { debPool: "pool/experimental", macDir: "experimental" },
 };
 
 export interface ChangelogEntry {
@@ -124,35 +121,6 @@ export function validateIso8601Date(dateString: string): boolean {
 // v-prefixed; this normalizes to the v-prefixed form without doubling the "v".
 function vTag(version: string): string {
   return `${version}`.startsWith("v") ? `${version}` : `v${version}`;
-}
-
-// --- Release Lines ---
-
-// Same split as COMPONENT_VERSION_BOUNDARY in config/channels.sh and the client/app docs/branch-strategy.md.
-export const COMPONENT_VERSION_BOUNDARY = "0.100.0";
-export const COMPONENT_V4_BRANCH = "release/hoprdv4";
-
-// Mirrors version_core() in scripts/common.sh; null for anything without an x.y.z core.
-export function versionCore(version: string): [number, number, number] | null {
-  const core = `${version}`.replace(/^v/, "").split("+")[0];
-  const match = core.match(/^(\d+)\.(\d+)\.(\d+)$/);
-  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
-}
-
-/** version < boundary, compared on the numeric core. Mirrors version_core_lt() in scripts/common.sh. */
-export function versionCoreLt(version: string, boundary: string): boolean {
-  const a = versionCore(version);
-  const b = versionCore(boundary);
-  if (!a || !b) return false;
-  for (let i = 0; i < 3; i++) {
-    if (a[i] !== b[i]) return a[i] < b[i];
-  }
-  return false;
-}
-
-/** Reading a v4 build's PRs from main would credit it with v5 changes; no numeric core falls back to main. */
-export function componentBranch(version: string): string {
-  return versionCoreLt(version, COMPONENT_VERSION_BOUNDARY) ? COMPONENT_V4_BRANCH : "main";
 }
 
 // --- GitHub API Client ---
@@ -699,9 +667,9 @@ export function readConfig(): Config {
   // Channel for the download links; pr/commit builds pass an empty value and are never published.
   // Read before the versions: it decides whether a missing previous version is fatal.
   const channelName = Deno.env.get("GNOSISVPN_CHANNEL") || "snapshot";
-  if (!["stable", "snapshot", "experimental"].includes(channelName)) {
+  if (!["stable", "snapshot"].includes(channelName)) {
     console.error(`Error: Unsupported channel: ${channelName}`);
-    console.error("Supported channels: stable, snapshot, experimental");
+    console.error("Supported channels: stable, snapshot");
     Deno.exit(1);
   }
   const channel = channelName as Channel;
@@ -738,10 +706,6 @@ export function readConfig(): Config {
     Deno.exit(1);
   }
 
-  // A v4 build reads the v4 branch and a v5 build reads main, without any caller saying so.
-  const clientBranch = componentBranch(currentCliVersion);
-  const appBranch = componentBranch(currentAppVersion);
-
   const format = Deno.env.get("GNOSISVPN_CHANGELOG_FORMAT") || "github";
   if (!["zulip", "github", "debian", "json", "rpm"].includes(format)) {
     console.error(`Error: Unsupported format: ${format}`);
@@ -762,7 +726,7 @@ export function readConfig(): Config {
       {
         repo: "gnosis/gnosis_vpn-client",
         label: "Client",
-        branch: clientBranch,
+        branch: "main",
         previousVersion: previousCliVersion,
         currentVersion: currentCliVersion,
         allowMissingRelease: false,
@@ -770,7 +734,7 @@ export function readConfig(): Config {
       {
         repo: "gnosis/gnosis_vpn-app",
         label: "App",
-        branch: appBranch,
+        branch: "main",
         previousVersion: previousAppVersion,
         currentVersion: currentAppVersion,
         allowMissingRelease: false,
@@ -778,7 +742,6 @@ export function readConfig(): Config {
       {
         repo: "gnosis/gnosis_vpn-toolkit",
         label: "Toolkit",
-        // Shared by both lines, so it has no release branch to split off.
         branch: "main",
         previousVersion: previousToolkitVersion,
         currentVersion: currentToolkitVersion,

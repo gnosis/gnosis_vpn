@@ -52,13 +52,10 @@ assert_not_mentioned() {
     done
 }
 
-# Clients from the boundary on refuse to start without the database, so the client version decides; channel is the fallback. Needs config/channels.sh.
+# Clients from the boundary on refuse to start without the database; an unversioned client is a local main-line build. Needs config/channels.sh.
 ships_geoip() {
-    if version_core_is_numeric "${GNOSISVPN_CLIENT_VERSION:-}"; then
-        version_core_ge "${GNOSISVPN_CLIENT_VERSION}" "${COMPONENT_VERSION_BOUNDARY}"
-    else
-        [[ ${GNOSISVPN_CHANNEL:-} == "experimental" ]]
-    fi
+    version_core_is_numeric "${GNOSISVPN_CLIENT_VERSION:-}" || return 0
+    version_core_ge "${GNOSISVPN_CLIENT_VERSION}" "${COMPONENT_VERSION_BOUNDARY}"
 }
 
 # For log lines: what ships_geoip based its decision on.
@@ -147,12 +144,12 @@ toolkit_switches_networks() {
     esac
 }
 
-# Renamed or replaced networks that neither installer line ships any more, one per line. Needs config/channels.sh.
+# Renamed or replaced networks the installer no longer ships, one per line. Needs config/channels.sh.
 retired_networks() {
     local pair network
     for pair in ${NETWORK_RENAMES} ${NETWORK_SUCCESSORS}; do
         network="${pair%%:*}"
-        case " ${NETWORKS_STANDARD} ${NETWORKS_EXPERIMENTAL} " in
+        case " ${NETWORKS} " in
         *" ${network} "*) ;;
         *) echo "${network}" ;;
         esac
@@ -199,11 +196,11 @@ assert_curvy_zk_shipped() {
 # Validate version syntax
 check_version_syntax() {
     local version="$1"
-    # Matches 1.2.3, v1.2.3, +pr.123, +commit.abcdef, +build.020000[.experimental] and latest.
+    # Matches 1.2.3, v1.2.3, +pr.123, +commit.abcdef, +build.020000 and latest.
     local semver_regex='^v?[0-9]+\.[0-9]+\.[0-9]+(\+(pr|commit|build)(\.[0-9A-Za-z-]+)*)?$'
     if [[ ! $version =~ $semver_regex && $version != "latest" ]]; then
         log_error "Invalid version format: $version"
-        log_error "Expected format: MAJOR.MINOR.PATCH(+pr.123|+commit.abcdef|+build.020000[.experimental]) or latest"
+        log_error "Expected format: MAJOR.MINOR.PATCH(+pr.123|+commit.abcdef|+build.020000) or latest"
         return 1
     fi
     return 0

@@ -21,10 +21,7 @@ source "${SCRIPT_DIR}/../config/channels.sh"
 
 # Networks and channel of this build, resolved before the platform script is sourced because it needs them at source time.
 : "${GNOSISVPN_CHANNEL:=}"
-case "${GNOSISVPN_CHANNEL}" in
-experimental) : "${GNOSISVPN_NETWORKS:=${NETWORKS_EXPERIMENTAL}}" ;;
-*) : "${GNOSISVPN_NETWORKS:=${NETWORKS_STANDARD}}" ;;
-esac
+: "${GNOSISVPN_NETWORKS:=${NETWORKS}}"
 validate_network_names "${GNOSISVPN_NETWORKS}" || exit 1
 # Decided once here; the platform scripts, their prerequisite checks and the package assertions all read this flag.
 GNOSISVPN_SHIP_GEOIP=false
@@ -122,10 +119,9 @@ parse_args() {
     log_success "Command-line arguments parsed successfully"
 }
 
-# Channel implied by a version string; MUST match register_apt_repo in linux/scripts/postinstall.sh (".experimental" first).
+# Channel implied by a version string; MUST match register_apt_repo in linux/scripts/postinstall.sh.
 channel_from_version() {
     case "$1" in
-    *.experimental | *.experimental.*) echo "experimental" ;;
     *"+"*) echo "snapshot" ;;
     *) echo "stable" ;;
     esac
@@ -143,7 +139,7 @@ validate_channel_version() {
         log_error "  GNOSISVPN_CHANNEL:         ${GNOSISVPN_CHANNEL}"
         log_error "  GNOSISVPN_PACKAGE_VERSION: ${GNOSISVPN_PACKAGE_VERSION}"
         log_error "  channel implied by version: ${inferred}"
-        log_error "Expected shapes: stable x.y.z | snapshot YYYY.MM.DD+build.HHMMSS | experimental YYYY.MM.DD+build.HHMMSS.experimental"
+        log_error "Expected shapes: stable x.y.z | snapshot YYYY.MM.DD+build.HHMMSS"
         exit 1
     fi
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Renders the Linux maintainer scripts for today's lines, for the stable line on piz-palu and for a later replacement, so the retired-conffile set is checked on the PR.
+# Renders the Linux maintainer scripts for today's networks and for a later replacement, so the retired-conffile set is checked on the PR.
 
 set -euo pipefail
 
@@ -25,19 +25,15 @@ expect_retired() {
     log_success "${label}: retired conffiles are '${expected}'"
 }
 
-# While a line still ships jura, a channel switch back to it must find its conffiles.
-expect_retired "today" "config-jura.toml config-rotsee.toml"
-
-NETWORKS_STANDARD="piz-palu-prod piz-palu-staging piz-palu-dev" \
-    expect_retired "stable-on-piz-palu" \
+expect_retired "today" \
     "config-jura.toml config-rotsee.toml config-jura-prod.toml config-jura-staging.toml config-jura-dev.toml"
 
-NETWORKS_STANDARD="next-prod next-staging next-dev" NETWORKS_EXPERIMENTAL="next-dev next-staging next-prod" \
+NETWORKS="next-prod next-staging next-dev" \
     NETWORK_SUCCESSORS="${NETWORK_SUCCESSORS} piz-palu-prod:next-prod piz-palu-staging:next-staging piz-palu-dev:next-dev" \
     expect_retired "after-a-second-replacement" \
     "config-jura.toml config-rotsee.toml config-jura-prod.toml config-jura-staging.toml config-jura-dev.toml config-piz-palu-prod.toml config-piz-palu-staging.toml config-piz-palu-dev.toml"
 
-# Every replaced network must lead, through later replacements, to one some line ships, or the move has nowhere to go.
+# Every replaced network must lead, through later replacements, to one the installer ships, or the move has nowhere to go.
 successor_of() {
     local pair
     for pair in ${NETWORK_SUCCESSORS}; do
@@ -52,15 +48,15 @@ for pair in ${NETWORK_SUCCESSORS}; do
     network="${pair%%:*}"
     for _ in 1 2 3 4; do
         network="$(successor_of "${network}")"
-        case " ${NETWORKS_STANDARD} ${NETWORKS_EXPERIMENTAL} " in
+        case " ${NETWORKS} " in
         *" ${network} "*) continue 2 ;;
         esac
         [[ -n ${network} ]] || break
     done
-    log_error "NETWORK_SUCCESSORS: ${pair%%:*} does not lead to a network any installer line ships within four replacements"
+    log_error "NETWORK_SUCCESSORS: ${pair%%:*} does not lead to a shipped network within four replacements"
     exit 1
 done
-log_success "Every replaced network leads to one some installer line ships"
+log_success "Every replaced network leads to a shipped one"
 
 mirror_mismatch() {
     log_error "$1 does not match config/channels.sh: $2"
@@ -71,10 +67,9 @@ mirror_mismatch() {
 (
     # shellcheck source=../install/linux.sh
     source <(sed '$d' "${ROOT}/install/linux.sh")
-    [[ "$(channel_networks stable)" == "${NETWORKS_STANDARD}" ]] ||
-        mirror_mismatch install/linux.sh "channel_networks stable is '$(channel_networks stable)'"
-    [[ "$(channel_networks experimental)" == "${NETWORKS_EXPERIMENTAL}" ]] ||
-        mirror_mismatch install/linux.sh "channel_networks experimental is '$(channel_networks experimental)'"
+    # Stable keeps the published 0.97.x list until v1.0.0, so only snapshot mirrors what this repo builds.
+    [[ "$(channel_networks snapshot)" == "${NETWORKS}" ]] ||
+        mirror_mismatch install/linux.sh "channel_networks snapshot is '$(channel_networks snapshot)'"
     for pair in ${NETWORK_SUCCESSORS}; do
         [[ "$(network_successor "${pair%%:*}")" == "${pair#*:}" ]] ||
             mirror_mismatch install/linux.sh "network_successor ${pair%%:*} is '$(network_successor "${pair%%:*}")'"
@@ -87,7 +82,7 @@ mirror_mismatch() {
     [[ ${arms} -eq $(wc -w <<<"${NETWORK_SUCCESSORS}") ]] ||
         mirror_mismatch install/linux.sh "network_successor has ${arms} entries"
 )
-log_success "install/linux.sh mirrors the channel lists and network maps"
+log_success "install/linux.sh mirrors the network list and maps"
 
 # The postinstalls keep the pre-rename map in code (it goes away with its TODO); the successors are baked.
 (

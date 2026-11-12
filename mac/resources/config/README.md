@@ -12,9 +12,8 @@ config/
 └── templates/           # Configuration templates
 ```
 
-Each build ships only the templates of its installer line, selected by `GNOSISVPN_NETWORKS` (see `NETWORKS_STANDARD` /
-`NETWORKS_EXPERIMENTAL` in `config/channels.sh`): the stable and snapshot channels ship the jura networks, the
-experimental channel ships `piz-palu-dev`, `piz-palu-staging` and `piz-palu-prod`.
+Each build ships only the templates selected by `GNOSISVPN_NETWORKS` (see `NETWORKS` in `config/channels.sh`):
+`piz-palu-prod`, `piz-palu-staging` and `piz-palu-dev`. The jura templates stay for the frozen 0.97.x stable line.
 
 ## System Configuration Files
 
@@ -38,12 +37,11 @@ TOML configuration templates for different network environments.
 
 **Available Networks:**
 
-- **jura-prod**: Default production network (stable, snapshot)
-- **jura-staging**: Staging network (stable, snapshot)
-- **jura-dev**: Development network (stable, snapshot)
-- **piz-palu-dev**: Piz Palu development network (experimental)
-- **piz-palu-staging**: Piz Palu staging network (experimental)
-- **piz-palu-prod**: Piz Palu production network (experimental)
+- **piz-palu-prod**: Default production network
+- **piz-palu-staging**: Piz Palu staging network
+- **piz-palu-dev**: Piz Palu development network
+- **jura-prod**, **jura-staging**, **jura-dev**: replaced by their piz-palu counterparts; shipped only by the frozen
+  0.97.x stable pkg
 
 **Template Structure** (Jura networks):
 
@@ -88,10 +86,9 @@ replaced network this build does not ship moves to the replacement, and the repl
 
 To customize the installer configuration:
 
-1. **Add new network templates**: create a new `.toml.template` file in `templates/`, then add the network to
-   `NETWORKS_STANDARD` or `NETWORKS_EXPERIMENTAL` in `config/channels.sh` and give it a title and description in
-   `network_title` / `network_description` in `scripts/generate-package-mac.sh`. Linux additionally needs a matching
-   `linux/resources/config-<network>.toml`.
+1. **Add new network templates**: create a new `.toml.template` file in `templates/`, then add the network to `NETWORKS`
+   in `config/channels.sh` and give it a title and description in `network_title` / `network_description` in
+   `scripts/generate-package-mac.sh`. Linux additionally needs a matching `linux/resources/config-<network>.toml`.
 2. **Modify service behavior**: Edit `system/com.gnosisvpn.gnosisvpnclient.plist`
 3. **Update build process**: Modify references in `../build-pkg.sh` and `../scripts/postinstall`
 

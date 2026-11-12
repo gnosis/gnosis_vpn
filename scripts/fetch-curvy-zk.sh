@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Stage the Curvy pix-aggregation proving files experimental-line packages ship at build/curvy-zk/.
+# Stage the Curvy pix-aggregation proving files packages ship at build/curvy-zk/.
 # The client looks for them at its default curvy-zk directory and rejects any file whose SHA-256 differs from its curvy-witnesscalc build.
 #
 

@@ -2,9 +2,6 @@ import { assertEquals } from "@std/assert";
 import {
   type ChangelogEntry,
   collectChangelogEntries,
-  COMPONENT_V4_BRANCH,
-  COMPONENT_VERSION_BOUNDARY,
-  componentBranch,
   type Config,
   debianFormat,
   extractChangelogType,
@@ -17,8 +14,6 @@ import {
   rfc2822Date,
   rpmFormat,
   validateIso8601Date,
-  versionCore,
-  versionCoreLt,
   zulipFormat,
 } from "./generate-changelog.ts";
 
@@ -193,55 +188,6 @@ Deno.test("zulipFormat formats snapshot entries and download links", () => {
   }
 });
 
-Deno.test("zulipFormat formats experimental builds with experimental paths", () => {
-  const output = zulipFormat(
-    [
-      {
-        id: "42",
-        title: "feat(pix): add strategy",
-        author: "octocat",
-        repository: "gnosis/gnosis_vpn-client",
-        component: "cli",
-      } as ChangelogEntry,
-    ],
-    "2026.09.09+build.020000.experimental",
-    "0.100.1",
-    "0.100.0",
-    "1.2.3",
-    "experimental",
-  );
-
-  if (
-    !output.includes("A new experimental build is available for testing with the following new content:\n\n")
-  ) {
-    throw new Error("zulipFormat output is missing the experimental intro");
-  }
-
-  if (!output.includes("**Experimental version:** 2026.09.09+build.020000.experimental\n")) {
-    throw new Error("zulipFormat output is missing the experimental version label");
-  }
-
-  if (
-    !output.includes(
-      "[Mac](https://download.gnosisvpn.io/macos/experimental/gnosisvpn_2026.09.09-build.020000.experimental_arm64.pkg)",
-    )
-  ) {
-    throw new Error("zulipFormat output is missing the experimental Mac download link");
-  }
-
-  if (
-    !output.includes(
-      "[Debian x86_64](https://download.gnosisvpn.io/linux/apt/pool/experimental/g/gnosisvpn/gnosisvpn_2026.09.09+build.020000.experimental_amd64.deb)",
-    )
-  ) {
-    throw new Error("zulipFormat output is missing the experimental Debian x86_64 apt-pool link");
-  }
-
-  if (output.includes("pool/snapshot") || output.includes("macos/latest")) {
-    throw new Error("zulipFormat leaked snapshot paths into an experimental build");
-  }
-});
-
 Deno.test("zulipFormat defaults to the snapshot channel", () => {
   const withDefault = zulipFormat([], "2026.05.14+build.143052", "0.56.1", "0.6.1", "1.2.3");
   const withExplicit = zulipFormat(
@@ -368,7 +314,7 @@ Deno.test("githubFormat - v-prefixed versions render a single v", () => {
 });
 
 Deno.test("githubFormat - a missing previous version renders no component update", () => {
-  // The experimental line before its first build: nothing to compare against.
+  // A line before its first build: nothing to compare against.
   const result = githubFormat([], null, "0.100.1", null, "0.100.0", null, "1.4.2");
   assertEquals(result.includes("component updates"), false);
   // vTag(null) would have produced "[v](.../releases/tag/v)".
@@ -501,63 +447,6 @@ Deno.test("rfc2822Date - formats with +0000 not GMT", () => {
   assertEquals(result.includes("Mon, 15 Jan 2024"), true);
 });
 
-// --- versionCore / versionCoreLt / componentBranch ---
-
-Deno.test("versionCore - strips a leading v and build metadata", () => {
-  assertEquals(versionCore("0.96.2"), [0, 96, 2]);
-  assertEquals(versionCore("v0.96.2"), [0, 96, 2]);
-  assertEquals(versionCore("0.96.2+pr.638"), [0, 96, 2]);
-  assertEquals(versionCore("0.101.0+commit.abc1234"), [0, 101, 0]);
-});
-
-Deno.test("versionCore - rejects versions with no numeric core", () => {
-  assertEquals(versionCore("0.96"), null);
-  assertEquals(versionCore("0.96.2-rc.1"), null);
-  assertEquals(versionCore(""), null);
-});
-
-Deno.test("versionCore - a date-based version reads as an ordinary core", () => {
-  // Only package versions look like this; reading as a huge version keeps them off the v4 line anyway.
-  assertEquals(versionCore("2026.09.17+build.120000"), [2026, 9, 17]);
-});
-
-Deno.test("versionCoreLt - compares numerically, not lexically", () => {
-  // The whole split hinges on this: "0.96.2" sorts after "0.100.0" as a string.
-  assertEquals(versionCoreLt("0.96.2", "0.100.0"), true);
-  assertEquals(versionCoreLt("0.100.0", "0.100.0"), false);
-  assertEquals(versionCoreLt("0.101.3", "0.100.0"), false);
-  assertEquals(versionCoreLt("0.99.99", "0.100.0"), true);
-});
-
-Deno.test("versionCoreLt - an unparseable version is not below the boundary", () => {
-  assertEquals(versionCoreLt("2026.09.17+build.120000", "0.100.0"), false);
-  assertEquals(versionCoreLt("0.96.2", "not-a-version"), false);
-});
-
-Deno.test("componentBranch - v4 versions read the v4 branch, v5 versions read main", () => {
-  assertEquals(componentBranch("0.96.2"), "release/hoprdv4");
-  assertEquals(componentBranch("0.35.5"), "release/hoprdv4");
-  assertEquals(componentBranch("0.100.0"), "main");
-  assertEquals(componentBranch("0.101.0"), "main");
-});
-
-Deno.test("componentBranch - registry build metadata does not change the line", () => {
-  assertEquals(componentBranch("0.96.2+pr.638"), "release/hoprdv4");
-  assertEquals(componentBranch("v0.101.0+commit.abc1234"), "main");
-});
-
-Deno.test("componentBranch - a version with no numeric core falls back to main", () => {
-  assertEquals(componentBranch(""), "main");
-});
-
-Deno.test("the line split matches config/channels.sh", () => {
-  // The build resolves versions with config/channels.sh; a boundary moved there must move here too.
-  const configSh = Deno.readTextFileSync(new URL("../config/channels.sh", import.meta.url));
-  const boundary = configSh.match(/^COMPONENT_VERSION_BOUNDARY="([^"]+)"$/m)?.[1];
-  assertEquals(boundary, COMPONENT_VERSION_BOUNDARY);
-  assertEquals(COMPONENT_V4_BRANCH, "release/hoprdv4");
-});
-
 // --- parseBackport ---
 
 Deno.test("parseBackport - the generated prefix form carries the original title", () => {
@@ -648,12 +537,6 @@ Deno.test("readConfig - channel defaults to snapshot", () => {
   });
 });
 
-Deno.test("readConfig - reads the experimental channel", () => {
-  withConfigEnv({ GNOSISVPN_CHANNEL: "experimental" }, () => {
-    assertEquals(readConfig().channel, "experimental");
-  });
-});
-
 Deno.test("readConfig - an empty channel falls back to snapshot", () => {
   // pr/commit builds pass GNOSISVPN_CHANNEL="" since they are never published.
   withConfigEnv({ GNOSISVPN_CHANNEL: "" }, () => {
@@ -663,7 +546,7 @@ Deno.test("readConfig - an empty channel falls back to snapshot", () => {
 
 Deno.test("readConfig - an empty previous version means no previous build", () => {
   // A repository variable that was never written arrives as an empty string, not as unset.
-  withConfigEnv({ GNOSISVPN_PREVIOUS_CLIENT_VERSION: "", GNOSISVPN_CHANNEL: "experimental" }, () => {
+  withConfigEnv({ GNOSISVPN_PREVIOUS_CLIENT_VERSION: "" }, () => {
     const repositories = readConfig().repositories;
     assertEquals(repositories.find((r) => r.label === "Client")?.previousVersion, null);
     assertEquals(repositories.find((r) => r.label === "Toolkit")?.previousVersion, "1.2.2");
@@ -671,19 +554,18 @@ Deno.test("readConfig - an empty previous version means no previous build", () =
 });
 
 Deno.test("readConfig - an unset previous version means no previous build", () => {
-  withConfigEnv({ GNOSISVPN_PREVIOUS_CLIENT_VERSION: null, GNOSISVPN_CHANNEL: "experimental" }, () => {
+  withConfigEnv({ GNOSISVPN_PREVIOUS_CLIENT_VERSION: null }, () => {
     assertEquals(readConfig().repositories.find((r) => r.label === "Client")?.previousVersion, null);
   });
 });
 
 Deno.test("readConfig - all four previous versions may be missing", () => {
-  // The first build of a new release line, before update_experimental has written its variables.
+  // The first build of a new release line, before its update job has written its variables.
   withConfigEnv({
     GNOSISVPN_PREVIOUS_PACKAGE_VERSION: "",
     GNOSISVPN_PREVIOUS_CLIENT_VERSION: "",
     GNOSISVPN_PREVIOUS_APP_VERSION: "",
     GNOSISVPN_PREVIOUS_TOOLKIT_VERSION: "",
-    GNOSISVPN_CHANNEL: "experimental",
   }, () => {
     for (const repo of readConfig().repositories) {
       assertEquals(repo.previousVersion, null);
@@ -697,29 +579,12 @@ Deno.test("readConfig - a missing previous version is tolerated on the snapshot 
   });
 });
 
-Deno.test("readConfig - a v4 client and app read their release branch", () => {
-  withConfigEnv({ GNOSISVPN_CLIENT_VERSION: "0.96.2", GNOSISVPN_APP_VERSION: "0.35.5" }, () => {
-    const repositories = readConfig().repositories;
-    assertEquals(repositories.find((r) => r.label === "Client")?.branch, "release/hoprdv4");
-    assertEquals(repositories.find((r) => r.label === "App")?.branch, "release/hoprdv4");
-    assertEquals(repositories.find((r) => r.label === "Toolkit")?.branch, "main");
-  });
-});
-
-Deno.test("readConfig - a v5 client and app read main", () => {
-  withConfigEnv({ GNOSISVPN_CLIENT_VERSION: "0.101.0", GNOSISVPN_APP_VERSION: "0.100.3" }, () => {
+Deno.test("readConfig - client and app read main, whatever their version", () => {
+  withConfigEnv({ GNOSISVPN_CLIENT_VERSION: "1.0.0-rc.1+pr.1030", GNOSISVPN_APP_VERSION: "0.38.1" }, () => {
     const repositories = readConfig().repositories;
     assertEquals(repositories.find((r) => r.label === "Client")?.branch, "main");
     assertEquals(repositories.find((r) => r.label === "App")?.branch, "main");
-  });
-});
-
-Deno.test("readConfig - the two components are placed independently", () => {
-  // Nothing forbids a build pairing a v5 client with an app that has not crossed yet.
-  withConfigEnv({ GNOSISVPN_CLIENT_VERSION: "0.101.0", GNOSISVPN_APP_VERSION: "0.35.5" }, () => {
-    const repositories = readConfig().repositories;
-    assertEquals(repositories.find((r) => r.label === "Client")?.branch, "main");
-    assertEquals(repositories.find((r) => r.label === "App")?.branch, "release/hoprdv4");
+    assertEquals(repositories.find((r) => r.label === "Toolkit")?.branch, "main");
   });
 });
 

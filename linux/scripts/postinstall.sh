@@ -438,7 +438,7 @@ register_apt_repo() {
     local keyring_src="/usr/share/gnosisvpn/gnosisvpn-archive-keyring.gpg"
     local keyring_dst="/etc/apt/keyrings/gnosisvpn-archive-keyring.gpg"
 
-    # The channel is encoded in the version; ".experimental" is snapshot-shaped underneath, so it MUST be tested first.
+    # The channel is encoded in the version; this package is never experimental, so a former experimental host lands on snapshot.
     local version channel component uris
     version="$(cat /etc/gnosisvpn/version.txt 2>/dev/null || echo "")"
     if [[ -z $version ]]; then
@@ -451,12 +451,6 @@ register_apt_repo() {
         return 0
     fi
     case "$version" in
-    *.experimental | *.experimental.*)
-        channel="experimental"
-        component="experimental"
-        # Only gnosisvpn.io publishes dists/experimental/.
-        uris="https://download.gnosisvpn.io/linux/apt"
-        ;;
     *"+"*)
         channel="snapshot"
         component="snapshot"

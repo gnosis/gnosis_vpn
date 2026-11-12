@@ -63,46 +63,40 @@ linux/
 
 ## Build-time environment
 
-Two installer lines are built from this repo, and two environment variables select which one a build belongs to. CI sets
-both (see `build-binary.yaml`); a local build without them gets the standard line.
+Every build packages the main line (client/app `0.100.0` and above) with the networks in `NETWORKS` from
+`config/channels.sh`. CI sets the channel (see `build-binary.yaml`); a local build without it carries none.
 
-| Variable             | Values                                         | Effect                                                             |
-| -------------------- | ---------------------------------------------- | ------------------------------------------------------------------ |
-| `GNOSISVPN_CHANNEL`  | `stable`, `snapshot`, `experimental`, unset    | Selects the default network set and is checked against the version |
-| `GNOSISVPN_NETWORKS` | space-separated network names, first = default | Which `config-<network>.toml` conffiles the package ships          |
+| Variable             | Values                                         | Effect                                                    |
+| -------------------- | ---------------------------------------------- | --------------------------------------------------------- |
+| `GNOSISVPN_CHANNEL`  | `stable`, `snapshot`, unset                    | Checked against the version                               |
+| `GNOSISVPN_NETWORKS` | space-separated network names, first = default | Which `config-<network>.toml` conffiles the package ships |
 
-`GNOSISVPN_NETWORKS` defaults to `NETWORKS_STANDARD` (or `NETWORKS_EXPERIMENTAL` when the channel is `experimental`)
-from `config/channels.sh`, and is baked into the package as `/usr/share/gnosisvpn/networks` so the postinstall can pick
-a default and re-point `/etc/gnosisvpn/config.toml` after a channel switch. `NETWORK_SUCCESSORS` from the same file is
-baked as `/usr/share/gnosisvpn/network-successors`, the replaced networks the postinstall moves an install off. The
-maintainer scripts are rendered into `build/linux-scripts/` with `RETIRED_CONFFILES` filled in: the conffiles of renamed
-or replaced networks that neither line ships any more, which upgrades remove. `scripts/check-network-retirement.sh` (a
-`nix flake check`) renders them without a build and checks that `install/linux.sh` mirrors the channel lists and network
-maps. The build refuses a toolkit whose `gnosis_vpn-migrate` has no `switch-network`, since the postinstall needs it to
-carry identities off a replaced network.
+`GNOSISVPN_NETWORKS` defaults to `NETWORKS` from `config/channels.sh`, and is baked into the package as
+`/usr/share/gnosisvpn/networks` so the postinstall can pick a default and re-point `/etc/gnosisvpn/config.toml` after a
+channel switch. `NETWORK_SUCCESSORS` from the same file is baked as `/usr/share/gnosisvpn/network-successors`, the
+replaced networks the postinstall moves an install off. The maintainer scripts are rendered into `build/linux-scripts/`
+with `RETIRED_CONFFILES` filled in: the conffiles of renamed or replaced networks the package no longer ships, which
+upgrades remove. `scripts/check-network-retirement.sh` (a `nix flake check`) renders them without a build and checks
+that `install/linux.sh` mirrors the network list and maps. The build refuses a toolkit whose `gnosis_vpn-migrate` has no
+`switch-network`, since the postinstall needs it to carry identities off a replaced network.
 
 Whether the package ships the GeoIP database (`/usr/share/gnosisvpn/geoip.mmdb`) follows the packaged client:
-`GNOSISVPN_CLIENT_VERSION` at or above `COMPONENT_VERSION_BOUNDARY` ships it, and `GNOSISVPN_CHANNEL=experimental` only
-decides when no numeric client version is set. See "GeoIP database" in the top-level README.
+`GNOSISVPN_CLIENT_VERSION` at or above `COMPONENT_VERSION_BOUNDARY` ships it, and so does a build without a numeric
+client version. See "GeoIP database" in the top-level README.
 
 The build refuses a channel/version mismatch, because the installed package infers its APT suite from its own version
-string: an `experimental` build needs a version ending in `.experimental`, and `stable`/`snapshot` builds must not have
-one.
+string: a `snapshot` build needs a `+` version, a `stable` build a plain `x.y.z`.
 
 ```bash
-# Experimental line (ships piz-palu-dev, piz-palu-staging and piz-palu-prod)
-GNOSISVPN_CHANNEL=experimental \
-  GNOSISVPN_PACKAGE_VERSION="$(date -u +%Y.%m.%d+build.%H%M%S.experimental)" \
+GNOSISVPN_CHANNEL=snapshot \
+  GNOSISVPN_PACKAGE_VERSION="$(date -u +%Y.%m.%d+build.%H%M%S)" \
   just package deb x86_64-linux
-
-# Standard line (ships jura-prod, jura-staging and jura-dev)
-just package deb x86_64-linux
 ```
 
 ## Distribution Channels
 
-The APT repository serves three suites — `stable`, `snapshot` and `experimental` — each with its own component and pool.
-See the APT repository section of the top-level `README.md`.
+The APT repository serves the `stable` and `snapshot` suites, plus the retired `experimental` suite as a snapshot alias,
+each with its own component and pool. See the APT repository section of the top-level `README.md`.
 
 ### GitHub Releases (Current)
 

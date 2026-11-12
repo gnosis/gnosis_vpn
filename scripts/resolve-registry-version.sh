@@ -7,7 +7,7 @@
 # newest-first by upload time, and prints the first version whose files include
 # every required file. Exits non-zero if no version is complete.
 #
-# The optional --min-version / --below-version window restricts candidates by numeric core; it is how the two lines pick components.
+# The optional --min-version / --below-version window restricts candidates by numeric core; the build keeps v4 components out with --min-version.
 # --only-version checks that one tag instead of scanning the registry; exit 1 when it is missing or incomplete.
 #
 # All diagnostics go to stderr; ONLY the resolved version is printed to stdout,
