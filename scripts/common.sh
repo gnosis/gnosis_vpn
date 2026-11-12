@@ -223,10 +223,10 @@ validate_network_names() {
     return $ok
 }
 
-# Numeric MAJOR.MINOR.PATCH before any "+metadata", leading "v" stripped: "v0.96.1+pr.772" -> 0.96.1.
+# MAJOR.MINOR.PATCH before any "-prerelease" or "+metadata", leading "v" stripped: "v1.0.0-rc.1+pr.772" -> 1.0.0.
 version_core() {
     local v="${1#v}"
-    printf '%s\n' "${v%%+*}"
+    printf '%s\n' "${v%%[-+]*}"
 }
 
 # True when the core is exactly three numeric components; the comparators below require it.
