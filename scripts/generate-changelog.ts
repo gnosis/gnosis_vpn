@@ -134,7 +134,7 @@ export const COMPONENT_V4_BRANCH = "release/hoprdv4";
 
 // Mirrors version_core() in scripts/common.sh; null for anything without an x.y.z core.
 export function versionCore(version: string): [number, number, number] | null {
-  const core = `${version}`.replace(/^v/, "").split("+")[0];
+  const core = `${version}`.replace(/^v/, "").split(/[-+]/)[0];
   const match = core.match(/^(\d+)\.(\d+)\.(\d+)$/);
   return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
 }
