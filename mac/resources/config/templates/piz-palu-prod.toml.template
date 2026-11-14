@@ -6,6 +6,7 @@ max_ssa_allocation = "1 wxHOPR"
 deposit_buffer_period = "500ms"
 max_deposit_tracking_time = "60s"
 max_deposit_retries = 3
+initial_funding = "35.35 wxHOPR"
 
 [connection.path_planner]
 # Prune to the 3 fastest candidate paths; the client preset keeps every relayer (0).
