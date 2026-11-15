@@ -6,7 +6,8 @@ max_ssa_allocation = "1 wxHOPR"
 deposit_buffer_period = "500ms"
 max_deposit_tracking_time = "60s"
 max_deposit_retries = 3
-initial_funding = "35.35 wxHOPR"
+funding_min_available = "2 wxHOPR"
+funding_top_up = "35.35 wxHOPR"
 relayer_url = "https://api.curvy.dev"
 
 [connection.path_planner]
