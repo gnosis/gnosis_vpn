@@ -10,7 +10,8 @@
 # - Optional convenience symlinks
 # - Migration of the legacy single-user identity into the console user's home
 #
-# No service account: root spawns the worker as the requesting user; the gnosisvpn group is only the sudoers principal.
+# No service account: root spawns the worker as the requesting user; the sudoers rules name the console user.
+# No Directory Services writes (dscl/dseditgroup): macOS 27 gates them behind an "administer your computer" prompt.
 # Rollback after the migration ran is safe: gnosis_vpn-migrate identity is idempotent, re-running the pkg works.
 #
 # Arguments:
@@ -73,8 +74,7 @@ INSTALLED_LIB_DIR_PATH="/Library/Application Support/GnosisVPN"
 LAUNCHD_PLIST_PATH="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
 LAUNCHD_SERVICE="system/com.gnosisvpn.gnosisvpnclient"
 
-# Set by migrate_legacy_identity; gate the service bootstrap and the legacy account removal.
-MIGRATION_OK=false
+# Set by migrate_legacy_identity; gate the service bootstrap.
 MIGRATION_FAILED=false
 MIGRATION_STATUS=0
 MIGRATE_LOG="${INSTALLED_LOG_DIR_PATH}/installer/migrate.log"
@@ -87,7 +87,7 @@ SWITCH_FAILED=false
 TOOLKIT_NEXT=""
 # The replaced networks moves are leaving, oldest first; appended before config.toml moves, removed once every identity followed.
 PENDING_SWITCH_FILE="${INSTALLED_LIB_DIR_PATH}/network-switch-pending"
-# Console user, resolved once in main: group membership, the migration, the validation probes and the app launch share it.
+# Console user, resolved once in main: the sudoers rules, the migration, the validation probes and the app launch share it.
 CURRENT_USER=""
 
 # Rollback mechanism
@@ -428,80 +428,6 @@ save_version_info() {
     log_success "Version saved to $VERSION_FILE"
 }
 
-# TODO: remove by December 2027.
-# The single-user layout's service account; only after an OK migration, the group stays as sudoers principal.
-remove_legacy_account() {
-    [[ "$MIGRATION_OK" == true ]] || return 0
-    if ! dscl . -read "/Users/gnosisvpn" >/dev/null 2>&1; then
-        return 0
-    fi
-    log_info "Removing the legacy service user 'gnosisvpn'..."
-    if dscl . -delete "/Users/gnosisvpn"; then
-        log_success "Legacy service user removed"
-    else
-        log_warn "Could not remove user 'gnosisvpn'; remove it by hand: sudo dscl . -delete /Users/gnosisvpn"
-    fi
-}
-
-# Create the permission group for Gnosis VPN operations (sudoers principal, holds the console user)
-create_system_group() {
-    log_info "Creating dedicated system group for Gnosis VPN..."
-
-    local groupname="gnosisvpn"
-    local current_user="$CURRENT_USER"
-
-    # Find next available system GID (typically 200-499 range for system groups)
-    local gid
-    for gid in {200..499}; do
-        if ! dscl . -read "/Groups/$groupname" PrimaryGroupID >/dev/null 2>&1 && \
-           [[ -z "$(dscl . -search /Groups PrimaryGroupID "$gid")" ]]; then
-            log_info "Selected GID $gid for group '$groupname'"
-            break
-        fi
-    done
-    log_info "Using GID $gid for group '$groupname'"
-
-    # Check if group already exists
-    if dscl . -read "/Groups/$groupname" >/dev/null 2>&1; then
-        log_info "System group '$groupname' already exists"
-
-        # Check if current user is already in the group
-        local group_members
-        group_members=$(dscl . -read "/Groups/$groupname" GroupMembership 2>/dev/null | cut -d' ' -f2- || echo "")
-
-        if [[ -z "$current_user" ]]; then
-            log_warn "No console user detected; add yours later with: sudo dseditgroup -o edit -a <name> -t user gnosisvpn"
-        elif [[ "$group_members" == *"$current_user"* ]]; then
-            log_info "Current user '$current_user' is already in group '$groupname'"
-        else
-            log_info "Adding current user '$current_user' to existing group '$groupname'"
-            dseditgroup -o edit -a "$current_user" -t user "$groupname"
-            log_success "User '$current_user' added to group '$groupname'"
-        fi
-
-        return 0
-    fi
-
-    log_info "Creating system group: $groupname (GID: $gid)"
-
-    # Create the group record
-    dscl . -create "/Groups/$groupname"
-    dscl . -create "/Groups/$groupname" PrimaryGroupID "$gid"
-    dscl . -create "/Groups/$groupname" RealName "Gnosis VPN System Group"
-    dscl . -create "/Groups/$groupname" RecordName "$groupname"
-
-    # Add current user to the group
-    if [[ -n "$current_user" ]]; then
-        log_info "Adding current user '$current_user' to group '$groupname'"
-        dseditgroup -o edit -a "$current_user" -t user "$groupname"
-        log_success "User '$current_user' added to group '$groupname'"
-    else
-        log_warn "No console user detected; add yours later with: sudo dseditgroup -o edit -a <name> -t user gnosisvpn"
-    fi
-
-    log_success "System group '$groupname' created successfully (GID: $gid)"
-}
-
 # The desktop user; root never owns a worker, so root yields "" like a missing console session.
 resolve_console_user() {
     local user
@@ -550,7 +476,6 @@ migrate_legacy_identity() {
         log_error "Identity migration failed — the service will be installed but not started"
         return 0
     fi
-    MIGRATION_OK=true
     log_success "Identity migration done"
 }
 
@@ -858,11 +783,13 @@ verify_plist_deployment() {
     return $errors
 }
 
-# Configure sudo privileges for gnosisvpn group
+# Configure sudo privileges for the console user (and an existing gnosisvpn group)
 configure_sudo_privileges() {
-    log_info "Configuring sudo privileges for gnosisvpn group..."
+    log_info "Configuring sudo privileges..."
 
     local sudoers_file="/etc/sudoers.d/gnosis-vpn"
+    # sudo's includedir skips names containing a dot, so a bad render never goes live before visudo checks it.
+    local staged_sudoers="${sudoers_file}.new"
     local source_sudoers="${SCRIPT_DIR}/config/system/gnosis-vpn-sudoers"
 
     # Fallback to development location if not found (for testing)
@@ -872,31 +799,33 @@ configure_sudo_privileges() {
 
     if [[ ! -f "$source_sudoers" ]]; then
         log_error "Sudoers file not found: $source_sudoers"
-        log_warn "Group members will need to use sudo for service management"
+        log_warn "Users will need to use sudo for service management"
         return 1
     fi
 
-    # Verify the gnosisvpn group exists
-    if ! dscl . -read "/Groups/gnosisvpn" >/dev/null 2>&1; then
-        log_warn "System group 'gnosisvpn' not found, skipping sudo configuration"
-        return 0
+    # Only a plain short name goes into sudoers (and the sed replacement); anything else would be sudoers syntax.
+    local console_user_entry=""
+    if [[ -z "$CURRENT_USER" ]]; then
+        log_warn "No console user detected; only members of a 'gnosisvpn' group get passwordless service control"
+    elif [[ "$CURRENT_USER" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ ]]; then
+        console_user_entry=", $CURRENT_USER"
+    else
+        log_warn "Console user '$CURRENT_USER' cannot be named in sudoers; only members of a 'gnosisvpn' group get passwordless service control"
     fi
 
-    # Install sudoers file
     log_info "Installing sudoers configuration: $sudoers_file"
-    cp "$source_sudoers" "$sudoers_file"
-
-    # Set proper permissions for sudoers file
-    chmod 440 "$sudoers_file"
-    chown root:wheel "$sudoers_file"
+    sed "s/, __CONSOLE_USER__/${console_user_entry}/" "$source_sudoers" > "$staged_sudoers"
+    chmod 440 "$staged_sudoers"
+    chown root:wheel "$staged_sudoers"
 
     # Validate sudoers syntax
-    if visudo -c -f "$sudoers_file" >/dev/null 2>&1; then
+    if visudo -c -f "$staged_sudoers" >/dev/null 2>&1; then
+        mv -f "$staged_sudoers" "$sudoers_file"
         log_success "Sudoers configuration installed and validated"
-        log_info "Members of 'gnosisvpn' group can now manage the service without sudo password"
+        [[ -z "$console_user_entry" ]] || log_info "User '$CURRENT_USER' can now manage the service without sudo password"
     else
-        log_error "Invalid sudoers syntax detected, removing file"
-        rm -f "$sudoers_file"
+        log_error "Invalid sudoers syntax detected, keeping the previous configuration"
+        rm -f "$staged_sudoers"
         return 1
     fi
 
@@ -1682,11 +1611,9 @@ main() {
     backup_config "$installation_type"
     copy_uninstall
 
-    # Group membership grants the console user the sudoers rules (service control, self-update).
+    # The sudoers rules name the console user (service control, self-update).
     CURRENT_USER=$(resolve_console_user)
     log_info "Console user detected: ${CURRENT_USER:-none}"
-    # Permission group (sudoers principal); no service account exists anymore
-    create_system_group
 
     # Update binaries (incrementally for updates, full for fresh installs)
     update_binaries "$installation_type" "$TARGET_VOLUME"
@@ -1717,8 +1644,6 @@ main() {
     migrate_legacy_identity
     # Once, after the legacy identity sits on its old network; a failed migration leaves the move pending for the next install.
     [[ "$MIGRATION_FAILED" == true ]] || switch_network_if_left
-    # TODO: remove the removal code by December 2027 (see remove_legacy_account).
-    remove_legacy_account
 
     # Install launchd service
     install_launchd_service "$installation_type"
