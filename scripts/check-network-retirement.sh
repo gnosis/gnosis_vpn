@@ -67,9 +67,10 @@ mirror_mismatch() {
 (
     # shellcheck source=../install/linux.sh
     source <(sed '$d' "${ROOT}/install/linux.sh")
-    # Stable keeps the published 0.97.x list until v1.0.0, so only snapshot mirrors what this repo builds.
-    [[ "$(channel_networks snapshot)" == "${NETWORKS}" ]] ||
-        mirror_mismatch install/linux.sh "channel_networks snapshot is '$(channel_networks snapshot)'"
+    for channel in stable snapshot; do
+        [[ "$(channel_networks "${channel}")" == "${NETWORKS}" ]] ||
+            mirror_mismatch install/linux.sh "channel_networks ${channel} is '$(channel_networks "${channel}")'"
+    done
     for pair in ${NETWORK_SUCCESSORS}; do
         [[ "$(network_successor "${pair%%:*}")" == "${pair#*:}" ]] ||
             mirror_mismatch install/linux.sh "network_successor ${pair%%:*} is '$(network_successor "${pair%%:*}")'"

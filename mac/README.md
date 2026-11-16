@@ -13,8 +13,7 @@ user-friendly graphical interface for installing and configuring the Gnosis VPN 
 - **Version Tracking**: Tracks installation versions for better update management
 - **Automatic Backups**: Creates backups of binaries and configurations before updates
 - **WireGuard Integration**: Automatically detects and installs WireGuard tools if needed
-- **Network Selection**: Piz Palu Prod, Piz Palu Staging or Piz Palu Dev (the frozen 0.97.x stable pkg offers the Jura
-  networks instead)
+- **Network Selection**: Piz Palu Prod, Piz Palu Staging or Piz Palu Dev
 - **Configuration Generation**: Creates `config.toml` for the selected network; the Piz Palu networks ship no
   destinations and rely on the client finding exit nodes at runtime
 - **macOS Integration**: Removes quarantine attributes and sets proper permissions

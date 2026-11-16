@@ -30,13 +30,8 @@ The installer accepts options after `-s --`:
   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=snapshot
   ```
 
-- `--network=<name>` — network to configure. Stable still serves the last v4 package (0.97.x) until v1.0.0, so which
-  names are accepted depends on `--channel`. Env var: `GNOSISVPN_NETWORK`.
-
-  | Channel    | Networks                                            | Default         |
-  | ---------- | --------------------------------------------------- | --------------- |
-  | `stable`   | `jura-prod`, `jura-staging`, `jura-dev`             | `jura-prod`     |
-  | `snapshot` | `piz-palu-prod`, `piz-palu-staging`, `piz-palu-dev` | `piz-palu-prod` |
+- `--network=<name>` — network to configure: `piz-palu-prod` (default), `piz-palu-staging` or `piz-palu-dev`, on either
+  channel. A replaced jura network moves to its piz-palu successor. Env var: `GNOSISVPN_NETWORK`.
 
   When the existing choice is shipped by the selected channel, omitting `--network` keeps it; a replaced network moves
   to its successor (`jura-prod` → `piz-palu-prod`); otherwise, the installer selects that channel's default.
@@ -66,18 +61,16 @@ Snapshot installs and upgrades pull from `download.gnosisvpn.io` only — the IP
 
 **One installer line.** Every build packages the `main` line of the client and app (`0.100.0` and above, see
 `COMPONENT_VERSION_BOUNDARY` in `config/channels.sh`) with the piz-palu networks. The v4 line (`release/hoprdv4`, jura
-networks) is frozen: stable keeps serving its last release, 0.97.1, until v1.0.0 ships on stable. The `experimental`
-channel is retired; its APT suite and manifest entry mirror snapshot, so experimental hosts upgrade onto snapshot.
+networks) ended with 0.97.1; stable serves the main line since v1.0.0, and 0.97.1 installs get an end-of-life notice
+(`config/end-of-life.json`). The `experimental` channel is retired; its APT suite and manifest entry mirror snapshot, so
+experimental hosts upgrade onto snapshot.
 
 **Switching channels:** re-run the installer with the desired `--channel`. When the target channel's newest package is
 older than the installed one, the installer performs a pinned downgrade (plain `apt upgrade` would never move back on
-its own). Until v1.0.0 reaches stable, a channel switch also switches lines, so the configured network may change: if
-the current network is not shipped by the target channel, the channel's default is selected and
-`/etc/gnosisvpn/config.toml` is re-pointed at it. A round trip through the other line therefore does not preserve a
-non-default network choice — pass `--network` to set it again. Caution: a re-run without `--channel` selects the default
-(stable) — on a snapshot installation, pass that channel again when re-running, e.g. to switch networks. Manually
-installing a `.deb` from another channel (`sudo apt install ./gnosisvpn_*.deb`) re-points
-`/etc/apt/sources.list.d/gnosisvpn.sources` at that package's channel; run `sudo apt-get update` afterwards.
+its own). Caution: a re-run without `--channel` selects the default (stable) — on a snapshot installation, pass that
+channel again when re-running, e.g. to switch networks. Manually installing a `.deb` from another channel
+(`sudo apt install ./gnosisvpn_*.deb`) re-points `/etc/apt/sources.list.d/gnosisvpn.sources` at that package's channel;
+run `sudo apt-get update` afterwards.
 
 The installer sets up the channel's default network on first install and keeps an existing choice the channel ships on
 re-runs. To pick a different network — or to switch an existing installation — pass `--network` (combinable with
@@ -212,7 +205,7 @@ Direct `.deb` installs have no flags — these environment variables configure t
 - `GNOSISVPN_NETWORK=<name>` — network configuration to use; determines which configuration file is symlinked to
   `/etc/gnosisvpn/config.toml` during installation. Only the networks the package actually ships are accepted — they are
   listed in `/usr/share/gnosisvpn/networks` (first entry is the default): `piz-palu-prod piz-palu-staging piz-palu-dev`
-  (the frozen 0.97.x stable package ships `jura-prod jura-staging jura-dev`). Passing another network fails the install
+  (the last v4 package, 0.97.1, shipped `jura-prod jura-staging jura-dev`). Passing another network fails the install
   with the supported list, and if `config.toml` points at a network this package does not ship, the postinstall
   re-points it at the default and moves the Blokli endpoint with it (unless a custom `GNOSISVPN_HOPR_BLOKLI_URL` is
   set).

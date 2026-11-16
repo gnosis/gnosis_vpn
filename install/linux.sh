@@ -7,7 +7,7 @@
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=snapshot
 #   curl -fsSL https://download.gnosisvpn.io/linux/install.sh | bash -s -- --channel=snapshot --network=piz-palu-dev
 #
-# Stable ships the jura networks until v1.0.0, snapshot the piz-palu networks; a network is only selectable on the channel that ships it.
+# Both channels ship the piz-palu networks; an install on a replaced jura network moves to its piz-palu successor.
 #
 # Prompts for sudo when not already root; use `sudo bash` instead for headless/non-interactive installs (no TTY for the password prompt).
 #
@@ -34,12 +34,9 @@ log() { printf '\033[0;34m[gnosisvpn]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 err() { printf '\033[0;31m[gnosisvpn]\033[0m %s\n' "$*" >&2; }
 
-# Networks per channel (first = default); snapshot mirrors NETWORKS in config/channels.sh, stable the published 0.97.x package until v1.0.0.
+# Networks per channel (first = default); every channel mirrors NETWORKS in config/channels.sh.
 channel_networks() {
-    case "$1" in
-    stable) echo "jura-prod jura-staging jura-dev" ;;
-    *) echo "piz-palu-prod piz-palu-staging piz-palu-dev" ;;
-    esac
+    echo "piz-palu-prod piz-palu-staging piz-palu-dev"
 }
 
 # TODO: remove by December 2027. Map pre-rename network names.
@@ -96,12 +93,8 @@ Options:
   --channel=<stable|snapshot>   APT channel to subscribe to (default: stable).
                                 The retired experimental channel selects snapshot.
                                 Also configurable via GNOSISVPN_CHANNEL env var.
-  --network=<name>              Network to configure. Which networks are
-                                available depends on the channel:
-                                  stable    jura-prod (default), jura-staging,
-                                            jura-dev
-                                  snapshot  piz-palu-prod (default),
-                                            piz-palu-staging, piz-palu-dev
+  --network=<name>              Network to configure: piz-palu-prod (default),
+                                piz-palu-staging or piz-palu-dev.
                                 Omitting this keeps an existing choice that the
                                 channel ships, otherwise the channel default is
                                 used. Also configurable via GNOSISVPN_NETWORK
@@ -126,10 +119,6 @@ After install, the gnosisvpn service should be running. To switch networks
 later, re-run this installer with --network=<name>; to switch channels, re-run
 with --channel=<stable|snapshot> (switching to a channel whose
 newest package is older than the installed one performs a pinned downgrade).
-
-Switching channels also switches installer lines, so the configured network may
-change: when the current network is not shipped by the target channel, the
-channel default is selected instead.
 
 Caution: a re-run without --channel selects the default (stable). On a snapshot
 installation, pass that channel again when re-running (e.g. to switch networks),
