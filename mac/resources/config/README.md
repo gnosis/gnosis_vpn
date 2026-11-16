@@ -13,7 +13,7 @@ config/
 ```
 
 Each build ships only the templates selected by `GNOSISVPN_NETWORKS` (see `NETWORKS` in `config/channels.sh`):
-`piz-palu-prod`, `piz-palu-staging` and `piz-palu-dev`. The jura templates stay for the frozen 0.97.x stable line.
+`piz-palu-prod`, `piz-palu-staging` and `piz-palu-dev`. The jura templates stay until GNO-1328 removes them.
 
 ## System Configuration Files
 
@@ -40,8 +40,7 @@ TOML configuration templates for different network environments.
 - **piz-palu-prod**: Default production network
 - **piz-palu-staging**: Piz Palu staging network
 - **piz-palu-dev**: Piz Palu development network
-- **jura-prod**, **jura-staging**, **jura-dev**: replaced by their piz-palu counterparts; shipped only by the frozen
-  0.97.x stable pkg
+- **jura-prod**, **jura-staging**, **jura-dev**: replaced by their piz-palu counterparts; last shipped by 0.97.1
 
 **Template Structure** (Jura networks):
 
