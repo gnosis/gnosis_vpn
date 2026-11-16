@@ -59,16 +59,17 @@ check_permissions() {
         return 0
     fi
 
-    # The gnosisvpn group is the sudoers principal for service control
+    # /etc/sudoers.d/gnosis-vpn names the installing user and the gnosisvpn group
     local current_user
     current_user=$(id -un)
 
-    if groups "$current_user" | grep -q '\bgnosisvpn\b'; then
-        log_info "User '$current_user' is in the gnosisvpn permission group - using sudo privileges"
+    if sudo -n -l /bin/launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
+        log_info "User '$current_user' has passwordless service control - using sudo privileges"
         return 0
     else
-        log_error "This command requires root privileges or membership in the 'gnosisvpn' permission group"
-        log_info "Please run with sudo or ask an administrator to add you to the group:"
+        log_error "This command requires root privileges or passwordless service control via /etc/sudoers.d/gnosis-vpn"
+        log_info "Please run with sudo or ask an administrator to add you to the gnosisvpn group:"
+        log_info "  sudo dseditgroup -o create gnosisvpn  # only if the group does not exist yet"
         log_info "  sudo dseditgroup -o edit -a $current_user -t user gnosisvpn"
         exit 1
     fi
@@ -307,7 +308,7 @@ show_status() {
         log_success "Permission group 'gnosisvpn' exists (GID: $group_gid)"
         log_info "  Group members: $members"
     else
-        log_warn "Permission group 'gnosisvpn' not found"
+        log_info "Permission group 'gnosisvpn' not found (optional; the sudoers rules name the installing user)"
     fi
 
     echo ""

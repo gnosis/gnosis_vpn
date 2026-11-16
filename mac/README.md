@@ -149,10 +149,13 @@ Identities are never deleted: the per-user `hopr.id`, `hopr.pass` and PIX state 
 No service account exists. `gnosis_vpn-root` runs as `root` under launchd and spawns `gnosis_vpn-worker` as whichever
 user asks for a connection; that worker keeps its identity under the user's own home.
 
-- **Permission Group**: `gnosisvpn` (GID: 200-499 range)
-  - The sudoers principal: `/etc/sudoers.d/gnosis-vpn` lets members run the `launchctl` service commands and the
-    self-updater without a password
-  - The installer adds the console user; other users join with `sudo dseditgroup -o edit -a <name> -t user gnosisvpn`
+- **Passwordless service control**: `/etc/sudoers.d/gnosis-vpn` lets the console user at install time, and members of an
+  optional `gnosisvpn` group, run the `launchctl` service commands and the self-updater without a password
+  - The installer names the console user directly and makes no Directory Services changes (no `dscl`/`dseditgroup`):
+    those trigger macOS's "Installer would like to administer your computer" prompt
+  - Older installers created the `gnosisvpn` group and it keeps working. To give another user access, create the group
+    if missing (`sudo dseditgroup -o create gnosisvpn`), then run `sudo dseditgroup -o edit -a <name> -t user gnosisvpn`
+  - The legacy `gnosisvpn` service user from older installs stays until `uninstall.sh` removes it
 
 - **Permission Structure**:
   - Configuration files: `root:wheel`, world-readable (`644`)
