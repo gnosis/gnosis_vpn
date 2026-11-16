@@ -4,7 +4,7 @@ version = 7
 price_per_byte = "0.00000000000001 wxHOPR"
 max_ssa_allocation = "0.00001 wxHOPR"
 deposit_buffer_period = "500ms"
-max_deposit_tracking_time = "60s"
+max_deposit_tracking_time = "3m"
 max_deposit_retries = 3
 relayer_url = "https://api.curvy.dev"
 # The dev Safe holds ~0.01 wxHOPR, too little for the 35.35 wxHOPR default top-up.
