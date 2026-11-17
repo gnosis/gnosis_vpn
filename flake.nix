@@ -75,6 +75,8 @@
             google-cloud-sdk
           ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             dpkg
+            rpm
+            cpio
             reprepro
           ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
             curl

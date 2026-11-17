@@ -17,6 +17,11 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+# rpm runs the old %postun after the new package is in place on upgrade ($1 >= 1); the doc cleanup below would delete the new docs.
+if [[ ${1:-} =~ ^[0-9]+$ && $1 -ge 1 ]]; then
+    exit 0
+fi
+
 # Detect package manager
 PKG_MANAGER="unknown"
 if command -v dpkg >/dev/null 2>&1; then
@@ -56,7 +61,7 @@ preserve_legacy_identity() {
 
 # Reload systemd after service file removal
 echo "$LOG_PREFIX INFO: Reloading systemd daemon..."
-deb-systemd-helper daemon-reload || true
+systemctl daemon-reload || true
 # The unit files are gone; drop what systemd still remembers about them.
 systemctl reset-failed gnosisvpn-logrotate.timer gnosisvpn-logrotate.service 2>/dev/null || true
 

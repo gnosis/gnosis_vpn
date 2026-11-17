@@ -2,7 +2,7 @@
 #
 # Build script for Gnosis VPN package
 #
-# This script creates a linux distributable package (deb, dmg) using nfpm for GitHub releases.
+# This script creates a distributable package (deb, rpm, dmg) using nfpm for GitHub releases.
 #
 
 set -euo pipefail
@@ -42,7 +42,7 @@ usage() {
     echo "Options:"
     echo "  -h, --help                     Show this help message"
     echo "  --package-version <version>    Set the package version (e.g., 1.0.0)"
-    echo "  --distribution <type>          Set the distribution type (deb, dmg), default: deb"
+    echo "  --distribution <type>          Set the distribution type (deb, rpm, dmg), default: deb"
     echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux, aarch64-darwin), default: x86_64-linux"
     echo "  --sign                         Enable code signing"
     usage_platform

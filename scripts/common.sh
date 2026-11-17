@@ -301,7 +301,8 @@ generate_package_name() {
         else
             arch_name="$GNOSISVPN_ARCHITECTURE"
         fi
-        echo "gnosisvpn-${GNOSISVPN_PACKAGE_VERSION}.${arch_name}.rpm"
+        # NVRA; nfpm's default rpm release is 1.
+        echo "gnosisvpn-${GNOSISVPN_PACKAGE_VERSION}-1.${arch_name}.rpm"
         ;;
     archlinux)
         # Convert architecture for archlinux packages
@@ -323,9 +324,9 @@ generate_package_name() {
 # Validate distribution type
 validate_distribution() {
     local distribution="$1"
-    if [[ ! $distribution =~ ^(deb|dmg)$ ]]; then
+    if [[ ! $distribution =~ ^(deb|rpm|dmg)$ ]]; then
         log_error "Invalid distribution: $distribution"
-        log_error "Valid options: deb, dmg"
+        log_error "Valid options: deb, rpm, dmg"
         return 1
     fi
     return 0
