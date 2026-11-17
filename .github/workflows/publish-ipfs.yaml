@@ -143,7 +143,7 @@ jobs:
             exit 1
           fi
       - name: Setup GCP
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@837b94246698537325ecc664dfb22c72c0d6b8ed # setup-gcp-v4
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@837b94246698537325ecc664dfb22c72c0d6b8ed # setup-gcp-v4.0.2
         with:
           workload_identity_provider: projects/656686060169/locations/global/workloadIdentityPools/gnosisvpn-gh-pool/providers/github-provider
           service_account: download-gnosisvpn-gh-sa@gnosisvpn-production.iam.gserviceaccount.com
@@ -211,7 +211,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Propose ENS contenthash update
-        uses: hoprnet/hopr-workflows/actions/propose-ens-contenthash@5b0f0e6c7e3a02e30a33b9f5150fb5b118676e58 # propose-ens-contenthash-v1
+        uses: hoprnet/hopr-workflows/actions/propose-ens-contenthash@5b0f0e6c7e3a02e30a33b9f5150fb5b118676e58 # propose-ens-contenthash-v1.0.0
         with:
           cid: ${{ needs.deploy-ipfs.outputs.ipfs_hash }}
           ens_name: ${{ vars.ENS_NAME }}
