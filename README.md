@@ -400,9 +400,8 @@ just package rpm x86_64-linux
 ```
 
 For a v5 client (`0.100.0` and up) also run `just geoip` and `just curvy-zk` before `just package` (`just all` does it
-for you).
-Pass `true` as the last argument of `just all` or `just package` to sign, with `GNOSISVPN_GPG_PRIVATE_KEY_PATH` and
-`GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD` set.
+for you). Pass `true` as the last argument of `just all` or `just package` to sign, with
+`GNOSISVPN_GPG_PRIVATE_KEY_PATH` and `GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD` set.
 
 ### GeoIP database
 
