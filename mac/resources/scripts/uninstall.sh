@@ -223,7 +223,7 @@ remember_linked_network() {
     log_info "Recorded network '$network' for the next install's network move"
 }
 
-# Identity, pass, PIX state and ticket store stay: they hold or guard the user's funds.
+# Identity, pass and PIX state stay: they hold the keys to the user's funds.
 purge_user_data() {
     log_info "Removing every user's caches, logs and app data..."
 
@@ -247,6 +247,9 @@ purge_user_data() {
         else
             log_warn "Could not remove all caches, logs and app data of user $owner"
         fi
+        # Without it, reused ticket indices get dropped by relays until they catch up; accepted for a purge.
+        sudo -u "$owner" find "$home/Library/Application Support/GnosisVPN/networks" -mindepth 2 -maxdepth 2 \
+            -type f -name tickets.redb -print -delete 2>/dev/null || true
     done
     echo ""
 }
