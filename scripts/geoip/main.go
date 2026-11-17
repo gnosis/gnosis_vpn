@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/netip"
 	"os"
 
 	"github.com/maxmind/mmdbwriter"
 	"github.com/maxmind/mmdbwriter/mmdbtype"
-	"github.com/oschwald/maxminddb-golang"
+	"github.com/oschwald/maxminddb-golang/v2"
 )
 
 type record struct {
@@ -57,36 +58,31 @@ func main() {
 
 // Dropping the ASN fields makes neighbouring networks of one country identical, so they merge into one span.
 func ipv4Spans(full *maxminddb.Reader) []span {
-	// A 4-byte IP, or the reader walks the whole IPv6 tree; net.IPv4zero is the 16-byte form.
-	all := &net.IPNet{IP: net.IP{0, 0, 0, 0}, Mask: net.CIDRMask(0, 32)}
-	networks := full.NetworksWithin(all, maxminddb.SkipAliasedNetworks)
+	all := netip.PrefixFrom(netip.IPv4Unspecified(), 0)
 	var spans []span
-	for networks.Next() {
+	// Aliased networks are skipped by default; iteration errors surface through Decode.
+	for network := range full.NetworksWithin(all) {
 		var rec record
-		subnet, err := networks.Network(&rec)
-		if err != nil {
-			log.Fatalf("read network: %v", err)
+		if err := network.Decode(&rec); err != nil {
+			log.Fatalf("iterate %s: %v", full.Metadata.DatabaseType, err)
 		}
 		if rec.CountryCode == "" {
 			continue
 		}
-		first, last := bounds(subnet)
+		first, last := bounds(network.Prefix())
 		if n := len(spans); n > 0 && spans[n-1].country == rec.CountryCode && spans[n-1].last+1 == first {
 			spans[n-1].last = last
 			continue
 		}
 		spans = append(spans, span{first: first, last: last, country: rec.CountryCode})
 	}
-	if err := networks.Err(); err != nil {
-		log.Fatalf("iterate %s: %v", full.Metadata.DatabaseType, err)
-	}
 	return spans
 }
 
-func bounds(subnet *net.IPNet) (uint32, uint32) {
-	first := binary.BigEndian.Uint32(subnet.IP.To4())
-	ones, bits := subnet.Mask.Size()
-	return first, first + (1<<(bits-ones) - 1)
+func bounds(prefix netip.Prefix) (uint32, uint32) {
+	addr := prefix.Addr().As4()
+	first := binary.BigEndian.Uint32(addr[:])
+	return first, first + (1<<(32-prefix.Bits()) - 1)
 }
 
 func writeCountryDb(path string, spans []span) {
@@ -127,8 +123,8 @@ func ipOf(addr uint32) net.IP {
 func probesAgree(full, trimmed *maxminddb.Reader, probes []string) bool {
 	agree := true
 	for _, probe := range probes {
-		ip := net.ParseIP(probe)
-		if ip == nil {
+		ip, err := netip.ParseAddr(probe)
+		if err != nil {
 			log.Fatalf("not an IP address: %s", probe)
 		}
 		want, got := countryOf(full, ip), countryOf(trimmed, ip)
@@ -141,9 +137,9 @@ func probesAgree(full, trimmed *maxminddb.Reader, probes []string) bool {
 	return agree
 }
 
-func countryOf(reader *maxminddb.Reader, ip net.IP) string {
+func countryOf(reader *maxminddb.Reader, ip netip.Addr) string {
 	var rec record
-	if err := reader.Lookup(ip, &rec); err != nil {
+	if err := reader.Lookup(ip).Decode(&rec); err != nil {
 		log.Fatalf("lookup %s: %v", ip, err)
 	}
 	return rec.CountryCode
