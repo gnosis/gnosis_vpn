@@ -277,7 +277,7 @@ get_latest_release() {
 }
 
 # Generate package name based on distribution conventions
-# dpkg and rpm sort '~' below the empty string, as SemVer sorts a prerelease below its release: 1.0.1-0.T -> 1.0.1~0.T.
+# dpkg sorts '~' below a release as SemVer sorts a prerelease: 1.0.1-0.T -> 1.0.1~0.T.
 linux_package_version() {
     local version="$1"
     printf '%s\n' "${version/-/"~"}"

@@ -190,7 +190,7 @@ PLATFORMS=(
     "macos-arm64|macos|${MIN_OS_MACOS}"
 )
 
-# Build the GCS download URL per platform / channel / version; .deb names carry the Debian '~' form (linux_package_version in common.sh).
+# Build the GCS download URL per platform / channel / version; .deb names carry the Debian '~' form.
 build_gcs_url() {
     local manifest_name="$1"
     local channel="$2"

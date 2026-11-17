@@ -10,9 +10,8 @@
 # successful publish red.
 #
 # SAFETY: only call this AFTER the new version is fully published and every
-# index/manifest references the retained set. Ordering is by upload time, not by
-# version string, so the just-published version — the newest upload — is always
-# retained, and no version scheme (legacy dates, SemVer, Debian '~') can sort wrong.
+# index/manifest references the retained set. Upload time, not the version string,
+# decides age, so the just-published version is always retained.
 
 set -Eeuo pipefail
 set -o errtrace
@@ -118,12 +117,7 @@ main() {
         exit 1
     fi
 
-    # `gsutil ls -l` lines read "<size>  <RFC 3339 upload time>  <url>"; the time sorts as text.
-    # Collect unique versions from primary artifacts only, newest upload first.
-    # Sidecars end in .deb.asc / .pkg.sha256 etc. and do not match the
-    # `\.(deb|pkg)$` anchor, so they are not counted as versions (but are still
-    # removed via the wildcard below). Versions never contain '_', so the greedy
-    # `.*` stops at the final `_<arch>`.
+    # "<size> <RFC 3339 upload time> <url>" lines, newest first; sidecars miss the .deb/.pkg anchor but go with the wildcard below.
     local versions
     versions=$(printf '%s\n' "$ls_output" |
         sed -n 's#^ *[0-9][0-9]* *\([0-9TZ:.-]*\) *gs://.*/gnosisvpn_\(.*\)_\(amd64\|arm64\)\.\(deb\|pkg\)$#\1 \2#p' |

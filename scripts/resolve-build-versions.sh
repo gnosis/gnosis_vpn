@@ -273,8 +273,7 @@ main() {
         set_output "GNOSISVPN_TOOLKIT_VERSION" "${latest_toolkit_pr_version}"
         ;;
     release)
-        # The hopr-workflows release-version action also reads source_branch's package.json,
-        # so the build version and the release version agree on whichever branch close-release runs.
+        # hopr-workflows release-version reads the same package.json, so build and release versions agree.
         local package_version client_version app_version toolkit_version
         package_version="$(read_package_version)"
         # Newest release at or above the floor, so a later v4 patch cannot win; errexit does not escape a subshell.

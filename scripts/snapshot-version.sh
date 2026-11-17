@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 #
-# Print the snapshot installer version for a package.json version P (default: this repo's package.json),
-# with T the current UTC time as YYYYMMDDHHMMSS:
-#   P plain       -> P-0.T   (1.0.1-0.20261117010203)
-#   P prerelease  -> P.T     (1.1.0-rc.1.20261120010203)
-# Both sort below P and above every earlier snapshot of P under SemVer 2.0.0.
+# Usage: snapshot-version.sh [package_version]; P = package_version or package.json, T = UTC YYYYMMDDHHMMSS.
+# Prints P-0.T (1.0.1-0.20261117010203), or P.T for a prerelease P (1.1.0-rc.1.20261120010203).
 #
 
 set -euo pipefail
