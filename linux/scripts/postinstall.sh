@@ -450,19 +450,16 @@ register_apt_repo() {
         fi
         return 0
     fi
-    case "$version" in
-    *"+"*)
+    if [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        channel="stable"
+        component="main"
+        uris="https://download.vpn.gnosis.eth.limo/linux/apt https://download.gnosisvpn.io/linux/apt"
+    else
         channel="snapshot"
         component="snapshot"
         # Only gnosisvpn.io publishes dists/snapshot/.
         uris="https://download.gnosisvpn.io/linux/apt"
-        ;;
-    *)
-        channel="stable"
-        component="main"
-        uris="https://download.vpn.gnosis.eth.limo/linux/apt https://download.gnosisvpn.io/linux/apt"
-        ;;
-    esac
+    fi
 
     # Always restore the keyring so a user who deleted it gets it back on the next upgrade.
     if [[ ! -f $keyring_src ]]; then

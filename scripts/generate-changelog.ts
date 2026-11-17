@@ -409,15 +409,12 @@ export function zulipFormat(
       `- [#${entry.id}](https://github.com/${entry.repository}/pull/${entry.id}) [${entry.component}] ${entry.title} by ${entry.author}\n`;
   }
   content += "\nDownload links:";
-  // macOS .pkg filenames substitute '-' for '+' in the version slug for
-  // Artifact Registry compatibility (see build-binary.yaml::prepare_files).
-  const macFileSlug = packageVersion.replaceAll("+", "-");
-  // .debs live in their channel's pool under gnosisvpn_<version>_<arch>.deb, with the build's literal version.
+  const debVersion = linuxPackageVersion(packageVersion);
   const paths = CHANNEL_PATHS[channel];
   const debPool = `https://download.gnosisvpn.io/linux/apt/${paths.debPool}/g/gnosisvpn`;
-  content += ` [Mac](https://download.gnosisvpn.io/macos/${paths.macDir}/gnosisvpn_${macFileSlug}_arm64.pkg) |`;
-  content += ` [Debian x86_64](${debPool}/gnosisvpn_${packageVersion}_amd64.deb) |`;
-  content += ` [Debian aarch64](${debPool}/gnosisvpn_${packageVersion}_arm64.deb)\n`;
+  content += ` [Mac](https://download.gnosisvpn.io/macos/${paths.macDir}/gnosisvpn_${packageVersion}_arm64.pkg) |`;
+  content += ` [Debian x86_64](${debPool}/gnosisvpn_${debVersion}_amd64.deb) |`;
+  content += ` [Debian aarch64](${debPool}/gnosisvpn_${debVersion}_arm64.deb)\n`;
   return content;
 }
 
@@ -516,6 +513,15 @@ export function githubFormat(
   return content;
 }
 
+/** Debian/rpm form of a SemVer version: dpkg and rpm sort '~' below a release, as SemVer sorts a prerelease. */
+export function linuxPackageVersion(version: string): string {
+  return version.replace("-", "~");
+}
+
+function isPrerelease(version: string): boolean {
+  return version.split("+")[0].includes("-");
+}
+
 export function getReleaseType(
   entries: ChangelogEntry[],
   version: string,
@@ -527,8 +533,7 @@ export function getReleaseType(
     }
   }
 
-  // Check if the version contains "-rc." or is the first release (x.y.0)
-  if (version.includes("-rc.") || /^\d+\.\d+\.0$/.test(version)) {
+  if (isPrerelease(version) || /^\d+\.\d+\.0$/.test(version)) {
     return "unstable";
   }
 
@@ -540,7 +545,7 @@ export function getUrgencyLevel(version: string): string {
   const patchPart = parts[2] || "0";
   const patchNumber = parseInt(patchPart.split("-")[0], 10);
 
-  if (version.includes("-rc.") || patchNumber === 0) {
+  if (isPrerelease(version) || patchNumber === 0) {
     return "optional";
   }
   return "medium";
@@ -559,7 +564,7 @@ export function debianFormat(
   const maintainer = "GnosisVPN (Gnosis VPN) <tech@hoprnet.org>";
   const date = rfc2822Date(new Date());
 
-  let changelog = `gnosisvpn (${version}) ${distribution}; urgency=${urgency}\n`;
+  let changelog = `gnosisvpn (${linuxPackageVersion(version)}) ${distribution}; urgency=${urgency}\n`;
 
   for (const entry of entries) {
     const ref = `${entry.repository}#${entry.id}`;
@@ -610,7 +615,7 @@ export function rpmFormat(
     if (entry.date !== currentDate || entry.author !== currentAuthor) {
       currentDate = entry.date;
       currentAuthor = entry.author;
-      changelog += `* ${entry.date} ${entry.author} - ${version}\n`;
+      changelog += `* ${entry.date} ${entry.author} - ${linuxPackageVersion(version)}\n`;
     }
 
     // Remove the type(component): prefix from title if present

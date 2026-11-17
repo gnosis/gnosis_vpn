@@ -196,11 +196,14 @@ assert_curvy_zk_shipped() {
 # Validate version syntax
 check_version_syntax() {
     local version="$1"
-    # Matches 1.2.3, v1.2.3, +pr.123, +commit.abcdef, +build.020000 and latest.
-    local semver_regex='^v?[0-9]+\.[0-9]+\.[0-9]+(\+(pr|commit|build)(\.[0-9A-Za-z-]+)*)?$'
+    # GNO-1326 grammar: release, (alpha|beta|rc).N prerelease, snapshot timestamp, +pr/+commit metadata.
+    local num='(0|[1-9][0-9]*)'
+    local timestamp='[0-9]{14}'
+    local prerelease="-((alpha|beta|rc)\.${num}(\.${timestamp})?|0\.${timestamp})"
+    local semver_regex="^v?${num}\.${num}\.${num}(${prerelease})?(\+(pr|commit)(\.[0-9A-Za-z-]+)+)?$"
     if [[ ! $version =~ $semver_regex && $version != "latest" ]]; then
         log_error "Invalid version format: $version"
-        log_error "Expected format: MAJOR.MINOR.PATCH(+pr.123|+commit.abcdef|+build.020000) or latest"
+        log_error "Expected format: X.Y.Z[-(alpha|beta|rc).N[.YYYYMMDDHHMMSS] | -0.YYYYMMDDHHMMSS][+pr.N | +commit.<sha>] or latest"
         return 1
     fi
     return 0
@@ -274,6 +277,12 @@ get_latest_release() {
 }
 
 # Generate package name based on distribution conventions
+# dpkg and rpm sort '~' below the empty string, as SemVer sorts a prerelease below its release: 1.0.1-0.T -> 1.0.1~0.T.
+linux_package_version() {
+    local version="$1"
+    printf '%s\n' "${version/-/"~"}"
+}
+
 generate_package_name() {
     local arch_name
     # Convert architecture name based on distribution
@@ -290,7 +299,7 @@ generate_package_name() {
         else
             arch_name="$GNOSISVPN_ARCHITECTURE"
         fi
-        echo "gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_${arch_name}.deb"
+        echo "gnosisvpn_$(linux_package_version "${GNOSISVPN_PACKAGE_VERSION}")_${arch_name}.deb"
         ;;
     rpm)
         # Convert architecture for rpm packages
@@ -302,7 +311,7 @@ generate_package_name() {
             arch_name="$GNOSISVPN_ARCHITECTURE"
         fi
         # NVRA; nfpm's default rpm release is 1.
-        echo "gnosisvpn-${GNOSISVPN_PACKAGE_VERSION}-1.${arch_name}.rpm"
+        echo "gnosisvpn-$(linux_package_version "${GNOSISVPN_PACKAGE_VERSION}")-1.${arch_name}.rpm"
         ;;
     archlinux)
         # Convert architecture for archlinux packages

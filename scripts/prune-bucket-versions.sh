@@ -1,20 +1,18 @@
 #!/usr/bin/env bash
 #
-# Prune old gnosisvpn artifacts under a GCS prefix, keeping only the newest
-# --keep versions (by `sort -V`). Each pruned version loses all its objects:
+# Prune old gnosisvpn artifacts under a GCS prefix, keeping only the --keep
+# most recently uploaded versions. Each pruned version loses all its objects:
 # the .deb / .pkg plus its .asc / .sha256 sidecars.
 #
 # Caller: prune-bucket.yaml, twice per channel (APT pool + macOS dir) after a successful publish; each channel has its own prefix.
 #
 # Best-effort: a failed deletion warns but exits 0, so cleanup never turns a
-# successful publish red. Only call AFTER publishing — versions sort ascending
-# (sort -V) and only those older than the newest --keep are deleted, so the
-# just-published version (the newest) is always retained.
+# successful publish red.
 #
 # SAFETY: only call this AFTER the new version is fully published and every
-# index/manifest references the retained set. Versions are sorted ascending and
-# only the oldest beyond the newest --keep are deleted (head -n -KEEP), so the
-# just-published version — being the newest — is always retained, never deleted.
+# index/manifest references the retained set. Ordering is by upload time, not by
+# version string, so the just-published version — the newest upload — is always
+# retained, and no version scheme (legacy dates, SemVer, Debian '~') can sort wrong.
 
 set -Eeuo pipefail
 set -o errtrace
@@ -109,7 +107,7 @@ main() {
     # so distinguish "matched no objects" from real errors — pruning on a failed
     # listing could otherwise delete nothing (or, worse, mislead) silently.
     local ls_output ls_status=0
-    ls_output=$(gsutil ls "${PREFIX}" 2>&1) || ls_status=$?
+    ls_output=$(gsutil ls -l "${PREFIX}" 2>&1) || ls_status=$?
     if [[ $ls_status -ne 0 ]]; then
         if echo "$ls_output" | grep -qi 'matched no objects'; then
             log_info "Nothing under ${PREFIX} — nothing to prune."
@@ -120,15 +118,17 @@ main() {
         exit 1
     fi
 
-    # Collect unique versions from primary artifacts only. Sidecars end in
-    # .deb.asc / .pkg.sha256 etc. and do not match the `\.(deb|pkg)$` anchor, so
-    # they are not counted as versions (but are still removed via the wildcard
-    # below). Version slugs never contain '_', so the greedy `.*` stops at the
-    # final `_<arch>`.
+    # `gsutil ls -l` lines read "<size>  <RFC 3339 upload time>  <url>"; the time sorts as text.
+    # Collect unique versions from primary artifacts only, newest upload first.
+    # Sidecars end in .deb.asc / .pkg.sha256 etc. and do not match the
+    # `\.(deb|pkg)$` anchor, so they are not counted as versions (but are still
+    # removed via the wildcard below). Versions never contain '_', so the greedy
+    # `.*` stops at the final `_<arch>`.
     local versions
     versions=$(printf '%s\n' "$ls_output" |
-        sed -n 's#.*/gnosisvpn_\(.*\)_\(amd64\|arm64\)\.\(deb\|pkg\)$#\1#p' |
-        sort -Vu)
+        sed -n 's#^ *[0-9][0-9]* *\([0-9TZ:.-]*\) *gs://.*/gnosisvpn_\(.*\)_\(amd64\|arm64\)\.\(deb\|pkg\)$#\1 \2#p' |
+        sort -r |
+        awk '!seen[$2]++ { print $2 }')
 
     local total=0
     [[ -n $versions ]] && total=$(printf '%s\n' "$versions" | wc -l)
@@ -137,9 +137,8 @@ main() {
         exit 0
     fi
 
-    # `head -n -KEEP` yields every version except the newest KEEP.
     local to_delete
-    to_delete=$(printf '%s\n' "$versions" | head -n -"${KEEP}")
+    to_delete=$(printf '%s\n' "$versions" | tail -n +"$((KEEP + 1))")
 
     log_info "Found ${total} version(s); keeping newest ${KEEP}, pruning $((total - KEEP)):"
     printf '%s\n' "$to_delete" | sed 's/^/    /'

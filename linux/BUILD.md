@@ -85,11 +85,11 @@ Whether the package ships the GeoIP database (`/usr/share/gnosisvpn/geoip.mmdb`)
 client version. See "GeoIP database" in the top-level README.
 
 The build refuses a channel/version mismatch, because the installed package infers its APT suite from its own version
-string: a `snapshot` build needs a `+` version, a `stable` build a plain `x.y.z`.
+string: a `snapshot` build needs a prerelease version (`1.0.1-0.<UTC timestamp>`), a `stable` build a plain `x.y.z`.
 
 ```bash
 GNOSISVPN_CHANNEL=snapshot \
-  GNOSISVPN_PACKAGE_VERSION="$(date -u +%Y.%m.%d+build.%H%M%S)" \
+  GNOSISVPN_PACKAGE_VERSION="$(./scripts/snapshot-version.sh)" \
   just package deb x86_64-linux
 ```
 

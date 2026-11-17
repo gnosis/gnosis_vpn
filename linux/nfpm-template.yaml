@@ -2,8 +2,8 @@
 name: gnosisvpn
 arch: "${NFPM_ARCHITECTURE}"
 platform: linux
-version: "${GNOSISVPN_PACKAGE_VERSION}"
-# None, because 'semver' strips zeros (2026.05.27 -> 2026.5.27)
+version: "${GNOSISVPN_LINUX_PACKAGE_VERSION}"
+# Verbatim; generate-package-linux.sh computes the '~' form
 version_schema: none
 section: net
 priority: optional

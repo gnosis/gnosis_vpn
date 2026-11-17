@@ -25,17 +25,15 @@ fi
 
 RESOURCES_DIR="${SCRIPT_DIR}/../mac/resources"
 DISTRIBUTION_XML="${SCRIPT_DIR}/../mac/Distribution.xml"
-# Build final canonical name directly (gnosisvpn_<version-slug>_<arch>.pkg) to:
+# Build final canonical name directly (gnosisvpn_<version>_<arch>.pkg) to:
 # - Avoid renaming later for GitHub/GCS/IPFS uploads.
 # - Match GCS/Registry/manifest layouts.
-# - Accommodate Artifact Registry by replacing rejected '+' chars with '-' in the version.
-PKG_VERSION_SLUG="${GNOSISVPN_PACKAGE_VERSION//+/-}"
 case "${GNOSISVPN_ARCHITECTURE}" in
 aarch64-darwin) PKG_ARCH="arm64" ;;
 x86_64-darwin) PKG_ARCH="amd64" ;;
 *) PKG_ARCH="${GNOSISVPN_ARCHITECTURE}" ;;
 esac
-PKG_NAME_INSTALLER="gnosisvpn_${PKG_VERSION_SLUG}_${PKG_ARCH}.pkg"
+PKG_NAME_INSTALLER="gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_${PKG_ARCH}.pkg"
 COMPONENT_PKG="GnosisVPN.pkg"
 
 # Choice packages configuration
