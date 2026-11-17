@@ -45,6 +45,13 @@ all distribution arch sign="false":
         just curvy-zk
     fi
     if [[ "{{ arch }}" =~ ^(x86_64-linux|aarch64-linux)$ ]]; then
+        # CI passes both from resolve-build-versions.sh; a local build resolves the stable release once here.
+        if [[ -z ${GNOSISVPN_DEB_VERSION:-} || -z ${GNOSISVPN_RPM_VERSION:-} ]]; then
+            stable_version="$(latest_stable_version)"
+            GNOSISVPN_DEB_VERSION="$(linux_package_version deb "${GNOSISVPN_PACKAGE_VERSION}" "${stable_version}")"
+            GNOSISVPN_RPM_VERSION="$(linux_package_version rpm "${GNOSISVPN_PACKAGE_VERSION}" "${stable_version}")"
+            export GNOSISVPN_DEB_VERSION GNOSISVPN_RPM_VERSION
+        fi
         just changelog
         just manual
     fi

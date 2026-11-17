@@ -159,21 +159,24 @@ get_stable_release_info() {
     echo "$tag $version $published_at"
 }
 
-# Returns "version published_at" for the latest snapshot, read from repository
+# Returns "version deb_version published_at" for the latest snapshot, read from repository
 # variables that snapshot-build.yaml writes only when it actually produces
 # artifacts — so they always reflect a real snapshot, never a no-op skipped run.
 get_snapshot_run_info() {
-    local version published_at
+    local version deb_version published_at
     version=$(gh variable get GNOSISVPN_SNAPSHOT_VERSION --repo "$REPO")
+    deb_version=$(gh variable get GNOSISVPN_SNAPSHOT_DEB_VERSION --repo "$REPO")
     published_at=$(gh variable get GNOSISVPN_SNAPSHOT_DATE --repo "$REPO")
 
     [[ -n $version ]] ||
         die "Repository variable GNOSISVPN_SNAPSHOT_VERSION is empty — has snapshot-build.yaml published a snapshot yet?"
+    [[ -n $deb_version ]] ||
+        die "Repository variable GNOSISVPN_SNAPSHOT_DEB_VERSION is empty — has snapshot-build.yaml published a snapshot yet?"
     [[ -n $published_at ]] ||
         die "Repository variable GNOSISVPN_SNAPSHOT_DATE is empty — has snapshot-build.yaml published a snapshot yet?"
     validate_version "$version"
 
-    echo "$version $published_at"
+    echo "$version $deb_version $published_at"
 }
 
 # ---------------------------------------------------------------------------
@@ -190,11 +193,12 @@ PLATFORMS=(
     "macos-arm64|macos|${MIN_OS_MACOS}"
 )
 
-# Build the GCS download URL per platform / channel / version; .deb names carry the Debian '~' form.
+# Build the GCS download URL per platform / channel / version; .deb names carry the build's Debian version.
 build_gcs_url() {
     local manifest_name="$1"
     local channel="$2"
     local version="$3"
+    local deb_version="$4"
     local arch pool_dir chan_dir
 
     case "$manifest_name" in
@@ -205,7 +209,7 @@ build_gcs_url() {
         snapshot) pool_dir="pool/snapshot" ;;
         *) die "Unknown channel: ${channel}" ;;
         esac
-        echo "${GCS_BASE_URL}/linux/apt/${pool_dir}/g/gnosisvpn/gnosisvpn_${version/-/"~"}_${arch}.deb"
+        echo "${GCS_BASE_URL}/linux/apt/${pool_dir}/g/gnosisvpn/gnosisvpn_${deb_version}_${arch}.deb"
         ;;
     macos-*)
         arch="${manifest_name#macos-}"
@@ -243,19 +247,20 @@ load_end_of_life "${CONFIG_DIR}/end-of-life.json"
 
 # ---------------------------------------------------------------------------
 # Step 1: resolve each channel.
-#   CHANNEL_DATA stores "ref version published_at"; ref is a git tag (stable) or "-" (snapshot and its experimental alias).
+#   CHANNEL_DATA stores "ref version deb_version published_at"; ref is a git tag (stable) or "-" (snapshot and its experimental alias).
 # ---------------------------------------------------------------------------
 declare -A CHANNEL_DATA
 
 echo "Resolving stable channel ..."
 read -r tag version published_at <<<"$(get_stable_release_info)"
-CHANNEL_DATA["stable"]="$tag $version $published_at"
+# A stable deb version is the release version itself.
+CHANNEL_DATA["stable"]="$tag $version $version $published_at"
 echo "  -> $tag ($version) published $published_at"
 
 echo "Resolving snapshot channel ..."
-read -r version published_at <<<"$(get_snapshot_run_info)"
-CHANNEL_DATA["snapshot"]="- $version $published_at"
-echo "  -> ($version) published $published_at"
+read -r version deb_version published_at <<<"$(get_snapshot_run_info)"
+CHANNEL_DATA["snapshot"]="- $version $deb_version $published_at"
+echo "  -> ($version, deb $deb_version) published $published_at"
 
 CHANNEL_DATA["experimental"]="${CHANNEL_DATA["snapshot"]}"
 echo "  -> experimental mirrors snapshot"
@@ -274,7 +279,7 @@ for entry in "${PLATFORMS[@]}"; do
     CHANNELS_JSON_IPFS='{}'
 
     for channel in $CHANNELS; do
-        read -r ref version published_at <<<"${CHANNEL_DATA[$channel]}"
+        read -r ref version deb_version published_at <<<"${CHANNEL_DATA[$channel]}"
 
         [[ -n $version ]] ||
             die "[$channel] version is empty — cannot build manifest."
@@ -285,7 +290,7 @@ for entry in "${PLATFORMS[@]}"; do
         if [[ $channel == "experimental" ]]; then
             artifact_channel="snapshot"
         fi
-        GCS_URL=$(build_gcs_url "$MANIFEST_NAME" "$artifact_channel" "$version")
+        GCS_URL=$(build_gcs_url "$MANIFEST_NAME" "$artifact_channel" "$version" "$deb_version")
         # The IPFS manifest mirrors the same path layout for the stable channel.
         # File metadata below is still fetched from GCS (same binary, authoritative source).
         IPFS_URL="${GCS_URL/#$GCS_BASE_URL/$IPFS_BASE_URL}"

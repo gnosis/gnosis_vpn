@@ -158,8 +158,11 @@ generate_nfpm_config() {
     local nfpm_arch="${GNOSISVPN_ARCHITECTURE/x86_64-linux/amd64}"
     nfpm_arch="${nfpm_arch/aarch64-linux/arm64}"
     export NFPM_ARCHITECTURE="${nfpm_arch}"
-    GNOSISVPN_LINUX_PACKAGE_VERSION="$(linux_package_version "${GNOSISVPN_PACKAGE_VERSION}")"
-    export GNOSISVPN_LINUX_PACKAGE_VERSION
+    if [[ ${GNOSISVPN_DISTRIBUTION} == "rpm" ]]; then
+        export GNOSISVPN_LINUX_PACKAGE_VERSION="${GNOSISVPN_RPM_VERSION}"
+    else
+        export GNOSISVPN_LINUX_PACKAGE_VERSION="${GNOSISVPN_DEB_VERSION}"
+    fi
     # Generate version file so the installed app can read the installer version
     mkdir -p "${BUILD_DIR}/resources"
     echo "${GNOSISVPN_PACKAGE_VERSION}" >"${BUILD_DIR}/resources/version.txt"

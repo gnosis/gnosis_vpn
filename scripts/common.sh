@@ -276,13 +276,48 @@ get_latest_release() {
     echo "${release#v}"
 }
 
-# Generate package name based on distribution conventions
-# dpkg sorts '~' below a release as SemVer sorts a prerelease: 1.0.1-0.T -> 1.0.1~0.T.
-linux_package_version() {
-    local version="$1"
-    printf '%s\n' "${version/-/"~"}"
+# Latest non-prerelease gnosis_vpn release, the same one the stable manifest serves.
+latest_stable_version() {
+    local tag
+    tag=$(gh release list --repo gnosis/gnosis_vpn --exclude-pre-releases --limit 1 --json tagName --jq 'first | .tagName')
+    if [[ ! ${tag#v} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        log_error "Could not resolve the latest stable gnosis_vpn release (got '${tag}')"
+        return 1
+    fi
+    echo "${tag#v}"
 }
 
+# Usage: linux_package_version <deb|rpm> <semver> <latest stable>
+# '~' sorts below a release, deb '+' / rpm '^' above it. A plain snapshot X.Y.Z-0.T rides on the latest
+# stable B as B+T, because X.Y.Z is not released yet: 1.0.1-0.T -> 1.0.0+T, 1.1.0-rc.1.T -> 1.1.0~rc.1+T.
+linux_package_version() {
+    local format="$1" version="$2" stable="$3"
+    local above
+    case "$format" in
+    deb) above="+" ;;
+    rpm) above="^" ;;
+    *)
+        log_error "Unknown Linux package format: ${format}"
+        return 1
+        ;;
+    esac
+
+    local plain_snapshot='^[0-9]+\.[0-9]+\.[0-9]+-0\.([0-9]{14})$'
+    local prerelease_snapshot='^([0-9]+\.[0-9]+\.[0-9]+)-((alpha|beta|rc)\.[0-9]+)\.([0-9]{14})$'
+    if [[ $version =~ $plain_snapshot ]]; then
+        if [[ -z $stable ]]; then
+            log_error "Snapshot ${version} needs the latest stable release for its ${format} version"
+            return 1
+        fi
+        echo "${stable}${above}${BASH_REMATCH[1]}"
+    elif [[ $version =~ $prerelease_snapshot ]]; then
+        echo "${BASH_REMATCH[1]}~${BASH_REMATCH[2]}${above}${BASH_REMATCH[4]}"
+    else
+        echo "${version/-/"~"}"
+    fi
+}
+
+# Generate package name based on distribution conventions
 generate_package_name() {
     local arch_name
     # Convert architecture name based on distribution
@@ -299,7 +334,7 @@ generate_package_name() {
         else
             arch_name="$GNOSISVPN_ARCHITECTURE"
         fi
-        echo "gnosisvpn_$(linux_package_version "${GNOSISVPN_PACKAGE_VERSION}")_${arch_name}.deb"
+        echo "gnosisvpn_${GNOSISVPN_DEB_VERSION:?GNOSISVPN_DEB_VERSION is unset; run just all or export it}_${arch_name}.deb"
         ;;
     rpm)
         # Convert architecture for rpm packages
@@ -311,7 +346,7 @@ generate_package_name() {
             arch_name="$GNOSISVPN_ARCHITECTURE"
         fi
         # NVRA; nfpm's default rpm release is 1.
-        echo "gnosisvpn-$(linux_package_version "${GNOSISVPN_PACKAGE_VERSION}")-1.${arch_name}.rpm"
+        echo "gnosisvpn-${GNOSISVPN_RPM_VERSION:?GNOSISVPN_RPM_VERSION is unset; run just all or export it}-1.${arch_name}.rpm"
         ;;
     archlinux)
         # Convert architecture for archlinux packages

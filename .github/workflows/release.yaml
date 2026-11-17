@@ -123,7 +123,7 @@ jobs:
     uses: ./.github/workflows/publish-apt.yaml
     with:
       channel: stable
-      package_version: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+      deb_version: ${{ needs.build_binary.outputs.GNOSISVPN_DEB_VERSION }}
     secrets: inherit
   prune_bucket:
     name: Prune bucket (stable)

@@ -87,10 +87,14 @@ client version. See "GeoIP database" in the top-level README.
 The build refuses a channel/version mismatch, because the installed package infers its APT suite from its own version
 string: a `snapshot` build needs a prerelease version (`1.0.1-0.<UTC timestamp>`), a `stable` build a plain `x.y.z`.
 
+The package itself carries its format's version: `GNOSISVPN_DEB_VERSION` (`1.0.0+<T>`) or `GNOSISVPN_RPM_VERSION`
+(`1.0.0^<T>`), see the version table in the top-level README. `just all` derives both from the latest stable GitHub
+release (needs `gh` auth); a standalone `just package` needs them exported.
+
 ```bash
 GNOSISVPN_CHANNEL=snapshot \
   GNOSISVPN_PACKAGE_VERSION="$(./scripts/snapshot-version.sh)" \
-  just package deb x86_64-linux
+  just all deb x86_64-linux
 ```
 
 ## Distribution Channels

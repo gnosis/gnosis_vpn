@@ -3,7 +3,7 @@ name: gnosisvpn
 arch: "${NFPM_ARCHITECTURE}"
 platform: linux
 version: "${GNOSISVPN_LINUX_PACKAGE_VERSION}"
-# Verbatim; generate-package-linux.sh computes the '~' form
+# Verbatim; GNOSISVPN_DEB_VERSION or GNOSISVPN_RPM_VERSION from linux_package_version in common.sh
 version_schema: none
 section: net
 priority: optional

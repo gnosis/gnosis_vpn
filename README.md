@@ -585,8 +585,20 @@ release and tag.
 the "nothing changed, skip the build" check, and writes the version and date that `Update Manifests` reads for the
 snapshot channel and its `experimental` alias. A snapshot is versioned `<P>-0.<T>`, or `<P>.<T>` when P is a prerelease,
 with P the `package.json` version and T the UTC build time `YYYYMMDDHHMMSS` (`scripts/snapshot-version.sh`), so it sorts
-below P and above earlier snapshots. Its .debs carry the Debian `~` form (`gnosisvpn_1.0.1~0.<T>_amd64.deb`). Stable
-releases take plain `X.Y.Z` only.
+below P and above earlier snapshots. Stable releases take plain `X.Y.Z` only.
+
+The .deb and .rpm versions follow each format's own convention (`linux_package_version` in `scripts/common.sh`). P is
+not released yet, so a plain snapshot rides on B, the latest stable GitHub release, resolved once per build:
+
+| SemVer           | deb              | rpm              |
+| ---------------- | ---------------- | ---------------- |
+| `1.0.1`          | `1.0.1`          | `1.0.1`          |
+| `1.0.1-0.<T>`    | `1.0.0+<T>`      | `1.0.0^<T>`      |
+| `1.1.0-rc.1`     | `1.1.0~rc.1`     | `1.1.0~rc.1`     |
+| `1.1.0-rc.1.<T>` | `1.1.0~rc.1+<T>` | `1.1.0~rc.1^<T>` |
+
+The snapshot's deb version is stored in `GNOSISVPN_SNAPSHOT_DEB_VERSION` next to `GNOSISVPN_SNAPSHOT_VERSION`, because
+`Update Manifests` cannot derive B for the .deb URLs.
 
 ```mermaid
 flowchart TD

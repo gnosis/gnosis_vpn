@@ -27,7 +27,7 @@
 #   GITHUB_REPOSITORY, GITHUB_REF      set by GitHub Actions (VERSION_TYPE=snapshot|release)
 #
 # Outputs written to GITHUB_OUTPUT:
-#   the resolved package/client/app/toolkit versions plus GNOSISVPN_NETWORKS, GNOSISVPN_CHANNEL and SKIP_BUILDING
+#   the resolved package/client/app/toolkit versions, the package's GNOSISVPN_{DEB,RPM}_VERSION, plus GNOSISVPN_NETWORKS, GNOSISVPN_CHANNEL and SKIP_BUILDING
 #
 
 set -euo pipefail
@@ -249,32 +249,33 @@ main() {
     previous_package_pr_number=$(echo "${GNOSISVPN_PACKAGE_PREVIOUS_VERSION:-}" | cut -d '+' -f 2 | cut -d '.' -f 2)
     set_output "LATEST_GNOSISVPN_PACKAGE_PR_VERSION" "${latest_package_pr_version}"
 
+    local package_version
     case "${version_type}" in
     snapshot)
-        local package_version
-        package_version="$(read_package_version)"
-        [[ -n ${package_version} ]] || exit 1
-        set_output "GNOSISVPN_PACKAGE_VERSION" "$("${SCRIPT_DIR}/snapshot-version.sh" "${package_version}")"
+        local base_version
+        base_version="$(read_package_version)"
+        [[ -n ${base_version} ]] || exit 1
+        package_version="$("${SCRIPT_DIR}/snapshot-version.sh" "${base_version}")"
         set_output "GNOSISVPN_CLIENT_VERSION" "${latest_client_pr_version}"
         set_output "GNOSISVPN_APP_VERSION" "${latest_app_pr_version}"
         set_output "GNOSISVPN_TOOLKIT_VERSION" "${latest_toolkit_pr_version}"
         ;;
     commit)
         local sha="${PR_HEAD_SHA:?PR_HEAD_SHA is required for VERSION_TYPE=commit}"
-        set_output "GNOSISVPN_PACKAGE_VERSION" "${latest_package_version_number}+commit.${sha:0:7}"
+        package_version="${latest_package_version_number}+commit.${sha:0:7}"
         set_output "GNOSISVPN_CLIENT_VERSION" "${latest_client_pr_version}"
         set_output "GNOSISVPN_APP_VERSION" "${latest_app_pr_version}"
         set_output "GNOSISVPN_TOOLKIT_VERSION" "${latest_toolkit_pr_version}"
         ;;
     pr)
-        set_output "GNOSISVPN_PACKAGE_VERSION" "${latest_package_pr_version}"
+        package_version="${latest_package_pr_version}"
         set_output "GNOSISVPN_CLIENT_VERSION" "${latest_client_pr_version}"
         set_output "GNOSISVPN_APP_VERSION" "${latest_app_pr_version}"
         set_output "GNOSISVPN_TOOLKIT_VERSION" "${latest_toolkit_pr_version}"
         ;;
     release)
         # hopr-workflows release-version reads the same package.json, so build and release versions agree.
-        local package_version client_version app_version toolkit_version
+        local client_version app_version toolkit_version
         package_version="$(read_package_version)"
         # Newest release at or above the floor, so a later v4 patch cannot win; errexit does not escape a subshell.
         client_version="${INPUT_CLIENT_VERSION:-$(get_latest_release_version_from "gnosis_vpn-client" "${COMPONENT_VERSION_BOUNDARY}")}"
@@ -295,7 +296,6 @@ main() {
         require_complete_toolkit "${toolkit_version}"
         [[ -z ${INPUT_CLIENT_VERSION:-} ]] || warn_if_below_floor "gnosis_vpn-client" "${client_version}"
         [[ -z ${INPUT_APP_VERSION:-} ]] || warn_if_below_floor "gnosis_vpn-app" "${app_version}"
-        set_output "GNOSISVPN_PACKAGE_VERSION" "${package_version}"
         set_output "GNOSISVPN_CLIENT_VERSION" "${client_version}"
         set_output "GNOSISVPN_APP_VERSION" "${app_version}"
         set_output "GNOSISVPN_TOOLKIT_VERSION" "${toolkit_version}"
@@ -305,6 +305,15 @@ main() {
         exit 1
         ;;
     esac
+
+    # Resolved once here so every .deb/.rpm name, changelog and APT publish of this build agree.
+    local stable_version deb_version rpm_version
+    stable_version="$(latest_stable_version)"
+    deb_version="$(linux_package_version deb "${package_version}" "${stable_version}")"
+    rpm_version="$(linux_package_version rpm "${package_version}" "${stable_version}")"
+    set_output "GNOSISVPN_PACKAGE_VERSION" "${package_version}"
+    set_output "GNOSISVPN_DEB_VERSION" "${deb_version}"
+    set_output "GNOSISVPN_RPM_VERSION" "${rpm_version}"
 
     # Channel of this build; consumed by generate-package.sh and generate-changelog.ts. pr / commit builds are never published.
     local channel

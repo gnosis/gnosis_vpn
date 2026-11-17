@@ -9,7 +9,6 @@ import {
   getUrgencyLevel,
   githubFormat,
   jsonFormat,
-  linuxPackageVersion,
   parseBackport,
   readConfig,
   rfc2822Date,
@@ -126,13 +125,6 @@ Deno.test("getUrgencyLevel - optional for any prerelease", () => {
   assertEquals(getUrgencyLevel("1.2.3-0.20261117010203"), "optional");
 });
 
-Deno.test("linuxPackageVersion swaps the prerelease '-' for '~'", () => {
-  assertEquals(linuxPackageVersion("1.0.1-0.20261117010203"), "1.0.1~0.20261117010203");
-  assertEquals(linuxPackageVersion("1.1.0-rc.1.20261120010203"), "1.1.0~rc.1.20261120010203");
-  assertEquals(linuxPackageVersion("1.0.1"), "1.0.1");
-  assertEquals(linuxPackageVersion("1.0.1+pr.5"), "1.0.1+pr.5");
-});
-
 Deno.test("getUrgencyLevel - optional for x.y.0 versions", () => {
   assertEquals(getUrgencyLevel("1.2.0"), "optional");
 });
@@ -156,6 +148,7 @@ Deno.test("zulipFormat formats snapshot entries and download links", () => {
       } as ChangelogEntry,
     ],
     "1.0.1-0.20260514143052",
+    "1.0.0+20260514143052",
     "0.56.1",
     "0.6.1",
     "1.2.3",
@@ -193,7 +186,7 @@ Deno.test("zulipFormat formats snapshot entries and download links", () => {
 
   if (
     !output.includes(
-      "[Debian x86_64](https://download.gnosisvpn.io/linux/apt/pool/snapshot/g/gnosisvpn/gnosisvpn_1.0.1~0.20260514143052_amd64.deb)",
+      "[Debian x86_64](https://download.gnosisvpn.io/linux/apt/pool/snapshot/g/gnosisvpn/gnosisvpn_1.0.0+20260514143052_amd64.deb)",
     )
   ) {
     throw new Error("zulipFormat output is missing the Debian x86_64 apt-pool link");
@@ -201,7 +194,7 @@ Deno.test("zulipFormat formats snapshot entries and download links", () => {
 
   if (
     !output.includes(
-      "[Debian aarch64](https://download.gnosisvpn.io/linux/apt/pool/snapshot/g/gnosisvpn/gnosisvpn_1.0.1~0.20260514143052_arm64.deb)",
+      "[Debian aarch64](https://download.gnosisvpn.io/linux/apt/pool/snapshot/g/gnosisvpn/gnosisvpn_1.0.0+20260514143052_arm64.deb)",
     )
   ) {
     throw new Error("zulipFormat output is missing the Debian aarch64 apt-pool link");
@@ -209,10 +202,11 @@ Deno.test("zulipFormat formats snapshot entries and download links", () => {
 });
 
 Deno.test("zulipFormat defaults to the snapshot channel", () => {
-  const withDefault = zulipFormat([], "1.0.1-0.20260514143052", "0.56.1", "0.6.1", "1.2.3");
+  const withDefault = zulipFormat([], "1.0.1-0.20260514143052", "1.0.0+20260514143052", "0.56.1", "0.6.1", "1.2.3");
   const withExplicit = zulipFormat(
     [],
     "1.0.1-0.20260514143052",
+    "1.0.0+20260514143052",
     "0.56.1",
     "0.6.1",
     "1.2.3",
@@ -357,7 +351,7 @@ Deno.test("debianFormat - line truncation at 80 chars", () => {
   const entries: ChangelogEntry[] = [
     makeEntry({ title: longTitle, author: "dev", id: "99" }),
   ];
-  const result = debianFormat(entries, "1.2.3");
+  const result = debianFormat(entries, "1.2.3", "1.2.3");
   const lines = result.split("\n");
   for (const line of lines) {
     if (line.startsWith("  * ")) {
@@ -372,26 +366,26 @@ Deno.test("debianFormat - line truncation at 80 chars", () => {
 
 Deno.test("debianFormat - contains RFC 2822 date", () => {
   const entries: ChangelogEntry[] = [makeEntry({})];
-  const result = debianFormat(entries, "1.2.3");
+  const result = debianFormat(entries, "1.2.3", "1.2.3");
   assertEquals(result.includes("+0000"), true);
 });
 
 Deno.test("debianFormat - contains version and distribution", () => {
   const entries: ChangelogEntry[] = [makeEntry({})];
-  const result = debianFormat(entries, "1.2.3");
+  const result = debianFormat(entries, "1.2.3", "1.2.3");
   assertEquals(result.includes("gnosisvpn (1.2.3)"), true);
   assertEquals(result.includes("urgency=medium"), true);
   assertEquals(result.includes("stable"), true);
 });
 
 Deno.test("debianFormat - a stanza with no entries carries a placeholder change line", () => {
-  const result = debianFormat([], "1.2.3");
+  const result = debianFormat([], "1.2.3", "1.2.3");
   assertEquals(result.includes("  * No recorded changes since the previous build."), true);
 });
 
-Deno.test("debianFormat - snapshot header carries the Debian version", () => {
-  const result = debianFormat([], "1.0.1-0.20261117010203");
-  assertEquals(result.startsWith("gnosisvpn (1.0.1~0.20261117010203) unstable; urgency=optional\n"), true);
+Deno.test("debianFormat - snapshot header carries the Debian version, distribution and urgency the SemVer one", () => {
+  const result = debianFormat([], "1.0.1-0.20261117010203", "1.0.0+20261117010203");
+  assertEquals(result.startsWith("gnosisvpn (1.0.0+20261117010203) unstable; urgency=optional\n"), true);
 });
 
 // --- rpmFormat ---
@@ -445,6 +439,11 @@ Deno.test("rpmFormat - title prefix stripping", () => {
   const result = rpmFormat(entries, "1.0.0");
   assertEquals(result.includes("add button in #10"), true);
   assertEquals(result.includes("feat(ui): add button"), false);
+});
+
+Deno.test("rpmFormat - header carries the rpm version", () => {
+  const result = rpmFormat([makeEntry({ id: "11", author: "alice" })], "1.0.0^20261117010203");
+  assertEquals(result.split("\n")[0].endsWith(" alice - 1.0.0^20261117010203"), true);
 });
 
 // --- jsonFormat ---
@@ -681,6 +680,7 @@ Deno.test("snapshot changelog includes a PR merged into the version PR's release
       const announcement = zulipFormat(
         entries,
         "1.0.1-0.20260914180352",
+        "1.0.0+20260914180352",
         "0.96.1+pr.801",
         "0.0.0",
         "0.0.0",
