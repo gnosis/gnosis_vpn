@@ -81,12 +81,6 @@ arch)
     ;;
 esac
 
-# Remove documentation directory
-if [[ -d /usr/share/doc/gnosisvpn ]]; then
-    echo "$LOG_PREFIX INFO: Removing documentation directory: /usr/share/doc/gnosisvpn"
-    rm -rf /usr/share/doc/gnosisvpn
-fi
-
 # Per-user identities (~/.local/share/gnosisvpn) are the user's data: never touched, not even on purge.
 if [[ $IS_PURGE == "true" ]]; then
     echo "$LOG_PREFIX INFO: Performing complete removal (purge)..."
