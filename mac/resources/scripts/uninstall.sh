@@ -5,7 +5,10 @@
 # This script removes all files installed by the Gnosis VPN installer.
 #
 # Usage:
-#   sudo ./uninstall.sh
+#   sudo ./uninstall.sh            # software only; settings, logs and user data stay
+#   sudo ./uninstall.sh --purge    # also settings, logs and every user's caches and app data
+#
+# Identities are never deleted: they are the only key to the user's funds.
 #
 
 set -euo pipefail
@@ -25,6 +28,17 @@ LOG_DIR="/Library/Logs/GnosisVPN"
 SHARE_DIR="/usr/local/share/gnosisvpn"
 STATE_DIR="/Library/Application Support/GnosisVPN"
 CACHE_DIR="/Library/Caches/GnosisVPN"
+APP_ID="com.gnosisvpn.gnosisvpnclient"
+
+PURGE=false
+case "${1:-}" in
+"") ;;
+--purge) PURGE=true ;;
+*)
+    echo "Usage: sudo $0 [--purge]" >&2
+    exit 64
+    ;;
+esac
 
 # Logging functions
 log_info() {
@@ -66,20 +80,29 @@ confirm_uninstall() {
     echo "  - Binaries: $BIN_DIR/gnosis_vpn-root, $BIN_DIR/gnosis_vpn-worker, $BIN_DIR/gnosis_vpn-ctl, $BIN_DIR/gnosis_vpn-update, $BIN_DIR/gnosis_vpn-migrate, $BIN_DIR/gnosis_vpn-manager"
     echo "  - Launchd service: /Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
     echo "  - Log rotation timer: /Library/LaunchDaemons/com.gnosisvpn.newsyslog.plist"
-    echo "  - Configuration: $CONFIG_DIR/"
-    echo "  - Service logs: $LOG_DIR"
-    echo "  - Installation logs: $LOG_DIR/installer"
-    echo "  - Installer choices: $STATE_DIR/installer"
     echo "  - Update downloads: $CACHE_DIR"
     echo "  - Package receipt: $PKG_ID"
-    echo ""
-    echo "Left in place: per-user identities under ~/Library/Application Support/GnosisVPN/ and $STATE_DIR (updater state, legacy identity backups)"
     echo ""
     read -p "Are you sure you want to uninstall Gnosis VPN? [y/N] " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         log_info "Uninstallation cancelled"
         exit 0
+    fi
+    echo ""
+
+    [[ $PURGE == false ]] || return 0
+    echo "Settings, logs and user data stay by default, so a reinstall picks up where you left off:"
+    echo "  - Configuration: $CONFIG_DIR/"
+    echo "  - Logs: $LOG_DIR"
+    echo "  - Installer choices: $STATE_DIR/installer"
+    echo "  - Every user's caches, logs and app settings under ~/Library"
+    echo "Identities (the keys to your funds) are kept either way."
+    echo ""
+    read -p "Delete settings, logs and user data as well? [y/N] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        PURGE=true
     fi
     echo ""
 }
@@ -125,17 +148,14 @@ remove_system_group() {
     fi
 }
 
-# Clean up system files created for the service; $STATE_DIR and per-user identities stay (user data)
+# Clean up system files created for the service; settings, logs and $STATE_DIR stay unless purged
 cleanup_system_directories() {
     log_info "Cleaning up system directories..."
 
-    local dir
-    for dir in "$LOG_DIR" "$CACHE_DIR" "$STATE_DIR/installer"; do
-        if [[ -d $dir ]]; then
-            log_info "Removing directory: $dir"
-            rm -rf "$dir"
-        fi
-    done
+    if [[ -d $CACHE_DIR ]]; then
+        log_info "Removing directory: $CACHE_DIR"
+        rm -rf "$CACHE_DIR"
+    fi
 
     # Remove log rotation timer
     local newsyslog_plist="/Library/LaunchDaemons/com.gnosisvpn.newsyslog.plist"
@@ -182,6 +202,52 @@ stop_processes() {
     log_info "Checking for running Gnosis VPN processes..."
     stop_vpn_service
     stop_ui_app
+    echo ""
+}
+
+# A deleted config.toml link would hide a replaced network from the next install, which then skips moving identities off it.
+remember_linked_network() {
+    [[ -L "$CONFIG_DIR/config.toml" ]] || return 0
+    local network pending="$STATE_DIR/network-switch-pending" recorded=""
+    network="$(basename "$(readlink "$CONFIG_DIR/config.toml")" .toml)"
+    if [[ -f $pending && ! -L $pending ]]; then
+        IFS= read -r recorded <"$pending" || true
+    fi
+    case " $recorded " in
+    *" $network "*) return 0 ;;
+    esac
+    # postinstall keeps only replaced networks from this file, so recording a current one is harmless.
+    mkdir -p "$STATE_DIR"
+    rm -f "$pending"
+    echo "${recorded:+$recorded }$network" >"$pending"
+    log_info "Recorded network '$network' for the next install's network move"
+}
+
+# Identity, pass, PIX state and ticket store stay: they hold or guard the user's funds.
+purge_user_data() {
+    log_info "Removing every user's caches, logs and app data..."
+
+    local home owner
+    for home in /Users/*; do
+        [[ -d "$home/Library" ]] || continue
+        owner="$(stat -f %Su "$home")"
+        [[ $owner != "root" ]] || continue
+        # As the owner: root must not follow links a user placed in their home.
+        if sudo -u "$owner" rm -rf \
+            "$home/Library/Caches/GnosisVPN" \
+            "$home/Library/Logs/GnosisVPN" \
+            "$home/Library/Application Support/$APP_ID" \
+            "$home/Library/Caches/$APP_ID" \
+            "$home/Library/Logs/$APP_ID" \
+            "$home/Library/WebKit/$APP_ID" \
+            "$home/Library/HTTPStorages/$APP_ID" \
+            "$home/Library/Saved Application State/$APP_ID.savedState" \
+            "$home/Library/Preferences/$APP_ID.plist"; then
+            log_success "Removed caches, logs and app data of user $owner"
+        else
+            log_warn "Could not remove all caches, logs and app data of user $owner"
+        fi
+    done
     echo ""
 }
 
@@ -349,9 +415,14 @@ verify_uninstall() {
         errors=$((errors + 1))
     fi
 
-    if [[ -d $CONFIG_DIR ]]; then
-        log_error "Configuration directory still exists: $CONFIG_DIR"
-        errors=$((errors + 1))
+    if [[ $PURGE == true ]]; then
+        local dir
+        for dir in "$CONFIG_DIR" "$LOG_DIR" "$STATE_DIR/installer" /Users/*/Library/Caches/GnosisVPN; do
+            if [[ -d $dir ]]; then
+                log_error "Directory still exists: $dir"
+                errors=$((errors + 1))
+            fi
+        done
     fi
 
     for file in "$SHARE_DIR/geoip.mmdb" "$SHARE_DIR/geoip.NOTICE"; do
@@ -377,14 +448,10 @@ verify_uninstall() {
         errors=$((errors + 1))
     fi
 
-    # Check system directories removal
-    local system_dirs=("$LOG_DIR" "$CACHE_DIR" "$STATE_DIR/installer")
-    for dir in "${system_dirs[@]}"; do
-        if [[ -d $dir ]]; then
-            log_error "System directory still exists: $dir"
-            errors=$((errors + 1))
-        fi
-    done
+    if [[ -d $CACHE_DIR ]]; then
+        log_error "System directory still exists: $CACHE_DIR"
+        errors=$((errors + 1))
+    fi
 
     # Check sudo privileges removal
     if [[ -f "/etc/sudoers.d/gnosis-vpn" ]]; then
@@ -415,17 +482,24 @@ print_summary() {
     echo "  ✓ Launchd service"
     echo "  ✓ System group (gnosisvpn)"
     echo "  ✓ Sudo privileges configuration"
-    echo "  ✓ Configuration (backed up to ~/gnosis-vpn-config-backup-*)"
-    echo "  ✓ Service logs"
     echo "  ✓ GeoIP database"
     echo "  ✓ Curvy proving files"
-    echo "  ✓ Installation logs"
+    echo "  ✓ Update downloads"
     echo "  ✓ Package receipt"
     echo "  ✓ LaunchServices registrations"
+    if [[ $PURGE == true ]]; then
+        echo "  ✓ Configuration (backed up to ~/gnosis-vpn-config-backup-*)"
+        echo "  ✓ Service and installation logs"
+        echo "  ✓ Installer choices"
+        echo "  ✓ Every user's caches, logs and app data"
+    fi
     echo ""
     echo "Left in place:"
-    echo "  - Per-user identities: ~/Library/Application Support/GnosisVPN/ (each user's own data)"
+    echo "  - Per-user identities: ~/Library/Application Support/GnosisVPN/ (the keys to your funds)"
     echo "  - $STATE_DIR (updater state, legacy identity backups)"
+    if [[ $PURGE == false ]]; then
+        echo "  - Configuration, logs and every user's app data (remove with: sudo $0 --purge)"
+    fi
     echo ""
     echo "To reinstall, download and run the installer again."
     echo "=========================================="
@@ -438,13 +512,18 @@ main() {
     confirm_uninstall
     stop_processes
     remove_launchd_service
-    backup_config
     remove_binaries
     remove_ui_app
-    remove_config
-    remove_logs
     remove_geoip_data
     cleanup_system_directories
+    if [[ $PURGE == true ]]; then
+        remember_linked_network
+        backup_config
+        remove_config
+        remove_logs
+        rm -rf "$STATE_DIR/installer"
+        purge_user_data
+    fi
     remove_sudo_privileges
     remove_system_group
     forget_package

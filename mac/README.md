@@ -125,8 +125,16 @@ cd mac
 sudo ./uninstall.sh
 ```
 
-Per-user identities under `~/Library/Application Support/GnosisVPN/` and the updater state in
-`/Library/Application Support/GnosisVPN/` are left in place.
+By default the script removes the software (binaries, launchd service, app, sudoers file, update downloads, package
+receipt) and keeps the configuration, logs and user data, so a reinstall picks up where it left off. It then asks
+whether to delete those as well; `sudo ./uninstall.sh --purge` answers yes without asking. A purge removes
+`/etc/gnosisvpn/` (backed up to `~/gnosis-vpn-config-backup-*`), the logs, the installer choices and every user's
+caches, logs and app data. It records a replaced network from the `config.toml` link in `network-switch-pending`, so the
+next install still moves identities off it.
+
+Identities are never deleted: the per-user `hopr.id`, `hopr.pass`, PIX state and ticket store under
+`~/Library/Application Support/GnosisVPN/`, and the legacy identity backups in
+`/Library/Application Support/GnosisVPN/`.
 
 ## Security
 
