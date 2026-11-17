@@ -287,9 +287,7 @@ latest_stable_version() {
     echo "${tag#v}"
 }
 
-# Usage: linux_package_version <deb|rpm> <semver> <latest stable>
-# '~' sorts below a release, deb '+' / rpm '^' above it. A plain snapshot X.Y.Z-0.T rides on the latest
-# stable B as B+T, because X.Y.Z is not released yet: 1.0.1-0.T -> 1.0.0+T, 1.1.0-rc.1.T -> 1.1.0~rc.1+T.
+# <deb|rpm> <semver> <latest stable>; unreleased X.Y.Z-0.T rides on stable B (1.0.0+T), '~' sorts below a release.
 linux_package_version() {
     local format="$1" version="$2" stable="$3"
     local above
