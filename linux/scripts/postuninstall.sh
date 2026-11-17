@@ -56,7 +56,7 @@ preserve_legacy_identity() {
 
 # Reload systemd after service file removal
 echo "$LOG_PREFIX INFO: Reloading systemd daemon..."
-deb-systemd-helper daemon-reload || true
+systemctl daemon-reload || true
 # The unit files are gone; drop what systemd still remembers about them.
 systemctl reset-failed gnosisvpn-logrotate.timer gnosisvpn-logrotate.service 2>/dev/null || true
 
