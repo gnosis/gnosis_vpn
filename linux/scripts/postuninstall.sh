@@ -17,11 +17,6 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-# rpm runs the old %postun after the new package is in place on upgrade ($1 >= 1); the doc cleanup below would delete the new docs.
-if [[ ${1:-} =~ ^[0-9]+$ && $1 -ge 1 ]]; then
-    exit 0
-fi
-
 # Detect package manager
 PKG_MANAGER="unknown"
 if command -v dpkg >/dev/null 2>&1; then
