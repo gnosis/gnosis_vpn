@@ -24,6 +24,8 @@ on:
     outputs:
       GNOSISVPN_PACKAGE_VERSION:
         value: ${{ jobs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+      GNOSISVPN_DEB_VERSION:
+        value: ${{ jobs.setup.outputs.GNOSISVPN_DEB_VERSION }}
       LATEST_GNOSISVPN_PACKAGE_PR_VERSION:
         value: ${{ jobs.setup.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
       GNOSISVPN_CLIENT_VERSION:
@@ -51,6 +53,8 @@ jobs:
       id-token: write
     outputs:
       GNOSISVPN_PACKAGE_VERSION: ${{ steps.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+      GNOSISVPN_DEB_VERSION: ${{ steps.setup.outputs.GNOSISVPN_DEB_VERSION }}
+      GNOSISVPN_RPM_VERSION: ${{ steps.setup.outputs.GNOSISVPN_RPM_VERSION }}
       LATEST_GNOSISVPN_PACKAGE_PR_VERSION: ${{ steps.setup.outputs.LATEST_GNOSISVPN_PACKAGE_PR_VERSION }}
       GNOSISVPN_CLIENT_VERSION: ${{ steps.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
       GNOSISVPN_APP_VERSION: ${{ steps.setup.outputs.GNOSISVPN_APP_VERSION }}
@@ -143,6 +147,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+          GNOSISVPN_DEB_VERSION: ${{ needs.setup.outputs.GNOSISVPN_DEB_VERSION }}
+          GNOSISVPN_RPM_VERSION: ${{ needs.setup.outputs.GNOSISVPN_RPM_VERSION }}
           GNOSISVPN_CLIENT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_CLIENT_VERSION }}
           GNOSISVPN_APP_VERSION: ${{ needs.setup.outputs.GNOSISVPN_APP_VERSION }}
           GNOSISVPN_TOOLKIT_VERSION: ${{ needs.setup.outputs.GNOSISVPN_TOOLKIT_VERSION }}
@@ -246,9 +252,7 @@ jobs:
             *)       channel="latest" ;;
           esac
           echo "channel=${channel}" | tee -a "$GITHUB_OUTPUT"
-          version="${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}"
-          fs_version="${version//+/-}"
-          echo "pkg=gnosisvpn_${fs_version}_arm64.pkg" | tee -a "$GITHUB_OUTPUT"
+          echo "pkg=gnosisvpn_${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}_arm64.pkg" | tee -a "$GITHUB_OUTPUT"
       - name: Upload Package
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -322,7 +326,7 @@ jobs:
     uses: ./.github/workflows/publish-apt.yaml
     with:
       channel: ${{ matrix.channel }}
-      package_version: ${{ needs.setup.outputs.GNOSISVPN_PACKAGE_VERSION }}
+      deb_version: ${{ needs.setup.outputs.GNOSISVPN_DEB_VERSION }}
     secrets: inherit
   prune_bucket:
     name: Prune bucket (${{ matrix.channel }})

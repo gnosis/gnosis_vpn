@@ -12,7 +12,7 @@ on:
           - minor
           - major
       custom_version:
-        description: Explicit version X.Y.Z (overrides release_type)
+        description: Explicit version X.Y.Z or X.Y.Z-(alpha|beta|rc).N (overrides release_type)
         required: false
         type: string
 concurrency:
@@ -75,10 +75,15 @@ jobs:
           fi
           if [[ -n "${CUSTOM_VERSION}" ]]; then
             new_version="${CUSTOM_VERSION#v}"
-            if ! [[ "${new_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "Invalid custom_version '${CUSTOM_VERSION}', expected X.Y.Z" >&2
+            num='(0|[1-9][0-9]*)'
+            if ! [[ "${new_version}" =~ ^${num}\.${num}\.${num}(-(alpha|beta|rc)\.${num})?$ ]]; then
+              echo "Invalid custom_version '${CUSTOM_VERSION}', expected X.Y.Z or X.Y.Z-(alpha|beta|rc).N" >&2
               exit 1
             fi
+          elif [[ "${current_version}" == *-* ]]; then
+            # Whether a bump finalises the prerelease or starts the next one is a release decision.
+            echo "package.json is at prerelease ${current_version}; pass custom_version instead of a ${RELEASE_TYPE} bump" >&2
+            exit 1
           else
             IFS=. read -r major minor patch <<< "${current_version}"
             case "${RELEASE_TYPE}" in

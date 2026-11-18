@@ -2,8 +2,8 @@
 name: gnosisvpn
 arch: "${NFPM_ARCHITECTURE}"
 platform: linux
-version: "${GNOSISVPN_PACKAGE_VERSION}"
-# None, because 'semver' strips zeros (2026.05.27 -> 2026.5.27)
+version: "${GNOSISVPN_LINUX_PACKAGE_VERSION}"
+# Verbatim; GNOSISVPN_DEB_VERSION or GNOSISVPN_RPM_VERSION from linux_package_version in common.sh
 version_schema: none
 section: net
 priority: optional

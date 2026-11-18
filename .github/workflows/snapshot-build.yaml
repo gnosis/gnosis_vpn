@@ -66,6 +66,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GNOSISVPN_CHANGELOG_FORMAT: zulip
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+          GNOSISVPN_DEB_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_DEB_VERSION }}
       - name: Prepare notification message
         run: |
           # Store content in environment variable for the Zulip action
@@ -119,8 +120,11 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           GNOSISVPN_SNAPSHOT_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
+          # The manifest's .deb URLs can't derive it: a snapshot's deb version rides on the stable release current at build time.
+          GNOSISVPN_SNAPSHOT_DEB_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_DEB_VERSION }}
         run: |
           published_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           echo "Publishing snapshot version ${GNOSISVPN_SNAPSHOT_VERSION} (published_at ${published_at})"
           gh variable set GNOSISVPN_SNAPSHOT_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_SNAPSHOT_VERSION}"
+          gh variable set GNOSISVPN_SNAPSHOT_DEB_VERSION --repo ${{ github.repository }} --body "${GNOSISVPN_SNAPSHOT_DEB_VERSION}"
           gh variable set GNOSISVPN_SNAPSHOT_DATE --repo ${{ github.repository }} --body "${published_at}"

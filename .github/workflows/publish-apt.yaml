@@ -12,8 +12,8 @@ on:
         description: 'APT suite to publish into (stable, snapshot or experimental)'
         required: true
         type: string
-      package_version:
-        description: 'GNOSISVPN_PACKAGE_VERSION used to name the .deb artifacts'
+      deb_version:
+        description: 'GNOSISVPN_DEB_VERSION used to name the .deb artifacts'
         required: true
         type: string
 jobs:
@@ -23,8 +23,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    env:
-      PACKAGE_VERSION: ${{ inputs.package_version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -33,7 +31,7 @@ jobs:
       - name: Download package artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: gnosisvpn_${{ env.PACKAGE_VERSION }}_*.deb*
+          pattern: gnosisvpn_${{ inputs.deb_version }}_*.deb*
           merge-multiple: true
           path: ./build/apt-input
       - name: List downloaded artifacts

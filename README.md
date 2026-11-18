@@ -535,7 +535,7 @@ Pinned inputs in `config/`. The JSON files are read with `jq`; `channels.sh` is 
 - `channels.sh` — the per-channel retention counts, `COMPONENT_VERSION_BOUNDARY` (the lowest client/app version any
   build packages, keeping the frozen v4 line out) and `NETWORKS` (the networks every build ships)
 - `min-app-version.json` — `min_app_version` per channel, required for `stable`, `snapshot` and `experimental`; a plain
-  `x.y.z` on the date-based channels means no gate
+  `x.y.z` gates the snapshot channels by SemVer precedence too (`1.0.0` < `1.0.1-0.<timestamp>`)
 - `end-of-life.json` — `end_of_life` list per channel; an absent channel has none
 - `min-os.json` — minimum OS versions (`macos`, `linux_ubuntu`), written as `min_os_version` in the manifests and into
   the macOS `Distribution.xml`, `welcome.html` and `readme.html`
@@ -583,7 +583,22 @@ release and tag.
 
 `Snapshot Build` is the nightly pipeline (01:00 UTC). It tracks the `GNOSISVPN_*_PR_VERSION` repository variables for
 the "nothing changed, skip the build" check, and writes the version and date that `Update Manifests` reads for the
-snapshot channel and its `experimental` alias.
+snapshot channel and its `experimental` alias. A snapshot is versioned `<P>-0.<T>`, or `<P>.<T>` when P is a prerelease,
+with P the `package.json` version and T the UTC build time `YYYYMMDDHHMMSS` (`scripts/snapshot-version.sh`), so it sorts
+below P and above earlier snapshots. Stable releases take plain `X.Y.Z` only.
+
+The .deb and .rpm versions follow each format's own convention (`linux_package_version` in `scripts/common.sh`). P is
+not released yet, so a plain snapshot rides on B, the latest stable GitHub release, resolved once per build:
+
+| SemVer           | deb              | rpm              |
+| ---------------- | ---------------- | ---------------- |
+| `1.0.1`          | `1.0.1`          | `1.0.1`          |
+| `1.0.1-0.<T>`    | `1.0.0+<T>`      | `1.0.0^<T>`      |
+| `1.1.0-rc.1`     | `1.1.0~rc.1`     | `1.1.0~rc.1`     |
+| `1.1.0-rc.1.<T>` | `1.1.0~rc.1+<T>` | `1.1.0~rc.1^<T>` |
+
+The snapshot's deb version is stored in `GNOSISVPN_SNAPSHOT_DEB_VERSION` next to `GNOSISVPN_SNAPSHOT_VERSION`, because
+`Update Manifests` cannot derive B for the .deb URLs.
 
 ```mermaid
 flowchart TD
