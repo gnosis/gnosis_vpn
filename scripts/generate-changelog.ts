@@ -50,9 +50,9 @@ export interface Config {
 export type Channel = "stable" | "snapshot";
 
 /** Artifact paths per channel; keep in sync with build_gcs_url() and pool_subpath_for_channel(). */
-export const CHANNEL_PATHS: Record<Channel, { debPool: string; macDir: string }> = {
-  stable: { debPool: "pool/main", macDir: "stable" },
-  snapshot: { debPool: "pool/snapshot", macDir: "latest" },
+export const CHANNEL_PATHS: Record<Channel, { debPool: string; macDir: string; rpmDir: string }> = {
+  stable: { debPool: "pool/main", macDir: "stable", rpmDir: "stable" },
+  snapshot: { debPool: "pool/snapshot", macDir: "latest", rpmDir: "latest" },
 };
 
 export interface ChangelogEntry {
@@ -393,6 +393,7 @@ export function zulipFormat(
   entries: ChangelogEntry[],
   packageVersion: string,
   debVersion: string,
+  rpmVersion: string,
   clientVersion: string,
   appVersion: string,
   toolkitVersion: string,
@@ -414,7 +415,11 @@ export function zulipFormat(
   const debPool = `https://download.gnosisvpn.io/linux/apt/${paths.debPool}/g/gnosisvpn`;
   content += ` [Mac](https://download.gnosisvpn.io/macos/${paths.macDir}/gnosisvpn_${packageVersion}_arm64.pkg) |`;
   content += ` [Debian x86_64](${debPool}/gnosisvpn_${debVersion}_amd64.deb) |`;
-  content += ` [Debian aarch64](${debPool}/gnosisvpn_${debVersion}_arm64.deb)\n`;
+  content += ` [Debian aarch64](${debPool}/gnosisvpn_${debVersion}_arm64.deb) |`;
+  // Snapshot rpm versions carry '^', which must be escaped in a URL.
+  const rpmBase = `https://download.gnosisvpn.io/linux/rpm/${paths.rpmDir}`;
+  content += ` [Fedora x86_64](${rpmBase}/${encodeURIComponent(`gnosisvpn-${rpmVersion}-1.x86_64.rpm`)}) |`;
+  content += ` [Fedora aarch64](${rpmBase}/${encodeURIComponent(`gnosisvpn-${rpmVersion}-1.aarch64.rpm`)})\n`;
   return content;
 }
 
@@ -829,6 +834,7 @@ async function main(): Promise<void> {
         allEntries,
         packageRepo.currentVersion,
         requireEnv("GNOSISVPN_DEB_VERSION"),
+        requireEnv("GNOSISVPN_RPM_VERSION"),
         cliRepo.currentVersion,
         appRepo.currentVersion,
         toolkitRepo.currentVersion,

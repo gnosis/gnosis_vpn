@@ -67,6 +67,7 @@ jobs:
           GNOSISVPN_CHANGELOG_FORMAT: zulip
           GNOSISVPN_PACKAGE_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_PACKAGE_VERSION }}
           GNOSISVPN_DEB_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_DEB_VERSION }}
+          GNOSISVPN_RPM_VERSION: ${{ needs.build_binary.outputs.GNOSISVPN_RPM_VERSION }}
       - name: Prepare notification message
         run: |
           # Store content in environment variable for the Zulip action

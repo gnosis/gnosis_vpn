@@ -149,9 +149,9 @@ under `~/.local/share/gnosisvpn/` are each user's own data and are never touched
 ### Fedora
 
 There is no DNF repository yet: download the `.rpm` from
-[the releases page](https://github.com/gnosis/gnosis_vpn/releases) or [build it yourself](#fedora-rpm-without-nix), then
-install it with `dnf`, which pulls in `webkit2gtk4.1`, `gtk3`, `libayatana-appindicator-gtk3` and the other
-dependencies:
+[the releases page](https://github.com/gnosis/gnosis_vpn/releases) (snapshots:
+`https://download.gnosisvpn.io/linux/rpm/latest/`) or [build it yourself](#fedora-rpm-without-nix), then install it with
+`dnf`, which pulls in `webkit2gtk4.1`, `gtk3`, `libayatana-appindicator-gtk3` and the other dependencies:
 
 ```bash
 sudo dnf install ./gnosisvpn-*.rpm

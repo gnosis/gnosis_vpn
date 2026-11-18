@@ -2,9 +2,9 @@
 #
 # Prune old gnosisvpn artifacts under a GCS prefix, keeping only the --keep
 # most recently uploaded versions. Each pruned version loses all its objects:
-# the .deb / .pkg plus its .asc / .sha256 sidecars.
+# the .deb / .pkg / .rpm plus its .asc / .sha256 sidecars.
 #
-# Caller: prune-bucket.yaml, twice per channel (APT pool + macOS dir) after a successful publish; each channel has its own prefix.
+# Caller: prune-bucket.yaml, once per prefix (APT pool, macOS dir, snapshot rpm dir) after a successful publish.
 #
 # Best-effort: a failed deletion warns but exits 0, so cleanup never turns a
 # successful publish red.
@@ -117,10 +117,12 @@ main() {
         exit 1
     fi
 
-    # "<size> <RFC 3339 upload time> <url>" lines, newest first; sidecars miss the .deb/.pkg anchor but go with the wildcard below.
+    # "<size> <RFC 3339 upload time> <url>" lines, newest first; sidecars miss the package anchor but go with the wildcard below.
     local versions
     versions=$(printf '%s\n' "$ls_output" |
-        sed -n 's#^ *[0-9][0-9]* *\([0-9TZ:.-]*\) *gs://.*/gnosisvpn_\(.*\)_\(amd64\|arm64\)\.\(deb\|pkg\)$#\1 \2#p' |
+        sed -n \
+            -e 's#^ *[0-9][0-9]* *\([0-9TZ:.-]*\) *gs://.*/gnosisvpn_\(.*\)_\(amd64\|arm64\)\.\(deb\|pkg\)$#\1 \2#p' \
+            -e 's#^ *[0-9][0-9]* *\([0-9TZ:.-]*\) *gs://.*/gnosisvpn-\(.*\)-1\.\(x86_64\|aarch64\)\.rpm$#\1 \2#p' |
         sort -r |
         awk '!seen[$2]++ { print $2 }')
 
@@ -140,10 +142,11 @@ main() {
     local failures=0 v
     while read -r v; do
         [[ -n $v ]] || continue
-        # The trailing `_` after the version anchors the match so e.g. pruning
-        # 0.9.1 never touches 0.9.10. The wildcard sweeps the artifact and all
-        # sidecars for this version.
+        # The `_` (rpm: `-1.`) after the version keeps pruning 0.9.1 off 0.9.10; the wildcard takes the sidecars too.
         local glob="${PREFIX}gnosisvpn_${v}_*"
+        if [[ $ls_output == *"/gnosisvpn-${v}-1."* ]]; then
+            glob="${PREFIX}gnosisvpn-${v}-1.*"
+        fi
         if [[ $DRY_RUN -eq 1 ]]; then
             log_info "[dry-run] would delete: ${glob}"
             gsutil ls "${glob}" 2>/dev/null | sed 's/^/    /' || true
