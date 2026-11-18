@@ -11,6 +11,7 @@
 #   release      - version from package.json on GITHUB_REF, latest eligible releases
 #
 # Client/app versions below COMPONENT_VERSION_BOUNDARY (the frozen v4 line) are never picked.
+# Snapshot and release builds fail when the resolved client and app speak different IPC protocols (check-ipc-compat.sh).
 #
 # Environment:
 #   VERSION_TYPE                       (required) snapshot | commit | pr | release
@@ -283,6 +284,8 @@ main() {
         set_output "GNOSISVPN_CLIENT_VERSION" "${client_version}"
         set_output "GNOSISVPN_APP_VERSION" "${app_version}"
         set_output "GNOSISVPN_TOOLKIT_VERSION" "${toolkit_version}"
+        latest_client_pr_version="${client_version}"
+        latest_app_pr_version="${app_version}"
         ;;
     *)
         log_error "Invalid version_type: ${version_type}. Expected snapshot, commit, pr, or release."
@@ -312,6 +315,11 @@ main() {
             skip_building=true
             log_info "No new gnosis_vpn PR, nor newly published gnosis_vpn-client / gnosis_vpn-app / gnosis_vpn-toolkit versions found. Skipping ${version_type} build."
         fi
+    fi
+
+    # A client and app on different IPC protocols cannot talk, so a published channel must never ship such a pair.
+    if [[ -n ${channel} ]] && [[ ${skip_building} == false ]]; then
+        "${SCRIPT_DIR}/check-ipc-compat.sh" "${latest_client_pr_version}" "${latest_app_pr_version}"
     fi
 
     if [[ ${skip_building} == true ]]; then
