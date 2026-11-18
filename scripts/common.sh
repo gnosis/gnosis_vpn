@@ -279,7 +279,7 @@ get_latest_release() {
 # Latest non-prerelease gnosis_vpn release, the same one the stable manifest serves.
 latest_stable_version() {
     local tag
-    tag=$(gh release list --repo gnosis/gnosis_vpn --exclude-pre-releases --limit 1 --json tagName --jq 'first | .tagName')
+    tag=$(gh api repos/gnosis/gnosis_vpn/releases/latest --jq .tag_name)
     if [[ ! ${tag#v} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         log_error "Could not resolve the latest stable gnosis_vpn release (got '${tag}')"
         return 1
