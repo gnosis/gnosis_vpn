@@ -196,11 +196,14 @@ assert_curvy_zk_shipped() {
 # Validate version syntax
 check_version_syntax() {
     local version="$1"
-    # Matches 1.2.3, v1.2.3, +pr.123, +commit.abcdef, +build.020000 and latest.
-    local semver_regex='^v?[0-9]+\.[0-9]+\.[0-9]+(\+(pr|commit|build)(\.[0-9A-Za-z-]+)*)?$'
+    # GNO-1326 grammar: release, (alpha|beta|rc).N prerelease, snapshot timestamp, +pr/+commit metadata.
+    local num='(0|[1-9][0-9]*)'
+    local timestamp='[0-9]{14}'
+    local prerelease="-((alpha|beta|rc)\.${num}(\.${timestamp})?|0\.${timestamp})"
+    local semver_regex="^v?${num}\.${num}\.${num}(${prerelease})?(\+(pr|commit)(\.[0-9A-Za-z-]+)+)?$"
     if [[ ! $version =~ $semver_regex && $version != "latest" ]]; then
         log_error "Invalid version format: $version"
-        log_error "Expected format: MAJOR.MINOR.PATCH(+pr.123|+commit.abcdef|+build.020000) or latest"
+        log_error "Expected format: X.Y.Z[-(alpha|beta|rc).N[.YYYYMMDDHHMMSS] | -0.YYYYMMDDHHMMSS][+pr.N | +commit.<sha>] or latest"
         return 1
     fi
     return 0
@@ -273,6 +276,45 @@ get_latest_release() {
     echo "${release#v}"
 }
 
+# Latest non-prerelease gnosis_vpn release, the same one the stable manifest serves.
+latest_stable_version() {
+    local tag
+    tag=$(gh api repos/gnosis/gnosis_vpn/releases/latest --jq .tag_name)
+    if [[ ! ${tag#v} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        log_error "Could not resolve the latest stable gnosis_vpn release (got '${tag}')"
+        return 1
+    fi
+    echo "${tag#v}"
+}
+
+# <deb|rpm> <semver> <latest stable>; unreleased X.Y.Z-0.T rides on stable B (1.0.0+T), '~' sorts below a release.
+linux_package_version() {
+    local format="$1" version="$2" stable="$3"
+    local above
+    case "$format" in
+    deb) above="+" ;;
+    rpm) above="^" ;;
+    *)
+        log_error "Unknown Linux package format: ${format}"
+        return 1
+        ;;
+    esac
+
+    local plain_snapshot='^[0-9]+\.[0-9]+\.[0-9]+-0\.([0-9]{14})$'
+    local prerelease_snapshot='^([0-9]+\.[0-9]+\.[0-9]+)-((alpha|beta|rc)\.[0-9]+)\.([0-9]{14})$'
+    if [[ $version =~ $plain_snapshot ]]; then
+        if [[ -z $stable ]]; then
+            log_error "Snapshot ${version} needs the latest stable release for its ${format} version"
+            return 1
+        fi
+        echo "${stable}${above}${BASH_REMATCH[1]}"
+    elif [[ $version =~ $prerelease_snapshot ]]; then
+        echo "${BASH_REMATCH[1]}~${BASH_REMATCH[2]}${above}${BASH_REMATCH[4]}"
+    else
+        echo "${version/-/"~"}"
+    fi
+}
+
 # Generate package name based on distribution conventions
 generate_package_name() {
     local arch_name
@@ -290,7 +332,7 @@ generate_package_name() {
         else
             arch_name="$GNOSISVPN_ARCHITECTURE"
         fi
-        echo "gnosisvpn_${GNOSISVPN_PACKAGE_VERSION}_${arch_name}.deb"
+        echo "gnosisvpn_${GNOSISVPN_DEB_VERSION:?GNOSISVPN_DEB_VERSION is unset; run just all or export it}_${arch_name}.deb"
         ;;
     rpm)
         # Convert architecture for rpm packages
@@ -301,7 +343,8 @@ generate_package_name() {
         else
             arch_name="$GNOSISVPN_ARCHITECTURE"
         fi
-        echo "gnosisvpn-${GNOSISVPN_PACKAGE_VERSION}.${arch_name}.rpm"
+        # NVRA; nfpm's default rpm release is 1.
+        echo "gnosisvpn-${GNOSISVPN_RPM_VERSION:?GNOSISVPN_RPM_VERSION is unset; run just all or export it}-1.${arch_name}.rpm"
         ;;
     archlinux)
         # Convert architecture for archlinux packages
@@ -323,9 +366,9 @@ generate_package_name() {
 # Validate distribution type
 validate_distribution() {
     local distribution="$1"
-    if [[ ! $distribution =~ ^(deb|dmg)$ ]]; then
+    if [[ ! $distribution =~ ^(deb|rpm|dmg)$ ]]; then
         log_error "Invalid distribution: $distribution"
-        log_error "Valid options: deb, dmg"
+        log_error "Valid options: deb, rpm, dmg"
         return 1
     fi
     return 0

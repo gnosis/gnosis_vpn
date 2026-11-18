@@ -5,12 +5,14 @@
 #
 # Used by the setup job of .github/workflows/build-binary.yaml. Behaviour
 # depends on VERSION_TYPE:
-#   snapshot     - date-based version, newest registry versions, skips when nothing changed
+#   snapshot     - package.json version on GITHUB_SHA plus a UTC timestamp (snapshot-version.sh), newest registry
+#                  versions, skips when nothing changed
 #   commit       - latest merged-PR version pinned to the PR head commit
 #   pr           - version of the latest merged gnosis_vpn PR
-#   release      - version from package.json on GITHUB_REF, latest eligible releases
+#   release      - version from package.json on GITHUB_SHA, latest eligible releases
 #
 # Client/app versions below COMPONENT_VERSION_BOUNDARY (the frozen v4 line) are never picked.
+# Snapshot and release builds fail when the resolved client and app speak different IPC protocols (check-ipc-compat.sh).
 #
 # Environment:
 #   VERSION_TYPE                       (required) snapshot | commit | pr | release
@@ -23,10 +25,10 @@
 #   GNOSISVPN_<C>_PREVIOUS_VERSION     previously built version, for the skip check and changelog range
 #   GNOSISVPN_<C>_PREVIOUS_VERSION_{PR,RELEASE} per-type candidates; the one matching VERSION_TYPE wins when set
 #   PR_HEAD_SHA                        PR head commit sha (VERSION_TYPE=commit)
-#   GITHUB_REPOSITORY, GITHUB_REF      set by GitHub Actions (VERSION_TYPE=release)
+#   GITHUB_REPOSITORY, GITHUB_SHA      set by GitHub Actions (VERSION_TYPE=snapshot|release)
 #
 # Outputs written to GITHUB_OUTPUT:
-#   the resolved package/client/app/toolkit versions plus GNOSISVPN_NETWORKS, GNOSISVPN_CHANNEL and SKIP_BUILDING
+#   the resolved package/client/app/toolkit versions, the package's GNOSISVPN_{DEB,RPM}_VERSION, plus GNOSISVPN_NETWORKS, GNOSISVPN_CHANNEL and SKIP_BUILDING
 #
 
 set -euo pipefail
@@ -58,6 +60,20 @@ get_latest_pr_version() {
         version=$(echo "${file_content}" | grep '^version\s*=' | head -n 1 | cut -d '"' -f 2)
     fi
     echo "${version}+pr.${pr_number}"
+}
+
+# package.json at the workflow commit, as checked out; the post-release bump is a bot push, so the latest merged PR can lag it.
+read_package_version() {
+    gh api "repos/${GITHUB_REPOSITORY}/contents/package.json?ref=${GITHUB_SHA}" --jq '.content' |
+        base64 --decode | jq -r '.version'
+}
+
+# Stable carries plain X.Y.Z only; every prerelease ships on snapshot.
+require_plain_release() {
+    local what="$1" version="$2"
+    [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && return 0
+    log_error "${what} ${version} is not a plain X.Y.Z release; prereleases ship on the snapshot channel only."
+    exit 1
 }
 
 get_latest_release_version() {
@@ -234,36 +250,34 @@ main() {
     previous_package_pr_number=$(echo "${GNOSISVPN_PACKAGE_PREVIOUS_VERSION:-}" | cut -d '+' -f 2 | cut -d '.' -f 2)
     set_output "LATEST_GNOSISVPN_PACKAGE_PR_VERSION" "${latest_package_pr_version}"
 
+    local package_version
     case "${version_type}" in
     snapshot)
-        set_output "GNOSISVPN_PACKAGE_VERSION" "$(date +%Y.%m.%d+build.%H%M%S)"
+        local base_version
+        base_version="$(read_package_version)"
+        [[ -n ${base_version} ]] || exit 1
+        package_version="$("${SCRIPT_DIR}/snapshot-version.sh" "${base_version}")"
         set_output "GNOSISVPN_CLIENT_VERSION" "${latest_client_pr_version}"
         set_output "GNOSISVPN_APP_VERSION" "${latest_app_pr_version}"
         set_output "GNOSISVPN_TOOLKIT_VERSION" "${latest_toolkit_pr_version}"
         ;;
     commit)
         local sha="${PR_HEAD_SHA:?PR_HEAD_SHA is required for VERSION_TYPE=commit}"
-        set_output "GNOSISVPN_PACKAGE_VERSION" "${latest_package_version_number}+commit.${sha:0:7}"
+        package_version="${latest_package_version_number}+commit.${sha:0:7}"
         set_output "GNOSISVPN_CLIENT_VERSION" "${latest_client_pr_version}"
         set_output "GNOSISVPN_APP_VERSION" "${latest_app_pr_version}"
         set_output "GNOSISVPN_TOOLKIT_VERSION" "${latest_toolkit_pr_version}"
         ;;
     pr)
-        set_output "GNOSISVPN_PACKAGE_VERSION" "${latest_package_pr_version}"
+        package_version="${latest_package_pr_version}"
         set_output "GNOSISVPN_CLIENT_VERSION" "${latest_client_pr_version}"
         set_output "GNOSISVPN_APP_VERSION" "${latest_app_pr_version}"
         set_output "GNOSISVPN_TOOLKIT_VERSION" "${latest_toolkit_pr_version}"
         ;;
     release)
-        # Read package.json from the ref the workflow was dispatched on
-        # (typically main, but supports release branches). The hopr-workflows
-        # release-version action also reads source_branch's package.json, so
-        # sourcing it here keeps the build version and the release version
-        # aligned regardless of which branch close-release runs on.
-        local package_version client_version app_version toolkit_version
-        package_version=$(gh api \
-            "repos/${GITHUB_REPOSITORY}/contents/package.json?ref=${GITHUB_REF}" \
-            --jq '.content' | base64 --decode | jq -r '.version')
+        # hopr-workflows release-version reads the same package.json, so build and release versions agree.
+        local client_version app_version toolkit_version
+        package_version="$(read_package_version)"
         # Newest release at or above the floor, so a later v4 patch cannot win; errexit does not escape a subshell.
         client_version="${INPUT_CLIENT_VERSION:-$(get_latest_release_version_from "gnosis_vpn-client" "${COMPONENT_VERSION_BOUNDARY}")}"
         [[ -n ${client_version} ]] || exit 1
@@ -276,19 +290,33 @@ main() {
         client_version="${client_version#v}"
         app_version="${app_version#v}"
         toolkit_version="${toolkit_version#v}"
+        require_plain_release "Package" "${package_version}"
+        require_plain_release "Client" "${client_version}"
+        require_plain_release "App" "${app_version}"
+        require_plain_release "Toolkit" "${toolkit_version}"
         require_complete_toolkit "${toolkit_version}"
         [[ -z ${INPUT_CLIENT_VERSION:-} ]] || warn_if_below_floor "gnosis_vpn-client" "${client_version}"
         [[ -z ${INPUT_APP_VERSION:-} ]] || warn_if_below_floor "gnosis_vpn-app" "${app_version}"
-        set_output "GNOSISVPN_PACKAGE_VERSION" "${package_version}"
         set_output "GNOSISVPN_CLIENT_VERSION" "${client_version}"
         set_output "GNOSISVPN_APP_VERSION" "${app_version}"
         set_output "GNOSISVPN_TOOLKIT_VERSION" "${toolkit_version}"
+        latest_client_pr_version="${client_version}"
+        latest_app_pr_version="${app_version}"
         ;;
     *)
         log_error "Invalid version_type: ${version_type}. Expected snapshot, commit, pr, or release."
         exit 1
         ;;
     esac
+
+    # Resolved once here so every .deb/.rpm name, changelog and APT publish of this build agree.
+    local stable_version deb_version rpm_version
+    stable_version="$(latest_stable_version)"
+    deb_version="$(linux_package_version deb "${package_version}" "${stable_version}")"
+    rpm_version="$(linux_package_version rpm "${package_version}" "${stable_version}")"
+    set_output "GNOSISVPN_PACKAGE_VERSION" "${package_version}"
+    set_output "GNOSISVPN_DEB_VERSION" "${deb_version}"
+    set_output "GNOSISVPN_RPM_VERSION" "${rpm_version}"
 
     # Channel of this build; consumed by generate-package.sh and generate-changelog.ts. pr / commit builds are never published.
     local channel
@@ -312,6 +340,11 @@ main() {
             skip_building=true
             log_info "No new gnosis_vpn PR, nor newly published gnosis_vpn-client / gnosis_vpn-app / gnosis_vpn-toolkit versions found. Skipping ${version_type} build."
         fi
+    fi
+
+    # A client and app on different IPC protocols cannot talk, so a published channel must never ship such a pair.
+    if [[ -n ${channel} ]] && [[ ${skip_building} == false ]]; then
+        "${SCRIPT_DIR}/check-ipc-compat.sh" "${latest_client_pr_version}" "${latest_app_pr_version}"
     fi
 
     if [[ ${skip_building} == true ]]; then

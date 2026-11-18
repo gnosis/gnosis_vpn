@@ -2,8 +2,8 @@
 name: gnosisvpn
 arch: "${NFPM_ARCHITECTURE}"
 platform: linux
-version: "${GNOSISVPN_PACKAGE_VERSION}"
-# None, because 'semver' strips zeros (2026.05.27 -> 2026.5.27)
+version: "${GNOSISVPN_LINUX_PACKAGE_VERSION}"
+# Verbatim; GNOSISVPN_DEB_VERSION or GNOSISVPN_RPM_VERSION from linux_package_version in common.sh
 version_schema: none
 section: net
 priority: optional
@@ -95,16 +95,18 @@ contents:
   # source so `apt-get update` sees future versions after a manual `dpkg -i`.
   - src: ./build/resources/gnosisvpn-archive-keyring.gpg
     dst: /usr/share/gnosisvpn/gnosisvpn-archive-keyring.gpg
+    packager: deb
     file_info:
       mode: 0644
       owner: root
       group: root
   - src: ./linux/resources/gnosisvpn.env
     dst: /etc/gnosisvpn/gnosisvpn.env
-    type: config
+    type: config|noreplace
     file_info:
       mode: 0644
-  # One `type: config` entry per network in GNOSISVPN_NETWORKS, rendered by generate-package-linux.sh.
+  # rpm %config(noreplace) keeps local edits like a dpkg conffile; deb packages it as a plain conffile.
+  # One `type: config|noreplace` entry per network in GNOSISVPN_NETWORKS, rendered by generate-package-linux.sh.
 __GNOSIS_VPN_NETWORK_CONFIGS__
   # GeoIP database and Curvy proving file entries from linux/resources/, spliced by generate-package-linux.sh only on the GeoIP line.
 __GNOSIS_VPN_LINE_EXTRAS__
@@ -124,7 +126,7 @@ __GNOSIS_VPN_LINE_EXTRAS__
       group: root
   - src: ./linux/resources/logrotate.conf
     dst: /etc/logrotate.d/gnosisvpn
-    type: config
+    type: config|noreplace
     file_info:
       mode: 0644
       owner: root
@@ -132,7 +134,7 @@ __GNOSIS_VPN_LINE_EXTRAS__
   # TCP BBR + fq; postinstall.sh applies it without a reboot.
   - src: ./linux/resources/sysctl-bbr.conf
     dst: /etc/sysctl.d/99-gnosisvpn-bbr.conf
-    type: config
+    type: config|noreplace
     file_info:
       mode: 0644
       owner: root
@@ -160,6 +162,7 @@ __GNOSIS_VPN_LINE_EXTRAS__
       group: root
   - src: ./linux/resources/lintian-overrides
     dst: /usr/share/lintian/overrides/gnosisvpn
+    packager: deb
     file_info:
       mode: 0644
       owner: root
@@ -175,6 +178,13 @@ __GNOSIS_VPN_LINE_EXTRAS__
       mode: 0644
   - src: ./build/completions/_gnosis_vpn-ctl
     dst: /usr/share/zsh/vendor-completions/_gnosis_vpn-ctl
+    packager: deb
+    file_info:
+      mode: 0644
+  # Fedora's zsh only searches site-functions; vendor-completions is a Debian path.
+  - src: ./build/completions/_gnosis_vpn-ctl
+    dst: /usr/share/zsh/site-functions/_gnosis_vpn-ctl
+    packager: rpm
     file_info:
       mode: 0644
   # Manual pages

@@ -392,6 +392,7 @@ export function extractChangelogType(title: string): string {
 export function zulipFormat(
   entries: ChangelogEntry[],
   packageVersion: string,
+  debVersion: string,
   clientVersion: string,
   appVersion: string,
   toolkitVersion: string,
@@ -409,15 +410,11 @@ export function zulipFormat(
       `- [#${entry.id}](https://github.com/${entry.repository}/pull/${entry.id}) [${entry.component}] ${entry.title} by ${entry.author}\n`;
   }
   content += "\nDownload links:";
-  // macOS .pkg filenames substitute '-' for '+' in the version slug for
-  // Artifact Registry compatibility (see build-binary.yaml::prepare_files).
-  const macFileSlug = packageVersion.replaceAll("+", "-");
-  // .debs live in their channel's pool under gnosisvpn_<version>_<arch>.deb, with the build's literal version.
   const paths = CHANNEL_PATHS[channel];
   const debPool = `https://download.gnosisvpn.io/linux/apt/${paths.debPool}/g/gnosisvpn`;
-  content += ` [Mac](https://download.gnosisvpn.io/macos/${paths.macDir}/gnosisvpn_${macFileSlug}_arm64.pkg) |`;
-  content += ` [Debian x86_64](${debPool}/gnosisvpn_${packageVersion}_amd64.deb) |`;
-  content += ` [Debian aarch64](${debPool}/gnosisvpn_${packageVersion}_arm64.deb)\n`;
+  content += ` [Mac](https://download.gnosisvpn.io/macos/${paths.macDir}/gnosisvpn_${packageVersion}_arm64.pkg) |`;
+  content += ` [Debian x86_64](${debPool}/gnosisvpn_${debVersion}_amd64.deb) |`;
+  content += ` [Debian aarch64](${debPool}/gnosisvpn_${debVersion}_arm64.deb)\n`;
   return content;
 }
 
@@ -516,6 +513,10 @@ export function githubFormat(
   return content;
 }
 
+function isPrerelease(version: string): boolean {
+  return version.split("+")[0].includes("-");
+}
+
 export function getReleaseType(
   entries: ChangelogEntry[],
   version: string,
@@ -527,8 +528,7 @@ export function getReleaseType(
     }
   }
 
-  // Check if the version contains "-rc." or is the first release (x.y.0)
-  if (version.includes("-rc.") || /^\d+\.\d+\.0$/.test(version)) {
+  if (isPrerelease(version) || /^\d+\.\d+\.0$/.test(version)) {
     return "unstable";
   }
 
@@ -540,7 +540,7 @@ export function getUrgencyLevel(version: string): string {
   const patchPart = parts[2] || "0";
   const patchNumber = parseInt(patchPart.split("-")[0], 10);
 
-  if (version.includes("-rc.") || patchNumber === 0) {
+  if (isPrerelease(version) || patchNumber === 0) {
     return "optional";
   }
   return "medium";
@@ -553,13 +553,14 @@ export function rfc2822Date(date: Date): string {
 export function debianFormat(
   entries: ChangelogEntry[],
   version: string,
+  debVersion: string,
 ): string {
   const distribution = getReleaseType(entries, version);
   const urgency = getUrgencyLevel(version);
   const maintainer = "GnosisVPN (Gnosis VPN) <tech@hoprnet.org>";
   const date = rfc2822Date(new Date());
 
-  let changelog = `gnosisvpn (${version}) ${distribution}; urgency=${urgency}\n`;
+  let changelog = `gnosisvpn (${debVersion}) ${distribution}; urgency=${urgency}\n`;
 
   for (const entry of entries) {
     const ref = `${entry.repository}#${entry.id}`;
@@ -594,7 +595,7 @@ export function jsonFormat(entries: ChangelogEntry[]): string {
 
 export function rpmFormat(
   entries: ChangelogEntry[],
-  version: string,
+  rpmVersion: string,
 ): string {
   // Sort entries by date and author (newest first)
   const sorted = [...entries].sort((a, b) => {
@@ -610,7 +611,7 @@ export function rpmFormat(
     if (entry.date !== currentDate || entry.author !== currentAuthor) {
       currentDate = entry.date;
       currentAuthor = entry.author;
-      changelog += `* ${entry.date} ${entry.author} - ${version}\n`;
+      changelog += `* ${entry.date} ${entry.author} - ${rpmVersion}\n`;
     }
 
     // Remove the type(component): prefix from title if present
@@ -655,6 +656,16 @@ function readPreviousVersion(envVar: string, component: string, channel: Channel
   }
   log("WARN", `${envVar} is unset or empty; treating it as "no previous ${component} build on this line"`);
   return null;
+}
+
+// Derived from GNOSISVPN_PACKAGE_VERSION by linux_package_version in scripts/common.sh.
+function requireEnv(envVar: string): string {
+  const value = Deno.env.get(envVar);
+  if (!value) {
+    console.error(`Error: ${envVar} is required`);
+    Deno.exit(1);
+  }
+  return value;
 }
 
 export function readConfig(): Config {
@@ -817,6 +828,7 @@ async function main(): Promise<void> {
       content = zulipFormat(
         allEntries,
         packageRepo.currentVersion,
+        requireEnv("GNOSISVPN_DEB_VERSION"),
         cliRepo.currentVersion,
         appRepo.currentVersion,
         toolkitRepo.currentVersion,
@@ -835,13 +847,13 @@ async function main(): Promise<void> {
       );
       break;
     case "debian":
-      content = debianFormat(allEntries, packageRepo.currentVersion);
+      content = debianFormat(allEntries, packageRepo.currentVersion, requireEnv("GNOSISVPN_DEB_VERSION"));
       break;
     case "json":
       content = jsonFormat(allEntries);
       break;
     case "rpm":
-      content = rpmFormat(allEntries, packageRepo.currentVersion);
+      content = rpmFormat(allEntries, requireEnv("GNOSISVPN_RPM_VERSION"));
       break;
   }
 

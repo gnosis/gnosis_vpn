@@ -64,6 +64,19 @@ check_platform_prerequisites() {
         log_error "gpg not found — required to dearmor the bundled APT keyring"
         missing=$((missing + 1))
     fi
+    local tool tools=(nfpm ar dpkg-deb)
+    [[ ${GNOSISVPN_DISTRIBUTION} == "rpm" ]] && tools=(nfpm ar rpm2cpio cpio)
+    for tool in "${tools[@]}"; do
+        if ! command -v "${tool}" >/dev/null 2>&1; then
+            log_error "${tool} not found — required to build the ${GNOSISVPN_DISTRIBUTION} package"
+            missing=$((missing + 1))
+        fi
+    done
+    if [[ ! -f "${BINARY_DIR}/gnosis_vpn-app.deb" ]]; then
+        log_error "App package not found: ${BINARY_DIR}/gnosis_vpn-app.deb"
+        log_error "Run 'just download ${GNOSISVPN_DISTRIBUTION} ${GNOSISVPN_ARCHITECTURE}' first"
+        missing=$((missing + 1))
+    fi
     if [[ ! -d ${BINARY_DIR} ]] || [[ ! -f "${BINARY_DIR}/gnosis_vpn-root" ]]; then
         log_error "Binaries not found in ${BINARY_DIR}/"
         log_error "Run 'just download ${GNOSISVPN_DISTRIBUTION} ${GNOSISVPN_ARCHITECTURE}' first"
@@ -129,7 +142,7 @@ prepare_app_contents() {
     rm -rf "${app_contents_dir}"
     mkdir -p "${rootfs_dir}"
     cd "${app_contents_dir}"
-    ar -x "${BINARY_DIR}/gnosis_vpn-app.${GNOSISVPN_DISTRIBUTION}"
+    ar -x "${BINARY_DIR}/gnosis_vpn-app.deb"
     tar -xf "${app_contents_dir}/data.tar.gz" -C "${rootfs_dir}"
 
     mkdir -p "${BINARY_DIR}"
@@ -145,6 +158,11 @@ generate_nfpm_config() {
     local nfpm_arch="${GNOSISVPN_ARCHITECTURE/x86_64-linux/amd64}"
     nfpm_arch="${nfpm_arch/aarch64-linux/arm64}"
     export NFPM_ARCHITECTURE="${nfpm_arch}"
+    if [[ ${GNOSISVPN_DISTRIBUTION} == "rpm" ]]; then
+        export GNOSISVPN_LINUX_PACKAGE_VERSION="${GNOSISVPN_RPM_VERSION}"
+    else
+        export GNOSISVPN_LINUX_PACKAGE_VERSION="${GNOSISVPN_DEB_VERSION}"
+    fi
     # Generate version file so the installed app can read the installer version
     mkdir -p "${BUILD_DIR}/resources"
     echo "${GNOSISVPN_PACKAGE_VERSION}" >"${BUILD_DIR}/resources/version.txt"
@@ -173,7 +191,7 @@ generate_nfpm_config() {
     local nfpm_network_configs network
     nfpm_network_configs=$(mktemp)
     for network in ${GNOSISVPN_NETWORKS}; do
-        printf '  - src: ./linux/resources/config-%s.toml\n    dst: /etc/gnosisvpn/config-%s.toml\n    type: config\n    file_info:\n      mode: 0644\n' \
+        printf '  - src: ./linux/resources/config-%s.toml\n    dst: /etc/gnosisvpn/config-%s.toml\n    type: config|noreplace\n    file_info:\n      mode: 0644\n' \
             "$network" "$network"
     done >"$nfpm_network_configs"
     sed -e "/__GNOSIS_VPN_NETWORK_CONFIGS__/{
@@ -197,6 +215,14 @@ generate_nfpm_config() {
     log_success "Generated nfpm configuration for ${GNOSISVPN_DISTRIBUTION} (${nfpm_arch}), networks: ${GNOSISVPN_NETWORKS}"
 }
 
+list_package_files() {
+    if [[ ${GNOSISVPN_DISTRIBUTION} == "rpm" ]]; then
+        rpm2cpio "$1" | cpio -t --quiet
+    else
+        dpkg-deb -c "$1"
+    fi
+}
+
 generate_package() {
     log_info "Generating ${GNOSISVPN_DISTRIBUTION} package..."
     rm -rf "${BUILD_DIR}/packages"
@@ -205,8 +231,8 @@ generate_package() {
         --config "${SCRIPT_DIR}/../linux/nfpm.yaml" \
         --packager "${GNOSISVPN_DISTRIBUTION}" \
         --target "${BUILD_DIR}/packages/${PKG_NAME}"
-    dpkg-deb -c "${BUILD_DIR}/packages/${PKG_NAME}" | assert_geoip_shipped "${PKG_NAME}"
-    dpkg-deb -c "${BUILD_DIR}/packages/${PKG_NAME}" | assert_curvy_zk_shipped "${PKG_NAME}"
+    list_package_files "${BUILD_DIR}/packages/${PKG_NAME}" | assert_geoip_shipped "${PKG_NAME}"
+    list_package_files "${BUILD_DIR}/packages/${PKG_NAME}" | assert_curvy_zk_shipped "${PKG_NAME}"
     log_success "Package created: ${BUILD_DIR}/packages/${PKG_NAME}"
 }
 

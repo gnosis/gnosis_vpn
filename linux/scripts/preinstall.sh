@@ -14,7 +14,7 @@ LOG_PREFIX="[GnosisVPN preinstall]"
 # Check if running with proper privileges: root - sudo, a root shell, or PackageKit
 if [[ $EUID -ne 0 ]]; then
     echo "$LOG_PREFIX ERROR: This script must be run as root" >&2
-    echo "$LOG_PREFIX ERROR: Install the package with your package manager (e.g., 'sudo apt install -y ./gnosisvpn_*.deb') or via your software center" >&2
+    echo "$LOG_PREFIX ERROR: Install the package with your package manager (e.g., 'sudo apt install -y ./gnosisvpn_*.deb' or 'sudo dnf install -y ./gnosisvpn-*.rpm') or via your software center" >&2
     exit 1
 fi
 
@@ -28,10 +28,13 @@ if [[ -n ${DPKG_MAINTSCRIPT_NAME:-} ]] && command -v dpkg-maintscript-helper >/d
 fi
 
 # Stop running service to prevent file conflicts during upgrade
+# deb-systemd-invoke honours policy-rc.d on Debian; rpm/pacman hosts only have systemctl.
+SYSTEMD_INVOKE=systemctl
+command -v deb-systemd-invoke >/dev/null 2>&1 && SYSTEMD_INVOKE=deb-systemd-invoke
 if command -v systemctl >/dev/null 2>&1; then
     if systemctl is-active --quiet gnosisvpn 2>/dev/null; then
         echo "$LOG_PREFIX INFO: Stopping existing gnosisvpn service..."
-        deb-systemd-invoke stop gnosisvpn || true
+        "$SYSTEMD_INVOKE" stop gnosisvpn || true
     fi
 fi
 

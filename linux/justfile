@@ -1,5 +1,5 @@
 # Export default package version (can be overridden by setting GNOSISVPN_PACKAGE_VERSION)
-export GNOSISVPN_PACKAGE_VERSION := env_var_or_default('GNOSISVPN_PACKAGE_VERSION', `date +%Y.%m.%d+build.%H%M%S`)
+export GNOSISVPN_PACKAGE_VERSION := env_var_or_default('GNOSISVPN_PACKAGE_VERSION', `../scripts/snapshot-version.sh`)
 
 # Test package in VM
 test-package packager arch:

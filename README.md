@@ -146,6 +146,39 @@ directory and its backups (`/var/lib/gnosisvpn/.config*`) to `/var/backups/gnosi
 only. The package never deletes key material: delete that backup by hand once the Safe is drained. Per-user identities
 under `~/.local/share/gnosisvpn/` are each user's own data and are never touched by install, remove or purge.
 
+### Fedora
+
+There is no DNF repository yet: download the `.rpm` from
+[the releases page](https://github.com/gnosis/gnosis_vpn/releases) or [build it yourself](#fedora-rpm-without-nix), then
+install it with `dnf`, which pulls in `webkit2gtk4.1`, `gtk3`, `libayatana-appindicator-gtk3` and the other
+dependencies:
+
+```bash
+sudo dnf install ./gnosisvpn-*.rpm
+```
+
+On RHEL, AlmaLinux or Rocky 10, enable [EPEL](https://docs.fedoraproject.org/en-US/epel/) first: it provides
+`webkit2gtk4.1` and `libayatana-appindicator-gtk3`.
+
+Release packages are signed; import the key once to verify them:
+
+```bash
+sudo rpm --import https://raw.githubusercontent.com/gnosis/gnosis_vpn/main/gnosisvpn-public-key.asc
+rpm -K ./gnosisvpn-*.rpm
+```
+
+The [environment variables](#deb-installation-environment-variables) work the same way, e.g.
+`sudo env GNOSISVPN_NETWORK=jura-dev dnf install ./gnosisvpn-*.rpm`. Upgrade by installing a newer `.rpm` the same way.
+
+Uninstall:
+
+```bash
+sudo dnf remove gnosisvpn
+```
+
+RPM has no separate purge, so `dnf remove` behaves like `apt purge` above: `/etc/gnosisvpn` and the logs are removed and
+the legacy identity is moved to `/var/backups/gnosisvpn/<timestamp>/`.
+
 ### Per-user layout and identity migration
 
 The package creates no service account. `gnosisvpn.service` runs `gnosis_vpn-root` as root; the root process spawns
@@ -309,6 +342,14 @@ just package deb aarch64-linux true
 just all deb aarch64-linux true
 ```
 
+**Fedora (x86_64 / ARM64)**
+
+Same steps with `rpm`. The app payload is taken from the app `.deb`, so any app version works:
+
+```bash
+just all rpm x86_64-linux
+```
+
 **Mac**
 
 ```bash
@@ -319,6 +360,48 @@ just package dmg aarch64-darwin true
 # Or execute all commands together with
 just all dmg aarch64-darwin true
 ```
+
+### Fedora rpm without Nix
+
+The `just` recipes only need the tools the Nix shell provides, so they run on a plain Fedora host. Install them once:
+
+```bash
+sudo dnf install -y just jq gnupg2 binutils help2man gzip cpio rpm gh golang perl-Digest-SHA
+go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest # installs to ~/go/bin
+curl -fsSL https://deno.land/install.sh | sh             # installs to ~/.deno/bin
+export PATH="$HOME/go/bin:$HOME/.deno/bin:$PATH"
+```
+
+Install `google-cloud-cli` from Google's RPM repository ([instructions](https://cloud.google.com/sdk/docs/install#rpm)),
+then log in. The account needs read access to the `gnosisvpn-production` Artifact Registry:
+
+```bash
+gh auth login
+gcloud auth login
+export GH_TOKEN="$(gh auth token)" # just changelog reads the GitHub API with it
+```
+
+Build and install an unsigned package (`build/packages/gnosisvpn-<version>-1.<arch>.rpm`):
+
+```bash
+just all rpm x86_64-linux # client, app and toolkit default to their latest releases
+sudo dnf install ./build/packages/gnosisvpn-*.rpm
+```
+
+To package an app you built yourself (`deno task tauri build --bundles deb` in `gnosis_vpn-app`), drop its `.deb` in
+place of the downloaded app package:
+
+```bash
+just download rpm x86_64-linux
+cp ../gnosis_vpn-app/src-tauri/target/release/bundle/deb/*.deb build/download/gnosis_vpn-app.deb
+just changelog
+just manual
+just package rpm x86_64-linux
+```
+
+For a v5 client (`0.100.0` and up) also run `just geoip` and `just curvy-zk` before `just package` (`just all` does it
+for you). Pass `true` as the last argument of `just all` or `just package` to sign, with
+`GNOSISVPN_GPG_PRIVATE_KEY_PATH` and `GNOSISVPN_GPG_PRIVATE_KEY_PASSWORD` set.
 
 ### GeoIP database
 
@@ -452,7 +535,7 @@ Pinned inputs in `config/`. The JSON files are read with `jq`; `channels.sh` is 
 - `channels.sh` — the per-channel retention counts, `COMPONENT_VERSION_BOUNDARY` (the lowest client/app version any
   build packages, keeping the frozen v4 line out) and `NETWORKS` (the networks every build ships)
 - `min-app-version.json` — `min_app_version` per channel, required for `stable`, `snapshot` and `experimental`; a plain
-  `x.y.z` on the date-based channels means no gate
+  `x.y.z` gates the snapshot channels by SemVer precedence too (`1.0.0` < `1.0.1-0.<timestamp>`)
 - `end-of-life.json` — `end_of_life` list per channel; an absent channel has none
 - `min-os.json` — minimum OS versions (`macos`, `linux_ubuntu`), written as `min_os_version` in the manifests and into
   the macOS `Distribution.xml`, `welcome.html` and `readme.html`
@@ -500,7 +583,22 @@ release and tag.
 
 `Snapshot Build` is the nightly pipeline (01:00 UTC). It tracks the `GNOSISVPN_*_PR_VERSION` repository variables for
 the "nothing changed, skip the build" check, and writes the version and date that `Update Manifests` reads for the
-snapshot channel and its `experimental` alias.
+snapshot channel and its `experimental` alias. A snapshot is versioned `<P>-0.<T>`, or `<P>.<T>` when P is a prerelease,
+with P the `package.json` version and T the UTC build time `YYYYMMDDHHMMSS` (`scripts/snapshot-version.sh`), so it sorts
+below P and above earlier snapshots. Stable releases take plain `X.Y.Z` only.
+
+The .deb and .rpm versions follow each format's own convention (`linux_package_version` in `scripts/common.sh`). P is
+not released yet, so a plain snapshot rides on B, the latest stable GitHub release, resolved once per build:
+
+| SemVer           | deb              | rpm              |
+| ---------------- | ---------------- | ---------------- |
+| `1.0.1`          | `1.0.1`          | `1.0.1`          |
+| `1.0.1-0.<T>`    | `1.0.0+<T>`      | `1.0.0^<T>`      |
+| `1.1.0-rc.1`     | `1.1.0~rc.1`     | `1.1.0~rc.1`     |
+| `1.1.0-rc.1.<T>` | `1.1.0~rc.1+<T>` | `1.1.0~rc.1^<T>` |
+
+The snapshot's deb version is stored in `GNOSISVPN_SNAPSHOT_DEB_VERSION` next to `GNOSISVPN_SNAPSHOT_VERSION`, because
+`Update Manifests` cannot derive B for the .deb URLs.
 
 ```mermaid
 flowchart TD
@@ -523,7 +621,7 @@ flowchart TD
     trRel --> SBUILD
     subgraph S["Close release · channel: stable"]
       direction TB
-      SBUILD["<b>Build</b> (release)<br/>build .deb + macOS .pkg<br/>macOS .pkg → bucket"] --> SGH["GitHub release<br/>(gates stable APT)"]
+      SBUILD["<b>Build</b> (release)<br/>build .deb + .rpm + macOS .pkg<br/>macOS .pkg → bucket"] --> SGH["GitHub release<br/>(gates stable APT)"]
       SGH --> SAPT["<b>Publish APT</b> (stable)"]
       SAPT --> SBUMP["<b>Bump version</b><br/>package.json + release version vars<br/>(only after APT succeeds)"]
       SAPT --> SPRUNE["<b>Prune Bucket</b> (stable)<br/>purge old APT + macOS versions"]
@@ -533,7 +631,7 @@ flowchart TD
     trSnap --> NBUILD
     subgraph N["Snapshot Build · channel: snapshot"]
       direction TB
-      NBUILD["<b>Build</b> (snapshot)<br/>build .deb + macOS .pkg<br/>macOS .pkg → bucket"] --> NAPT["<b>Publish APT</b> (snapshot, then experimental alias)"]
+      NBUILD["<b>Build</b> (snapshot)<br/>build .deb + .rpm + macOS .pkg<br/>macOS .pkg → bucket"] --> NAPT["<b>Publish APT</b> (snapshot, then experimental alias)"]
       NAPT --> NPRUNE["<b>Prune Bucket</b> (snapshot, experimental)<br/>purge old APT + macOS versions"]
     end
 

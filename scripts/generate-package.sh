@@ -2,19 +2,20 @@
 #
 # Build script for Gnosis VPN package
 #
-# This script creates a linux distributable package (deb, dmg) using nfpm for GitHub releases.
+# This script creates a distributable package (deb, rpm, dmg) using nfpm for GitHub releases.
 #
 
 set -euo pipefail
 
+# Source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Safe default values
-: "${GNOSISVPN_PACKAGE_VERSION:=$(date +%Y.%m.%d+build.%H%M%S)}"
+: "${GNOSISVPN_PACKAGE_VERSION:=$("${SCRIPT_DIR}/snapshot-version.sh")}"
 : "${GNOSISVPN_ENABLE_SIGNATURE:=false}"
 
 : "${GNOSISVPN_ARCHITECTURE:=x86_64-linux}"
 
-# Source common functions
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 # shellcheck source=../config/channels.sh
 source "${SCRIPT_DIR}/../config/channels.sh"
@@ -42,7 +43,7 @@ usage() {
     echo "Options:"
     echo "  -h, --help                     Show this help message"
     echo "  --package-version <version>    Set the package version (e.g., 1.0.0)"
-    echo "  --distribution <type>          Set the distribution type (deb, dmg), default: deb"
+    echo "  --distribution <type>          Set the distribution type (deb, rpm, dmg), default: deb"
     echo "  --architecture <arch>          Set the target architecture (x86_64-linux, aarch64-linux, aarch64-darwin), default: x86_64-linux"
     echo "  --sign                         Enable code signing"
     usage_platform
@@ -121,10 +122,11 @@ parse_args() {
 
 # Channel implied by a version string; MUST match register_apt_repo in linux/scripts/postinstall.sh.
 channel_from_version() {
-    case "$1" in
-    *"+"*) echo "snapshot" ;;
-    *) echo "stable" ;;
-    esac
+    if [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "stable"
+    else
+        echo "snapshot"
+    fi
 }
 
 # A version implying another channel would register the wrong APT suite after install; refuse it at build time.
@@ -139,7 +141,7 @@ validate_channel_version() {
         log_error "  GNOSISVPN_CHANNEL:         ${GNOSISVPN_CHANNEL}"
         log_error "  GNOSISVPN_PACKAGE_VERSION: ${GNOSISVPN_PACKAGE_VERSION}"
         log_error "  channel implied by version: ${inferred}"
-        log_error "Expected shapes: stable x.y.z | snapshot YYYY.MM.DD+build.HHMMSS"
+        log_error "Expected shapes: stable X.Y.Z | snapshot X.Y.Z-0.YYYYMMDDHHMMSS or X.Y.Z-rc.N.YYYYMMDDHHMMSS"
         exit 1
     fi
 }
