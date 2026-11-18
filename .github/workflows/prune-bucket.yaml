@@ -1,7 +1,7 @@
 # Reusable: prunes old artifacts from gs://download.gnosisvpn.io, keeping only
 # the newest N versions per channel (N from config/channels.sh). Deletes the
 # primary artifact plus its .asc / .sha256 sidecars for every pruned version,
-# across both the APT pool and the macOS directory of the channel.
+# across the APT pool, the macOS directory and (snapshot only) the rpm directory of the channel.
 #
 # Callers run this ONLY after a successful publish:
 #   - build-binary.yaml: snapshot and its experimental alias, after the build and APT publish.
@@ -52,6 +52,7 @@ jobs:
             snapshot)
               apt_pool="pool/snapshot/g/gnosisvpn"
               macos_dir="latest"
+              rpm_dir="latest"
               keep="$RETAIN_SNAPSHOT"
               ;;
             experimental)
@@ -75,3 +76,8 @@ jobs:
           bash scripts/prune-bucket-versions.sh \
             --prefix "gs://download.gnosisvpn.io/macos/${macos_dir}/" \
             --keep "$keep"
+          if [[ -n "${rpm_dir:-}" ]]; then
+            bash scripts/prune-bucket-versions.sh \
+              --prefix "gs://download.gnosisvpn.io/linux/rpm/${rpm_dir}/" \
+              --keep "$keep"
+          fi
