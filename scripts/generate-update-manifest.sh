@@ -175,6 +175,9 @@ get_snapshot_run_info() {
     [[ -n $published_at ]] ||
         die "Repository variable GNOSISVPN_SNAPSHOT_DATE is empty — has snapshot-build.yaml published a snapshot yet?"
     validate_version "$version"
+    # The variables are written one by one; a half-finished publish would pair B's version with A's .deb.
+    [[ $deb_version == *"+${version##*.}" ]] ||
+        die "GNOSISVPN_SNAPSHOT_DEB_VERSION ${deb_version} does not belong to GNOSISVPN_SNAPSHOT_VERSION ${version}"
 
     echo "$version $deb_version $published_at"
 }

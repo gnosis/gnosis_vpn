@@ -5,11 +5,11 @@
 #
 # Used by the setup job of .github/workflows/build-binary.yaml. Behaviour
 # depends on VERSION_TYPE:
-#   snapshot     - package.json version on GITHUB_REF plus a UTC timestamp (snapshot-version.sh), newest registry
+#   snapshot     - package.json version on GITHUB_SHA plus a UTC timestamp (snapshot-version.sh), newest registry
 #                  versions, skips when nothing changed
 #   commit       - latest merged-PR version pinned to the PR head commit
 #   pr           - version of the latest merged gnosis_vpn PR
-#   release      - version from package.json on GITHUB_REF, latest eligible releases
+#   release      - version from package.json on GITHUB_SHA, latest eligible releases
 #
 # Client/app versions below COMPONENT_VERSION_BOUNDARY (the frozen v4 line) are never picked.
 # Snapshot and release builds fail when the resolved client and app speak different IPC protocols (check-ipc-compat.sh).
@@ -25,7 +25,7 @@
 #   GNOSISVPN_<C>_PREVIOUS_VERSION     previously built version, for the skip check and changelog range
 #   GNOSISVPN_<C>_PREVIOUS_VERSION_{PR,RELEASE} per-type candidates; the one matching VERSION_TYPE wins when set
 #   PR_HEAD_SHA                        PR head commit sha (VERSION_TYPE=commit)
-#   GITHUB_REPOSITORY, GITHUB_REF      set by GitHub Actions (VERSION_TYPE=snapshot|release)
+#   GITHUB_REPOSITORY, GITHUB_SHA      set by GitHub Actions (VERSION_TYPE=snapshot|release)
 #
 # Outputs written to GITHUB_OUTPUT:
 #   the resolved package/client/app/toolkit versions, the package's GNOSISVPN_{DEB,RPM}_VERSION, plus GNOSISVPN_NETWORKS, GNOSISVPN_CHANNEL and SKIP_BUILDING
@@ -62,9 +62,9 @@ get_latest_pr_version() {
     echo "${version}+pr.${pr_number}"
 }
 
-# package.json on the ref the workflow runs on; the post-release bump is a bot push, so the latest merged PR can lag it.
+# package.json at the workflow commit, as checked out; the post-release bump is a bot push, so the latest merged PR can lag it.
 read_package_version() {
-    gh api "repos/${GITHUB_REPOSITORY}/contents/package.json?ref=${GITHUB_REF}" --jq '.content' |
+    gh api "repos/${GITHUB_REPOSITORY}/contents/package.json?ref=${GITHUB_SHA}" --jq '.content' |
         base64 --decode | jq -r '.version'
 }
 
