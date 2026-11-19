@@ -1586,8 +1586,6 @@ main() {
     # Set proper permissions
     set_permissions
 
-    remove_legacy_sudoers
-
     # Install log rotation config
     copy_logs_rotation_conf
 
@@ -1627,7 +1625,8 @@ main() {
     # Installer.app still reports success; this block (postinstall.log) is the only place the user learns why the service is down.
     print_migration_failure
 
-    # Only once nothing can roll back: a rollback restores config.toml's link to a config that must still be there.
+    # Only once nothing can roll back: a rolled-back config.toml and the old app a rollback leaves still need these.
+    remove_legacy_sudoers
     remove_retired_configs
 
     # Save version information. Must stay after every step that can fail:
