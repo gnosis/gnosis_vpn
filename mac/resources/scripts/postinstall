@@ -10,7 +10,8 @@
 # - Optional convenience symlinks
 # - Migration of the legacy single-user identity into the console user's home
 #
-# No service account: root spawns the worker as the requesting user; the sudoers rules name the console user.
+# No service account: root spawns the worker as the requesting user.
+# No sudoers rules or group: the app asks for an admin password to start the service or install an update.
 # No Directory Services writes (dscl/dseditgroup): macOS 27 gates them behind an "administer your computer" prompt.
 # Rollback after the migration ran is safe: gnosis_vpn-migrate identity is idempotent, re-running the pkg works.
 #
@@ -87,7 +88,7 @@ SWITCH_FAILED=false
 TOOLKIT_NEXT=""
 # The replaced networks moves are leaving, oldest first; appended before config.toml moves, removed once every identity followed.
 PENDING_SWITCH_FILE="${INSTALLED_LIB_DIR_PATH}/network-switch-pending"
-# Console user, resolved once in main: the sudoers rules, the migration, the validation probes and the app launch share it.
+# Console user, resolved once in main: the migration, the validation probes and the app launch share it.
 CURRENT_USER=""
 
 # Rollback mechanism
@@ -783,53 +784,12 @@ verify_plist_deployment() {
     return $errors
 }
 
-# Configure sudo privileges for the console user (and an existing gnosisvpn group)
-configure_sudo_privileges() {
-    log_info "Configuring sudo privileges..."
-
+# Older installers granted passwordless service control here; the app now asks for an admin password instead.
+remove_legacy_sudoers() {
     local sudoers_file="/etc/sudoers.d/gnosis-vpn"
-    # sudo's includedir skips names containing a dot, so a bad render never goes live before visudo checks it.
-    local staged_sudoers="${sudoers_file}.new"
-    local source_sudoers="${SCRIPT_DIR}/config/system/gnosis-vpn-sudoers"
-
-    # Fallback to development location if not found (for testing)
-    if [[ ! -f "$source_sudoers" ]]; then
-        source_sudoers="${SCRIPT_DIR}/../config/system/gnosis-vpn-sudoers"
-    fi
-
-    if [[ ! -f "$source_sudoers" ]]; then
-        log_error "Sudoers file not found: $source_sudoers"
-        log_warn "Users will need to use sudo for service management"
-        return 1
-    fi
-
-    # Only a plain short name goes into sudoers (and the sed replacement); anything else would be sudoers syntax.
-    local console_user_entry=""
-    if [[ -z "$CURRENT_USER" ]]; then
-        log_warn "No console user detected; only members of a 'gnosisvpn' group get passwordless service control"
-    elif [[ "$CURRENT_USER" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ ]]; then
-        console_user_entry=", $CURRENT_USER"
-    else
-        log_warn "Console user '$CURRENT_USER' cannot be named in sudoers; only members of a 'gnosisvpn' group get passwordless service control"
-    fi
-
-    log_info "Installing sudoers configuration: $sudoers_file"
-    sed "s/, __CONSOLE_USER__/${console_user_entry}/" "$source_sudoers" > "$staged_sudoers"
-    chmod 440 "$staged_sudoers"
-    chown root:wheel "$staged_sudoers"
-
-    # Validate sudoers syntax
-    if visudo -c -f "$staged_sudoers" >/dev/null 2>&1; then
-        mv -f "$staged_sudoers" "$sudoers_file"
-        log_success "Sudoers configuration installed and validated"
-        [[ -z "$console_user_entry" ]] || log_info "User '$CURRENT_USER' can now manage the service without sudo password"
-    else
-        log_error "Invalid sudoers syntax detected, keeping the previous configuration"
-        rm -f "$staged_sudoers"
-        return 1
-    fi
-
-    return 0
+    [[ -e "$sudoers_file" ]] || return 0
+    log_info "Removing legacy sudoers configuration: $sudoers_file"
+    rm -f "$sudoers_file"
 }
 
 # Uninstall launchd service (for updates or uninstallation)
@@ -1611,7 +1571,6 @@ main() {
     backup_config "$installation_type"
     copy_uninstall
 
-    # The sudoers rules name the console user (service control, self-update).
     CURRENT_USER=$(resolve_console_user)
     log_info "Console user detected: ${CURRENT_USER:-none}"
 
@@ -1627,8 +1586,7 @@ main() {
     # Set proper permissions
     set_permissions
 
-    # Configure sudo privileges for service management
-    configure_sudo_privileges
+    remove_legacy_sudoers
 
     # Install log rotation config
     copy_logs_rotation_conf

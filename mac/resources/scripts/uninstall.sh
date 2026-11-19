@@ -120,7 +120,7 @@ remove_launchd_service() {
     echo ""
 }
 
-# Remove the permission group (sudoers principal)
+# Older installers created this group as the sudoers principal
 remove_system_group() {
     log_info "Removing system group..."
 
@@ -191,7 +191,7 @@ cleanup_system_directories() {
     echo ""
 }
 
-# Remove sudo privileges configuration
+# Older installers granted passwordless service control here
 remove_sudo_privileges() {
     log_info "Removing sudo privileges configuration..."
 
