@@ -59,19 +59,8 @@ check_permissions() {
         return 0
     fi
 
-    # The gnosisvpn group is the sudoers principal for service control
-    local current_user
-    current_user=$(id -un)
-
-    if groups "$current_user" | grep -q '\bgnosisvpn\b'; then
-        log_info "User '$current_user' is in the gnosisvpn permission group - using sudo privileges"
-        return 0
-    else
-        log_error "This command requires root privileges or membership in the 'gnosisvpn' permission group"
-        log_info "Please run with sudo or ask an administrator to add you to the group:"
-        log_info "  sudo dseditgroup -o edit -a $current_user -t user gnosisvpn"
-        exit 1
-    fi
+    log_error "This command requires root privileges; run it again with sudo"
+    exit 1
 }
 
 # Execute launchctl command with appropriate privileges
@@ -83,7 +72,6 @@ run_launchctl() {
         # Already root, run directly
         launchctl "$cmd" "$@"
     else
-        # Use sudo with configured privileges
         sudo launchctl "$cmd" "$@"
     fi
 }
@@ -294,20 +282,6 @@ show_status() {
         else
             log_info "VPN service is not running"
         fi
-    fi
-
-    echo ""
-
-    # Permission group status (the service runs as root, the worker as the requesting user)
-    log_info "Permission group status:"
-    if dscl . -read "/Groups/gnosisvpn" >/dev/null 2>&1; then
-        local group_gid members
-        group_gid=$(dscl . -read "/Groups/gnosisvpn" PrimaryGroupID 2>/dev/null | awk '{print $2}' || echo "unknown")
-        members=$(dscl . -read "/Groups/gnosisvpn" GroupMembership 2>/dev/null | cut -d' ' -f2- || echo "none")
-        log_success "Permission group 'gnosisvpn' exists (GID: $group_gid)"
-        log_info "  Group members: $members"
-    else
-        log_warn "Permission group 'gnosisvpn' not found"
     fi
 
     echo ""

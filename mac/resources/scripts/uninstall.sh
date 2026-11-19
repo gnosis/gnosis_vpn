@@ -120,7 +120,7 @@ remove_launchd_service() {
     echo ""
 }
 
-# Remove the permission group (sudoers principal)
+# Older installers created this group as the sudoers principal
 remove_system_group() {
     log_info "Removing system group..."
 
@@ -145,6 +145,19 @@ remove_system_group() {
         log_success "Removed system group: $groupname"
     else
         log_info "No system group '$groupname' found"
+    fi
+}
+
+# The single-user layout's service account; the installer leaves it, as deleting it raises macOS 27's admin prompt.
+remove_legacy_account() {
+    if ! dscl . -read "/Users/gnosisvpn" >/dev/null 2>&1; then
+        return 0
+    fi
+    log_info "Removing the legacy service user 'gnosisvpn'..."
+    if dscl . -delete "/Users/gnosisvpn"; then
+        log_success "Legacy service user removed"
+    else
+        log_warn "Could not remove user 'gnosisvpn'; remove it by hand: sudo dscl . -delete /Users/gnosisvpn"
     fi
 }
 
@@ -178,7 +191,7 @@ cleanup_system_directories() {
     echo ""
 }
 
-# Remove sudo privileges configuration
+# Older installers granted passwordless service control here
 remove_sudo_privileges() {
     log_info "Removing sudo privileges configuration..."
 
@@ -451,6 +464,11 @@ verify_uninstall() {
         errors=$((errors + 1))
     fi
 
+    if dscl . -read "/Users/gnosisvpn" >/dev/null 2>&1; then
+        log_error "Legacy service user still exists: gnosisvpn"
+        errors=$((errors + 1))
+    fi
+
     if [[ -d $CACHE_DIR ]]; then
         log_error "System directory still exists: $CACHE_DIR"
         errors=$((errors + 1))
@@ -483,7 +501,7 @@ print_summary() {
     echo "  ✓ Binaries"
     echo "  ✓ UI Application (if installed)"
     echo "  ✓ Launchd service"
-    echo "  ✓ System group (gnosisvpn)"
+    echo "  ✓ System group and legacy user (gnosisvpn)"
     echo "  ✓ Sudo privileges configuration"
     echo "  ✓ GeoIP database"
     echo "  ✓ Curvy proving files"
@@ -529,6 +547,7 @@ main() {
     fi
     remove_sudo_privileges
     remove_system_group
+    remove_legacy_account
     forget_package
     verify_uninstall
     print_summary

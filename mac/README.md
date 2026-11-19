@@ -125,12 +125,13 @@ cd mac
 sudo ./uninstall.sh
 ```
 
-By default the script removes the software (binaries, launchd service, app, sudoers file, update downloads, package
-receipt) and keeps the configuration, logs and user data, so a reinstall picks up where it left off. It then asks
-whether to delete those as well; `sudo ./uninstall.sh --purge` answers yes without asking. A purge removes
-`/etc/gnosisvpn/` (backed up to `~/gnosis-vpn-config-backup-*`), the logs, the installer choices and every user's
-caches, logs and app data, including the ticket store (`tickets.redb`). It records a replaced network from the
-`config.toml` link in `network-switch-pending`, so the next install still moves identities off it.
+By default the script removes the software (binaries, launchd service, app, update downloads, package receipt, and the
+sudoers file and `gnosisvpn` group older installers created) and keeps the configuration, logs and user data, so a
+reinstall picks up where it left off. It then asks whether to delete those as well; `sudo ./uninstall.sh --purge`
+answers yes without asking. A purge removes `/etc/gnosisvpn/` (backed up to `~/gnosis-vpn-config-backup-*`), the logs,
+the installer choices and every user's caches, logs and app data, including the ticket store (`tickets.redb`). It
+records a replaced network from the `config.toml` link in `network-switch-pending`, so the next install still moves
+identities off it.
 
 Identities are never deleted: the per-user `hopr.id`, `hopr.pass` and PIX state under
 `~/Library/Application Support/GnosisVPN/`, and the legacy identity backups in
@@ -144,15 +145,17 @@ Identities are never deleted: the per-user `hopr.id`, `hopr.pass` and PIX state 
 - App binary is packaged directly into the PKG
 - No personal information is collected or transmitted
 
-### Accounts and Permission Group
+### Accounts and Privileges
 
 No service account exists. `gnosis_vpn-root` runs as `root` under launchd and spawns `gnosis_vpn-worker` as whichever
 user asks for a connection; that worker keeps its identity under the user's own home.
 
-- **Permission Group**: `gnosisvpn` (GID: 200-499 range)
-  - The sudoers principal: `/etc/sudoers.d/gnosis-vpn` lets members run the `launchctl` service commands and the
-    self-updater without a password
-  - The installer adds the console user; other users join with `sudo dseditgroup -o edit -a <name> -t user gnosisvpn`
+- **No sudoers rules, no permission group**: the app asks for an administrator password through the macOS dialog when it
+  starts the service or installs an update; opening the app and connecting never ask
+  - The installer makes no Directory Services changes (no `dscl`/`dseditgroup`): those trigger macOS's "Installer would
+    like to administer your computer" prompt
+  - An upgrade deletes `/etc/sudoers.d/gnosis-vpn`; the `gnosisvpn` group and service user from older installs stay
+    until `uninstall.sh` removes them
 
 - **Permission Structure**:
   - Configuration files: `root:wheel`, world-readable (`644`)
