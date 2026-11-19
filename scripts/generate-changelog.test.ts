@@ -149,6 +149,7 @@ Deno.test("zulipFormat formats snapshot entries and download links", () => {
     ],
     "1.0.1-0.20260514143052",
     "1.0.0+20260514143052",
+    "1.0.0^20260514143052",
     "0.56.1",
     "0.6.1",
     "1.2.3",
@@ -199,14 +200,39 @@ Deno.test("zulipFormat formats snapshot entries and download links", () => {
   ) {
     throw new Error("zulipFormat output is missing the Debian aarch64 apt-pool link");
   }
+
+  if (
+    !output.includes(
+      "[Fedora x86_64](https://download.gnosisvpn.io/linux/rpm/latest/gnosisvpn-1.0.0%5E20260514143052-1.x86_64.rpm)",
+    )
+  ) {
+    throw new Error("zulipFormat output is missing the Fedora x86_64 link");
+  }
+
+  if (
+    !output.includes(
+      "[Fedora aarch64](https://download.gnosisvpn.io/linux/rpm/latest/gnosisvpn-1.0.0%5E20260514143052-1.aarch64.rpm)",
+    )
+  ) {
+    throw new Error("zulipFormat output is missing the Fedora aarch64 link");
+  }
 });
 
 Deno.test("zulipFormat defaults to the snapshot channel", () => {
-  const withDefault = zulipFormat([], "1.0.1-0.20260514143052", "1.0.0+20260514143052", "0.56.1", "0.6.1", "1.2.3");
+  const withDefault = zulipFormat(
+    [],
+    "1.0.1-0.20260514143052",
+    "1.0.0+20260514143052",
+    "1.0.0^20260514143052",
+    "0.56.1",
+    "0.6.1",
+    "1.2.3",
+  );
   const withExplicit = zulipFormat(
     [],
     "1.0.1-0.20260514143052",
     "1.0.0+20260514143052",
+    "1.0.0^20260514143052",
     "0.56.1",
     "0.6.1",
     "1.2.3",
@@ -681,6 +707,7 @@ Deno.test("snapshot changelog includes a PR merged into the version PR's release
         entries,
         "1.0.1-0.20260914180352",
         "1.0.0+20260914180352",
+        "1.0.0^20260914180352",
         "0.96.1+pr.801",
         "0.0.0",
         "0.0.0",
