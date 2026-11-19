@@ -120,31 +120,17 @@ remove_launchd_service() {
     echo ""
 }
 
-# Older installers created this group as the sudoers principal
+# Older installers created this group as the sudoers principal; deleting it drops its members, no per-member writes needed.
 remove_system_group() {
-    log_info "Removing system group..."
-
-    local groupname="gnosisvpn"
-
-    if dscl . -read "/Groups/$groupname" >/dev/null 2>&1; then
-        log_info "Found system group: $groupname"
-
-        # Remove all users from the group first
-        local members
-        members=$(dscl . -read "/Groups/$groupname" GroupMembership 2>/dev/null | cut -d' ' -f2- || echo "")
-
-        if [[ -n $members ]]; then
-            log_info "Removing users from group: $members"
-            for member in $members; do
-                dseditgroup -o edit -d "$member" -t user "$groupname" 2>/dev/null || true
-            done
-        fi
-
-        # Delete the group
-        dscl . -delete "/Groups/$groupname"
-        log_success "Removed system group: $groupname"
+    if ! dscl . -read "/Groups/gnosisvpn" >/dev/null 2>&1; then
+        log_info "No system group 'gnosisvpn' found"
+        return 0
+    fi
+    log_info "Removing system group 'gnosisvpn'..."
+    if dscl . -delete "/Groups/gnosisvpn"; then
+        log_success "Removed system group: gnosisvpn"
     else
-        log_info "No system group '$groupname' found"
+        log_warn "Could not remove group 'gnosisvpn'; remove it by hand: sudo dscl . -delete /Groups/gnosisvpn"
     fi
 }
 

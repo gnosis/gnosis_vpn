@@ -63,19 +63,6 @@ check_permissions() {
     exit 1
 }
 
-# Execute launchctl command with appropriate privileges
-run_launchctl() {
-    local cmd="$1"
-    shift
-
-    if [[ $EUID -eq 0 ]]; then
-        # Already root, run directly
-        launchctl "$cmd" "$@"
-    else
-        sudo launchctl "$cmd" "$@"
-    fi
-}
-
 # Show current version
 show_version() {
     log_info "Gnosis VPN Installation Version"
@@ -265,7 +252,7 @@ show_status() {
 
     # Service status
     log_info "Service status:"
-    if run_launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
+    if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
         log_success "Launchd service is loaded"
         if pgrep -f "gnosis_vpn" >/dev/null 2>&1; then
             local pid
@@ -309,12 +296,12 @@ start_service() {
         exit 1
     fi
 
-    if run_launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
+    if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
         log_info "Service is already loaded, restarting..."
-        run_launchctl kickstart system/com.gnosisvpn.gnosisvpnclient
+        launchctl kickstart system/com.gnosisvpn.gnosisvpnclient
     else
         log_info "Loading service..."
-        run_launchctl bootstrap system "$plist_path"
+        launchctl bootstrap system "$plist_path"
     fi
 
     # Wait and check status
@@ -334,8 +321,8 @@ stop_service() {
 
     local plist_path="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
 
-    if run_launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
-        run_launchctl bootout system "$plist_path"
+    if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
+        launchctl bootout system "$plist_path"
         log_success "Service stopped"
     else
         log_info "Service was not running"
