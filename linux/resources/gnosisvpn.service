@@ -16,6 +16,9 @@ EnvironmentFile=/etc/gnosisvpn/gnosisvpn.env
 EnvironmentFile=-/etc/gnosisvpn/gnosisvpn-dynamic.env
 WorkingDirectory=/var/lib/gnosisvpn
 
+# Creates /run/resolvconf so ReadWritePaths can open it; openresolv only creates it on first use.
+ExecStartPre=+/usr/bin/mkdir -p /run/resolvconf
+
 # Main service command
 ExecStart=/usr/bin/gnosis_vpn-root
 
