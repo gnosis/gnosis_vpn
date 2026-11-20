@@ -112,7 +112,7 @@ Options:
   -h, --help                    Show this help and exit.
 
 Supported distributions:
-  Debian 11, 12, 13, 14
+  Debian 12, 13, 14
   Ubuntu 22.04, 24.04, 26.04 LTS
 
 After install, the gnosisvpn service should be running. To switch networks
@@ -285,7 +285,7 @@ detect_distro() {
 
     local supported=0
     case "${id}:${ver}" in
-    debian:11 | debian:12 | debian:13 | debian:14) supported=1 ;;
+    debian:12 | debian:13 | debian:14) supported=1 ;;
     ubuntu:22.04 | ubuntu:24.04 | ubuntu:26.04) supported=1 ;;
     esac
 
