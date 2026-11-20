@@ -16,6 +16,9 @@ EnvironmentFile=/etc/gnosisvpn/gnosisvpn.env
 EnvironmentFile=-/etc/gnosisvpn/gnosisvpn-dynamic.env
 WorkingDirectory=/var/lib/gnosisvpn
 
+# Creates /run/resolvconf so ReadWritePaths can open it; openresolv only creates it on first use.
+ExecStartPre=+/usr/bin/mkdir -p /run/resolvconf
+
 # Main service command
 ExecStart=/usr/bin/gnosis_vpn-root
 
@@ -48,7 +51,8 @@ AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETUID CA
 ProtectSystem=strict
 ProtectHome=no
 PrivateTmp=yes
-ReadWritePaths=-/home -/var/home
+# DNS diversion replaces /etc/resolv.conf by rename (so the directory) and writes resolvconf state to /run/resolvconf.
+ReadWritePaths=-/home -/var/home -/etc -/run/resolvconf
 
 # Resource limits
 LimitNOFILE=65536
