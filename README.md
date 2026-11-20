@@ -193,6 +193,9 @@ sudo systemctl edit gnosisvpn
 # ReadWritePaths=<home root>
 ```
 
+The unit also allows writes to `/etc` and `/run/resolvconf`: diverting DNS through the tunnel rewrites
+`/etc/resolv.conf` or registers with resolvconf where systemd-resolved does not own it.
+
 Releases before this layout ran the worker as a `gnosisvpn` system user with one shared identity in
 `/var/lib/gnosisvpn/.config/`. On upgrade, `postinstall.sh` runs `gnosis_vpn-migrate identity --user <name>` (from the
 [toolkit](https://github.com/gnosis/gnosis_vpn-toolkit)) between stopping the old service and starting the new one,
