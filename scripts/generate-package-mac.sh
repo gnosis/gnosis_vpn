@@ -515,7 +515,7 @@ render_distribution_xml() {
     # Re-validated because this function is also called directly by tests and ad-hoc renders.
     validate_network_names "${GNOSISVPN_NETWORKS}" || exit 1
 
-    # Mutual-exclusion group for the XML's exclusiveEnabled() helper, e.g. 'jura-prod','jura-dev'.
+    # Radio group for the XML's exclusiveSelected() helper, e.g. 'jura-prod','jura-dev'.
     local group="" network
     for network in "${networks[@]}"; do
         group="${group:+${group},}${sq}${network}${sq}"
@@ -549,7 +549,8 @@ render_distribution_xml() {
             title="${title}"
             description="$(network_description "$network")"
             visible="true"
-            enabled="exclusiveEnabled(${sq}${network}${sq}, [${group}])"
+            enabled="true"
+            selected="exclusiveSelected(${sq}${network}${sq}, [${group}], hasServiceSetup())"
             start_selected="${selected}">
         <pkg-ref id="com.gnosisvpn.choice.network.${network}"/>
     </choice>

@@ -24,6 +24,9 @@
 # Environment variables from Distribution.xml choices:
 #   INSTALLER_CHOICE_NETWORK: one of the networks listed in ${SCRIPT_DIR}/networks
 #   INSTALLER_CHOICE_LOGLEVEL: "debug" or "info"
+# Each choice package writes its file on this run only; this script consumes them. No network file on a machine
+# with an installed service means the user unticked the network group: KEEP_SERVICE_SETUP leaves the LaunchDaemon
+# plist, config.toml, network configs and identities as they are and only restarts the service.
 
 set -euo pipefail
 
@@ -90,6 +93,8 @@ TOOLKIT_NEXT=""
 PENDING_SWITCH_FILE="${INSTALLED_LIB_DIR_PATH}/network-switch-pending"
 # Console user, resolved once in main: the migration, the validation probes and the app launch share it.
 CURRENT_USER=""
+# Set by load_installer_choices when no network was ticked and an installed service setup is kept untouched.
+KEEP_SERVICE_SETUP=false
 
 # Rollback mechanism
 ROLLBACK_STEPS=()
@@ -247,10 +252,26 @@ read_choice() {
 
 load_installer_choices() {
     local choice_dir="${INSTALLED_LIB_DIR_PATH}/installer"
-    local network loglevel
+    local network loglevel network_ticked=false
 
+    [[ -f "${choice_dir}/network_choice" ]] && network_ticked=true
     network="$(read_choice "${choice_dir}/network_choice" INSTALLER_CHOICE_NETWORK)"
-    # The choice file persists between installs, so it can name a network from the other line.
+    loglevel="$(read_choice "${choice_dir}/loglevel_choice" INSTALLER_CHOICE_LOGLEVEL)"
+    # Consumed, so the next run sees only what its own choice packages wrote.
+    rm -f "${choice_dir}/network_choice" "${choice_dir}/loglevel_choice"
+
+    # Unticked network group: the Distribution only allows it with this setup in place.
+    if [[ "$network_ticked" == false && -f "$LAUNCHD_PLIST_PATH" && -f "$CONFIG_FILE" ]]; then
+        KEEP_SERVICE_SETUP=true
+        INSTALLER_CHOICE_NETWORK="$(linked_network)"
+        INSTALLER_CHOICE_NETWORK="${INSTALLER_CHOICE_NETWORK:-config.toml}"
+        INSTALLER_CHOICE_LOGLEVEL="unchanged"
+        SOURCE_NETWORKS=""
+        log_info "No network ticked — keeping the installed service setup (${INSTALLER_CHOICE_NETWORK}) unchanged"
+        return 0
+    fi
+
+    # An older package wrote a network from the other line; a GUI bypass (CLI) can leave none.
     if is_shipped_network "$network"; then
         INSTALLER_CHOICE_NETWORK="$network"
     else
@@ -284,7 +305,6 @@ load_installer_choices() {
         log_info "Leaving '${SOURCE_NETWORKS}' for '${successor}'; identities move along after the legacy migration"
     fi
 
-    loglevel="$(read_choice "${choice_dir}/loglevel_choice" INSTALLER_CHOICE_LOGLEVEL)"
     case "$loglevel" in
     debug | info) INSTALLER_CHOICE_LOGLEVEL="$loglevel" ;;
     *)
@@ -571,6 +591,77 @@ configure_plist() {
     return 0
 }
 
+# Bootstrap, enable and verify the installed plist; shared by a fresh plist and a kept one.
+start_launchd_service() {
+    local plist_path="$LAUNCHD_PLIST_PATH"
+
+    log_info "Loading Gnosis VPN service..."
+    # A failed migration on an earlier run left the service disabled, and bootstrap refuses a disabled service.
+    launchctl enable "$LAUNCHD_SERVICE" 2>/dev/null || true
+
+    # Try to bootstrap the service
+    local bootstrap_attempts=0
+    local max_attempts=3
+    local bootstrap_success=false
+    local bootstrap_error=""
+
+    while [[ $bootstrap_attempts -lt $max_attempts ]]; do
+        if bootstrap_error=$(launchctl bootstrap system "$plist_path" 2>&1); then
+            bootstrap_success=true
+            break
+        fi
+        log_warn "Bootstrap attempt $((bootstrap_attempts + 1))/$max_attempts failed: ${bootstrap_error:-no output}"
+        # Service might already be loaded, try to bootout first
+        if [[ $bootstrap_attempts -eq 0 ]]; then
+            log_info "Service may already be loaded, attempting to reload..."
+            launchctl bootout system "$plist_path" 2>/dev/null || true
+            sleep 1
+        fi
+        bootstrap_attempts=$((bootstrap_attempts + 1))
+        if [[ $bootstrap_attempts -lt $max_attempts ]]; then
+            sleep 2
+        fi
+    done
+
+    if [[ "$bootstrap_success" == "true" ]]; then
+        log_success "Gnosis VPN service loaded successfully"
+
+        # Enable the service to start automatically
+        log_info "Enabling service for automatic startup..."
+        if launchctl enable system/com.gnosisvpn.gnosisvpnclient 2>/dev/null; then
+            log_success "Service enabled for automatic startup"
+        else
+            log_warn "Failed to enable service (it may already be enabled)"
+        fi
+
+        # Wait a moment and verify it's running
+        sleep 3
+        if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
+            log_success "Service is running successfully"
+
+            # Check if the binary exists and is executable
+            local binary_path="/usr/local/bin/gnosis_vpn-root"
+            if [[ ! -f "$binary_path" ]]; then
+                log_warn "Binary not found: $binary_path - service may fail to start"
+                log_info "Ensure binaries are properly installed before the service starts"
+            fi
+        else
+            log_warn "Service loaded but may not be running yet"
+            log_info "This is normal if binaries haven't been downloaded yet"
+            log_info "Check logs: tail -f $INSTALLED_LOG_DIR_PATH/gnosisvpn.log"
+        fi
+    else
+        log_error "Failed to load Gnosis VPN service after $max_attempts attempts"
+        local launchd_state
+        if launchd_state=$(launchctl print system/com.gnosisvpn.gnosisvpnclient 2>&1); then
+            log_info "launchd job state: $(echo "$launchd_state" | grep -E 'state =|last exit code =' | sed 's/^[[:space:]]*//' | paste -sd ';' -)"
+        else
+            log_info "launchd job state: not loaded ($(echo "$launchd_state" | paste -sd ' ' -))"
+        fi
+        exit 1
+    fi
+}
+
 # Install launchd service
 install_launchd_service() {
     local installation_type="$1"
@@ -650,72 +741,7 @@ install_launchd_service() {
             return 0
         fi
 
-        # Load and start the service
-        log_info "Loading Gnosis VPN service..."
-        # A failed migration on an earlier run left the service disabled, and bootstrap refuses a disabled service.
-        launchctl enable "$LAUNCHD_SERVICE" 2>/dev/null || true
-
-        # Try to bootstrap the service
-        local bootstrap_attempts=0
-        local max_attempts=3
-        local bootstrap_success=false
-        local bootstrap_error=""
-
-        while [[ $bootstrap_attempts -lt $max_attempts ]]; do
-            if bootstrap_error=$(launchctl bootstrap system "$plist_path" 2>&1); then
-                bootstrap_success=true
-                break
-            fi
-            log_warn "Bootstrap attempt $((bootstrap_attempts + 1))/$max_attempts failed: ${bootstrap_error:-no output}"
-            # Service might already be loaded, try to bootout first
-            if [[ $bootstrap_attempts -eq 0 ]]; then
-                log_info "Service may already be loaded, attempting to reload..."
-                launchctl bootout system "$plist_path" 2>/dev/null || true
-                sleep 1
-            fi
-            bootstrap_attempts=$((bootstrap_attempts + 1))
-            if [[ $bootstrap_attempts -lt $max_attempts ]]; then
-                sleep 2
-            fi
-        done
-
-        if [[ "$bootstrap_success" == "true" ]]; then
-            log_success "Gnosis VPN service loaded successfully"
-
-            # Enable the service to start automatically
-            log_info "Enabling service for automatic startup..."
-            if launchctl enable system/com.gnosisvpn.gnosisvpnclient 2>/dev/null; then
-                log_success "Service enabled for automatic startup"
-            else
-                log_warn "Failed to enable service (it may already be enabled)"
-            fi
-
-            # Wait a moment and verify it's running
-            sleep 3
-            if launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1; then
-                log_success "Service is running successfully"
-
-                # Check if the binary exists and is executable
-                local binary_path="/usr/local/bin/gnosis_vpn-root"
-                if [[ ! -f "$binary_path" ]]; then
-                    log_warn "Binary not found: $binary_path - service may fail to start"
-                    log_info "Ensure binaries are properly installed before the service starts"
-                fi
-            else
-                log_warn "Service loaded but may not be running yet"
-                log_info "This is normal if binaries haven't been downloaded yet"
-                log_info "Check logs: tail -f $INSTALLED_LOG_DIR_PATH/gnosisvpn.log"
-            fi
-        else
-            log_error "Failed to load Gnosis VPN service after $max_attempts attempts"
-            local launchd_state
-            if launchd_state=$(launchctl print system/com.gnosisvpn.gnosisvpnclient 2>&1); then
-                log_info "launchd job state: $(echo "$launchd_state" | grep -E 'state =|last exit code =' | sed 's/^[[:space:]]*//' | paste -sd ';' -)"
-            else
-                log_info "launchd job state: not loaded ($(echo "$launchd_state" | paste -sd ' ' -))"
-            fi
-            exit 1
-        fi
+        start_launchd_service
     else
         log_error "Launchd plist file not found: $source_plist"
         log_warn "Service will not start automatically at boot"
@@ -726,6 +752,16 @@ install_launchd_service() {
         log_info "  - ${SCRIPT_DIR}/../config/system/${plist_name}"
         return 1
     fi
+}
+
+# Keep mode: the plist is reloaded unchanged so the new binaries run; a service someone disabled stays disabled.
+restart_kept_service() {
+    log_info "Restarting the service from the unchanged plist: $LAUNCHD_PLIST_PATH"
+    if launchctl print-disabled system 2>/dev/null | grep -qE '"com\.gnosisvpn\.gnosisvpnclient" => (disabled|true)'; then
+        log_warn "Service is disabled — leaving it disabled"
+        return 0
+    fi
+    start_launchd_service
 }
 
 # Verify plist deployment
@@ -1250,7 +1286,11 @@ print_summary() {
     log_info "Binary directory: $BIN_DIR"
     log_info "Configuration file: $CONFIG_FILE"
     log_info "Version file: $VERSION_FILE"
-    log_info "Network: $INSTALLER_CHOICE_NETWORK"
+    if [[ "$KEEP_SERVICE_SETUP" == true ]]; then
+        log_info "Network: kept ($INSTALLER_CHOICE_NETWORK), service setup unchanged"
+    else
+        log_info "Network: $INSTALLER_CHOICE_NETWORK"
+    fi
     echo ""
     log_info "Installed binaries:"
     ls -lh "$BIN_DIR"/gnosis_vpn* 2>/dev/null || true
@@ -1579,9 +1619,11 @@ main() {
     remove_unshipped_geoip
     remove_pre_0_96_log
 
-    # Setup configuration files and create symlink
-    setup_configuration_files
-    create_config_symlink "$installation_type"
+    # Setup configuration files and create symlink; keep mode leaves config.toml and the network configs alone
+    if [[ "$KEEP_SERVICE_SETUP" == false ]]; then
+        setup_configuration_files
+        create_config_symlink "$installation_type"
+    fi
 
     # Set proper permissions
     set_permissions
@@ -1597,12 +1639,17 @@ main() {
 
     # preinstall stops it too; repeated so the migration never runs against a live worker
     uninstall_launchd_service
-    migrate_legacy_identity
-    # Once, after the legacy identity sits on its old network; a failed migration leaves the move pending for the next install.
-    [[ "$MIGRATION_FAILED" == true ]] || switch_network_if_left
+    if [[ "$KEEP_SERVICE_SETUP" == true ]]; then
+        # No identity migration, network move or plist rewrite: only the new binaries are picked up.
+        restart_kept_service
+    else
+        migrate_legacy_identity
+        # Once, after the legacy identity sits on its old network; a failed migration leaves the move pending for the next install.
+        [[ "$MIGRATION_FAILED" == true ]] || switch_network_if_left
 
-    # Install launchd service
-    install_launchd_service "$installation_type"
+        # Install launchd service
+        install_launchd_service "$installation_type"
+    fi
 
     # Verify plist deployment
     verify_plist_deployment
@@ -1627,7 +1674,7 @@ main() {
 
     # Only once nothing can roll back: a rolled-back config.toml and the old app a rollback leaves still need these.
     remove_legacy_sudoers
-    remove_retired_configs
+    [[ "$KEEP_SERVICE_SETUP" == true ]] || remove_retired_configs
 
     # Save version information. Must stay after every step that can fail:
     # a failed install would otherwise leave version.txt claiming the new
