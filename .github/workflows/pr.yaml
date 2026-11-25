@@ -6,35 +6,38 @@ on:
       - synchronize
       - reopened
       - ready_for_review
+  merge_group:
 permissions:
   contents: read
-  id-token: write
 concurrency:
-  group: pr-${{ github.event.pull_request.head.ref || github.ref }}
+  group: pr-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 jobs:
   build-binary:
     name: Build
-    if: ${{ github.event.pull_request.head.repo.fork == false }}
+    # Needs GCP downloads and signing keys: only in the merge queue, after review
+    if: github.event_name == 'merge_group'
     uses: ./.github/workflows/build-binary.yaml
+    permissions:
+      contents: read
+      id-token: write
     with:
       version_type: commit
     secrets: inherit
   checks:
     name: Checks
-    if: ${{ github.event.pull_request.head.repo.fork == false }}
     runs-on: depot-ubuntu-22.04-4
     steps:
       - name: Check flake
         uses: hoprnet/hopr-workflows/actions/nix-action@ade4bbd75f7204255c61d19c23f67d3da221e7d2 # nix-action-v1.1.3
         with:
-          source_branch: ${{ github.event.pull_request.head.ref || github.ref }}
+          source_branch: ${{ github.event.pull_request.head.sha || github.sha }}
           cachix_cache_name: gnosis-vpn
           cachix_auth_token: "${{ secrets.CACHIX_AUTH_TOKEN }}"
           command: nix flake check -L --show-trace --max-jobs 1
   ci-ok:
     name: CI OK
-    # Single required status check: stable across matrix expansion, label gating and fork guards.
+    # Single required status check: stable across matrix expansion and the queue-only build.
     if: always() # a skipped job counts as passing, so never let a failed dependency skip this one
     needs: [build-binary, checks]
     runs-on: depot-ubuntu-22.04-4
