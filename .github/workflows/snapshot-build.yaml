@@ -83,7 +83,7 @@ jobs:
           email: ${{ secrets.GNOSIS_VPN_ZULIP_EMAIL }}
           organization-url: "https://hopr.zulipchat.com"
           type: "stream"
-          to: "GnosisVPN"
+          to: "Gnosis VPN"
           topic: "Snapshot Builds"
           content: ${{ env.NOTIFICATION_CONTENT }}
       - name: Generate GitHub App token
