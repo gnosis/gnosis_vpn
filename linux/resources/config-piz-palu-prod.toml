@@ -19,8 +19,7 @@ num_ssa_parts = 4096
 ssa_part_size = 32
 additional_shares = 79
 
-# Bootstrap mode: a fixed node set the app can switch to. These exits are not in the
-# gvpn:exit registry, so each one names its country.
+# Bootstrap mode: a fixed node set the app can switch to; none of it is in the gvpn:exit registry.
 [bootstrap]
 # The client keeps channels only to these relay nodes.
 relayers = [
@@ -38,25 +37,20 @@ relayers = [
 
 [bootstrap.exits.amsterdam]
 address = "0xc9a0ab0f96608b4da489321003070fda0d45f4ac" # exit-node-amsterdam-01
-country = "NL"
 meta = { name = "Amsterdam" }
 
 [bootstrap.exits.iowa]
 address = "0xd61cb773673dcfe622872f1c7d9965639d6f8f45" # exit-node-iowa-01
-country = "US"
 meta = { name = "Iowa" }
 
 [bootstrap.exits.saopaulo]
 address = "0x58c501cd041dc73aaa111389c8fea41ae45d4e46" # exit-node-saopaulo-01
-country = "BR"
 meta = { name = "São Paulo" }
 
 [bootstrap.exits.singapore]
 address = "0xab17ba36a8cee4062554d050522bc8b0f541c385" # exit-node-singapore-01
-country = "SG"
 meta = { name = "Singapore" }
 
 [bootstrap.exits.taiwan]
 address = "0xf68b0b430290a2a49483c5239a61f4e92d469a7f" # exit-node-taiwan-01
-country = "TW"
 meta = { name = "Taiwan" }
