@@ -399,7 +399,7 @@ test_keep_service_setup() {
 
     local pkg
     pkg=$(find "${BUILD_DIR}/packages" -name "gnosisvpn_*_*.pkg" -print -quit 2>/dev/null)
-    run_test "Keep-setup test runs as root" "[[ \$EUID -eq 0 ]]" || return 0
+    run_test "Keep-setup test runs as root" '[[ $EUID -eq 0 ]]' || return 0
     run_test "Keep-setup test has a distribution package" "[[ -n '${pkg}' ]]" || return 0
     run_test "Keep-setup test has an installed service setup to keep" "has_service_setup" || return 0
 
