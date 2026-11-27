@@ -85,7 +85,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION_TYPE: ${{ inputs.version_type }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           # All candidates are passed and the script picks by VERSION_TYPE: an Actions ternary cannot yield an empty string.
           GNOSISVPN_PACKAGE_PREVIOUS_VERSION_PR: ${{ vars.GNOSISVPN_PACKAGE_PR_VERSION }}
           GNOSISVPN_CLIENT_PREVIOUS_VERSION_PR: ${{ vars.GNOSISVPN_CLIENT_PR_VERSION }}
