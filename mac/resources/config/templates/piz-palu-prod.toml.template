@@ -35,22 +35,17 @@ relayers = [
   "0xbc50b7afa29e9f9eb8b81463dce9af9e549b0fa3", # relayer-node-taiwan-02
 ]
 
-[bootstrap.exits.amsterdam]
+[bootstrap.exits.GVPN-Bootstrap-1-DC-Amsterdam]
 address = "0xc9a0ab0f96608b4da489321003070fda0d45f4ac" # exit-node-amsterdam-01
-meta = { name = "GVPN-Bootstrap-1 (DC Amsterdam)" }
 
-[bootstrap.exits.iowa]
+[bootstrap.exits.GVPN-Bootstrap-2-DC-Iowa]
 address = "0xd61cb773673dcfe622872f1c7d9965639d6f8f45" # exit-node-iowa-01
-meta = { name = "GVPN-Bootstrap-2 (DC Iowa)" }
 
-[bootstrap.exits.saopaulo]
+[bootstrap.exits.GVPN-Bootstrap-3-DC-Sao-Paulo]
 address = "0x58c501cd041dc73aaa111389c8fea41ae45d4e46" # exit-node-saopaulo-01
-meta = { name = "GVPN-Bootstrap-3 (DC São Paulo)" }
 
-[bootstrap.exits.singapore]
+[bootstrap.exits.GVPN-Bootstrap-4-DC-Singapore]
 address = "0xab17ba36a8cee4062554d050522bc8b0f541c385" # exit-node-singapore-01
-meta = { name = "GVPN-Bootstrap-4 (DC Singapore)" }
 
-[bootstrap.exits.taiwan]
+[bootstrap.exits.GVPN-Bootstrap-5-DC-Taiwan]
 address = "0xf68b0b430290a2a49483c5239a61f4e92d469a7f" # exit-node-taiwan-01
-meta = { name = "GVPN-Bootstrap-5 (DC Taiwan)" }
