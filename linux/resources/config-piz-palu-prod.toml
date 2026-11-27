@@ -35,17 +35,17 @@ relayers = [
   "0xbc50b7afa29e9f9eb8b81463dce9af9e549b0fa3", # relayer-node-taiwan-02
 ]
 
-[bootstrap.exits.GVPN-Bootstrap-1-DC-Amsterdam]
+[bootstrap.exits.Amsterdam-Datacenter-BS1]
 address = "0xc9a0ab0f96608b4da489321003070fda0d45f4ac" # exit-node-amsterdam-01
 
-[bootstrap.exits.GVPN-Bootstrap-2-DC-Iowa]
+[bootstrap.exits.Iowa-Datacenter-BS2]
 address = "0xd61cb773673dcfe622872f1c7d9965639d6f8f45" # exit-node-iowa-01
 
-[bootstrap.exits.GVPN-Bootstrap-3-DC-Sao-Paulo]
+[bootstrap.exits.Sao-Paulo-Datacenter-BS3]
 address = "0x58c501cd041dc73aaa111389c8fea41ae45d4e46" # exit-node-saopaulo-01
 
-[bootstrap.exits.GVPN-Bootstrap-4-DC-Singapore]
+[bootstrap.exits.Singapore-Datacenter-BS4]
 address = "0xab17ba36a8cee4062554d050522bc8b0f541c385" # exit-node-singapore-01
 
-[bootstrap.exits.GVPN-Bootstrap-5-DC-Taiwan]
+[bootstrap.exits.Taiwan-Datacenter-BS5]
 address = "0xf68b0b430290a2a49483c5239a61f4e92d469a7f" # exit-node-taiwan-01
