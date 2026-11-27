@@ -43,24 +43,23 @@ __NETWORK_PKG_REF_IDS__
             return true;
         }
 
-        // Radio-style groups. Installer keeps a click on the clicked choice and re-evaluates only the others,
-        // so a member stays ticked only while no other member is: ticking another one unticks it.
-        // Unticking the pick empties the group only when allowNone is true; otherwise the first member
-        // re-evaluated takes over (for two members, the other one).
-        function exclusiveSelected(selfId, groupIds, allowNone) {
+        // Radio-style groups: Installer keeps a click on the clicked choice and re-evaluates only the others.
+        function exclusiveSelected(selfId, groupIds) {
             for (var i = 0; i < groupIds.length; i++) {
                 var other = groupIds[i];
                 if (other !== selfId && choices[other] && choices[other].selected) {
                     return false;
                 }
             }
-            return allowNone ? my.choice.selected : true;
+            return true;
         }
 
-        // An installed service can be kept as is (postinstall keep mode), so only then may no network be ticked.
-        function hasServiceSetup() {
-            return system.files.fileExistsAtPath('/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist')
-                && system.files.fileExistsAtPath('/etc/gnosisvpn/config.toml');
+        // Starts on the previous install's pick (written by postinstall), else on the group's first member.
+        function startSelected(group, selfId, groupIds) {
+            var installed = system.files.plistAtPath('/Library/Application Support/GnosisVPN/installer/installed.plist');
+            var pick = installed ? installed[group] : null;
+            var isKnownPick = groupIds.indexOf(pick) >= 0;
+            return selfId === (isKnownPick ? pick : groupIds[0]);
         }
     ]]></script>
 
@@ -102,12 +101,12 @@ __NETWORK_CHOICE_LINES__
     <!-- Network selection choice (parent group) -->
     <choice id="network"
             title="HOPR Network"
-            description="Select the HOPR network for your VPN destinations. On an installed Mac, untick the selected network to keep the current network and service setup unchanged."
+            description="Select the HOPR network configuration for your VPN destinations"
             visible="true"
             enabled="true">
     </choice>
 
-    <!-- Network sub-choices, radio-style with the first pre-selected; rendered by render_distribution_xml -->
+    <!-- Network sub-choices, radio-style, starting on the installed pick; rendered by render_distribution_xml -->
 __NETWORK_CHOICES__
 
     <!-- Service mode selection choice (parent group) -->
@@ -124,8 +123,8 @@ __NETWORK_CHOICES__
             description="Install with standard logging configuration"
             visible="true"
             enabled="true"
-            selected="exclusiveSelected('info', ['info','debug'], false)"
-            start_selected="true">
+            selected="exclusiveSelected('info', ['info','debug'])"
+            start_selected="startSelected('loglevel', 'info', ['info','debug'])">
         <pkg-ref id="com.gnosisvpn.choice.loglevel.info"/>
     </choice>
 
@@ -135,8 +134,8 @@ __NETWORK_CHOICES__
             description="Install with debug logging enabled - useful for troubleshooting"
             visible="true"
             enabled="true"
-            selected="exclusiveSelected('debug', ['info','debug'], false)"
-            start_selected="false">
+            selected="exclusiveSelected('debug', ['info','debug'])"
+            start_selected="startSelected('loglevel', 'debug', ['info','debug'])">
         <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"/>
     </choice>
 

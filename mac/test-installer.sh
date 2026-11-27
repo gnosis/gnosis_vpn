@@ -239,12 +239,12 @@ test_file_syntax() {
             run_test "Rendered Distribution XML offers network '${network}'" \
                 "grep -q 'choice-network-${network}.pkg' '$dist_xml_built'"
         done
-        # One pre-selected network plus one pre-selected log level.
-        run_test "Rendered Distribution XML pre-selects exactly two choices" \
-            "[[ \"\$(grep -c 'start_selected=\"true\"' '$dist_xml_built')\" == '2' ]]"
-        # Every network and log level is a radio-group member (behaviour: test_choice_groups).
-        run_test "Rendered Distribution XML makes every network and log level a radio choice" \
-            "[[ \"\$(grep -c 'selected=\"exclusiveSelected(' '$dist_xml_built')\" == '$((${#NETWORKS[@]} + 2))' ]]"
+        # Every network and log level starts on the installed pick and switches radio-style (behaviour: test_choice_groups).
+        local choice_count=$((${#NETWORKS[@]} + 2))
+        run_test "Rendered Distribution XML starts every choice on the installed pick" \
+            "[[ \"\$(grep -c 'start_selected=\"startSelected(' '$dist_xml_built')\" == '${choice_count}' ]]"
+        run_test "Rendered Distribution XML makes every choice a radio choice" \
+            "[[ \"\$(grep -c 'selected=\"exclusiveSelected(' '$dist_xml_built')\" == '${choice_count}' ]]"
     else
         log_test "Skipping rendered Distribution.xml checks (build/Distribution.xml not found)"
     fi
@@ -282,17 +282,23 @@ test_file_syntax() {
     echo ""
 }
 
-# 4. Choice groups, run through the Installer engine
-# -showChoicesAfterApplyingChangesXML runs the package's Distribution JavaScript on simulated clicks and
-# prints every choice's state; nothing is installed and no root is needed.
-SERVICE_PLIST="/Library/LaunchDaemons/com.gnosisvpn.gnosisvpnclient.plist"
-CHOICE_DIR="/Library/Application Support/GnosisVPN/installer"
+# 4. Choice groups: -showChoicesAfterApplyingChangesXML runs the Distribution JavaScript without installing or root
+INSTALLED_CHOICES="/Library/Application Support/GnosisVPN/installer/installed.plist"
 CHOICES_PKG=""
 CHOICES_WORK=""
 
-# Mirrors hasServiceSetup() in Distribution.xml: only then may the network group be left empty.
-has_service_setup() {
-    [[ -f $SERVICE_PLIST && -f /etc/gnosisvpn/config.toml ]]
+# Mirrors startSelected() in Distribution.xml: the previous install's pick, else the group's first member.
+start_pick() {
+    local group="$1" pick member
+    shift
+    pick="$(/usr/libexec/PlistBuddy -c "Print :${group}" "$INSTALLED_CHOICES" 2>/dev/null)"
+    for member in "$@"; do
+        if [[ $member == "$pick" ]]; then
+            echo "$pick"
+            return 0
+        fi
+    done
+    echo "$1"
 }
 
 sorted() {
@@ -346,86 +352,26 @@ test_choice_groups() {
     fi
     CHOICES_WORK="$(mktemp -d -t gnosis-choices.XXXXXX)"
 
-    local default="${NETWORKS[0]}" last="${NETWORKS[${#NETWORKS[@]} - 1]}" network
-    assert_selected "Defaults to ${default} and Standard Mode" "$(sorted "$default" info)"
-    for network in "${NETWORKS[@]:1}"; do
-        assert_selected "Ticking ${network} unticks ${default}" "$(sorted "$network" info)" "${network}:1"
+    local start_network start_loglevel other_loglevel network
+    start_network="$(start_pick network "${NETWORKS[@]}")"
+    start_loglevel="$(start_pick loglevel info debug)"
+    other_loglevel=debug
+    [[ $start_loglevel == info ]] || other_loglevel=info
+
+    assert_selected "Starts on ${start_network} and ${start_loglevel}" "$(sorted "$start_network" "$start_loglevel")"
+    for network in "${NETWORKS[@]}"; do
+        [[ $network != "$start_network" ]] || continue
+        assert_selected "Ticking ${network} unticks ${start_network}" "$(sorted "$network" "$start_loglevel")" "${network}:1"
+        assert_selected "Ticking ${network} then ${start_network} switches back" \
+            "$(sorted "$start_network" "$start_loglevel")" "${network}:1" "${start_network}:1"
     done
-    if [[ ${#NETWORKS[@]} -ge 2 ]]; then
-        assert_selected "Ticking ${last} then ${default} switches back" "$(sorted "$default" info)" \
-            "${last}:1" "${default}:1"
-    fi
-    if [[ ${#NETWORKS[@]} -ge 3 ]]; then
-        assert_selected "Ticking ${NETWORKS[1]} then ${last} ends on ${last}" "$(sorted "$last" info)" \
-            "${NETWORKS[1]}:1" "${last}:1"
-    fi
 
-    assert_selected "Ticking Debug Mode unticks Standard Mode" "$(sorted "$default" debug)" debug:1
-    assert_selected "Ticking Debug then Standard Mode switches back" "$(sorted "$default" info)" debug:1 info:1
-    assert_selected "Unticking Standard Mode switches to Debug Mode" "$(sorted "$default" debug)" info:0
-
-    if has_service_setup; then
-        assert_selected "Unticking ${default} on an installed Mac leaves no network (keep setup)" "info" "${default}:0"
-    elif [[ ${#NETWORKS[@]} -ge 2 ]]; then
-        local left id ticked=0
-        left="$(selected_choices "${default}:0")"
-        for id in $left; do
-            [[ $id == info ]] || ticked=$((ticked + 1))
-        done
-        run_test "Unticking ${default} without an installed service keeps one network ticked (got: ${left:-nothing})" \
-            "[[ ${ticked} -eq 1 ]]"
-    else
-        log_test "Skipping untick check (a single network and no installed service to keep)"
-    fi
+    assert_selected "Ticking ${other_loglevel} unticks ${start_loglevel}" \
+        "$(sorted "$start_network" "$other_loglevel")" "${other_loglevel}:1"
+    assert_selected "Unticking ${start_loglevel} switches to ${other_loglevel}" \
+        "$(sorted "$start_network" "$other_loglevel")" "${start_loglevel}:0"
 
     rm -rf "$CHOICES_WORK"
-}
-
-# 5. Install with no network ticked (opt-in: really installs)
-# Needs root and an installed Gnosis VPN: GNOSISVPN_E2E=1 sudo -E mac/test-installer.sh
-hopr_state() {
-    shasum -a 256 "$SERVICE_PLIST" /etc/gnosisvpn/*.toml 2>&1
-    echo "config.toml -> $(readlink /etc/gnosisvpn/config.toml 2>&1)"
-    [[ -e "/Library/Application Support/GnosisVPN/network-switch-pending" ]] && echo "network switch pending"
-    launchctl print-disabled system 2>/dev/null | grep '"com.gnosisvpn.gnosisvpnclient"' || true
-}
-
-test_keep_service_setup() {
-    if [[ ${GNOSISVPN_E2E:-} != 1 ]]; then
-        log_test "Skipping keep-setup install test (set GNOSISVPN_E2E=1 and run as root on a Mac with Gnosis VPN installed)"
-        return 0
-    fi
-    log_info "Testing that an install with no network ticked keeps the service setup..."
-
-    local pkg
-    pkg=$(find "${BUILD_DIR}/packages" -name "gnosisvpn_*_*.pkg" -print -quit 2>/dev/null)
-    run_test "Keep-setup test runs as root" '[[ $EUID -eq 0 ]]' || return 0
-    run_test "Keep-setup test has a distribution package" "[[ -n '${pkg}' ]]" || return 0
-    run_test "Keep-setup test has an installed service setup to keep" "has_service_setup" || return 0
-
-    local work network clicks=()
-    work="$(mktemp -d -t gnosis-keep-setup.XXXXXX)"
-    for network in "${NETWORKS[@]}"; do
-        clicks+=("${network}:0")
-    done
-    write_choice_changes "${work}/changes.plist" "${clicks[@]}"
-    hopr_state >"${work}/before"
-
-    run_test "Install with no network ticked succeeds" \
-        "installer -pkg '${pkg}' -target / -applyChoiceChangesXML '${work}/changes.plist' >'${work}/install.log' 2>&1"
-    hopr_state >"${work}/after"
-    run_test "LaunchDaemon plist, config.toml and network configs are unchanged" \
-        "diff '${work}/before' '${work}/after'"
-    run_test "Postinstall ran in keep mode" "grep -q 'Network: kept' /Library/Logs/GnosisVPN/installer/installer.log"
-    run_test "Choice files are consumed" \
-        "[[ ! -e '${CHOICE_DIR}/network_choice' && ! -e '${CHOICE_DIR}/loglevel_choice' ]]"
-    if grep -q '=> \(disabled\|true\)' "${work}/before"; then
-        run_test "Disabled service stays unloaded" "! launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1"
-    else
-        run_test "Service is loaded again" "launchctl print system/com.gnosisvpn.gnosisvpnclient >/dev/null 2>&1"
-    fi
-
-    rm -rf "$work"
 }
 
 # Report
@@ -454,7 +400,6 @@ main() {
     test_signing
     test_file_syntax
     test_choice_groups
-    test_keep_service_setup
     print_summary
 }
 

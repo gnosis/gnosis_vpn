@@ -48,11 +48,8 @@ The installer scripts support these environment variables:
 - `INSTALLER_CHOICE_LOGLEVEL`: Log level service mode ( "debug" or "info", default: "info")
 
 The network and log-level groups in the installer's Customize pane work like radio buttons: ticking another option
-unticks the current one. On a Mac that already has the service installed (the LaunchDaemon plist and
-`/etc/gnosisvpn/config.toml`), unticking the selected network leaves the group empty. `postinstall` then keeps the
-installed setup as it is: it doesn't rewrite the plist, `config.toml`, the network configs or identities, and only
-restarts the service so it runs the new binaries. Each choice package writes its file on that run only, and
-`postinstall` deletes the files after reading them.
+unticks the current one. Both start on the previous install's choices, which `postinstall` records in
+`/Library/Application Support/GnosisVPN/installer/installed.plist`, so clicking through an update keeps them.
 
 ### Installation Locations
 
