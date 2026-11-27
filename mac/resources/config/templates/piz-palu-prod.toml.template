@@ -18,3 +18,34 @@ min_paths_anonymity_floor = 3
 num_ssa_parts = 4096
 ssa_part_size = 32
 additional_shares = 79
+
+# Bootstrap mode: a fixed node set the app can switch to; none of it is in the gvpn:exit registry.
+[bootstrap]
+# The client keeps channels only to these relay nodes.
+relayers = [
+  "0x2598c0773e3fa07437de329737d3e1a18f272e8f", # relayer-node-amsterdam-01
+  "0x6cc978516dfe8f007bfaf1736b33fb9e6c7f7e2f", # relayer-node-amsterdam-02
+  "0x7c7101fdcd90c0266a615a0f8a5ab8fed59d0a53", # relayer-node-iowa-01
+  "0x04954b754a54255b72c87cd6e849deb7e67be507", # relayer-node-iowa-02
+  "0x6597deb195a8b84c2a18535ff2d211783892d4ed", # relayer-node-saopaulo-01
+  "0xcd4f2963d114f522bf427b3da457b36957dddf4c", # relayer-node-saopaulo-02
+  "0x3c1380d82322ecd99ee0b4c8eaf3ff01893a207f", # relayer-node-singapore-01
+  "0x444b0bde86939db737a4e677de246929063863d7", # relayer-node-singapore-02
+  "0xf8126075d8c0cea57a454ed29d6c717db4839393", # relayer-node-taiwan-01
+  "0xbc50b7afa29e9f9eb8b81463dce9af9e549b0fa3", # relayer-node-taiwan-02
+]
+
+[bootstrap.exits.Amsterdam-Datacenter]
+address = "0xc9a0ab0f96608b4da489321003070fda0d45f4ac" # exit-node-amsterdam-01
+
+[bootstrap.exits.Iowa-Datacenter]
+address = "0xd61cb773673dcfe622872f1c7d9965639d6f8f45" # exit-node-iowa-01
+
+[bootstrap.exits.Sao-Paulo-Datacenter]
+address = "0x58c501cd041dc73aaa111389c8fea41ae45d4e46" # exit-node-saopaulo-01
+
+[bootstrap.exits.Singapore-Datacenter]
+address = "0xab17ba36a8cee4062554d050522bc8b0f541c385" # exit-node-singapore-01
+
+[bootstrap.exits.Taiwan-Datacenter]
+address = "0xf68b0b430290a2a49483c5239a61f4e92d469a7f" # exit-node-taiwan-01
