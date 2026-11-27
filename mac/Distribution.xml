@@ -17,7 +17,7 @@ __NETWORK_PKG_REF_IDS__
     <!-- Keep x86_64 enabled so Intel Macs can see the requirements dialog. -->
     <options customize="allow" require-scripts="false" hostArchitectures="x86_64,arm64"/>
 
-    <!-- JavaScript for system requirement checks and mutual exclusion -->
+    <!-- JavaScript for system requirement checks and radio-style choice groups -->
     <script><![CDATA[
         function installationCheck() {
             // Check architecture first so Intel users aren't told to update macOS.
@@ -43,15 +43,8 @@ __NETWORK_PKG_REF_IDS__
             return true;
         }
 
-        function exclusiveEnabled(selfId, groupIds) {
-            if (!choices[selfId]) {
-                return true;
-            }
-
-            if (choices[selfId].selected) {
-                return true;
-            }
-
+        // Radio-style groups: Installer keeps a click on the clicked choice and re-evaluates only the others.
+        function exclusiveSelected(selfId, groupIds) {
             for (var i = 0; i < groupIds.length; i++) {
                 var other = groupIds[i];
                 if (other !== selfId && choices[other] && choices[other].selected) {
@@ -59,6 +52,14 @@ __NETWORK_PKG_REF_IDS__
                 }
             }
             return true;
+        }
+
+        // Starts on the previous install's pick (written by postinstall), else on the group's first member.
+        function startSelected(group, selfId, groupIds) {
+            var installed = system.files.plistAtPath('/Library/Application Support/GnosisVPN/installer/installed.plist');
+            var pick = installed ? installed[group] : null;
+            var isKnownPick = groupIds.indexOf(pick) >= 0;
+            return selfId === (isKnownPick ? pick : groupIds[0]);
         }
     ]]></script>
 
@@ -105,7 +106,7 @@ __NETWORK_CHOICE_LINES__
             enabled="true">
     </choice>
 
-    <!-- Network sub-choices, mutually exclusive with the first pre-selected; rendered by render_distribution_xml -->
+    <!-- Network sub-choices, radio-style, starting on the installed pick; rendered by render_distribution_xml -->
 __NETWORK_CHOICES__
 
     <!-- Service mode selection choice (parent group) -->
@@ -121,8 +122,9 @@ __NETWORK_CHOICES__
             title="Standard Mode"
             description="Install with standard logging configuration"
             visible="true"
-            enabled="exclusiveEnabled('info', ['debug','info'])"
-            start_selected="true">
+            enabled="true"
+            selected="exclusiveSelected('info', ['info','debug'])"
+            start_selected="startSelected('loglevel', 'info', ['info','debug'])">
         <pkg-ref id="com.gnosisvpn.choice.loglevel.info"/>
     </choice>
 
@@ -131,8 +133,9 @@ __NETWORK_CHOICES__
             title="Debug Mode"
             description="Install with debug logging enabled - useful for troubleshooting"
             visible="true"
-            start_selected="false"
-            enabled="exclusiveEnabled('debug', ['debug','info'])">
+            enabled="true"
+            selected="exclusiveSelected('debug', ['info','debug'])"
+            start_selected="startSelected('loglevel', 'debug', ['info','debug'])">
         <pkg-ref id="com.gnosisvpn.choice.loglevel.debug"/>
     </choice>
 

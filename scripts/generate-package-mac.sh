@@ -515,7 +515,7 @@ render_distribution_xml() {
     # Re-validated because this function is also called directly by tests and ad-hoc renders.
     validate_network_names "${GNOSISVPN_NETWORKS}" || exit 1
 
-    # Mutual-exclusion group for the XML's exclusiveEnabled() helper, e.g. 'jura-prod','jura-dev'.
+    # Radio group for the XML's exclusiveSelected() helper, e.g. 'jura-prod','jura-dev'.
     local group="" network
     for network in "${networks[@]}"; do
         group="${group:+${group},}${sq}${network}${sq}"
@@ -530,13 +530,11 @@ render_distribution_xml() {
     : >"$frag_choices"
     : >"$frag_refs"
 
-    local idx=0 title selected
+    local idx=0 title
     for network in "${networks[@]}"; do
         title="$(network_title "$network")"
-        selected="false"
-        if [[ $idx -eq 0 ]]; then
-            selected="true"
-            [[ ${#networks[@]} -eq 1 ]] || title="${title} (Recommended)"
+        if [[ $idx -eq 0 && ${#networks[@]} -gt 1 ]]; then
+            title="${title} (Recommended)"
         fi
 
         printf '    <pkg-ref id="com.gnosisvpn.choice.network.%s"/>\n' "$network" >>"$frag_ids"
@@ -549,8 +547,9 @@ render_distribution_xml() {
             title="${title}"
             description="$(network_description "$network")"
             visible="true"
-            enabled="exclusiveEnabled(${sq}${network}${sq}, [${group}])"
-            start_selected="${selected}">
+            enabled="true"
+            selected="exclusiveSelected(${sq}${network}${sq}, [${group}])"
+            start_selected="startSelected(${sq}network${sq}, ${sq}${network}${sq}, [${group}])">
         <pkg-ref id="com.gnosisvpn.choice.network.${network}"/>
     </choice>
 EOF

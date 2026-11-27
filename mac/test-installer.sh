@@ -239,9 +239,12 @@ test_file_syntax() {
             run_test "Rendered Distribution XML offers network '${network}'" \
                 "grep -q 'choice-network-${network}.pkg' '$dist_xml_built'"
         done
-        # One pre-selected network plus one pre-selected log level.
-        run_test "Rendered Distribution XML pre-selects exactly two choices" \
-            "[[ \"\$(grep -c 'start_selected=\"true\"' '$dist_xml_built')\" == '2' ]]"
+        # Every network and log level starts on the installed pick and switches radio-style (behaviour: test_choice_groups).
+        local choice_count=$((${#NETWORKS[@]} + 2))
+        run_test "Rendered Distribution XML starts every choice on the installed pick" \
+            "[[ \"\$(grep -c 'start_selected=\"startSelected(' '$dist_xml_built')\" == '${choice_count}' ]]"
+        run_test "Rendered Distribution XML makes every choice a radio choice" \
+            "[[ \"\$(grep -c 'selected=\"exclusiveSelected(' '$dist_xml_built')\" == '${choice_count}' ]]"
     else
         log_test "Skipping rendered Distribution.xml checks (build/Distribution.xml not found)"
     fi
@@ -279,6 +282,98 @@ test_file_syntax() {
     echo ""
 }
 
+# 4. Choice groups: -showChoicesAfterApplyingChangesXML runs the Distribution JavaScript without installing or root
+INSTALLED_CHOICES="/Library/Application Support/GnosisVPN/installer/installed.plist"
+CHOICES_PKG=""
+CHOICES_WORK=""
+
+# Mirrors startSelected() in Distribution.xml: the previous install's pick, else the group's first member.
+start_pick() {
+    local group="$1" pick member
+    shift
+    pick="$(/usr/libexec/PlistBuddy -c "Print :${group}" "$INSTALLED_CHOICES" 2>/dev/null)"
+    for member in "$@"; do
+        if [[ $member == "$pick" ]]; then
+            echo "$pick"
+            return 0
+        fi
+    done
+    echo "$1"
+}
+
+sorted() {
+    printf '%s\n' "$@" | sort | paste -sd ' ' -
+}
+
+# Writes the clicks ("<choice id>:<1|0>", applied in order) as a choiceChanges plist.
+write_choice_changes() {
+    local file="$1" i=0 change
+    shift
+    printf '<plist version="1.0"><array/></plist>' | plutil -convert xml1 -o "$file" -
+    for change in "$@"; do
+        plutil -insert "$i" -dictionary "$file"
+        plutil -insert "$i.choiceIdentifier" -string "${change%:*}" "$file"
+        plutil -insert "$i.choiceAttribute" -string selected "$file"
+        plutil -insert "$i.attributeSetting" -integer "${change##*:}" "$file"
+        i=$((i + 1))
+    done
+}
+
+# The network and log-level choices left ticked after the clicks, sorted.
+selected_choices() {
+    write_choice_changes "${CHOICES_WORK}/changes.plist" "$@"
+    installer -pkg "$CHOICES_PKG" -target / -showChoicesAfterApplyingChangesXML "${CHOICES_WORK}/changes.plist" \
+        >"${CHOICES_WORK}/choices.plist" || return 1
+    local n=0 id attribute setting
+    while id="$(/usr/libexec/PlistBuddy -c "Print :${n}:choiceIdentifier" "${CHOICES_WORK}/choices.plist" 2>/dev/null)"; do
+        attribute="$(/usr/libexec/PlistBuddy -c "Print :${n}:choiceAttribute" "${CHOICES_WORK}/choices.plist")"
+        setting="$(/usr/libexec/PlistBuddy -c "Print :${n}:attributeSetting" "${CHOICES_WORK}/choices.plist")"
+        if [[ $attribute == selected && $setting == 1 && " ${NETWORKS[*]} info debug " == *" ${id} "* ]]; then
+            echo "$id"
+        fi
+        n=$((n + 1))
+    done | sort | paste -sd ' ' -
+}
+
+assert_selected() {
+    local name="$1" expected="$2" actual
+    shift 2
+    actual="$(selected_choices "$@")"
+    run_test "${name} (got: ${actual:-nothing})" "[[ '${actual}' == '${expected}' ]]"
+}
+
+test_choice_groups() {
+    log_info "Testing installer choice groups through the Installer engine..."
+
+    CHOICES_PKG=$(find "${BUILD_DIR}/packages" -name "gnosisvpn_*_*.pkg" -print -quit 2>/dev/null)
+    if [[ -z $CHOICES_PKG ]]; then
+        log_test "Skipping choice group tests (distribution package not found)"
+        return 0
+    fi
+    CHOICES_WORK="$(mktemp -d -t gnosis-choices.XXXXXX)"
+
+    local start_network start_loglevel other_loglevel network
+    start_network="$(start_pick network "${NETWORKS[@]}")"
+    start_loglevel="$(start_pick loglevel info debug)"
+    other_loglevel=debug
+    [[ $start_loglevel == info ]] || other_loglevel=info
+
+    assert_selected "Starts on ${start_network} and ${start_loglevel}" "$(sorted "$start_network" "$start_loglevel")"
+    for network in "${NETWORKS[@]}"; do
+        [[ $network != "$start_network" ]] || continue
+        assert_selected "Ticking ${network} unticks ${start_network}" "$(sorted "$network" "$start_loglevel")" "${network}:1"
+        assert_selected "Ticking ${network} then ${start_network} switches back" \
+            "$(sorted "$start_network" "$start_loglevel")" "${network}:1" "${start_network}:1"
+    done
+
+    assert_selected "Ticking ${other_loglevel} unticks ${start_loglevel}" \
+        "$(sorted "$start_network" "$other_loglevel")" "${other_loglevel}:1"
+    assert_selected "Unticking ${start_loglevel} switches to ${other_loglevel}" \
+        "$(sorted "$start_network" "$other_loglevel")" "${start_loglevel}:0"
+
+    rm -rf "$CHOICES_WORK"
+}
+
 # Report
 print_summary() {
     echo "=========================================="
@@ -304,6 +399,7 @@ main() {
     test_build_structure
     test_signing
     test_file_syntax
+    test_choice_groups
     print_summary
 }
 

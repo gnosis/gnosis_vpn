@@ -47,6 +47,10 @@ The installer scripts support these environment variables:
   instead, whatever was chosen (see [Moving off a replaced network](#moving-off-a-replaced-network-jura--piz-palu)).
 - `INSTALLER_CHOICE_LOGLEVEL`: Log level service mode ( "debug" or "info", default: "info")
 
+The network and log-level groups in the installer's Customize pane work like radio buttons: ticking another option
+unticks the current one. Both start on the previous install's choices, which `postinstall` records in
+`/Library/Application Support/GnosisVPN/installer/installed.plist`, so clicking through an update keeps them.
+
 ### Installation Locations
 
 After installation, files are located at:

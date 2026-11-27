@@ -416,6 +416,30 @@ update_binary() {
     fi
 }
 
+# Distribution.xml's start_selected reads it, so the next GUI or updater run starts on this install's choices.
+save_installed_choices() {
+    local choice_dir="${INSTALLED_LIB_DIR_PATH}/installer"
+    local file="${choice_dir}/installed.plist"
+    mkdir -p "$choice_dir"
+    rm -f "$file"
+    cat >"$file" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>network</key>
+    <string>${INSTALLER_CHOICE_NETWORK}</string>
+    <key>loglevel</key>
+    <string>${INSTALLER_CHOICE_LOGLEVEL}</string>
+</dict>
+</plist>
+EOF
+    # World-readable: the Installer runs the Distribution JavaScript as the user.
+    chmod 644 "$file"
+    chown root:wheel "$file"
+    log_info "Installer choices saved for the next install: ${INSTALLER_CHOICE_NETWORK}, ${INSTALLER_CHOICE_LOGLEVEL}"
+}
+
 # Save current installation version
 
 save_version_info() {
@@ -1628,6 +1652,7 @@ main() {
     # Only once nothing can roll back: a rolled-back config.toml and the old app a rollback leaves still need these.
     remove_legacy_sudoers
     remove_retired_configs
+    save_installed_choices
 
     # Save version information. Must stay after every step that can fail:
     # a failed install would otherwise leave version.txt claiming the new
